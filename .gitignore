@@ -1,0 +1,42 @@
+# Secrets — never committed (CLAUDE.md Security Requirements)
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+*.tsbuildinfo
+
+# React Native
+.expo/
+android/app/build/
+android/build/
+android/.gradle/
+ios/Pods/
+ios/build/
+*.keystore
+!debug.keystore
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Logs & coverage
+*.log
+npm-debug.log*
+yarn-error.log*
+coverage/
