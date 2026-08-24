@@ -1,0 +1,53 @@
+{
+  "name": "@finance/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"src/**/*.test.ts\"",
+    "export": "expo export --platform android --output-dir .export"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.12",
+    "@finance/contracts": "*",
+    "@hookform/resolvers": "^5.9.1",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-masked-view/masked-view": "0.3.2",
+    "@react-navigation/bottom-tabs": "^7.18.17",
+    "@react-navigation/native": "^7.3.17",
+    "@react-navigation/native-stack": "^7.18.9",
+    "@tanstack/react-query": "^5.101.4",
+    "axios": "^1.19.0",
+    "expo": "~57.0.15",
+    "expo-auth-session": "~57.0.8",
+    "expo-crypto": "~57.0.1",
+    "expo-linking": "~57.0.7",
+    "expo-localization": "~57.0.1",
+    "expo-secure-store": "~57.0.1",
+    "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.2",
+    "expo-web-browser": "~57.0.2",
+    "i18next": "^26.4.0",
+    "lucide-react-native": "^1.33.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-hook-form": "^7.86.0",
+    "react-i18next": "^17.0.12",
+    "react-native": "0.86.2",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "~0.21.0",
+    "zod": "^3.24.1",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.0",
+    "typescript": "^5.7.2"
+  }
+}

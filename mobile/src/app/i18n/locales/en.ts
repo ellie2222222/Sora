@@ -1,0 +1,91 @@
+/**
+ * English strings. Keys are grouped by feature, matching the screens under
+ * src/features/ — a translator working on "transactions" only ever needs this
+ * one block, not the whole file.
+ */
+const en = {
+  common: {
+    save: 'Save',
+    cancel: 'Cancel',
+    delete: 'Delete',
+    edit: 'Edit',
+    rename: 'Rename',
+    archive: 'Archive',
+    done: 'Done',
+    loading: 'Loading…',
+    retry: 'Retry',
+    confirm: 'Confirm',
+    yes: 'Yes',
+    no: 'No',
+    ok: 'OK',
+    error: 'Something went wrong',
+    tryAgain: 'Try again',
+    optional: 'Optional',
+    all: 'All',
+    close: 'Close',
+  },
+  nav: {
+    home: 'Home',
+    transactions: 'Transactions',
+    add: 'Add',
+    budgets: 'Budgets',
+    goals: 'Goals',
+  },
+  auth: {
+    loginTitle: 'Welcome back',
+    loginSubtitle: 'Sign in to your wallets',
+    registerTitle: 'Create your account',
+    registerSubtitle: 'Track money for yourself, and for the people you look after',
+    emailLabel: 'Email',
+    passwordLabel: 'Password',
+    displayNameLabel: 'Your name',
+    loginButton: 'Sign in',
+    registerButton: 'Create account',
+    noAccount: "Don't have an account?",
+    hasAccount: 'Already have an account?',
+    goToRegister: 'Create one',
+    goToLogin: 'Sign in',
+    orDivider: 'or',
+    continueWithGoogle: 'Continue with Google',
+    googleSignInFailed: 'Google sign-in was cancelled or failed',
+  },
+  settings: {
+    title: 'Settings',
+    appearance: 'Appearance',
+    theme: 'Theme',
+    language: 'Language',
+    account: 'Account',
+    signedInAs: 'Signed in as',
+    logout: 'Log out',
+    logoutConfirmTitle: 'Log out?',
+    logoutConfirmBody: "You'll need to sign in again to see your wallets.",
+    themeNames: {
+      obsidian: 'Obsidian',
+      quartz: 'Quartz',
+      sage: 'Sage',
+      terracotta: 'Terracotta',
+      violet: 'Violet',
+    },
+    languageNames: {
+      en: 'English',
+      vi: 'Tiếng Việt',
+    },
+  },
+  home: {
+    greeting: 'Hello, {{name}}',
+    totalBalance: 'Total balance',
+    income: 'Income',
+    expenses: 'Expenses',
+    spendingByCategory: 'Spending by category',
+    recentTransactions: 'Recent transactions',
+    viewAll: 'View all',
+    noTransactionsYet: 'No transactions yet.',
+    noWalletTitle: 'No wallet yet',
+    noWalletDescription: 'Create a wallet to start tracking money.',
+    crossWallet: 'cross-wallet',
+    wallets: 'Wallets',
+  },
+};
+
+export default en;
+export type TranslationResource = typeof en;

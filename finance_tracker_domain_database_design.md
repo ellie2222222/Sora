@@ -4,17 +4,21 @@
 
 This document defines the domain model, ERD, database schema, constraints, indexes, and core business rules for a personal finance tracker where a wallet can be shared across real users — tracking your own money and a friend's/family's/lover's money side by side, with per-user roles.
 
+> **Authority:** [`db/migrations/001_initial_wallet_schema.sql`](db/migrations/001_initial_wallet_schema.sql) is the schema. This document explains *why* it is shaped that way; where the two ever disagree, the migration is right and this file is stale. The SQL quoted below is reproduced from it, not authored here.
+
 Core entities:
 
 - User
 - Wallet
 - Wallet Member
+- Wallet Invitation
 - Account
 - Transaction
 - Category
 - Budget
 - Goal
 - Goal Contribution
+- Audit Log
 
 > **Design principle:** `Transaction` is still the central operational entity. `Wallet` is *whose* money it is (you, a partner, a family member — each a real `User`); `Account` is *where* that person's money is held; `WalletMember` is *who else* may see or act on it. Categories/budgets/goals belong to the wallet, not to whichever user is looking.
 
@@ -28,6 +32,8 @@ flowchart TB
     U -->|owns| W[Wallet]
     U -.->|granted access via| WM[Wallet Member]
     WM -.-> W
+    W --> WI[Wallet Invitation]
+    WI -.->|accepted, becomes| WM
     W --> A[Account]
     W --> C[Category]
     W --> B[Budget]
@@ -47,12 +53,14 @@ flowchart TB
 | User | A real login — you, or the friend/family/lover whose wallet you track |
 | Wallet | Represents one person's (or entity's) finances as a whole |
 | Wallet Member | Grants a user (other than the owner) a role on a wallet |
+| Wallet Invitation | A pending offer of membership, addressed to an email rather than a user |
 | Account | Represents an actual money-holding source within a wallet |
 | Transaction | Records money movement |
 | Category | Classifies income and expenses, scoped to a wallet |
 | Budget | Defines planned spending for a category/time period, scoped to a wallet |
 | Goal | Defines a financial target, scoped to a wallet |
 | Goal Contribution | Records money allocated toward a goal |
+| Audit Log | Append-only record of financial mutations and membership changes |
 
 ---
 
@@ -106,24 +114,60 @@ Grants a `User` other than the owner a role on a `Wallet` — this is what makes
 | user_id | UUID | Yes | The user being granted access |
 | role | VARCHAR(20) | Yes | OWNER, EDITOR, VIEWER |
 | relation_label | VARCHAR(50) | No | How this member refers to the wallet, e.g. "Girlfriend", "Mom" — subjective per viewer, not an attribute of the wallet itself |
-| status | VARCHAR(20) | Yes | PENDING, ACCEPTED, REVOKED |
-| invited_at | TIMESTAMPTZ | Yes | Invite timestamp |
-| accepted_at | TIMESTAMPTZ | No | When the invite was accepted |
+| status | VARCHAR(20) | Yes | ACTIVE, REVOKED |
+| joined_at | TIMESTAMPTZ | Yes | When the membership took effect |
 | created_at | TIMESTAMPTZ | Yes | Creation timestamp |
 | updated_at | TIMESTAMPTZ | Yes | Last update |
 
 Roles:
 
 ```text
-OWNER   full control: manage membership, archive/delete the wallet, everything EDITOR can do
+OWNER   full control: manage membership, archive the wallet, everything EDITOR can do
 EDITOR  create/edit accounts, categories, transactions, budgets, goals
 VIEWER  read-only
 ```
 
 Rules:
 - `(wallet_id, user_id)` is unique — one role per user per wallet.
-- Exactly one `ACCEPTED` `OWNER` row per wallet (the wallet's `owner_user_id` and that row's `user_id` must agree). Enforced with a partial unique index (§14).
-- A `WalletMember` row is visible/manageable by the wallet's OWNER, and by the member themself (to accept an invite or leave).
+- Exactly one `ACTIVE` `OWNER` row per wallet (the wallet's `owner_user_id` and that row's `user_id` must agree). Enforced with a partial unique index (§14).
+- A `WalletMember` row is visible to every member of the wallet — you can see who else can see your money — and manageable only by the OWNER, plus by the member themself to leave.
+- Removal sets `status = REVOKED` and keeps the row, so `transactions.created_by_user_id` still resolves to a name. A removed member's past entries must not become anonymous.
+
+### Why there is no PENDING status
+
+An earlier draft of this document had `status IN ('PENDING', 'ACCEPTED', 'REVOKED')` and modelled an invitation as a member row awaiting acceptance. **That is wrong, and the schema does not do it.**
+
+An invitation is addressed to an *email address*, which may have no `users` row at all — inviting someone who has not signed up yet is the normal case. A `PENDING` member row for that person would need a `NULL user_id`, and `user_id` is the column every single access check joins on. Making it nullable to model an invite weakens the foreign key that authorizes every request in the system, in exchange for avoiding one extra table.
+
+So the states collapse to `ACTIVE` and `REVOKED`: a `wallet_members` row exists only once there is a real user to point at. Pending offers live in [`wallet_invitations`](#51-wallet-invitation), keyed by email.
+
+---
+
+## 5.1 Wallet Invitation
+
+A pending offer of membership. Separate from `wallet_members` for the reason above.
+
+| Field | Type | Required | Description |
+|---|---|---:|---|
+| id | UUID | Yes | Primary key |
+| wallet_id | UUID | Yes | The wallet being shared |
+| invited_email | VARCHAR(255) | Yes | Who is being invited — may not have a `users` row yet |
+| role | VARCHAR(20) | Yes | EDITOR or VIEWER |
+| relation_label | VARCHAR(50) | No | Carried onto the member row on acceptance |
+| token_hash | TEXT | Yes | SHA-256 of the invitation token. Unique |
+| expires_at | TIMESTAMPTZ | Yes | 7 days from issue by default |
+| accepted_at | TIMESTAMPTZ | No | Set on acceptance; also marks the token spent |
+| revoked_at | TIMESTAMPTZ | No | Set on revocation |
+| created_by_user_id | UUID | Yes | The OWNER who issued it |
+| created_at | TIMESTAMPTZ | Yes | Creation timestamp |
+
+Rules:
+
+- **Only the token hash is stored.** The plaintext token is returned exactly once, in the creation response. The invitation *list* endpoint deliberately never re-emits it: doing so would turn read access to the list into the ability to join the wallet.
+- `role` is restricted to `EDITOR`/`VIEWER` by `chk_invitation_role`. Ownership is a transfer, not an additive grant, so it cannot be handed out by invitation.
+- **At most one live invitation per `(wallet_id, invited_email)`**, enforced by a partial unique index over the rows where `accepted_at IS NULL AND revoked_at IS NULL`. Re-inviting must revoke or reuse the existing one rather than stacking up tokens that all still work.
+- On acceptance the caller's own email must equal `invited_email` case-insensitively. Without that check the token would be a bearer capability — anyone who found it could join — rather than an invitation addressed to a person.
+- Acceptance creates the `wallet_members` row and sets `accepted_at` in one transaction.
 
 ---
 
@@ -371,7 +415,11 @@ erDiagram
     USER ||--o{ WALLET : owns
     USER ||--o{ WALLET_MEMBER : "granted access via"
     WALLET ||--o{ WALLET_MEMBER : shares
+    WALLET ||--o{ WALLET_INVITATION : offers
+    USER ||--o{ WALLET_INVITATION : issues
     USER ||--o{ TRANSACTION : creates
+    USER ||--o{ AUDIT_LOG : acts
+    WALLET ||--o{ AUDIT_LOG : records
 
     WALLET ||--o{ ACCOUNT : contains
     WALLET ||--o{ CATEGORY : owns
@@ -414,10 +462,37 @@ erDiagram
         varchar role
         varchar relation_label
         varchar status
-        timestamptz invited_at
-        timestamptz accepted_at
+        timestamptz joined_at
         timestamptz created_at
         timestamptz updated_at
+    }
+
+    WALLET_INVITATION {
+        uuid id PK
+        uuid wallet_id FK
+        varchar invited_email
+        varchar role
+        varchar relation_label
+        text token_hash UK
+        timestamptz expires_at
+        timestamptz accepted_at
+        timestamptz revoked_at
+        uuid created_by_user_id FK
+        timestamptz created_at
+    }
+
+    AUDIT_LOG {
+        bigserial id PK
+        uuid actor_id FK
+        uuid wallet_id FK
+        varchar event
+        varchar entity_type
+        varchar entity_id
+        varchar result
+        varchar actor_role
+        varchar note
+        varchar ip
+        timestamptz created_at
     }
 
     ACCOUNT {
@@ -513,6 +588,8 @@ erDiagram
 | User | granted access via | Wallet Member | 1:N |
 | User | creates | Transaction | 1:N |
 | Wallet | shares with | Wallet Member | 1:N |
+| Wallet | offers | Wallet Invitation | 1:N |
+| User | issues | Wallet Invitation | 1:N |
 | Wallet | contains | Account | 1:N |
 | Wallet | owns | Category | 1:N |
 | Wallet | owns | Budget | 1:N |
@@ -525,23 +602,50 @@ erDiagram
 | Goal | receives | Goal Contribution | 1:N |
 | Account | funds | Goal Contribution | 1:N |
 | Transaction | optionally supports | Goal Contribution | 1:0..1 |
+| Wallet | records | Audit Log | 1:N |
+| User | acts in | Audit Log | 1:N |
 
 ---
 
 # 14. PostgreSQL Schema
+
+Reproduced from [`db/migrations/001_initial_wallet_schema.sql`](db/migrations/001_initial_wallet_schema.sql), which is the authority. Column defaults (`gen_random_uuid()`, `NOW()`) and the `pgcrypto`/`btree_gist` extension setup are in the migration and omitted here for readability.
 
 ## Users
 
 ```sql
 CREATE TABLE users (
     id UUID PRIMARY KEY,
-    email VARCHAR(255) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL,
+    password_hash TEXT NOT NULL,
     display_name VARCHAR(100) NOT NULL,
     base_currency CHAR(3) NOT NULL,
+    email_verified_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT chk_user_currency CHECK (base_currency ~ '^[A-Z]{3}$')
+);
+
+-- Case-insensitive, so signing up as Foo@x.com collides with foo@x.com. A plain
+-- UNIQUE on the column would let both exist and leave login ambiguous.
+CREATE UNIQUE INDEX uq_users_email ON users (LOWER(email));
+```
+
+## Refresh Tokens
+
+```sql
+CREATE TABLE refresh_tokens (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```
+
+Only the hash is stored, so a database read cannot mint a session.
 
 ## Wallets
 

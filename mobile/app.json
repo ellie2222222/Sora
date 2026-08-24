@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Finance Tracker",
+    "slug": "finance-tracker",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "financetracker",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.finance.tracker"
+    },
+    "android": {
+      "package": "com.finance.tracker",
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-web-browser",
+      "expo-localization"
+    ]
+  }
+}

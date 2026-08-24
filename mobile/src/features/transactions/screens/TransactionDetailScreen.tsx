@@ -1,0 +1,88 @@
+import { useState } from 'react';
+import { View } from 'react-native';
+
+import { Button, Card, ErrorState, Money, Text } from '../../../components/index.ts';
+import { SkeletonList } from '../../../components/Skeleton.tsx';
+import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
+import { formatDay, formatTimeOfDay } from '../../../utils/date.ts';
+import { messageOf } from '../../../utils/errors.ts';
+import { useCancelTransaction, useTransaction } from '../hooks/useTransactions.ts';
+import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
+
+const TYPE_LABEL = { INCOME: 'Income', EXPENSE: 'Expense', TRANSFER: 'Transfer' } as const;
+
+export function TransactionDetailScreen({ route, navigation }: AppStackScreenProps<'TransactionDetail'>) {
+  const theme = useTheme();
+  const { transactionId } = route.params;
+
+  const transaction = useTransaction(transactionId);
+  const cancelTransaction = useCancelTransaction();
+  const [error, setError] = useState<string | null>(null);
+
+  if (transaction.isLoading) return <SkeletonList rows={3} />;
+  if (transaction.isError) return <ErrorState error={transaction.error} onRetry={() => void transaction.refetch()} />;
+
+  const data = transaction.data;
+  if (data === undefined) return null;
+
+  const canCancel = data.status === 'COMPLETED';
+
+  async function handleCancel() {
+    setError(null);
+    try {
+      await cancelTransaction.mutateAsync({ transactionId });
+      navigation.goBack();
+    } catch (submitError) {
+      setError(messageOf(submitError));
+    }
+  }
+
+  return (
+    <View style={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
+      <Card>
+        <Text variant="label" tone="muted">
+          {TYPE_LABEL[data.type]}
+          {data.isCrossWallet ? ' · Cross-wallet' : ''}
+        </Text>
+        <Money amount={data.amount} currency={data.currency} type={data.type} variant="heading" formatOptions={{ signDisplay: 'always' }} />
+
+        {data.description !== null ? <Text style={{ marginTop: theme.spacing.sm }}>{data.description}</Text> : null}
+
+        <Text tone="muted" style={{ marginTop: theme.spacing.sm }}>
+          {formatDay(data.transactionDate.slice(0, 10))} at {formatTimeOfDay(data.transactionDate)}
+        </Text>
+
+        {data.category !== null ? <Text tone="muted">Category: {data.category.name}</Text> : null}
+        {data.fromAccount !== null ? (
+          <Text tone="muted">
+            From: {data.fromAccount.name} ({data.fromAccount.walletName})
+          </Text>
+        ) : null}
+        {data.toAccount !== null ? (
+          <Text tone="muted">
+            To: {data.toAccount.name} ({data.toAccount.walletName})
+          </Text>
+        ) : null}
+        <Text tone="muted">Recorded by {data.createdBy.displayName}</Text>
+
+        {data.status === 'CANCELLED' ? (
+          <Text tone="danger" weight="semibold" style={{ marginTop: theme.spacing.sm }}>
+            Cancelled
+          </Text>
+        ) : null}
+      </Card>
+
+      {error !== null ? <Text tone="danger">{error}</Text> : null}
+
+      {canCancel ? (
+        <Button
+          testID="transaction-detail-cancel"
+          label="Cancel transaction"
+          variant="danger"
+          onPress={handleCancel}
+          loading={cancelTransaction.isPending}
+        />
+      ) : null}
+    </View>
+  );
+}

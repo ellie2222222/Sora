@@ -1,0 +1,35 @@
+import {
+  ROUTES,
+  apiUrl,
+  type CreateWalletRequest,
+  type UpdateWalletRequest,
+  type WalletResponse,
+} from '@finance/contracts';
+
+import { deleteVoid, getList, getOne, patchOne, postOne } from './client.ts';
+
+export interface WalletListQuery {
+  status?: 'ACTIVE' | 'ARCHIVED';
+  includeOwn?: boolean;
+  includeShared?: boolean;
+}
+
+export const walletsApi = {
+  async list(query: WalletListQuery = {}): Promise<WalletResponse[]> {
+    const { items } = await getList<WalletResponse>(apiUrl(ROUTES.wallets.list()), query);
+    return items;
+  },
+  detail(walletId: string): Promise<WalletResponse> {
+    return getOne<WalletResponse>(apiUrl(ROUTES.wallets.detail(walletId)));
+  },
+  create(body: CreateWalletRequest): Promise<WalletResponse> {
+    return postOne<WalletResponse>(apiUrl(ROUTES.wallets.create()), body);
+  },
+  update(walletId: string, body: UpdateWalletRequest): Promise<WalletResponse> {
+    return patchOne<WalletResponse>(apiUrl(ROUTES.wallets.update(walletId)), body);
+  },
+  /** DELETE archives rather than destroying — API spec §6.5. */
+  archive(walletId: string): Promise<void> {
+    return deleteVoid(apiUrl(ROUTES.wallets.archive(walletId)));
+  },
+};

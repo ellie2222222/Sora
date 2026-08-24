@@ -1,0 +1,32 @@
+{
+  "name": "finance-tracker",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Wallet-model finance tracker — NestJS API, React Native app, PostgreSQL",
+  "workspaces": [
+    "packages/*",
+    "api",
+    "mobile"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "npm run build --workspace @finance/contracts && npm run build --workspace @finance/api",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:reset": "node scripts/migrate.mjs --reset",
+    "db:test": "node scripts/migrate.mjs --constraints"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
+  },
+  "allowScripts": {
+    "argon2@0.41.1": true
+  }
+}
