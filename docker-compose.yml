@@ -1,60 +1,57 @@
+# Optional containerized path, alongside (not replacing) the documented npm +
+# host-Postgres workflow in CLAUDE.md/README — see the "Docker" section there
+# for when to reach for this instead.
+#
+# Postgres's host port defaults to 5433, not 5432: the documented dev workflow
+# runs Postgres 17 directly on the host at :5432, and this stack is meant to
+# run alongside that, not fight it for the port. Override POSTGRES_HOST_PORT
+# in .env if nothing is listening on 5432 and you'd rather use it directly.
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17
     container_name: finance-postgres
     environment:
-      POSTGRES_USER: finance
-      POSTGRES_PASSWORD: finance123
-      POSTGRES_DB: finance_db
+      POSTGRES_USER: ${POSTGRES_USER:-finance}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finance}
+      POSTGRES_DB: ${POSTGRES_DB:-finance_dev}
     ports:
-      - "5432:5432"
+      - '${POSTGRES_HOST_PORT:-5433}:5432'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - finance_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U finance -d finance_db"]
-      interval: 10s
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-finance}']
+      interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - finance-network
+      retries: 10
 
-  backend:
+  api:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: finance-backend
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql://finance:finance123@postgres:5432/finance_db
-    ports:
-      - "8001:8001"
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: finance-api
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
-    networks:
-      - finance-network
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: finance-frontend
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
-      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-finance}:${POSTGRES_PASSWORD:-finance}@postgres:5432/${POSTGRES_DB:-finance_dev}
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+      PORT: 3001
+      NODE_ENV: production
+      # Not defaulted or required here: api/src/config/env.ts already refuses to
+      # boot without a usable JWT_SECRET/GOOGLE_CLIENT_ID, and a `:?` guard on
+      # these would also block `docker compose build`, which never reads them.
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_ISSUER: ${JWT_ISSUER:-finance-api}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
+      INVITATION_TTL_DAYS: ${INVITATION_TTL_DAYS:-7}
+      AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-10}
+      LOGIN_FAILURE_LIMIT: ${LOGIN_FAILURE_LIMIT:-5}
+      LOGIN_LOCKOUT_MINUTES: ${LOGIN_LOCKOUT_MINUTES:-15}
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    networks:
-      - finance-network
+      - '${API_HOST_PORT:-3001}:3001'
 
 volumes:
-  postgres_data:
-
-networks:
-  finance-network:
-    driver: bridge
+  finance_postgres_data:

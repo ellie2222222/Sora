@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+**/dist
+**/.next
+.git
+.github
+docs
+mobile/.expo
+mobile/.export
+*.md
+.env
+.env.*
+!.env.example
