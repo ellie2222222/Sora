@@ -37,15 +37,15 @@ Use this checklist to verify that each feature (user story group) meets the Defi
 - [ ] Database constraints match business rules (unique indexes, foreign keys, check constraints)
 
 #### Database
-- [ ] Alembic migration created and tested locally
-- [ ] Migration is idempotent and reversible
+- [ ] SQL migration added under `db/migrations/` and applied locally via `node scripts/migrate.mjs`
+- [ ] Migration is forward-only and immutable once applied — the runner checksums each file and refuses to re-run a changed one, so a mistake needs a new migration, not an edit
 - [ ] Soft-delete columns added where applicable (`deleted_at`)
 - [ ] Indexes created on frequently queried columns (foreign keys, status, date)
 - [ ] Schema reviewed against SDS §5
 
 #### Authorization & Audit
-- [ ] `@PreAuthorize` or service-level role checks on all protected endpoints
-- [ ] Workspace scoping validated (no cross-workspace data access)
+- [ ] NestJS guards or service-level role checks on all protected endpoints
+- [ ] Wallet scoping validated (no cross-wallet data access without the required role on both sides)
 - [ ] Audit log created for all state-changing operations
 - [ ] Audit log format follows CLAUDE.md LA-02
 - [ ] Error responses include appropriate HTTP status and error code
@@ -63,7 +63,7 @@ Use this checklist to verify that each feature (user story group) meets the Defi
 - [ ] Form validation via Zod matches backend DTO validation
 - [ ] Components use shadcn/ui primitives; no custom components unless necessary
 - [ ] Icons from Lucide React only
-- [ ] State management (Redux) properly typed and initialized
+- [ ] State management (Zustand for client state, TanStack Query for server state) properly typed and initialized
 
 #### UI & UX
 - [ ] All interactive elements have stable `id` attributes (per CLAUDE.md NC-04)
@@ -99,7 +99,7 @@ Use this checklist to verify that each feature (user story group) meets the Defi
 
 ### SDS Synchronization
 - [ ] SDS §4 API specification includes actual request/response (not templates)
-- [ ] SDS §5 database schema matches Alembic migrations
+- [ ] SDS §5 database schema matches the SQL files under `db/migrations/`
 - [ ] SDS §6 feature mapping updated with actual controller/service/repository names
 - [ ] Error codes in SDS §4 API responses match implementation
 
@@ -125,11 +125,11 @@ Use this checklist to verify that each feature (user story group) meets the Defi
 - [ ] Request DTO shown with sample JSON
 - [ ] Response DTO shown with sample JSON (both success and errors)
 - [ ] HTTP status codes documented (200, 201, 400, 401, 403, 404, 409, 422, 500)
-- [ ] Error codes documented (e.g., `WORKSPACE_NOT_FOUND`, `PERMISSION_DENIED`)
+- [ ] Error codes documented (e.g., `WALLET_NOT_FOUND`, `PERMISSION_DENIED`)
 
 ### 3. Authorization Verified
 - [ ] Role validation implemented (service layer, not just controller)
-- [ ] Workspace membership validated (user belongs to workspace)
+- [ ] Wallet membership validated (user holds an `ACTIVE` role on the wallet)
 - [ ] Test confirms `403` for disallowed roles
 - [ ] Test confirms `401` for unauthenticated requests
 - [ ] Audit log created for critical operations (state changes, access denials)
@@ -212,15 +212,17 @@ Before approving the PR:
 - [ ] Code review approved
 - [ ] SRS/SDS/code are in sync
 - [ ] No merge conflicts
-- [ ] Commit message clear and descriptive
-- [ ] Database migrations tested with `docker compose down -v` and full restart
+- [ ] Commits were drafted by the `commit-messages` skill, not hand-written — see CLAUDE.md's Git section
+- [ ] No `Co-Authored-By: Claude ...`, "Generated with Claude Code", or model name anywhere in the commit messages, PR body, code comments, or docs
+- [ ] Migration tested against a disposable database (`node scripts/migrate.mjs --status` before/after) — never `docker compose down -v` or any other command that wipes real data; see CLAUDE.md's Data Safety section
+- [ ] If this PR included a verification/double-check/audit pass, it produced a `verifications/YYYY-MM-DD-slug.md` report — see CLAUDE.md's Verification Reports section
 - [ ] All Definition of Done items verified
 
 ---
 
 ## Post-Merge Deployment
 
-- [ ] Run migrations on staging: `alembic upgrade head`
+- [ ] Run migrations on staging: `node scripts/migrate.mjs`
 - [ ] Smoke test: happy path works end-to-end
 - [ ] Verify audit logs are being generated
 - [ ] Monitor error rates on dashboard
@@ -233,7 +235,8 @@ Before approving the PR:
 | Failure | Cause | Fix |
 |---------|-------|-----|
 | Tests pass locally but fail in CI | DB schema drift; migrations not applied | Run migrations; reset local DB |
-| API returns 403 but user should have access | Workspace membership check missing | Add workspace_id validation in service |
+| API returns 403 but user should have access | Wallet membership check missing | Add wallet membership/role validation in service |
+| API returns 403 for a wallet the user has no access to at all | Should be 404 — a 403 confirms the id is real (see CLAUDE.md AC-01) | Return 404 when there's no membership row; reserve 403 for "member, but role too low" |
 | Field appears in API response but SDS omits it | Docs out of sync with code | Update SDS §4 response schema |
 | Duplicate error code across endpoints | No coordination; ad-hoc error codes | Define error codes centrally in SDS §4 |
 | Frontend form validation passes but backend rejects | Zod schema mismatched with DTO | Sync both in same commit |

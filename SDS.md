@@ -1,6 +1,12 @@
 # Software Design Specification (SDS)
 
-**Personal & Family Finance Management System**
+**Sora — wallet-model finance tracker**
+
+**Last reconciled against code: 2026-08-25.** This revision replaces one written for the
+superseded *workspace* model (FastAPI + SQLAlchemy + React, two roles, multi-currency
+conversion, budget approval, bills, tag-based goal tracking). None of that exists in this
+codebase. See [SRS.md §10](SRS.md#10-migration-note-v1--v2) for the full v1→v2 change list this
+document now follows.
 
 ---
 
@@ -15,7 +21,7 @@
 2. [Technical Domain Model (TDM)](#2-technical-domain-model-tdm)
 3. [UI Design](#3-ui-design)
    - [3.1 UI/UX Principles](#31-uiux-principles)
-   - [3.2 Wireframes and Layouts](#32-wireframes-and-layouts)
+   - [3.2 Screens](#32-screens)
 4. [System Architecture](#4-system-architecture)
 5. [API Specification](#5-api-specification)
 6. [API Index and Error Response Catalog](#6-api-index-and-error-response-catalog)
@@ -30,340 +36,341 @@
 
 ### 1.1 Purpose
 
-This Software Design Specification (SDS) defines the technical architecture, design patterns, API contracts, database schema, and implementation strategy for the Personal & Family Finance Management System. The SDS translates the SRS requirements into concrete technical decisions and provides guidance for developers, testers, and operators.
+This Software Design Specification (SDS) defines the technical architecture, API contracts,
+database schema, and story-to-implementation mapping for the wallet-model finance tracker. It
+translates [SRS.md](SRS.md)'s requirements into the concrete decisions this codebase actually
+embodies — it is a narrative document, and where it disagrees with the migration, the shared
+contract, or the API specification, **those three win** (see [§1.5](#15-related-documents) and
+`CLAUDE.md`'s Governing Documents section).
 
 ### 1.2 Scope
 
-**Technical Domains Covered:**
+**Technical domains covered:**
 
-- System architecture (layered, component, deployment)
-- UI/UX design principles and layout patterns
-- REST API specification with request/response DTOs
-- Database schema with tables, relationships, and indexes
-- Feature-to-implementation mapping (which entities, APIs, and UI components realize each SRS user story)
+- System architecture (mobile client, API, database)
+- Mobile UI/UX principles and the app's actual screens
+- REST API contract, organized by feature, with the full endpoint index and error catalog
+- Database schema — entity summary; the migration files are the authoritative source
+- Feature-to-implementation mapping (SRS user story → controller/service → API spec section)
 
-**Out of Scope:**
+**Out of scope:**
 
-- Detailed implementation code (covered in source code)
-- Deployment procedures (covered in RUNBOOK.md)
-- Infrastructure as Code (Terraform, CloudFormation)
-- Third-party integration details (future scope)
+- Detailed implementation code (read the source)
+- Deployment and operational procedures (`RUNBOOK.md`)
+- Infrastructure as code
+- Multi-currency conversion, budget approval workflows, bills/reminders, and report
+  export — all withdrawn or retired in the v1→v2 pivot ([SRS.md §10](SRS.md#10-migration-note-v1--v2));
+  do not reintroduce them here without a corresponding SRS change first
 
 ### 1.3 Assumptions and Constraints
 
 **Assumptions:**
 
-- PostgreSQL 14+ is the database engine
-- FastAPI 0.95+ is used for the backend
-- React 18+ with TypeScript for the frontend
-- Developers are familiar with REST API design, ORM patterns, and SQL
-- All authentication/authorization is handled via JWT tokens
+- PostgreSQL 17 is the database engine, accessed through Kysely (a typed SQL query builder, not
+  an ORM — there is no schema-from-models layer to keep in sync with the migrations)
+- NestJS 11 (Node 22, ESM) is the API framework
+- The client is Expo + React Native (mobile); there is no web client in v1 (a parked Next.js app
+  exists on disk for design reference only — `webpage/PARKED.md`)
+- Every request/response DTO, enum, error code and route path is defined once in
+  `@sora/contracts` and imported by both sides — nothing here should describe a shape that
+  package doesn't also define
+- All authentication is JWT-based: short-lived access tokens, longer-lived single-use rotated
+  refresh tokens, hash-only storage
 
 **Constraints:**
 
-- Single-tenant MVP (workspace isolation via application-level filtering, not row-level security)
-- No multi-database support; schema is optimized for PostgreSQL
-- All APIs are synchronous (no async job queues in MVP)
-- File uploads are out of scope (no S3, GCS, or local file storage)
-- Cross-currency writes depend on one outbound HTTP dependency, the exchange-rate provider (§4.3); it is cached and degrades to a stale or configured rate, but the backend is not fully air-gapped
+- Single currency per account/transaction/budget/goal; **no cross-currency conversion** in v1
+  ([BR-13](SRS.md#4-business-rules)) — a wallet holding two currencies reports two totals, never one
+- Wallet isolation is enforced at the service layer (role checks) **and** partially at the
+  database layer (`uq_wallet_single_owner`, the budget-overlap exclusion constraint) — not by
+  Postgres row-level security
+- All APIs are synchronous; there is no job queue, and no cache layer (no Redis) sits between the
+  API and Postgres
+- No file uploads; no receipt/attachment storage
+- The API is horizontally stateless — a request carries everything needed to authorize it (the
+  bearer token); nothing about a session lives only in one process's memory
 
 ### 1.4 Definitions and Acronyms
 
 | Term | Definition |
 | --- | --- |
-| **TDM** | Technical Domain Model; maps SRS entities to code (classes, DTOs, tables) |
-| **DTO** | Data Transfer Object; request/response payload contract |
-| **ORM** | Object-Relational Mapping; SQLAlchemy for Python/FastAPI |
-| **JWT** | JSON Web Token; stateless authentication token |
-| **ACID** | Atomicity, Consistency, Isolation, Durability; database transaction properties |
-| **Soft Delete** | Logical deletion via flag (deleted_at or is_deleted) without removing data |
-| **N+1 Query** | Performance anti-pattern: one query per entity when one query with join would suffice |
-| **Eager Loading** | Loading related entities in a single query via joins |
-| **Workspace Scope** | Filtering by workspace_id at service/repository layer for multi-tenancy |
+| **Wallet** | One person's finances — the sharing boundary. Not a renamed workspace: it has no type, and membership is a grant to an individual, not a seat in a group |
+| **DTO** | Data Transfer Object; the request/response shapes in `packages/contracts/src/responses.ts` and `schemas.ts` |
+| **JWT** | JSON Web Token; HS256, signed with `JWT_SECRET` |
+| **Kysely** | The typed SQL query builder this API uses instead of an ORM — queries are written, not generated from a model that could drift from the schema |
+| **Archival** | This system's only removal mechanism for wallets, accounts, categories, budgets and goals — a `status` column (`ACTIVE`/`ARCHIVED`), not a `deleted_at` timestamp. Nothing financial is hard-deleted; see [BR-09](SRS.md#4-business-rules) |
+| **Cancellation** | The transaction-specific removal mechanism (`status = 'CANCELLED'`) — the row stays, visibly, alongside whatever corrected it |
+| **Wallet scope** | Filtering by wallet membership (role ≥ required rank) at the service layer, via `RequireWalletRoleGuard` |
+| **Envelope** | Every response body's `{success, message?, data, meta}` wrapper, defined once in `ApiEnvelope<T>` |
 
 ### 1.5 Related Documents
 
-| Document | Purpose |
-| --- | --- |
-| [SRS.md](SRS.md) | Requirements, use cases, acceptance criteria |
-| [RUNBOOK.md](RUNBOOK.md) — *if applicable* | Operational procedures, troubleshooting, deployment steps |
-| [Database Migration Scripts](db/migrations/) | Versioned schema changes via Flyway or Alembic |
+Precedence, highest first — reproduced from `CLAUDE.md`'s Governing Documents section so this
+table doesn't drift from it:
 
----
+| # | Document | Authority over |
+| --- | --- | --- |
+| 1 | [`db/migrations/`](db/migrations/) | The schema — what the database actually permits |
+| 2 | [`packages/contracts/src/`](packages/contracts/src/) | Enums, validation, response shapes, error codes, route paths, money/derivation math |
+| 3 | [`docs/API_SPECIFICATION.md`](docs/API_SPECIFICATION.md) | The endpoint-by-endpoint contract: auth, authorization, validation, errors, side effects |
+| 4 | [`SRS.md`](SRS.md) | What the system does and why |
+| 5 | This document | How it is designed — architecture, mapping, rationale |
 
-## 3. UI Design
-
-### 3.1 UI/UX Principles
-
-**Consistency:**
-
-- Use consistent color palette, typography, spacing, and component styles across all pages
-- Follow the design system defined by selected component library (shadcn/ui, Material-UI, or custom)
-- Maintain consistent terminology from SRS §1.4 (Workspace, Account, Transaction, Budget, Saving Goal, Category)
-
-**Clarity & Progressive Disclosure:**
-
-- Show essential information first; hide advanced options in collapsible sections or modals
-- Use clear headings, labels, and descriptions for all form fields
-- Provide inline help text for complex fields (e.g., "Budget Period: Monthly budgets reset on the 1st of each month")
-
-**Accessibility:**
-
-- All interactive elements must be keyboard-navigable (Tab, Enter, Escape)
-- Images and icons must have alt text or title attributes
-- Color alone must not convey information (use labels, icons, patterns)
-- Form errors must be announced to screen readers (ARIA role="alert")
-
-**Mobile Responsiveness:**
-
-- Core workflows (login, view balance, record transaction) must work on mobile 320px+ screens
-- Desktop tables must stack into card view on mobile (or provide horizontal scroll)
-- Touch targets must be at least 48x48 pixels (button, link, input)
-
-### 3.2 Wireframes and Layouts
-
-**Core Pages (MVP):**
-
-1. **Login/Register Page** (`/auth/login`, `/auth/register`)
-   - Email + Password input fields
-   - Links for "Forgot Password" and "Register new account"
-   - Submit button with loading state
-   - Success/Error message display
-
-2. **Dashboard** (`/app/workspace/{id}/dashboard`)
-   - Workspace name and member count in header
-   - Key metrics cards: Total Balance, Monthly Income, Monthly Expense, Savings Progress
-   - Recent transactions list (10 rows, sortable by date)
-   - Budget progress bars (active budgets this month)
-   - Quick-action buttons: Add Transaction, Create Budget, Create Saving Goal
-
-3. **Accounts Page** (`/app/workspace/{id}/accounts`)
-   - List of accounts with balance, currency, and type
-   - Create Account button
-   - Each row: account name, type, balance, action buttons (View, Edit, Archive)
-   - Filters: Status (Active/Archived), Type (Bank/Credit/Cash/Investment)
-
-4. **Transactions Page** (`/app/workspace/{id}/transactions`)
-   - Table with columns: Date, Type, Amount, Category, Account, Status
-   - Pagination (25/50/100 per page)
-   - Filters: Date range, Type, Category, Account, Status
-   - Sort: Click column header to sort
-   - Create Transaction button
-   - Each row: edit, view details, or cancel buttons
-
-5. **Budgets Page** (`/app/workspace/{id}/budgets`)
-   - Active budgets with progress bars and status
-   - Create Budget button
-   - Each row: period, status, progress percentage, category breakdown (expandable)
-   - Actions: View, Edit (if pending), Approve (if OWNER and status pending), Reject
-
-6. **Saving Goals Page** (`/app/workspace/{id}/goals`)
-   - Goal cards with target amount, deadline, progress bar, and % complete
-   - Create Saving Goal button
-   - Each card: goal name, target, deadline, progress, actions (Edit, Archive)
-
-7. **Members Page** (`/app/workspace/{id}/members`)
-   - List of workspace members with roles
-   - Invite Member button (for OWNER)
-   - Each row: email, name, role, action buttons (Change Role, Remove)
-
-8. **Bills Page** (`/app/workspace/{id}/bills`)
-   - List of recurring bills with due date and category
-   - Create Bill button
-   - Each row: bill name, category, due date, actions (Edit, Mark Paid, Archive)
-
-**Form Patterns:**
-
-- **Create/Edit Form Modal:** Modal dialog with form fields, Cancel/Save buttons, loading state during submission
-- **Confirmation Dialog:** Modal with action summary, confirmation message, Cancel/Confirm buttons
-- **Error Display:** Toast message (top-right corner), auto-dismiss after 5 seconds or manual close
-- **Success Display:** Toast message (green, top-right), includes action summary (e.g., "Transaction created: $50.00 to Food")
+This document summarizes and cross-references documents 1–3 rather than duplicating their
+detail — a duplicated request/response body or DDL block is exactly what let the previous
+revision drift out of sync with the code for over a year. `RUNBOOK.md` covers operational
+procedures; `db/migrations/` is applied via `node scripts/migrate.mjs` (see `CLAUDE.md`, not
+Flyway or Alembic — neither is used here).
 
 ---
 
 ## 2. Technical Domain Model (TDM)
 
-**Last synced with SRS §2: 2026-07-30**
+**Last synced with the schema: 2026-08-25** (`db/migrations/001_initial_wallet_schema.sql`,
+`002_google_auth_and_preferences.sql`).
 
 ### 2.0 Domain Model Diagram
 
-Visual view of the entities and cardinalities defined in SRS §2.2–§2.3. Attributes are
-the identifying and business-significant fields only — the authoritative column
-definitions live in §4.3.3.
+Attributes shown are the identifying and business-significant columns only; the authoritative
+column list is the migration itself ([§7](#7-database-schema)).
 
 ```mermaid
 erDiagram
-    USER ||--o{ WORKSPACE : owns
-    USER ||--o{ WORKSPACE_MEMBER : "joins via"
+    USER ||--o{ WALLET : owns
+    USER ||--o{ WALLET_MEMBER : "holds a role via"
+    USER ||--o{ WALLET_INVITATION : creates
     USER ||--o{ TRANSACTION : records
-    USER ||--o{ AUDIT_LOG : triggers
+    USER ||--o{ REFRESH_TOKEN : holds
 
-    WORKSPACE ||--o{ WORKSPACE_MEMBER : has
-    WORKSPACE ||--o{ INVITATION : sends
-    WORKSPACE ||--o{ ACCOUNT : contains
-    WORKSPACE ||--o{ CATEGORY : contains
-    WORKSPACE ||--o{ TRANSACTION : contains
-    WORKSPACE ||--o{ BUDGET : contains
-    WORKSPACE ||--o{ SAVING_GOAL : contains
-    WORKSPACE ||--o{ BILL : contains
+    WALLET ||--o{ WALLET_MEMBER : has
+    WALLET ||--o{ WALLET_INVITATION : offers
+    WALLET ||--o{ ACCOUNT : holds
+    WALLET ||--o{ CATEGORY : classifies_with
+    WALLET ||--o{ BUDGET : plans
+    WALLET ||--o{ GOAL : sets
+    WALLET ||--o{ AUDIT_LOG : logs
 
-    ACCOUNT ||--o{ TRANSACTION : contains
+    ACCOUNT ||--o{ TRANSACTION : "is a side of"
+    ACCOUNT ||--o{ GOAL_CONTRIBUTION : funds
 
     CATEGORY ||--o{ TRANSACTION : classifies
-    CATEGORY ||--o{ BUDGET_ITEM : "allocated by"
-    CATEGORY ||--o{ BILL : "referenced by"
+    CATEGORY ||--o{ CATEGORY : "nests under"
+    CATEGORY ||--o{ BUDGET : "is planned for"
 
-    BUDGET ||--o{ BUDGET_ITEM : defines
-    SAVING_GOAL }o--o{ TRANSACTION : tracks
-    TAG }o--o{ TRANSACTION : labels
+    GOAL ||--o{ GOAL_CONTRIBUTION : "is funded by"
+    TRANSACTION ||--o| GOAL_CONTRIBUTION : "may back"
 
     USER {
-        bigint id PK
-        string email UK
-        string password_hash
-        boolean email_verified
+        uuid id PK
+        string email UK "case-insensitive"
+        string password_hash "nullable — Google-only users have none"
+        string google_id UK "nullable"
+        string base_currency
+        string theme
+        string locale
     }
-    WORKSPACE {
-        bigint id PK
-        bigint owner_id FK
+    WALLET {
+        uuid id PK
+        uuid owner_user_id FK
         string name
-        string currency
+        string status "ACTIVE | ARCHIVED"
     }
-    WORKSPACE_MEMBER {
-        bigint id PK
-        bigint workspace_id FK
-        bigint user_id FK
-        string role "OWNER | MEMBER"
+    WALLET_MEMBER {
+        uuid id PK
+        uuid wallet_id FK
+        uuid user_id FK
+        string role "OWNER | EDITOR | VIEWER"
+        string relation_label "nullable"
+        string status "ACTIVE | REVOKED"
     }
-    INVITATION {
-        bigint id PK
-        bigint workspace_id FK
-        string email
-        string token UK
-        string role
-        string status
+    WALLET_INVITATION {
+        uuid id PK
+        uuid wallet_id FK
+        string invited_email
+        string role "EDITOR | VIEWER"
+        string token_hash UK
+        timestamptz expires_at
     }
     ACCOUNT {
-        bigint id PK
-        bigint workspace_id FK
-        string type "CASH | BANK_ACCOUNT | ..."
+        uuid id PK
+        uuid wallet_id FK
         string name
+        string type "BANK_ACCOUNT | CASH | E_WALLET | CREDIT_CARD"
         string currency
-        decimal balance
-        decimal opening_balance
+        decimal initial_balance
+        string status "ACTIVE | ARCHIVED"
     }
     CATEGORY {
-        bigint id PK
-        bigint workspace_id FK
+        uuid id PK
+        uuid wallet_id FK
+        uuid parent_id FK "nullable, same wallet + type"
         string name
         string type "INCOME | EXPENSE"
-        boolean is_default
+        string status "ACTIVE | ARCHIVED"
     }
     TRANSACTION {
-        bigint id PK
-        bigint workspace_id FK
-        bigint account_id FK
-        bigint category_id FK
-        bigint created_by FK
-        string type "INCOME | EXPENSE | TRANSFER | ..."
-        decimal amount
-        date date
-        string status "recorded | cancelled"
+        uuid id PK
+        uuid created_by_user_id FK
+        uuid from_account_id FK "nullable"
+        uuid to_account_id FK "nullable"
+        uuid category_id FK "nullable — null on TRANSFER"
+        string type "INCOME | EXPENSE | TRANSFER"
+        decimal amount "always positive"
+        string currency
+        string status "PENDING | COMPLETED | CANCELLED"
     }
     BUDGET {
-        bigint id PK
-        bigint workspace_id FK
-        string period
-        string status "Pending | Active | Rejected | Archived"
+        uuid id PK
+        uuid wallet_id FK
+        uuid category_id FK
+        decimal amount
+        string period_type "WEEKLY | MONTHLY | CUSTOM"
+        date start_date
+        date end_date
+        string status "ACTIVE | ARCHIVED"
     }
-    BUDGET_ITEM {
-        bigint id PK
-        bigint budget_id FK
-        bigint category_id FK
-        decimal allocated_amount
-    }
-    SAVING_GOAL {
-        bigint id PK
-        bigint workspace_id FK
+    GOAL {
+        uuid id PK
+        uuid wallet_id FK
         string name
         decimal target_amount
-        date deadline
+        date target_date "nullable"
+        string status "ACTIVE | COMPLETED | CANCELLED"
     }
-    BILL {
-        bigint id PK
-        bigint workspace_id FK
-        bigint category_id FK
-        string name
+    GOAL_CONTRIBUTION {
+        uuid id PK
+        uuid goal_id FK
+        uuid account_id FK
+        uuid transaction_id FK "nullable, unique — an earmark has none"
         decimal amount
-        date due_date
-    }
-    TAG {
-        bigint id PK
-        string name
     }
     AUDIT_LOG {
         bigint id PK
-        bigint user_id FK
-        string event_name
-        string action
-        string result
+        uuid actor_id FK "nullable"
+        uuid wallet_id FK "nullable, SET NULL on wallet delete"
+        string event
+        string result "SUCCESS | DENIED | FAILURE"
+    }
+    REFRESH_TOKEN {
+        uuid id PK
+        uuid user_id FK
+        string token_hash UK
+        timestamptz revoked_at "nullable"
     }
 ```
 
+There is deliberately no entity above WALLET. A transaction's own wallet is **derived**, not
+stored — `TRANSACTION` has no `wallet_id` column, because a cross-wallet transfer belongs to two
+wallets at once and a single FK could only name one of them ([BR-03](SRS.md#4-business-rules)).
+
 ### 2.1 Domain Layer Traceability
 
-Maps SRS entities to technical implementations:
-
-| SRS Entity | Technical Implementation | Database Table | Notes |
-|-----------|------------------------|-----------------|-------|
-| User | User (domain) → UserResponse (DTO) | users | Email, password hash, status |
-| Workspace | Workspace (domain) → WorkspaceResponse (DTO) | workspaces | Owner reference; soft-deletable |
-| WorkspaceRole | WorkspaceRole (enum); WorkspaceMember (join table) | workspace_members | Roles: OWNER, MEMBER |
-| Account | Account (domain) → AccountResponse (DTO) | accounts | Belongs to workspace; soft-deletable |
-| Transaction | Transaction (domain) → TransactionResponse (DTO) | transactions | Immutable after insert; soft-deletable |
-| Category | Category (domain) → CategoryResponse (DTO) | categories | Workspace-scoped; soft-deletable |
-| Budget | Budget (domain) → BudgetResponse (DTO) | budgets | Status: Pending, Active, Rejected, Archived |
-| BudgetItem | BudgetItem (domain) → BudgetItemResponse (DTO) | budget_items | Per-category allocation in budget |
-| SavingGoal | SavingGoal (domain) → SavingGoalResponse (DTO) | saving_goals | Progress calculated from tagged transactions |
-| Bill | Bill (domain) → BillResponse (DTO) | bills | Recurring reminder; soft-deletable |
-| Invitation | Invitation (domain) → InvitationResponse (DTO) | invitations | Single-use token; status: pending, accepted, declined, expired |
-| AuditLog | AuditLog (domain) → AuditLogResponse (DTO) | audit_logs | Append-only; indexed by event, entity, actor |
-| Tag | Tag (domain) → TagResponse (DTO) | tags | Unstructured labels on transactions |
+| SRS Entity | Table | Notes |
+| --- | --- | --- |
+| User | `users` | `password_hash` nullable since migration 002 (Google-only accounts); `theme`/`locale` are display preferences, not business data |
+| Wallet | `wallets` | Owner reference plus derived membership; archived, never deleted |
+| WalletMember | `wallet_members` | Roles: `OWNER`, `EDITOR`, `VIEWER`. `uq_wallet_single_owner` (partial unique index) makes "exactly one active owner" a database-enforced invariant, not just a service check |
+| WalletInvitation | `wallet_invitations` | Only the token hash is stored; `uq_wallet_invitation_open` allows at most one live invitation per wallet+email |
+| Account | `accounts` | `initial_balance` has no `CHECK (>= 0)` — a credit card legitimately opens negative |
+| Category | `categories` | Self-referencing `parent_id`; `chk_category_not_own_parent` blocks the one-hop cycle, deeper cycles are a service-layer check |
+| Transaction | `transactions` | `chk_transaction_shape` enforces the account/category shape per type (income has no `from_account_id`, transfer has no `category_id`, etc.) at the database level |
+| Budget | `budgets` | `excl_budget_overlap` is a GIST exclusion constraint over `daterange(start_date, end_date, '[]')` — a plain unique index cannot express "no overlapping window" |
+| Goal | `goals` | No stored progress; see GoalContribution |
+| GoalContribution | `goal_contributions` | `transaction_id` is nullable **and** unique — nullable because an earmark backs nothing, unique because one payment cannot fund two goals |
+| AuditLog | `audit_logs` | Append-only by convention: no update/delete path exists in the API |
+| — | `refresh_tokens` | Hash-only; `revoked_at` implements single-use-and-rotated, not a separate blacklist table |
 
 ### 2.2 Layer Composition
 
-**Controller Layer (`app/api/`):**
-- HTTP binding (request parsing, response formatting)
-- Route definition (GET, POST, PUT, DELETE)
-- Authorization enforcement (role checks, workspace scoping)
-- CSRF validation (for POST/PUT/DELETE)
-- No business logic
+This is NestJS, not the layered Controller/Service/Repository/Model/Schema split a Python/FastAPI
+stack would use. Each domain module (`server/src/{accounts,auth,budgets,categories,dashboard,
+goals,transactions,wallets}/`) has:
 
-**Service Layer (`app/services/`):**
-- Business rule enforcement (BR-01 through BR-10)
-- State transitions (budget approval, workspace creation)
-- Transaction management (atomicity for transfers)
-- Exchange-rate resolution for cross-currency amounts (§4.3) — the only layer that talks to an external provider
-- Audit logging
-- Validation of inputs and relationships
-- Readonly: repository queries via repositories
+**Controller** (`*.controller.ts`) — HTTP binding only: route decorators from `ROUTES`
+(`@sora/contracts`), a Zod-validated body/query/param via `zodPipe`, a `@RequireWalletRole(...)`
+decorator where a wallet-scoped role is needed, and delegation to a service. No business logic.
 
-**Repository Layer (`app/repositories/`):**
-- Data access abstraction (find, create, update, soft-delete, paginate, filter, sort)
-- Query optimization (eager loading, indexing)
-- No business logic; pure CRUD (with soft-delete awareness)
+**Service** (`*.service.ts`) — business rules, Kysely queries, and derivation. There is no
+separate repository layer: a service issues its own Kysely queries directly, since the query
+builder already is the data-access abstraction and an extra layer over it would just forward
+calls. `WalletsController` alone is backed by four services (`wallets.service.ts`,
+`members.service.ts`, `invitations.service.ts`, `wallet-access.service.ts`) because membership,
+invitations, and role-checking are distinct enough concerns to keep separate files, sharing one
+controller because they're all wallet-scoped HTTP surface.
 
-**Model Layer (`app/models/`):**
-- SQLAlchemy ORM entities
-- Relationships, constraints, validations at model level where applicable
-- Timestamps (created_at, updated_at)
-- Soft-delete flag (deleted_at or is_deleted)
+**Guards** (`common/`, `wallets/require-wallet-role.guard.ts`) — `RequireWalletRoleGuard` resolves
+the 404-vs-403 distinction ([BR-05](SRS.md#4-business-rules)) before a handler body ever runs: no
+membership → the wallet reads as not found; a membership below the required rank → forbidden.
 
-**Schema Layer (`app/schemas/`):**
-- Pydantic request/response DTOs
-- Validation: field types, ranges, format
-- Mapping between DTOs and models (via service or dedicated mappers)
-- No database queries
+**Contracts** (`packages/contracts/src/`) — every enum, Zod schema, response type, error code and
+route path, imported by both `server/` and `mobile/`. A second definition of any of these is the
+failure mode `scripts/check-contract-parity.mjs` exists to catch.
+
+**Money** (`packages/contracts/src/money.ts`) — every amount travels as a string and is computed
+as a scaled `bigint`, never a JS `number` ([CLAUDE.md](CLAUDE.md) Part 7, rule 1). `server/src/
+database/pg-types.ts` overrides `node-postgres`'s default `NUMERIC`/`BIGINT` parsers to return
+text instead of silently-rounded floats.
+
+---
+
+## 3. UI Design
+
+The client is a phone app (Expo + React Native), used one-handed, often mid-transaction — see
+[SRS.md §6](SRS.md#6-user-experience-requirements) for the requirements this section implements.
+There is no web client shipping in v1; a parked Next.js app exists for its visual design and i18n
+work only (`webpage/PARKED.md`) and is not part of this UI.
+
+### 3.1 UI/UX Principles
+
+**Recording is the primary path** ([SRS §6.1](SRS.md#61-recording-is-the-primary-path)) — the
+bottom tab bar's center action is "Add," not a fifth destination among equals; the amount field
+is focused first and takes a numeric keypad; the form never asks for a currency (the account
+determines it) or an exchange rate (v1 has none).
+
+**Roles are visible, not discovered by failure** ([SRS §6.3](SRS.md#63-roles-are-visible-not-discovered-by-failure))
+— a VIEWER's screens render with no editing affordances at all, rather than buttons that produce
+a `FORBIDDEN`. This is a real constraint on every screen, not a style preference: it means role is
+read once per screen render and used to select which controls exist, not just whether they're
+enabled.
+
+**Whose money am I looking at** ([SRS §6.2](SRS.md#62-whose-money-am-i-looking-at)) — the wallet
+in context is shown on every money-bearing screen; switching wallets is one action
+(`WalletProvider`); a shared wallet is visually distinct from the user's own and shows the
+viewer's own relation label.
+
+**Money is unambiguous** ([SRS §6.4](SRS.md#64-money-is-unambiguous)) — every amount carries its
+currency; per-currency totals are never summed or averaged into one figure; transfers are
+visually distinct from income/expense everywhere they appear.
+
+**Accessibility & mobile baseline** — dark mode is the default theme (`obsidian`, with `quartz`/
+`sage`/`terracotta`/`violet` as alternatives — `ThemeProvider`); the app ships English and
+Vietnamese (`LocaleProvider`, `react-i18next`); touch targets follow standard mobile sizing;
+color is never the only signal (icons/labels accompany every status).
+
+### 3.2 Screens
+
+Real screens under `mobile/src/features/*/screens/`, grouped by feature:
+
+| Feature | Screens |
+| --- | --- |
+| Dashboard | `HomeScreen` |
+| Transactions | `TransactionsScreen`, `AddTransactionScreen`, `TransactionDetailScreen` |
+| Budgets | `BudgetsScreen`, `AddBudgetScreen`, `BudgetDetailScreen` |
+| Goals | `GoalsScreen`, `AddGoalScreen`, `GoalDetailScreen`, `AddContributionScreen` |
+| Accounts | `AddAccountScreen`, `AccountDetailScreen` |
+| Categories | `CategoryListScreen` |
+| Wallets | `WalletListScreen`, `WalletDetailScreen`, `WalletMembersScreen`, `InviteMemberScreen` |
+| Auth | `LoginScreen`, `RegisterScreen`, `AcceptInvitationScreen` |
+| Settings | `SettingsScreen` |
+
+**Bottom tab bar** (`MainTabNavigator`) — five tabs, center one an action rather than a
+destination: **Home | Transactions | + (Add) | Budgets | Goals**. Accounts, categories, wallet
+management and settings are reached from within these, not from the tab bar itself.
+
+**Form patterns** — a destructive-looking action (archiving a wallet, revoking a member,
+cancelling a transaction) confirms first and states the consequence rather than asking "are you
+sure" ([SRS §6.5](SRS.md#65-corrections-are-honest)); a field that cannot change (an account's
+currency, a transaction's amount) renders disabled with the reason shown, never hidden.
 
 ---
 
@@ -373,454 +380,135 @@ Maps SRS entities to technical implementations:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                      Frontend (React)                    │
-│  (components, features, stores, hooks, i18n)             │
-└────────────────────┬────────────────────────────────────┘
-                     │
-                     │ HTTP/REST
-                     │ JWT Auth (Bearer token)
+│              Mobile client (Expo / React Native)         │
+│  features/, navigation/, providers/ (auth, theme, locale, │
+│  wallet), TanStack Query + Zustand                        │
+└────────────────────┬───────────────────────────────────── ┘
+                     │ HTTP/REST, JWT Bearer, envelope {success,data,meta}
                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│                   API Layer (FastAPI)                    │
-│  Routes: /api/v1/auth, /api/v1/workspaces, ...          │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│                   Service Layer                          │
-│  Business logic, state transitions, validation           │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│                 Repository Layer                         │
-│  Data access, queries, soft-delete filtering             │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│          Database Layer (PostgreSQL)                     │
-│  Tables: users, workspaces, accounts, transactions, ...  │
-│  Indexes: user_id, workspace_id, category, date, ...     │
+│                  API (NestJS 11, ESM)                     │
+│  Routes: /api/v1/auth, /api/v1/wallets, /api/v1/accounts,  │
+│  /api/v1/categories, /api/v1/transactions, /api/v1/budgets,│
+│  /api/v1/goals, /api/v1/dashboard, /api/v1/wallets/{id}/…  │
+└────────────────────┬───────────────────────────────────── ┘
+                     │ Kysely (typed SQL, no ORM)
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│                    PostgreSQL 17                          │
+│  wallets, wallet_members, wallet_invitations, accounts,    │
+│  categories, transactions, budgets, goals,                 │
+│  goal_contributions, audit_logs, refresh_tokens, users     │
 └─────────────────────────────────────────────────────────┘
-
-Caching (Redis):
-- Token blacklist (refresh token revocation)
-- Session cache (optional)
-- Rate limiting (per IP, per user)
-
-Auth Flow:
-1. Login → issue JWT (15 min) + refresh token (7 days)
-2. Refresh → new JWT + rotated refresh token; old token blacklisted
-3. Logout → refresh token added to blacklist
 ```
+
+No cache layer, no message queue, no separate token-blacklist store — revocation is the
+`refresh_tokens.revoked_at` column.
+
+**Auth flow:**
+
+1. Login (email/password) or Google Sign-In (`POST /auth/google`, ID token verified against
+   `GOOGLE_CLIENT_ID`) → access token (15 min default, `ACCESS_TOKEN_TTL_SECONDS`) + refresh
+   token (7 days default, `REFRESH_TOKEN_TTL_DAYS`), refresh stored hash-only.
+2. Refresh → new access + refresh pair; the presented refresh token is marked used. Presenting an
+   already-used refresh token is treated as theft evidence and revokes the entire token family
+   ([AUTH-US-03](SRS.md#auth-us-03-stay-signed-in)) — this is stricter than a plain rotation
+   scheme, and is not optional behavior to relax.
+3. Logout → the current refresh token is revoked.
 
 ### 4.2 Request/Response Flow
 
-**Example: Create Transaction**
+**Example: record an expense** (`TXN-US-02`) — chosen because it is the most rule-dense write in
+the product.
 
 ```
 POST /api/v1/transactions
+Authorization: Bearer <access_token>
 {
-  "workspaceId": "uuid",
-  "accountId": "uuid",
   "type": "EXPENSE",
-  "amount": 50.00,
-  "currency": "USD",
-  "date": "2026-07-30",
-  "category": "Food",
-  "tags": ["Groceries"],
-  "savingGoalIds": ["uuid1"]
+  "fromAccountId": "...",
+  "categoryId": "...",
+  "amount": "150000.0000",
+  "currency": "VND",
+  "transactionDate": "2026-08-25T09:00:00Z",
+  "description": "Groceries"
 }
-Header: Authorization: Bearer <access_token>
 
-Controller (TransactionController.create_transaction):
-  1. Parse request → CreateTransactionRequest DTO
-  2. Validate JWT and extract user_id, role from token
-  3. Check workspace membership and role (MEMBER+)
-  4. Call service.create_transaction(...)
+TransactionsController.create:
+  1. zodPipe validates the body against the contracts schema
+  2. RequireWalletRoleGuard resolves the account's wallet and requires EDITOR — no membership on
+     that wallet reads as ACCOUNT_NOT_FOUND, not FORBIDDEN (BR-05)
+  3. TransactionsService.create:
+     a. loads the account, refuses if ARCHIVED or its wallet is ARCHIVED
+     b. loads the category, refuses unless it is EXPENSE-typed and in the account's wallet
+     c. inserts the transaction row (status COMPLETED) — no balance write anywhere; balance is
+        derived on every read from initial_balance + completed transactions (BR-06)
+     d. writes an audit_logs row
+  4. Returns the TransactionResponse DTO inside the envelope
 
-Service (TransactionService.create_transaction):
-  1. Validate: account exists, category exists, workspace matches
-  2. Validate: account not archived, account currency matches
-  2a. Resolve the snapshot rate via ExchangeRateService (§4.3) — 1 when the
-      account currency equals the workspace preferred currency
-  3. Calculate: new balance = account.balance - amount (for expense)
-  4. Create Transaction entity
-  5. Update Account.balance
-  6. Update SavingGoal.progress (if tagged)
-  7. Check Budget thresholds → queue notifications
-  8. Log audit event: TRANSACTION_CREATED
-  9. Commit transaction (atomic)
-  10. Return TransactionResponse DTO
-
-Response:
 200 OK
 {
   "success": true,
-  "message": "Transaction created",
   "data": {
-    "id": "uuid",
-    "workspaceId": "uuid",
-    "accountId": "uuid",
-    "type": "EXPENSE",
-    "amount": 50.00,
-    "currency": "USD",
-    "date": "2026-07-30",
-    "category": {
-      "id": "uuid",
-      "name": "Food"
-    },
-    "tags": ["Groceries"],
-    "savingGoals": [{...}],
-    "createdBy": {...},
-    "createdAt": "2026-07-30T10:30:00Z",
-    "updatedAt": "2026-07-30T10:30:00Z"
+    "id": "...", "type": "EXPENSE", "status": "COMPLETED",
+    "amount": "150000.0000", "currency": "VND",
+    "fromAccount": {"id": "...", "name": "Cash", "walletId": "...", "walletName": "..."},
+    "toAccount": null,
+    "category": {"id": "...", "name": "Groceries", "type": "EXPENSE"},
+    "isCrossWallet": false,
+    "createdBy": {"id": "...", "displayName": "..."},
+    "createdAt": "...", "updatedAt": "..."
   },
-  "meta": {
-    "timestamp": "2026-07-30T10:30:00Z"
-  }
+  "meta": {"timestamp": "..."}
 }
 ```
 
----
-
-### 4.3 Exchange Rate Resolution
-
-A snapshot rate is required whenever an amount is recorded in a currency other than the workspace preferred currency (SRS BR-07, BR-07a). The rate is resolved server-side by `ExchangeRateService` (`app/services/exchange_rate_service.py`); no request DTO carries a rate field, so a client cannot influence what is stored.
-
-**Resolution order** for `snapshot_rate(workspace_currency, currency)`:
-
-| Step | Source | Notes |
-| --- | --- | --- |
-| 1 | Unit rate | `currency == workspace_currency` → exactly `1`, no lookup |
-| 2 | In-process cache | Served while younger than `EXCHANGE_RATE_CACHE_TTL_MINUTES` (default 720). One fetch caches both directions via the reciprocal |
-| 3 | Provider | `GET {EXCHANGE_RATE_API_URL}/{base}` — default `https://open.er-api.com/v6/latest`, free and keyless, publishes daily. Parsed from `rates` (or `conversion_rates`) |
-| 4 | Stale cache | On provider failure a cached rate up to 30 days old is used and logged at `WARN` — a slightly old rate beats refusing the write |
-| 5 | Configured fallback | `EXCHANGE_RATE_FALLBACK_USD_VND` (USD expressed in VND); the VND→USD direction is its reciprocal. `0` disables it |
-| 6 | Failure | `ValueError('EXCHANGE_RATE_UNAVAILABLE')` → 503. The write is refused rather than persisted at a guessed rate |
-
-**Design notes**
-
-- The cache lives in the process, not the database: rates are cheap to refetch and a stale row would outlive its usefulness. It is guarded by a lock because FastAPI runs sync endpoints on a threadpool.
-- Precision is `DECIMAL(18,10)`. The rate is held in whichever direction the row needs, and VND→USD is ~`0.0000382` — at six decimal places that rounds to a 0.5% error on every amount.
-- `GET /api/v1/exchange-rates` exposes the same resolution read-only so a form can preview a conversion (§4.10).
-- Nothing recomputes a stored rate. A rate movement changes what the *next* record snapshots and nothing already written.
+A cross-wallet transfer (`TXN-US-04`) follows the same shape with `type: "TRANSFER"`, no
+`categoryId`, and the guard requiring EDITOR on **both** accounts' wallets rather than one.
 
 ---
 
 ## 5. API Specification
 
+Full per-endpoint request/response detail — headers, every field, every error, side effects — is
+**authoritative in [docs/API_SPECIFICATION.md](docs/API_SPECIFICATION.md)**, not reproduced here.
+This section covers what that document doesn't: cross-cutting conventions.
+
 ### 5.1 Base Configuration
 
-- **Base URL:** `http://localhost:8001/api/v1`
-- **Authentication:** HTTP Bearer token (JWT)
-- **Content-Type:** `application/json`
-- **Rate Limiting:** 100 requests per minute per IP; 1000 per hour per user
-- **Response Envelope:** All endpoints return `{success, message, data, meta}`
-
----
-
-### 5.2 Authentication Endpoints
-
-| Endpoint | Method | Purpose | Auth | Roles | Status |
-| --- | --- | --- | --- | --- | --- |
-| `/auth/register` | POST | Register new user | No | — | 201 |
-| `/auth/login` | POST | Issue JWT + refresh token | No | — | 200 |
-| `/auth/refresh` | POST | Issue new JWT + rotated refresh | No | — | 200 |
-| `/auth/logout` | POST | Revoke refresh token | Yes | ALL | 200 |
-
-**AUTH-US-01: Register**
-- **Request:** `{email, password, name}`
-- **Response:** 201 Created `{userId, email, name, status}`
-- **Errors:** `USER_EMAIL_EXISTS` (409), `INVALID_PASSWORD` (400), `INVALID_EMAIL` (400)
-
-**AUTH-US-02: Login**
-- **Request:** `{email, password}`
-- **Response:** 200 OK `{userId, email, accessToken, refreshToken, expiresIn, workspaces}`
-- **Errors:** `INVALID_CREDENTIALS` (401), `ACCOUNT_LOCKED` (403), `RATE_LIMITED` (429)
-
-**AUTH-US-03: Refresh Token**
-- **Request:** `{refreshToken}`
-- **Response:** 200 OK `{accessToken, refreshToken, expiresIn}`
-- **Errors:** `INVALID_REFRESH_TOKEN` (401), `TOKEN_BLACKLISTED` (401)
-
-**AUTH-US-04: Logout**
-- **Request:** `{refreshToken}`
-- **Response:** 200 OK `{success: true}`
-
----
-
-### 5.3 Workspace Management
-
-| Endpoint | Method | Purpose | Auth | Roles | Status |
-| --- | --- | --- | --- | --- | --- |
-| `/workspaces` | POST | Create workspace | Yes | ALL | 201 |
-| `/workspaces` | GET | List user workspaces | Yes | ALL | 200 |
-| `/workspaces/{id}/members/invite` | POST | Invite member | Yes | OWNER | 201 |
-| `/invitations/accept` | POST | Accept invitation | Yes | — | 200 |
-| `/workspaces/{id}/members` | GET | List workspace members | Yes | ALL | 200 |
-| `/workspaces/{id}/members/{userId}/role` | PUT | Promote a MEMBER to OWNER | Yes | OWNER | 200 |
-| `/workspaces/{id}/members/{userId}` | DELETE | Remove a MEMBER | Yes | OWNER | 200 |
-
-**WS-US-01: Create Workspace**
-- **Request:** `{name, description, type, currency}` — `currency` is the preferred currency, `VND` or `USD`
-- **Response:** 201 Created `{id, name, ownerId, currency, createdAt}`
-
-**WS-US-02: List Workspaces**
-- **Query:** `page`, `pageSize`
-- **Response:** 200 OK `{data: [Workspace], meta: {total, hasMore}}`
-
-**WS-US-03: Invite Member**
-- **Request:** `{email, role}`
-- **Response:** 201 Created `{invitationId, email, role, expiresAt, status}`
-- **Errors:** `INVALID_EMAIL` (400), `USER_ALREADY_MEMBER` (409)
-
-**WS-US-04: Accept Invitation**
-- **Request:** `{token}`
-- **Response:** 200 OK `{workspaceId, workspaceName, role, joinedAt}`
-
----
-
-### 5.4 Account Management
-
-| Endpoint | Method | Purpose | Auth | Roles | Status |
-| --- | --- | --- | --- | --- | --- |
-| `/workspaces/{wsId}/accounts` | POST | Create account | Yes | ALL | 201 |
-| `/workspaces/{wsId}/accounts` | GET | List accounts | Yes | ALL | 200 |
-| `/workspaces/{wsId}/accounts/{id}` | GET | Get account details | Yes | ALL | 200 |
-| `/workspaces/{wsId}/accounts/{id}` | PUT | Update account | Yes | OWNER | 200 |
-| `/workspaces/{wsId}/accounts/{id}/archive` | DELETE | Archive account | Yes | OWNER | 200 |
-
-**ACC-US-01: Create Account**
-- **Request:** `{type, name, currency, openingBalance, institution, accountNumber}` — `currency` is `VND` or `USD`. There is no `exchangeRate` field: where the currency differs from the workspace preferred currency, `ExchangeRateService` resolves the rate and the service snapshots it on the row
-- **Response:** 201 Created `{id, type, name, currency, balance, openingBalance, exchangeRate, openingBaseBalance, status, createdAt}` — `exchangeRate` is read-only
-- **Errors:** `UNSUPPORTED_CURRENCY` (400), `EXCHANGE_RATE_UNAVAILABLE` (503), `ACCOUNT_LIMIT_EXCEEDED` (409)
-
-**ACC-US-02: List Accounts**
-- **Query:** `status` (active|archived), `page`, `pageSize`
-- **Response:** 200 OK paginated account list with balances
-
-**ACC-US-02: Get Account**
-- **Response:** 200 OK full account details with transaction history
-
-**ACC-US-03: Update Account**
-- **Request:** `{name, institution, accountNumber}` — immutable: `type`, `openingBalance`, `currency`. Currency is absent from the DTO, not merely ignored: balance, opening balance and the opening snapshot rate are all denominated in it and none can be restated (see `POST /workspaces/{id}/preferred-currency` to change what figures are reported in)
-- **Response:** 200 OK updated account
-- **Errors:** `ACCOUNT_NAME_EXISTS` (409), `ACCOUNT_ARCHIVED` (409), `PERMISSION_DENIED` (403)
-
-**ACC-US-04: Archive Account**
-- **Response:** 200 OK `{id, status: archived}`
-
----
-
-### 4.5 Transaction Management
-
-| Endpoint | Method | Purpose | Auth | Roles | Status |
-| --- | --- | --- | --- | --- | --- |
-| `/workspaces/{wsId}/transactions` | POST | Create transaction | Yes | MEMBER+ | 201 |
-| `/workspaces/{wsId}/transactions` | GET | List/search transactions | Yes | MEMBER+ | 200 |
-| `/workspaces/{wsId}/transactions/{id}` | GET | Get transaction | Yes | MEMBER+ | 200 |
-| `/workspaces/{wsId}/transactions/{id}` | PUT | Update transaction | Yes | MEMBER+ | 200 |
-| `/workspaces/{wsId}/transactions/{id}` | DELETE | Cancel transaction | Yes | MEMBER+ | 200 |
-
-**TXN-US-01: Create Transaction**
-- **Request:** `{accountId, type, amount, date, categoryId, tags, notes, savingGoalIds}` — currency follows the account; no `exchangeRate` field, the service resolves and snapshots it
-- **Response:** 201 Created `{id, type, amount, currency, exchangeRate, baseAmount, account, category, tags, createdBy, status}` — `exchangeRate` and `baseAmount` are read-only
-- **Errors:** `ACCOUNT_NOT_FOUND` (404), `CATEGORY_NOT_FOUND` (404), `INSUFFICIENT_BALANCE` (409), `EXCHANGE_RATE_UNAVAILABLE` (503)
-
-**TXN-US-02: List Transactions**
-- **Query:** `accountId`, `categoryId`, `type`, `minAmount`, `maxAmount`, `startDate`, `endDate`, `tags`, `sortBy`, `page`, `pageSize`
-- **Response:** 200 OK paginated transaction list with metadata
-
-**TXN-US-03: Get Transaction**
-- **Response:** 200 OK full transaction with all associated data
-
-**TXN-US-04: View Transaction History**
-- **Query:** `accountId`, `categoryId`, `type`, `minAmount`, `maxAmount`, `startDate`, `endDate`, `tags`, `sortBy`, `page`, `pageSize`
-- **Response:** 200 OK paginated transaction list with metadata
-
-**TXN-US-05: Cancel Transaction**
-- **Request:** `{reason}`
-- **Response:** 200 OK `{id, status: cancelled}`
-- **Errors:** `TRANSACTION_ALREADY_CANCELLED` (409)
-
----
-
-### 4.6 Budget Management
-
-| Endpoint | Method | Purpose | Auth | Roles | Status |
-| --- | --- | --- | --- | --- | --- |
-| `/workspaces/{wsId}/budgets` | POST | Create budget | Yes | MEMBER+ | 201 |
-| `/workspaces/{wsId}/budgets` | GET | List budgets | Yes | MEMBER+ | 200 |
-| `/workspaces/{wsId}/budgets/{id}` | GET | Get budget | Yes | MEMBER+ | 200 |
-| `/workspaces/{wsId}/budgets/{id}/approve` | POST | Approve budget | Yes | OWNER | 200 |
-| `/workspaces/{wsId}/budgets/{id}/reject` | POST | Reject budget | Yes | OWNER | 200 |
-| `/workspaces/{wsId}/budgets/{id}` | DELETE | Archive budget | Yes | OWNER | 200 |
-
-**BUD-US-01: Create Budget**
-- **Request:** `{name, period, startDate, endDate, items: [{categoryId, allocatedAmount}]}`
-- **Response:** 201 Created `{id, name, period, status: pending, items, createdBy, createdAt}`
-- **Errors:** `INVALID_DATE_RANGE` (400), `BUDGET_PERIOD_CONFLICT` (409)
-
-**BUD-US-02: List Budgets**
-- **Query:** `status` (pending|active|rejected), `period`, `page`, `pageSize`
-- **Response:** 200 OK paginated budget list with progress
-
-**BUD-US-03: Get Budget**
-- **Response:** 200 OK full budget with line items and spending data
-
-**BUD-US-04: Approve Budget**
-- **Response:** 200 OK `{id, status: active, approvedBy, approvedAt}`
-- **Errors:** `BUDGET_ALREADY_APPROVED` (409), `PERMISSION_DENIED` (403)
-
-**BUD-US-05: Reject Budget**
-- **Request:** `{reason}`
-- **Response:** 200 OK `{id, status: rejected, rejectedAt}`
-
-**BUD-US-06: Archive Budget**
-- **Response:** 200 OK `{id, status: archived}`
-
----
-
-### 4.7 Saving Goals
-
-| Endpoint | Method | Purpose | Auth | Roles | Status |
-| --- | --- | --- | --- | --- | --- |
-| `/workspaces/{wsId}/saving-goals` | POST | Create goal | Yes | MEMBER+ | 201 |
-| `/workspaces/{wsId}/saving-goals` | GET | List goals | Yes | MEMBER+ | 200 |
-| `/workspaces/{wsId}/saving-goals/{id}` | GET | Get goal | Yes | MEMBER+ | 200 |
-| `/workspaces/{wsId}/saving-goals/{id}` | PUT | Update goal | Yes | MEMBER+ | 200 |
-| `/workspaces/{wsId}/saving-goals/{id}/archive` | DELETE | Archive goal | Yes | MEMBER+ | 200 |
-
-**SAV-US-01: Create Goal**
-- **Request:** `{name, targetAmount, deadline, description}`
-- **Response:** 201 Created `{id, name, targetAmount, currentAmount, percentageComplete, status, createdAt}`
-
-**SAV-US-02: List Goals**
-- **Query:** `status` (active|completed|archived), `page`, `pageSize`
-- **Response:** 200 OK paginated goal list with progress
-
-**SAV-US-03: Get Goal**
-- **Response:** 200 OK full goal with linked transactions and progress detail
-
-**SAV-US-04: Update Goal**
-- **Request:** `{name, targetAmount, deadline, description}`
-- **Response:** 200 OK updated goal
-
-**SAV-US-05: Archive Goal**
-- **Response:** 200 OK `{id, status: archived}`
-
----
-
-### 4.8 Category Management
-
-| Endpoint | Method | Purpose | Auth | Roles | Status |
-| --- | --- | --- | --- | --- | --- |
-| `/workspaces/{wsId}/categories` | GET | List categories | Yes | ALL | 200 |
-| `/workspaces/{wsId}/categories` | POST | Create category | Yes | OWNER | 201 |
-| `/workspaces/{wsId}/categories/{id}` | PUT | Update category | Yes | OWNER | 200 |
-| `/workspaces/{wsId}/categories/{id}/archive` | DELETE | Archive category | Yes | OWNER | 200 |
-
-**CAT-US-01: List Categories**
-- **Query:** `type` (INCOME|EXPENSE), `includeArchived`
-- **Response:** 200 OK category list with icons/colors
-
-**CAT-US-02: Create Category**
-- **Request:** `{name, type, color, icon}`
-- **Response:** 201 Created `{id, name, type, color, icon, isDefault, createdAt}`
-- **Errors:** `CATEGORY_NAME_EXISTS` (409), `PERMISSION_DENIED` (403)
-
-**CAT-US-03: Update Category**
-- **Request:** `{name, color, icon}`
-- **Response:** 200 OK updated category
-
-**CAT-US-04: Archive Category**
-- **Response:** 200 OK `{id, isArchived: true}`
-- **Errors:** `CATEGORY_IN_USE` (409)
-
----
-
-### 4.9 Bills & Reminders
-
-| Endpoint | Method | Purpose | Auth | Roles | Status |
-| --- | --- | --- | --- | --- | --- |
-| `/workspaces/{wsId}/bills` | POST | Create bill | Yes | MEMBER+ | 201 |
-| `/workspaces/{wsId}/bills` | GET | List bills | Yes | MEMBER+ | 200 |
-| `/workspaces/{wsId}/bills/{id}` | GET | Get bill | Yes | MEMBER+ | 200 |
-| `/workspaces/{wsId}/bills/{id}` | PUT | Update bill | Yes | MEMBER+ | 200 |
-| `/workspaces/{wsId}/bills/{id}/archive` | DELETE | Archive bill | Yes | MEMBER+ | 200 |
-
-**BILL-US-01: Create Bill**
-- **Request:** `{name, amount, dueDay, frequency, categoryId}`
-- **Response:** 201 Created `{id, name, amount, frequency, status, createdAt}`
-
-**BILL-US-02: List Bills**
-- **Query:** `status` (active|inactive), `page`, `pageSize`
-- **Response:** 200 OK paginated bill list with next due dates
-
-**BILL-US-03: Get Bill**
-- **Response:** 200 OK full bill details
-
-**BILL-US-04: Update Bill**
-- **Request:** `{name, amount, dueDay, frequency, categoryId}`
-- **Response:** 200 OK updated bill
-
-**BILL-US-05: Archive Bill**
-- **Response:** 200 OK `{id, status: archived}`
-
----
-
-### 4.10 Dashboard & Reports
-
-| Endpoint | Method | Purpose | Auth | Roles | Status |
-| --- | --- | --- | --- | --- | --- |
-| `/exchange-rates` | GET | Read the current rate for a currency pair | Yes | ALL | 200 |
-| `/workspaces/{wsId}/preferred-currency` | POST | Change the reporting currency | Yes | OWNER | 200 |
-| `/workspaces/{wsId}/dashboard` | GET | Financial dashboard | Yes | ALL | 200 |
-| `/workspaces/{wsId}/reports` | GET | Generate report | Yes | OWNER | 200 |
-| `/workspaces/{wsId}/search` | GET | Search transactions | Yes | MEMBER+ | 200 |
-
-**Get Exchange Rate** (supporting endpoint — no user story of its own)
-- **Query:** `base`, `quote` — each `VND` or `USD`
-- **Response:** 200 OK `{base, quote, rate}` — the rate `ExchangeRateService` would snapshot at this moment
-- **Purpose:** lets a form show what a cross-currency amount converts to before submission. Read-only: the value is never accepted back on a write, because the rate stored with a row is always resolved server-side (BR-07a)
-- **Errors:** `UNSUPPORTED_CURRENCY` (400), `EXCHANGE_RATE_UNAVAILABLE` (503)
-
-**DASH-US-01: Get Dashboard**
-- **Query:** `startDate`, `endDate`
-- **Response:** 200 OK
-  ```
-  {currency, asOf, totalBalance,
-   allTime: {income, expense, net},
-   month:   {income, expense, net, period},   // period = first day of the month
-   today:   {income, expense, net, period},
-   accounts: [{id, name, type, currency, status, balance, baseBalance, income, expense, net}],
-   monthlySeries: [{period, income, expense, net}],   // 6 entries, oldest first
-   dailySeries:   [{period, income, expense, net}]}   // 30 entries, oldest first
-  ```
-- **Aggregation:** three grouped queries — by type, by (account, type), and by (date, type) over the series window. Month, today, and both series are folded from the windowed result in the service; nothing is queried per account or per day. `TRANSFER` rows are excluded from income and expense (they net to zero across a workspace)
-- **Series padding:** every period in the window is present, zero-filled when it has no rows, so a client can draw the axis without gap detection
-- **Scope:** Current workspace only
-
-**DASH-US-02: Generate Report**
-- **Query:** `type` (MONTHLY|YEARLY|CASH_FLOW|etc), `startDate`, `endDate`, `format` (JSON|PDF|EXCEL|CSV)
-- **Response:** 200 OK JSON/PDF/EXCEL/CSV with summary, byCategory, details
-- **Errors:** `INVALID_DATE_RANGE` (400), `UNSUPPORTED_FORMAT` (400)
-
-**DASH-US-03: Search Transactions**
-- **Query:** `q` (search text), all transaction list filters
-- **Response:** 200 OK paginated transaction search results
-
----
-
-### 4.11 Audit Logs
-
-| Endpoint | Method | Purpose | Auth | Roles | Status |
-| --- | --- | --- | --- | --- | --- |
-| `/workspaces/{wsId}/audit-logs` | GET | Retrieve audit logs | Yes | OWNER | 200 |
-
-**AUDIT-US-01: List Audit Logs**
-- **Query:** `entityType`, `action`, `startDate`, `endDate`, `actorId`, `page`, `pageSize`
-- **Response:** 200 OK paginated audit log entries with `{timestamp, event, action, entityType, actor, changes, note, ipAddress}`
-- **Access:** OWNER only; returns `PERMISSION_DENIED` (403) for other roles
+- **Base path:** `/api/v1` (`API_PREFIX` in `packages/contracts/src/routes.ts`)
+- **Auth:** `Authorization: Bearer <accessToken>` — see [§4.1](#41-high-level-architecture-diagram)
+- **Envelope:** every response is `{success, message?, data, meta: {timestamp, pagination?}}`
+  (`ApiEnvelope<T>`); errors are `{success: false, message, error: {code, fields?}, meta}`
+- **Money:** every amount is a string, never a JSON number (`MoneyString`)
+- **Pagination:** `page`/`pageSize` query params; response `meta.pagination` carries
+  `{page, pageSize, total, hasMore}`
+
+### 5.2 Endpoints by feature
+
+Method/path/minimum-role only — see [§6.1](#61-api-index) for the complete list and
+`docs/API_SPECIFICATION.md` for full detail.
+
+| Feature | Controller | Base path |
+| --- | --- | --- |
+| Auth & session | `AuthController` | `/auth/*` |
+| Wallets, members, invitations, audit | `WalletsController` | `/wallets/*` |
+| Accounts | `AccountsController` | `/accounts` |
+| Categories | `CategoriesController` | `/categories` |
+| Transactions | `TransactionsController` | `/transactions` |
+| Budgets | `BudgetsController` | `/budgets` |
+| Goals & contributions | `GoalsController` | `/goals` |
+| Dashboard | `DashboardController` | `/dashboard` |
+| Health | `HealthController` | `/health` |
+
+**Known gap:** `POST /invitations/preview` and `POST /invitations/accept` are defined in
+`ROUTES.invitations` (`@sora/contracts`) and specified in detail in
+`docs/API_SPECIFICATION.md` §8.4–8.5, corresponding to
+[WAL-US-04](SRS.md#wal-us-04-preview-an-invitation-before-committing) and
+[WAL-US-05](SRS.md#wal-us-05-accept-an-invitation) — but **no controller implements either route**
+(verified: neither path appears in any `@Get`/`@Post`/`@Patch`/`@Delete` decorator under
+`server/src`). An invitation can currently be created and revoked (`WalletsController`), but not
+previewed or accepted through the API. See [§8](#8-feature-implementation-mapping).
 
 ---
 
@@ -828,833 +516,280 @@ A snapshot rate is required whenever an amount is recorded in a currency other t
 
 ### 6.1 API Index
 
-Consolidated endpoint reference matrix for all Finance API operations:
+The actually-implemented endpoints (verified against every `@Controller` in `server/src`, 2026-08-25)
+— 50 routes. This supersedes `docs/API_SPECIFICATION.md` §3's index table, which still lists the
+two unimplemented invitation routes ([§5.2](#52-endpoints-by-feature)) and predates the Google-auth
+and preferences endpoints added in migration 002; that table is a documentation-maintenance gap
+in that file, not a code issue, and is out of this document's authority to fix.
 
-| Method | Path | Purpose | Auth | Roles | Success Status |
-|--------|------|---------|------|-------|-----------------|
-| POST | `/api/v1/auth/register` | Register new user | No | — | 201 |
-| POST | `/api/v1/auth/login` | Issue JWT + refresh token | No | — | 200 |
-| POST | `/api/v1/auth/refresh` | Issue new JWT + rotated refresh | No | — | 200 |
-| POST | `/api/v1/auth/logout` | Revoke refresh token | Yes | ALL | 200 |
-| POST | `/api/v1/workspaces` | Create workspace | Yes | ALL | 201 |
-| GET | `/api/v1/workspaces` | List user workspaces | Yes | ALL | 200 |
-| POST | `/api/v1/workspaces/{id}/members/invite` | Invite member | Yes | OWNER | 201 |
-| POST | `/api/v1/invitations/accept` | Accept invitation | Yes | — | 200 |
-| GET | `/api/v1/workspaces/{id}/members` | List workspace members | Yes | ALL | 200 |
-| PUT | `/api/v1/workspaces/{id}/members/{userId}/role` | Promote a MEMBER to OWNER | Yes | OWNER | 200 |
-| DELETE | `/api/v1/workspaces/{id}/members/{userId}` | Remove a MEMBER | Yes | OWNER | 200 |
-| POST | `/api/v1/workspaces/{wsId}/accounts` | Create account | Yes | ALL | 201 |
-| GET | `/api/v1/workspaces/{wsId}/accounts` | List accounts | Yes | ALL | 200 |
-| GET | `/api/v1/workspaces/{wsId}/accounts/{id}` | Get account details | Yes | ALL | 200 |
-| PUT | `/api/v1/workspaces/{wsId}/accounts/{id}` | Update account | Yes | OWNER | 200 |
-| DELETE | `/api/v1/workspaces/{wsId}/accounts/{id}/archive` | Archive account | Yes | OWNER | 200 |
-| POST | `/api/v1/workspaces/{wsId}/transactions` | Create transaction | Yes | MEMBER+ | 201 |
-| GET | `/api/v1/workspaces/{wsId}/transactions` | List/search transactions | Yes | MEMBER+ | 200 |
-| GET | `/api/v1/workspaces/{wsId}/transactions/{id}` | Get transaction | Yes | MEMBER+ | 200 |
-| PUT | `/api/v1/workspaces/{wsId}/transactions/{id}` | Update transaction | Yes | MEMBER+ | 200 |
-| POST | `/api/v1/workspaces/{wsId}/transactions/{id}/refund` | Create refund | Yes | MEMBER+ | 201 |
-| DELETE | `/api/v1/workspaces/{wsId}/transactions/{id}` | Cancel transaction | Yes | MEMBER+ | 200 |
-| POST | `/api/v1/workspaces/{wsId}/budgets` | Create budget | Yes | MEMBER+ | 201 |
-| GET | `/api/v1/workspaces/{wsId}/budgets` | List budgets | Yes | MEMBER+ | 200 |
-| GET | `/api/v1/workspaces/{wsId}/budgets/{id}` | Get budget | Yes | MEMBER+ | 200 |
-| POST | `/api/v1/workspaces/{wsId}/budgets/{id}/approve` | Approve budget | Yes | OWNER | 200 |
-| POST | `/api/v1/workspaces/{wsId}/budgets/{id}/reject` | Reject budget | Yes | OWNER | 200 |
-| DELETE | `/api/v1/workspaces/{wsId}/budgets/{id}` | Archive budget | Yes | OWNER | 200 |
-| POST | `/api/v1/workspaces/{wsId}/saving-goals` | Create goal | Yes | MEMBER+ | 201 |
-| GET | `/api/v1/workspaces/{wsId}/saving-goals` | List goals | Yes | MEMBER+ | 200 |
-| GET | `/api/v1/workspaces/{wsId}/saving-goals/{id}` | Get goal | Yes | MEMBER+ | 200 |
-| PUT | `/api/v1/workspaces/{wsId}/saving-goals/{id}` | Update goal | Yes | MEMBER+ | 200 |
-| DELETE | `/api/v1/workspaces/{wsId}/saving-goals/{id}/archive` | Archive goal | Yes | MEMBER+ | 200 |
-| GET | `/api/v1/workspaces/{wsId}/categories` | List categories | Yes | ALL | 200 |
-| POST | `/api/v1/workspaces/{wsId}/categories` | Create category | Yes | OWNER | 201 |
-| PUT | `/api/v1/workspaces/{wsId}/categories/{id}` | Update category | Yes | OWNER | 200 |
-| DELETE | `/api/v1/workspaces/{wsId}/categories/{id}/archive` | Archive category | Yes | OWNER | 200 |
-| POST | `/api/v1/workspaces/{wsId}/bills` | Create bill | Yes | MEMBER+ | 201 |
-| GET | `/api/v1/workspaces/{wsId}/bills` | List bills | Yes | MEMBER+ | 200 |
-| GET | `/api/v1/workspaces/{wsId}/bills/{id}` | Get bill | Yes | MEMBER+ | 200 |
-| PUT | `/api/v1/workspaces/{wsId}/bills/{id}` | Update bill | Yes | MEMBER+ | 200 |
-| DELETE | `/api/v1/workspaces/{wsId}/bills/{id}` | Archive bill | Yes | MEMBER+ | 200 |
-| GET | `/api/v1/exchange-rates` | Read the current rate for a currency pair | Yes | ALL | 200 |
-| POST | `/api/v1/workspaces/{wsId}/preferred-currency` | Change the reporting currency | Yes | OWNER | 200 |
-| GET | `/api/v1/workspaces/{wsId}/dashboard` | Financial dashboard | Yes | ALL | 200 |
-| GET | `/api/v1/workspaces/{wsId}/reports` | Generate report | Yes | OWNER | 200 |
-| GET | `/api/v1/workspaces/{wsId}/search` | Search transactions | Yes | MEMBER+ | 200 |
-| GET | `/api/v1/workspaces/{wsId}/audit-logs` | Retrieve audit logs | Yes | OWNER | 200 |
-
----
+| Method | Path | Min role | Controller |
+| --- | --- | --- | --- |
+| GET | `/health` | public | `HealthController` |
+| POST | `/auth/register` | public | `AuthController` |
+| POST | `/auth/login` | public | `AuthController` |
+| POST | `/auth/google` | public | `AuthController` |
+| POST | `/auth/refresh` | public | `AuthController` |
+| POST | `/auth/logout` | authed | `AuthController` |
+| GET | `/auth/me` | authed | `AuthController` |
+| PATCH | `/auth/me/preferences` | authed | `AuthController` |
+| GET | `/wallets` | authed | `WalletsController` |
+| POST | `/wallets` | authed | `WalletsController` |
+| GET | `/wallets/{id}` | VIEWER | `WalletsController` |
+| PATCH | `/wallets/{id}` | OWNER | `WalletsController` |
+| DELETE | `/wallets/{id}` | OWNER | `WalletsController` |
+| GET | `/wallets/{id}/members` | VIEWER | `WalletsController` |
+| PATCH | `/wallets/{id}/members/{memberId}` | OWNER | `WalletsController` |
+| DELETE | `/wallets/{id}/members/{memberId}` | OWNER | `WalletsController` |
+| POST | `/wallets/{id}/transfer-ownership` | OWNER | `WalletsController` |
+| POST | `/wallets/{id}/leave` | VIEWER | `WalletsController` |
+| GET | `/wallets/{id}/invitations` | OWNER | `WalletsController` |
+| POST | `/wallets/{id}/invitations` | OWNER | `WalletsController` |
+| DELETE | `/wallets/{id}/invitations/{invitationId}` | OWNER | `WalletsController` |
+| GET | `/wallets/{id}/audit-logs` | OWNER | `WalletsController` |
+| GET | `/accounts` | VIEWER | `AccountsController` |
+| POST | `/accounts` | EDITOR | `AccountsController` |
+| GET | `/accounts/{id}` | VIEWER | `AccountsController` |
+| PATCH | `/accounts/{id}` | EDITOR | `AccountsController` |
+| DELETE | `/accounts/{id}` | EDITOR | `AccountsController` |
+| GET | `/categories` | VIEWER | `CategoriesController` |
+| POST | `/categories` | EDITOR | `CategoriesController` |
+| PATCH | `/categories/{id}` | EDITOR | `CategoriesController` |
+| DELETE | `/categories/{id}` | EDITOR | `CategoriesController` |
+| GET | `/transactions` | VIEWER | `TransactionsController` |
+| POST | `/transactions` | EDITOR | `TransactionsController` |
+| GET | `/transactions/{id}` | VIEWER | `TransactionsController` |
+| PATCH | `/transactions/{id}` | EDITOR | `TransactionsController` |
+| POST | `/transactions/{id}/cancel` | EDITOR | `TransactionsController` |
+| GET | `/budgets` | VIEWER | `BudgetsController` |
+| POST | `/budgets` | EDITOR | `BudgetsController` |
+| GET | `/budgets/{id}` | VIEWER | `BudgetsController` |
+| PATCH | `/budgets/{id}` | EDITOR | `BudgetsController` |
+| DELETE | `/budgets/{id}` | EDITOR | `BudgetsController` |
+| GET | `/goals` | VIEWER | `GoalsController` |
+| POST | `/goals` | EDITOR | `GoalsController` |
+| GET | `/goals/{id}` | VIEWER | `GoalsController` |
+| PATCH | `/goals/{id}` | EDITOR | `GoalsController` |
+| DELETE | `/goals/{id}` | EDITOR | `GoalsController` |
+| GET | `/goals/{id}/contributions` | VIEWER | `GoalsController` |
+| POST | `/goals/{id}/contributions` | EDITOR | `GoalsController` |
+| DELETE | `/goals/{id}/contributions/{contributionId}` | EDITOR | `GoalsController` |
+| GET | `/dashboard` | VIEWER | `DashboardController` |
 
 ### 6.2 Error Response Catalog
 
-Standardized error codes and HTTP status mappings used across all Finance API endpoints:
+The complete, current set — byte-identical to `ERROR_CODES`/`ERROR_STATUS` in
+`packages/contracts/src/responses.ts` (`scripts/check-contract-parity.mjs` proves every code has a
+status and vice versa). There is no separate "auth vs workspace vs account" split in the source;
+grouped here for readability only.
 
-| Error Code | HTTP Status | Description | Category | Applies To |
-|------------|-------------|-------------|----------|-----------|
-| **Auth Errors** | | | | |
-| `USER_EMAIL_EXISTS` | 409 Conflict | Email already registered or pending confirmation | Registration | `/auth/register` |
-| `INVALID_PASSWORD` | 400 Bad Request | Password fails strength requirements | Registration | `/auth/register` |
-| `INVALID_EMAIL` | 400 Bad Request | Malformed email format | Registration/Login | `/auth/register`, `/auth/login`, `/workspaces/{id}/members/invite` |
-| `RATE_LIMITED` | 429 Too Many Requests | Too many registration attempts from IP or email | Rate Limit | `/auth/register`, `/auth/login` |
-| `INVALID_CREDENTIALS` | 401 Unauthorized | Email/password combination not found | Authentication | `/auth/login` |
-| `ACCOUNT_LOCKED` | 423 Locked | Account locked due to failed login attempts | Authentication | `/auth/login` |
-| `INVALID_REFRESH_TOKEN` | 401 Unauthorized | Refresh token invalid or expired | Token Refresh | `/auth/refresh` |
-| `TOKEN_BLACKLISTED` | 401 Unauthorized | Refresh token has been revoked | Token Refresh | `/auth/refresh` |
-| `EMAIL_NOT_VERIFIED` | 403 Forbidden | Email address has not been confirmed yet | Authentication | `/auth/login` |
-| `TOKEN_EXPIRED` | 410 Gone | Email confirmation link has expired | Email Verification | `/auth/email-verification` |
-| `TOKEN_ALREADY_USED` | 409 Conflict | Email confirmation link has already been used | Email Verification | `/auth/email-verification` |
-| `INVALID_TOKEN` | 401 Unauthorized | Bearer or refresh token is malformed or unknown | Authentication | `/auth/logout` |
-| `USER_NOT_FOUND` | 404 Not Found | User does not exist | Resource Not Found | `/auth/login`, `/auth/email-verification`, `/invitations/accept` |
-| **Workspace Errors** | | | | |
-| `WORKSPACE_NOT_FOUND` | 404 Not Found | Workspace does not exist | Resource Not Found | Most endpoints |
-| `PERMISSION_DENIED` | 403 Forbidden | User role lacks permission for action | Authorization | Most endpoints |
-| `USER_ALREADY_MEMBER` | 409 Conflict | User is already member of workspace | Conflict | `/workspaces/{id}/members/invite` |
-| `WORKSPACE_NAME_EXISTS` | 409 Conflict | Workspace name already used by this owner | Uniqueness | `/workspaces` POST |
-| `INVALID_WORKSPACE_NAME` | 400 Bad Request | Workspace name empty or exceeds 255 characters | Validation | `/workspaces` POST, PUT |
-| `MEMBER_NOT_FOUND` | 404 Not Found | Target user is not a member of the workspace | Resource Not Found | `/members/{userId}` DELETE, `/members/{userId}/role` PUT |
-| `INVALID_ROLE` | 400 Bad Request | Role is not one of OWNER, MEMBER | Validation | `/members/{userId}/role` PUT |
-| **Account Errors** | | | | |
-| `ACCOUNT_NOT_FOUND` | 404 Not Found | Account does not exist in workspace | Resource Not Found | Account, Transaction, Bill endpoints |
-| `ACCOUNT_ARCHIVED` | 409 Conflict | Account is archived and cannot be used | State Conflict | Transaction, Budget endpoints |
-| `ACCOUNT_LIMIT_EXCEEDED` | 409 Conflict | Workspace has reached maximum account count | Quota | `/accounts` POST |
-| `UNSUPPORTED_CURRENCY` | 400 Bad Request | Currency is not one of the supported currencies (VND, USD) | Validation | `/workspaces` POST, `/accounts` POST, `/transactions` POST |
-| `EXCHANGE_RATE_UNAVAILABLE` | 503 Service Unavailable | No rate could be resolved for a cross-currency amount: the provider was unreachable, no cached rate was recent enough, and no fallback is configured | Dependency | `/accounts` POST, `/transactions` POST, `/transactions/transfer` POST, `/exchange-rates` GET |
-| `ACCOUNT_NAME_EXISTS` | 409 Conflict | Account name already exists in workspace | Uniqueness | `/accounts` POST, PUT |
-| `INVALID_ACCOUNT_TYPE` | 400 Bad Request | Account type not in the supported list | Validation | `/accounts` POST |
-| `INVALID_OPENING_BALANCE` | 400 Bad Request | Opening balance is malformed or out of precision | Validation | `/accounts` POST |
-| `ACCOUNT_HAS_PENDING_TRANSACTIONS` | 409 Conflict | Account cannot be archived while transactions are pending | State Conflict | `/accounts/{id}/archive` DELETE |
-| **Category Errors** | | | | |
-| `CATEGORY_NOT_FOUND` | 404 Not Found | Category does not exist in workspace | Resource Not Found | Transaction, Budget, Bill endpoints |
-| `CATEGORY_NAME_EXISTS` | 409 Conflict | Category name already exists in workspace | Uniqueness | `/categories` POST |
-| `CATEGORY_IN_USE` | 409 Conflict | Cannot archive category with active transactions | Referential Integrity | `/categories/{id}/archive` |
-| `INVALID_CATEGORY_TYPE` | 400 Bad Request | Category type is not Income or Expense | Validation | `/categories` POST, PUT |
-| **Transaction Errors** | | | | |
-| `INSUFFICIENT_BALANCE` | 409 Conflict | Account balance insufficient for expense | Business Rule | `/transactions` POST |
-| `CANNOT_MODIFY_RECORDED` | 409 Conflict | Recorded transactions are immutable (only notes/tags editable) | State Conflict | `/transactions/{id}` PUT |
-| `TRANSACTION_NOT_FOUND` | 404 Not Found | Transaction does not exist in workspace | Resource Not Found | Transaction endpoints |
-| `TRANSACTION_ALREADY_CANCELLED` | 409 Conflict | Transaction is already cancelled | State Conflict | `/transactions/{id}` DELETE |
-| `INVALID_AMOUNT` | 400 Bad Request | Amount is not a positive decimal within precision | Validation | `/transactions` POST |
-| `INVALID_TRANSFER` | 400 Bad Request | Source and destination account are the same | Validation | `/transactions/transfer` POST |
-| **Budget Errors** | | | | |
-| `INVALID_DATE_RANGE` | 400 Bad Request | Start date is after end date or dates invalid | Validation | `/budgets` POST, `/reports` GET |
-| `BUDGET_PERIOD_CONFLICT` | 409 Conflict | Budget already exists for this period | Uniqueness | `/budgets` POST |
-| `BUDGET_ALREADY_APPROVED` | 409 Conflict | Budget is already approved; cannot approve again | State Conflict | `/budgets/{id}/approve` POST, `/budgets/{id}` PUT |
-| `BUDGET_NOT_FOUND` | 404 Not Found | Budget does not exist in workspace | Resource Not Found | Budget endpoints |
-| `INVALID_BUDGET_ALLOCATIONS` | 400 Bad Request | Allocation amount is negative or malformed | Validation | `/budgets` POST, PUT |
-| `UNSUPPORTED_FORMAT` | 400 Bad Request | Report format not supported (valid: JSON, PDF, EXCEL, CSV) | Validation | `/reports` GET |
-| **Goal Errors** | | | | |
-| `GOAL_NOT_FOUND` | 404 Not Found | Saving goal does not exist | Resource Not Found | Goal endpoints |
-| `GOAL_NAME_EXISTS` | 409 Conflict | Saving goal name already exists in workspace | Uniqueness | `/saving-goals` POST |
-| `GOAL_ARCHIVED` | 409 Conflict | Completed or archived goal cannot be tagged or edited | State Conflict | `/saving-goals/{id}` PUT, `/transactions` POST |
-| `INVALID_TARGET_AMOUNT` | 400 Bad Request | Target amount is zero or negative | Validation | `/saving-goals` POST |
-| `INVALID_DEADLINE` | 400 Bad Request | Deadline is not a future date | Validation | `/saving-goals` POST |
-| **Bill Errors** | | | | |
-| `BILL_NOT_FOUND` | 404 Not Found | Bill does not exist | Resource Not Found | Bill endpoints |
-| `INVALID_DUE_DATE` | 400 Bad Request | Due day is outside the valid range for the frequency | Validation | `/bills` POST, PUT |
-| `INVALID_FREQUENCY` | 400 Bad Request | Frequency is not monthly, quarterly, or yearly | Validation | `/bills` POST, PUT |
-| **Invitation Errors** | | | | |
-| `INVITATION_NOT_FOUND` | 404 Not Found | Invitation token unknown, or not addressed to the authenticated User | Resource Not Found | `/invitations/accept` |
-| `INVITATION_EXPIRED` | 410 Gone | Invitation is past its 7-day expiration | State Conflict | `/invitations/accept` |
-| `INVITATION_ALREADY_USED` | 409 Conflict | Invitation has already been accepted or declined | State Conflict | `/invitations/accept` |
-| **Generic Errors** | | | | |
-| `INTERNAL_ERROR` | 500 Internal Server Error | Unexpected server error (async operations may retry) | System | All endpoints |
-| `UNSUPPORTED_OPERATION` | 400 Bad Request | Operation not supported in current context, including changing the role of an OWNER or removing an OWNER | Validation | `/members/{userId}` DELETE, `/members/{userId}/role` PUT, any endpoint |
-| `INVALID_FILTER` | 400 Bad Request | Filter parameter value is not accepted for this endpoint | Validation | List and search endpoints |
+| Error code | Status | Category |
+| --- | --- | --- |
+| `VALIDATION_FAILED` | 422 | Request validation |
+| `UNAUTHENTICATED` | 401 | No/invalid bearer token |
+| `TOKEN_EXPIRED` | 401 | Refresh token expired |
+| `TOKEN_INVALID` | 401 | Refresh token malformed/unknown |
+| `CREDENTIALS_INVALID` | 401 | Login — identical for unknown email and wrong password |
+| `EMAIL_ALREADY_REGISTERED` | 409 | Registration |
+| `FORBIDDEN` | 403 | Member, but role too low (never "no membership" — see `WALLET_NOT_FOUND`) |
+| `WALLET_NOT_FOUND` | 404 | No such wallet, or no membership on it (BR-05) |
+| `WALLET_ARCHIVED` | 409 | Write attempted on an archived wallet |
+| `WALLET_LAST_OWNER` | 409 | Demote/revoke/leave attempted on the sole owner |
+| `MEMBER_NOT_FOUND` | 404 | No such member |
+| `MEMBER_ALREADY_EXISTS` | 409 | Invite/accept target is already a member |
+| `INVITATION_NOT_FOUND` | 404 | No such invitation |
+| `INVITATION_EXPIRED` | 410 | Past its 7-day expiry |
+| `INVITATION_ALREADY_USED` | 409 | Already accepted or revoked |
+| `INVITATION_EMAIL_MISMATCH` | 403 | Accepting as someone other than the invited address |
+| `INVITATION_ALREADY_OPEN` | 409 | A live invitation already exists for this wallet+email |
+| `ACCOUNT_NOT_FOUND` | 404 | No such account, or no membership on its wallet |
+| `ACCOUNT_ARCHIVED` | 409 | Write attempted on an archived account |
+| `ACCOUNT_CURRENCY_MISMATCH` | 422 | Transaction currency ≠ account currency |
+| `ACCOUNT_LAST_ACTIVE` | 409 | (reserved) |
+| `CATEGORY_NOT_FOUND` | 404 | No such category, or wrong wallet |
+| `CATEGORY_WRONG_TYPE` | 422 | Income category on an expense (or vice versa) |
+| `CATEGORY_WRONG_WALLET` | 403 | Category belongs to a different wallet |
+| `CATEGORY_DUPLICATE_NAME` | 409 | Sibling name collision (case-insensitive) |
+| `CATEGORY_CYCLE` | 422 | Parent assignment would create a cycle |
+| `CATEGORY_IN_USE` | 409 | Archive refused — an active budget still plans for it |
+| `CATEGORY_HAS_TRANSACTIONS` | 409 | (reserved) |
+| `TRANSACTION_NOT_FOUND` | 404 | No such transaction |
+| `TRANSACTION_IMMUTABLE` | 409 | Edit attempted on a field that cannot change |
+| `TRANSACTION_ALREADY_CANCELLED` | 409 | Cancel attempted twice |
+| `TRANSFER_SAME_ACCOUNT` | 422 | Transfer source and destination are the same account |
+| `TRANSFER_CURRENCY_MISMATCH` | 422 | The two accounts don't share a currency |
+| `BUDGET_NOT_FOUND` | 404 | No such budget |
+| `BUDGET_PERIOD_OVERLAP` | 409 | Overlaps another active budget for the same category |
+| `GOAL_NOT_FOUND` | 404 | No such goal |
+| `GOAL_NOT_ACTIVE` | 409 | Contribution attempted on a completed/cancelled goal |
+| `CONTRIBUTION_NOT_FOUND` | 404 | No such contribution |
+| `RATE_LIMITED` | 429 | Auth rate limit or per-email lockout |
+| `INTERNAL_ERROR` | 500 | Unexpected |
+| `GOOGLE_TOKEN_INVALID` | 401 | Google ID token failed verification |
 
 ---
 
 ## 7. Database Schema
 
-### 7.1 Core Tables
+**The migration files are the schema.** This section is a readable summary; it is not copied
+DDL, so it cannot itself drift from what `node scripts/migrate.mjs` actually applies — read
+[`001_initial_wallet_schema.sql`](db/migrations/001_initial_wallet_schema.sql) and
+[`002_google_auth_and_preferences.sql`](db/migrations/002_google_auth_and_preferences.sql) for
+exact column types, defaults and constraint definitions.
 
-```sql
--- Users
-CREATE TABLE users (
-  id BIGSERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  name VARCHAR(255) NOT NULL,
-  status VARCHAR(50) DEFAULT 'active', -- active, inactive, pending_verification
-  email_verified_at TIMESTAMP NULL,
-  failed_login_attempts INT DEFAULT 0,
-  locked_until TIMESTAMP NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  deleted_at TIMESTAMP NULL
-);
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_status ON users(status);
+**Tables (001):** `users`, `refresh_tokens`, `wallets`, `wallet_members`, `wallet_invitations`,
+`accounts`, `categories`, `transactions`, `budgets`, `goals`, `goal_contributions`, `audit_logs`.
 
--- Workspaces
-CREATE TABLE workspaces (
-  id BIGSERIAL PRIMARY KEY,
-  owner_id BIGINT NOT NULL REFERENCES users(id),
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  type VARCHAR(50), -- PERSONAL, FAMILY, CUSTOM
-  currency VARCHAR(3) NOT NULL DEFAULT 'USD' CHECK (currency IN ('VND','USD')), -- preferred currency for every summary
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  deleted_at TIMESTAMP NULL
-);
-CREATE INDEX idx_workspaces_owner_id ON workspaces(owner_id);
-CREATE INDEX idx_workspaces_created_at ON workspaces(created_at);
+**Migration 002** makes `users.password_hash` nullable, adds `google_id` (unique where not null),
+`theme` and `locale`, and adds `chk_user_has_credential` — a row must have a password **or** a
+Google id, never neither.
 
--- Workspace Members (join table)
-CREATE TABLE workspace_members (
-  id BIGSERIAL PRIMARY KEY,
-  workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  role VARCHAR(50) NOT NULL, -- OWNER, MEMBER
-  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(workspace_id, user_id)
-);
-CREATE INDEX idx_workspace_members_user_id ON workspace_members(user_id);
-CREATE INDEX idx_workspace_members_role ON workspace_members(role);
+**Constraints load-bearing enough that a service-layer check alone would not be safe to rely on:**
 
--- Invitations
-CREATE TABLE invitations (
-  id BIGSERIAL PRIMARY KEY,
-  workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  inviter_id BIGINT NOT NULL REFERENCES users(id),
-  email VARCHAR(255) NOT NULL,
-  role VARCHAR(50) NOT NULL,
-  token VARCHAR(255) UNIQUE NOT NULL,
-  status VARCHAR(50) DEFAULT 'pending', -- pending, accepted, declined, expired
-  invited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  expires_at TIMESTAMP NOT NULL,
-  accepted_at TIMESTAMP NULL,
-  accepted_by_user_id BIGINT NULL REFERENCES users(id)
-);
-CREATE INDEX idx_invitations_workspace_id ON invitations(workspace_id);
-CREATE INDEX idx_invitations_token ON invitations(token);
-CREATE INDEX idx_invitations_expires_at ON invitations(expires_at);
+| Constraint | Table | What it actually prevents |
+| --- | --- | --- |
+| `uq_wallet_single_owner` | `wallet_members` | Two `ACTIVE` `OWNER` rows on one wallet, even momentarily — see [CLAUDE.md](CLAUDE.md) Part 7, rule 3 on why ownership transfer must demote before it promotes |
+| `excl_budget_overlap` (GIST) | `budgets` | Two `ACTIVE` budgets for one category with overlapping `daterange(start_date, end_date, '[]')` — a plain unique index cannot express "overlap," only "identical" |
+| `chk_transaction_shape` | `transactions` | A row whose account/category combination doesn't match its `type` (e.g. a `TRANSFER` with a `category_id`, or an `INCOME` with a `from_account_id`) |
+| `uq_wallet_invitation_open` | `wallet_invitations` | Two live (unaccepted, unrevoked) invitations for the same wallet+email |
+| `chk_user_has_credential` | `users` | A row with neither a password nor a Google identity — unable to authenticate through any path |
 
--- Accounts
-CREATE TABLE accounts (
-  id BIGSERIAL PRIMARY KEY,
-  workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  type VARCHAR(50) NOT NULL, -- CASH, BANK_ACCOUNT, CREDIT_CARD, DEBIT_CARD, SAVINGS, INVESTMENT, CRYPTO, DIGITAL_WALLET
-  name VARCHAR(255) NOT NULL,
-  currency VARCHAR(3) NOT NULL CHECK (currency IN ('VND','USD')),
-  balance DECIMAL(15,2) NOT NULL,
-  opening_balance DECIMAL(15,2) NOT NULL,
-  exchange_rate DECIMAL(18,10) NOT NULL DEFAULT 1 CHECK (exchange_rate > 0), -- system-resolved snapshot rate for the opening balance; 10 dp because VND->USD is ~0.0000382
-  opening_base_balance DECIMAL(15,2) GENERATED ALWAYS AS (opening_balance * exchange_rate) STORED,
-  institution VARCHAR(255),
-  account_number VARCHAR(255), -- masked
-  color VARCHAR(7), -- hex color
-  icon VARCHAR(50),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  deleted_at TIMESTAMP NULL
-);
-CREATE INDEX idx_accounts_workspace_id ON accounts(workspace_id);
-CREATE INDEX idx_accounts_deleted_at ON accounts(deleted_at);
--- Categories
-CREATE TABLE categories (
-  id BIGSERIAL PRIMARY KEY,
-  workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  name VARCHAR(255) NOT NULL,
-  type VARCHAR(50) NOT NULL, -- INCOME, EXPENSE
-  color VARCHAR(7),
-  icon VARCHAR(50),
-  is_default BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  deleted_at TIMESTAMP NULL
-);
-CREATE INDEX idx_categories_workspace_id ON categories(workspace_id);
-CREATE UNIQUE INDEX idx_categories_name_per_workspace ON categories(workspace_id, name) WHERE deleted_at IS NULL;
-
--- Transactions
-CREATE TABLE transactions (
-  id BIGSERIAL PRIMARY KEY,
-  workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  account_id BIGINT NOT NULL REFERENCES accounts(id),
-  category_id BIGINT NOT NULL REFERENCES categories(id),
-  type VARCHAR(50) NOT NULL, -- INCOME, EXPENSE, TRANSFER, REFUND, INVESTMENT, LOAN, DEBT
-  amount DECIMAL(15,2) NOT NULL, -- always positive; direction carries the sign
-  direction VARCHAR(6) NOT NULL CHECK (direction IN ('debit','credit')), -- 'debit' reduced the account, 'credit' increased it
-  currency VARCHAR(3) NOT NULL CHECK (currency IN ('VND','USD')),
-  exchange_rate DECIMAL(18,10) NOT NULL DEFAULT 1 CHECK (exchange_rate > 0), -- system-resolved snapshot at recording time; never restated
-  base_amount DECIMAL(15,2) GENERATED ALWAYS AS (amount * exchange_rate) STORED, -- amount in the workspace preferred currency
-  date DATE NOT NULL,
-  description TEXT,
-  notes TEXT,
-  receipt_url VARCHAR(1024),
-  location VARCHAR(255),
-  tags TEXT, -- JSON array or comma-separated
-  created_by BIGINT NOT NULL REFERENCES users(id),
-  status VARCHAR(50) DEFAULT 'recorded', -- recorded, cancelled
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  deleted_at TIMESTAMP NULL
-);
-CREATE INDEX idx_transactions_workspace_id ON transactions(workspace_id);
-CREATE INDEX idx_transactions_account_id ON transactions(account_id);
-CREATE INDEX idx_transactions_category_id ON transactions(category_id);
-CREATE INDEX idx_transactions_date ON transactions(date);
-CREATE INDEX idx_transactions_created_by ON transactions(created_by);
-CREATE INDEX idx_transactions_deleted_at ON transactions(deleted_at);
-
--- Budgets
-CREATE TABLE budgets (
-  id BIGSERIAL PRIMARY KEY,
-  workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  created_by BIGINT NOT NULL REFERENCES users(id),
-  approved_by BIGINT REFERENCES users(id),
-  name VARCHAR(255) NOT NULL,
-  period VARCHAR(50) NOT NULL, -- MONTHLY, WEEKLY, YEARLY, CUSTOM
-  start_date DATE NOT NULL,
-  end_date DATE NOT NULL,
-  status VARCHAR(50) DEFAULT 'pending', -- pending, active, rejected, archived
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  approved_at TIMESTAMP NULL,
-  deleted_at TIMESTAMP NULL
-);
-CREATE INDEX idx_budgets_workspace_id ON budgets(workspace_id);
-CREATE INDEX idx_budgets_status ON budgets(status);
-CREATE INDEX idx_budgets_period_workspace ON budgets(workspace_id, period, start_date) WHERE deleted_at IS NULL;
-
--- Budget Items
-CREATE TABLE budget_items (
-  id BIGSERIAL PRIMARY KEY,
-  budget_id BIGINT NOT NULL REFERENCES budgets(id) ON DELETE CASCADE,
-  category_id BIGINT NOT NULL REFERENCES categories(id),
-  allocated_amount DECIMAL(15,2) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_budget_items_budget_id ON budget_items(budget_id);
-CREATE INDEX idx_budget_items_category_id ON budget_items(category_id);
-
--- Saving Goals
-CREATE TABLE saving_goals (
-  id BIGSERIAL PRIMARY KEY,
-  workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  created_by BIGINT NOT NULL REFERENCES users(id),
-  name VARCHAR(255) NOT NULL,
-  target_amount DECIMAL(15,2) NOT NULL,
-  current_amount DECIMAL(15,2) DEFAULT 0,
-  deadline DATE NOT NULL,
-  description TEXT,
-  status VARCHAR(50) DEFAULT 'active', -- active, completed, archived
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  completed_at TIMESTAMP NULL,
-  deleted_at TIMESTAMP NULL
-);
-CREATE INDEX idx_saving_goals_workspace_id ON saving_goals(workspace_id);
-CREATE INDEX idx_saving_goals_deadline ON saving_goals(deadline);
-
--- Goal-Transaction Link
-CREATE TABLE saving_goal_transactions (
-  id BIGSERIAL PRIMARY KEY,
-  goal_id BIGINT NOT NULL REFERENCES saving_goals(id) ON DELETE CASCADE,
-  transaction_id BIGINT NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
-  amount_allocated DECIMAL(15,2) NOT NULL,
-  UNIQUE(goal_id, transaction_id)
-);
-CREATE INDEX idx_goal_transactions_goal_id ON saving_goal_transactions(goal_id);
-
--- Bills
-CREATE TABLE bills (
-  id BIGSERIAL PRIMARY KEY,
-  workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  category_id BIGINT NOT NULL REFERENCES categories(id),
-  created_by BIGINT NOT NULL REFERENCES users(id),
-  name VARCHAR(255) NOT NULL,
-  amount DECIMAL(15,2) NOT NULL,
-  due_day_of_month INT,
-  frequency VARCHAR(50) NOT NULL, -- MONTHLY, QUARTERLY, YEARLY
-  status VARCHAR(50) DEFAULT 'active', -- active, inactive, archived
-  last_reminder_sent TIMESTAMP NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  deleted_at TIMESTAMP NULL
-);
-CREATE INDEX idx_bills_workspace_id ON bills(workspace_id);
-CREATE INDEX idx_bills_status ON bills(status);
-
--- Audit Logs
-CREATE TABLE audit_logs (
-  id BIGSERIAL PRIMARY KEY,
-  workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  event_name VARCHAR(100) NOT NULL, -- TRANSACTION_CREATED, BUDGET_APPROVED, etc.
-  action VARCHAR(50) NOT NULL, -- CREATE, UPDATE, DELETE, APPROVE, REJECT
-  entity_type VARCHAR(100) NOT NULL, -- Transaction, Budget, Workspace, etc.
-  entity_id BIGINT,
-  actor_id BIGINT NOT NULL REFERENCES users(id),
-  actor_role VARCHAR(50),
-  changes JSONB, -- {field: old_value, field: new_value}
-  note TEXT,
-  ip_address VARCHAR(45),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_audit_logs_workspace_id ON audit_logs(workspace_id);
-CREATE INDEX idx_audit_logs_event_name ON audit_logs(event_name);
-CREATE INDEX idx_audit_logs_entity_type ON audit_logs(entity_type);
-CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
-CREATE INDEX idx_audit_logs_actor_id ON audit_logs(actor_id);
-
--- Refresh Tokens (for blacklisting)
-CREATE TABLE refresh_tokens (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token_hash VARCHAR(255) UNIQUE NOT NULL,
-  expires_at TIMESTAMP NOT NULL,
-  blacklisted_at TIMESTAMP NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
-CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
-```
+**No `deleted_at` column exists anywhere.** Archival is a `status` value; the one true row-level
+deletion in the schema is `goal_contributions`, where `SAV-US-05` removes the row outright
+(and cancels its backing transaction, if any, rather than deleting that).
 
 ---
 
 ## 8. Feature Implementation Mapping
 
-Last synced with SRS §9: 2026-07-30
+Full traceability, all 46 stories from [SRS.md §9](SRS.md#9-features--user-stories). "Controller"
+names the file whose HTTP surface realizes the story; this table is checked against the real
+`@Controller`/`@Get`/`@Post`/etc. decorators listed in [§6.1](#61-api-index), not against prose —
+regenerate it from the controllers, not from memory, the next time either drifts.
 
-Mapping of user stories (SRS §9) to backend implementation, with detailed per-story design approach, data requirements, API specifications, and error handling. One expanded example per feature group is provided; apply the same pattern to remaining stories.
+### AUTH-US — Authentication & Session
 
-### 8.0 User Story Index
+| Story | Title | Realized by |
+| --- | --- | --- |
+| AUTH-US-01 | Register | `POST /auth/register` — `AuthController` |
+| AUTH-US-02 | Sign in | `POST /auth/login` — `AuthController` |
+| AUTH-US-03 | Stay signed in | `POST /auth/refresh` — `AuthController`, `token.service.ts` |
+| AUTH-US-04 | Sign out | `POST /auth/logout` — `AuthController` |
 
-Master index of all Finance user stories organized by feature domain:
+*Not a numbered SRS story, but live:* `POST /auth/google` (Google Sign-In), `GET /auth/me`,
+`PATCH /auth/me/preferences` (theme/locale) — added in the Google-auth/preferences migration,
+ahead of an SRS update for them.
 
-| Feature Domain | Story ID | Title | Status | SRS Ref |
-|---|---|---|---|---|
-| **Authentication (AUTH)** | | | | |
-| | AUTH-US-01 | User Registration | ✓ Detailed | §9.1 |
-| | AUTH-US-02 | Login | ✓ Detailed | §9.1 |
-| | AUTH-US-03 | Refresh Token | ✓ Detailed | §9.1 |
-| | AUTH-US-04 | Logout | ✓ Detailed | §9.1 |
-| **Workspace Management (WS)** | | | | |
-| | WS-US-01 | Create Workspace | ✓ Detailed | §9.2 |
-| | WS-US-02 | Invite Member | ✓ Detailed | §9.2 |
-| | WS-US-03 | Accept Invitation | ⚙ Placeholder | §9.2 |
-| | WS-US-04 | Remove Member | ⚙ Placeholder | §9.2 |
-| | WS-US-05 | Change Member Role | ⚙ Placeholder | §9.2 |
-| | WS-US-06 | List Members | ⚙ Placeholder | §9.2 |
-| **Account Management (ACC)** | | | | |
-| | ACC-US-01 | Create Account | ⚙ Placeholder | §9.3 |
-| | ACC-US-02 | View Account Details | ⚙ Placeholder | §9.3 |
-| | ACC-US-03 | Edit Account | ⚙ Placeholder | §9.3 |
-| | ACC-US-04 | Archive Account | ⚙ Placeholder | §9.3 |
-| **Transaction Management (TXN)** | | | | |
-| | TXN-US-01 | Record Income | ⚙ Placeholder | §9.4 |
-| | TXN-US-02 | Record Expense | ⚙ Placeholder | §9.4 |
-| | TXN-US-03 | Record Transfer | ⚙ Placeholder | §9.4 |
-| | TXN-US-04 | View Transaction History | ⚙ Placeholder | §9.4 |
-| | TXN-US-05 | Cancel Transaction | ⚙ Placeholder | §9.4 |
-| **Budget Management (BUD)** | | | | |
-| | BUD-US-01 | Create Budget | ⚙ Placeholder | §9.5 |
-| | BUD-US-02 | Approve Budget | ⚙ Placeholder | §9.5 |
-| | BUD-US-03 | Monitor Spending | ⚙ Placeholder | §9.5 |
-| | BUD-US-04 | Edit Budget | ⚙ Placeholder | §9.5 |
-| | BUD-US-05 | Reject Budget | ⚙ Placeholder | §9.5 |
-| | BUD-US-06 | Archive Budget | ⚙ Placeholder | §9.5 |
-| **Saving Goals (SAV)** | | | | |
-| | SAV-US-01 | Create Saving Goal | ⚙ Placeholder | §9.6 |
-| | SAV-US-02 | Tag Transaction to Goal | ⚙ Placeholder | §9.6 |
-| | SAV-US-03 | View Goal Progress | ⚙ Placeholder | §9.6 |
-| | SAV-US-04 | Mark Goal Complete | ⚙ Placeholder | §9.6 |
-| | SAV-US-05 | Archive Goal | ⚙ Placeholder | §9.6 |
-| **Category Management (CAT)** | | | | |
-| | CAT-US-01 | Create Category | ⚙ Placeholder | §9.7 |
-| | CAT-US-02 | Update Category | ⚙ Placeholder | §9.7 |
-| | CAT-US-03 | List Categories | ⚙ Placeholder | §9.7 |
-| | CAT-US-04 | Archive Category | ⚙ Placeholder | §9.7 |
-| **Bill Management (BILL)** | | | | |
-| | BILL-US-01 | Create Bill | ⚙ Placeholder | §9.8 |
-| | BILL-US-02 | List Bills | ⚙ Placeholder | §9.8 |
-| | BILL-US-03 | Get Bill | ⚙ Placeholder | §9.8 |
-| | BILL-US-04 | Update Bill | ⚙ Placeholder | §9.8 |
-| | BILL-US-05 | Archive Bill | ⚙ Placeholder | §9.8 |
-| **Dashboard & Reports (DASH)** | | | | |
-| | DASH-US-01 | View Dashboard | ⚙ Placeholder | §9.9 |
-| | DASH-US-02 | Generate Report | ⚙ Placeholder | §9.9 |
-| | DASH-US-03 | Search Transactions | ⚙ Placeholder | §9.9 |
-| **Audit Logs (AUDIT)** | | | | |
-| | AUDIT-US-01 | List Audit Logs | ⚙ Placeholder | §9.10 |
+### WAL-US — Wallets & Sharing
 
-**Legend:** ✓ Detailed = Full design spec (Description, Approach, Data, API, Frontend, Auth, Errors); ⚙ Placeholder = Story outline ready for detailed expansion following the template in §8.1–8.2.
+| Story | Title | Realized by |
+| --- | --- | --- |
+| WAL-US-01 | Create a wallet | `POST /wallets` |
+| WAL-US-02 | See every wallet I can reach | `GET /wallets` |
+| WAL-US-03 | Invite someone by email | `POST /wallets/{id}/invitations` |
+| WAL-US-04 | Preview an invitation before committing | **Not implemented** — spec'd (`docs/API_SPECIFICATION.md` §8.4, `ROUTES.invitations.preview`), no controller route exists ([§5.2](#52-endpoints-by-feature)) |
+| WAL-US-05 | Accept an invitation | **Not implemented** — same gap (`ROUTES.invitations.accept`, API spec §8.5) |
+| WAL-US-06 | Revoke an open invitation | `DELETE /wallets/{id}/invitations/{invitationId}` |
+| WAL-US-07 | See who can see this money | `GET /wallets/{id}/members` |
+| WAL-US-08 | Change a member's role | `PATCH /wallets/{id}/members/{memberId}` |
+| WAL-US-09 | Revoke a member's access | `DELETE /wallets/{id}/members/{memberId}` |
+| WAL-US-10 | Hand ownership over | `POST /wallets/{id}/transfer-ownership` |
+| WAL-US-11 | Leave a wallet | `POST /wallets/{id}/leave` |
+| WAL-US-12 | Archive a wallet | `DELETE /wallets/{id}` (rename via `PATCH /wallets/{id}`) |
+| WAL-US-13 | Read the audit trail | `GET /wallets/{id}/audit-logs` |
 
----
+### ACC-US — Account Management
 
-### 8.1 Authentication (AUTH)
+| Story | Title | Realized by |
+| --- | --- | --- |
+| ACC-US-01 | Create an account | `POST /accounts` |
+| ACC-US-02 | See my accounts, across wallets | `GET /accounts` |
+| ACC-US-03 | Read one account in detail | `GET /accounts/{id}` (`AccountDetailResponse`) |
+| ACC-US-04 | Correct an account | `PATCH /accounts/{id}` |
+| ACC-US-05 | Archive an account | `DELETE /accounts/{id}` |
 
-#### AUTH-US-01: User Registration
+### TXN-US — Transaction Management
 
-**SRS Reference:** SRS §9.1 AUTH-US-01 / User Registration
+| Story | Title | Realized by |
+| --- | --- | --- |
+| TXN-US-01 | Record income | `POST /transactions` (`type: INCOME`) |
+| TXN-US-02 | Record an expense | `POST /transactions` (`type: EXPENSE`) |
+| TXN-US-03 | Record a transfer within one wallet | `POST /transactions` (`type: TRANSFER`, same wallet) |
+| TXN-US-04 | Record a transfer between two wallets | `POST /transactions` (`type: TRANSFER`, cross-wallet — same endpoint, guard checks both sides) |
+| TXN-US-05 | Browse and filter history | `GET /transactions` |
+| TXN-US-06 | Read one transaction | `GET /transactions/{id}` |
+| TXN-US-07 | Correct a transaction's description | `PATCH /transactions/{id}` |
+| TXN-US-08 | Cancel a transaction | `POST /transactions/{id}/cancel` |
 
-**Description**
+### CAT-US — Categories
 
-New user creates account with email/password, receives confirmation email, confirms identity, and automatically creates a Personal workspace with default categories.
+| Story | Title | Realized by |
+| --- | --- | --- |
+| CAT-US-01 | Read the category tree | `GET /categories` |
+| CAT-US-02 | Add a category | `POST /categories` |
+| CAT-US-03 | Rename or restyle a category | `PATCH /categories/{id}` |
+| CAT-US-04 | Archive a category | `DELETE /categories/{id}` |
 
-**Design Approach**
+### BUD-US — Budgets
 
-- Frontend: Registration form on `/auth/register` with email, password, password confirmation, name fields
-- Backend: `AuthController.register()` validates input → `AuthService.register_user()` checks email uniqueness → `UserRepo.create()` stores user
-- Email Service: Sends HTML email with HMAC-signed token valid for 1 hour
-- Upon confirmation: `AuthService.confirm_email()` marks email_verified_at, auto-creates Workspace and WorkspaceMember (OWNER role)
-- User auto-logged in post-confirmation; redirected to dashboard
+| Story | Title | Realized by |
+| --- | --- | --- |
+| BUD-US-01 | Create a budget | `POST /budgets` |
+| BUD-US-02 | Watch a budget | `GET /budgets` / `GET /budgets/{id}` (derived `spent`/`remaining`/`usagePercentage`) |
+| BUD-US-03 | Adjust a budget | `PATCH /budgets/{id}` |
+| BUD-US-04 | Archive a budget | `DELETE /budgets/{id}` |
 
-**Data Requirements**
+### SAV-US — Saving Goals
 
-- User: email (unique, validated), password (hashed bcrypt), name (max 255), status=pending_verification, email_verified_at=NULL
-- Workspace: auto-created with name="{name}'s Personal Workspace", type=PERSONAL, currency=USD, owner_id=user_id
-- Categories: default INCOME categories (Salary, Bonus, Interest, Gift) and EXPENSE categories (Food, Rent, Utilities, etc.)
-- All timestamps (created_at, updated_at) in UTC
+| Story | Title | Realized by |
+| --- | --- | --- |
+| SAV-US-01 | Create a goal | `POST /goals` |
+| SAV-US-02 | Contribute to a goal | `POST /goals/{id}/contributions` |
+| SAV-US-03 | Watch progress | `GET /goals` / `GET /goals/{id}` |
+| SAV-US-04 | Adjust a goal | `PATCH /goals/{id}` |
+| SAV-US-05 | Remove a contribution | `DELETE /goals/{id}/contributions/{contributionId}` |
+| SAV-US-06 | Complete or cancel a goal | `PATCH /goals/{id}` (`status`) |
 
+### DASH-US — Dashboard
 
-**API Endpoint(s)**
+| Story | Title | Realized by |
+| --- | --- | --- |
+| DASH-US-01 | Read a wallet's dashboard | `GET /dashboard` |
+| DASH-US-02 | Compare the wallets I follow | `GET /wallets` (per-wallet balances) + client-side composition — there is no dedicated multi-wallet-comparison endpoint |
 
-```
-POST /api/v1/auth/register
-Request: {email, password, passwordConfirm, name}
-Response: 201 Created
-{
-  "success": true,
-  "message": "Confirmation email sent to {email}",
-  "data": {
-    "userId": "uuid",
-    "email": "user@example.com",
-    "name": "Jane Doe",
-    "status": "pending_verification"
-  },
-  "timestamp": "2026-07-30T10:00:00Z"
-}
-
-POST /api/v1/auth/confirm-email?token={token}
-Response: 200 OK
-{
-  "success": true,
-  "message": "Email confirmed. Workspace created.",
-  "data": {
-    "userId": "uuid",
-    "email": "user@example.com",
-    "workspaceId": "workspace-uuid",
-    "accessToken": "eyJhbGc...",
-    "refreshToken": "refresh-token-hash",
-    "expiresIn": 900
-  },
-  "timestamp": "2026-07-30T10:00:15Z"
-}
-```
-
-**Frontend Behavior**
-
-- Form: email, password (min 8, mixed case, digit, symbol indicator), confirm password, name fields
-- Validation: email format, password strength (real-time feedback), passwords match
-- On submit: show loading state; disable button
-- Success: toast "Confirmation email sent"; redirect to `/auth/check-email?email={email}`
-- Check-email page: "We've sent a confirmation link to {email}. Click it to activate your account." Resend option (max 3 times/hour)
-- Error handling: display error summary at top; highlight invalid fields
-
-**Authorization & CSRF**
-
-- No auth required (public endpoint)
-- CSRF token not needed (POST to public endpoint)
-- Rate limit: 10 registrations per IP per hour; 5 per email per day
-- Audit log: AUTH_AUDIT event=AUTH_REGISTER result=success username={email} ip={ip_address}
-- Sensitive data: never log password; log email and status only
-
-**Error Handling**
-
-- `USER_EMAIL_EXISTS` (409) — email already registered or pending confirmation
-- `INVALID_PASSWORD` (400) — fails strength requirements
-- `INVALID_EMAIL` (400) — malformed email format
-- `RATE_LIMITED` (429) — too many registration attempts from IP or email
-- `INTERNAL_ERROR` (500) — email service failure (user still created; async retry of email)
-
+**Total: 46 stories, 44 realized, 2 not yet implemented** (WAL-US-04, WAL-US-05 — see above).
 
 ---
-
-#### AUTH-US-02: Login
-
-**SRS Reference:** SRS §9.1 AUTH-US-02 / Login
-
-**Description**
-
-User logs in with email/password and receives JWT access token (15 min) + refresh token (7 days). Failed attempts lock account after 5 tries.
-
-**Design Approach**
-
-- Frontend: Login form on `/auth/login` with email, password fields; "Forgot Password" link
-- Backend: `AuthController.login()` validates credentials → `AuthService.login()` checks account locked status → `RefreshTokenRepo.create()` stores refresh token
-- JWT: Access token issued with 15-minute expiry; refresh token rotated on each refresh
-- Account Lockout: After 5 failed attempts, account locked for 30 minutes
-
-**Data Requirements**
-
-- Users table: track failed_login_attempts, locked_until timestamp
-- RefreshTokens: token_hash (salted), expires_at, created_at per login
-
-**API Endpoint(s)**
-
-```json
-POST /api/v1/auth/login
-Request: { "email": "user@example.com", "password": "SecurePass123!" }
-Response: 200 OK
-{
-  "success": true,
-  "message": "Login successful",
-  "data": {
-    "userId": "uuid",
-    "email": "user@example.com",
-    "accessToken": "eyJhbGc...",
-    "refreshToken": "refresh-token-hash",
-    "expiresIn": 900,
-    "workspaces": [{"id": "ws-uuid", "name": "Personal"}]
-  },
-  "timestamp": "2026-07-30T10:10:00Z"
-}
-```
-
-**Error Handling**
-
-- `INVALID_CREDENTIALS` (401) — email/password mismatch
-- `ACCOUNT_LOCKED` (403) — too many failed attempts
-- `ACCOUNT_INACTIVE` (403) — email not verified
-
----
-
-#### AUTH-US-03: Refresh Token
-
-**SRS Reference:** SRS §9.1 AUTH-US-03 / Refresh Token
-
-**Description**
-
-User exchanges refresh token for new access token. Refresh token is rotated on each refresh; old token blacklisted.
-
-**Design Approach**
-
-- Token Rotation: Each refresh invalidates old token and issues new one
-- Blacklist: Old refresh tokens stored in blacklist table with blacklisted_at timestamp
-- Security: Prevents token replay; refresh tokens must be stored securely (httpOnly cookie or secure storage)
-
-**API Endpoint(s)**
-
-```json
-POST /api/v1/auth/refresh
-Request: { "refreshToken": "refresh-token-hash" }
-Response: 200 OK
-{
-  "success": true,
-  "message": "Token refreshed",
-  "data": {
-    "accessToken": "eyJhbGc...",
-    "refreshToken": "new-refresh-token-hash",
-    "expiresIn": 900
-  },
-  "timestamp": "2026-07-30T10:15:00Z"
-}
-```
-
-**Error Handling**
-
-- `INVALID_REFRESH_TOKEN` (401) — token not found or invalid format
-- `TOKEN_BLACKLISTED` (401) — token already revoked
-
----
-
-#### AUTH-US-04: Logout
-
-**SRS Reference:** SRS §9.1 AUTH-US-04 / Logout
-
-**Description**
-
-User logs out. Refresh token is blacklisted; access token becomes invalid server-side upon logout.
-
-**Design Approach**
-
-- Frontend: Clears JWT from memory/localStorage; calls logout endpoint
-- Backend: `AuthController.logout()` → `AuthService.logout()` marks refresh token in blacklist table
-- Session: User redirected to login page
-
-**API Endpoint(s)**
-
-```json
-POST /api/v1/auth/logout
-Authorization: Bearer {access_token}
-Request: { "refreshToken": "refresh-token-hash" }
-Response: 200 OK
-{
-  "success": true,
-  "message": "Logged out successfully",
-  "data": null,
-  "timestamp": "2026-07-30T10:20:00Z"
-}
-```
-
-**Error Handling**
-
-- `UNAUTHORIZED` (401) — no valid access token
-- `INVALID_REFRESH_TOKEN` (401) — refresh token not found
-
----
-
-### 8.2 Workspace Management (WS)
-
-#### WS-US-01: Create Workspace
-
-**SRS Reference:** SRS §9.2 WS-US-01 / Create Workspace
-
-**Description**
-
-Authenticated user creates a new workspace (e.g., Family workspace) with name, optional description, and type. Creator becomes OWNER. Default categories (Income/Expense) automatically created.
-
-**Design Approach**
-
-- Frontend: Form on `/app/workspaces/create` with fields: name (required), description (optional), type (PERSONAL/FAMILY/CUSTOM)
-- Backend: `WorkspaceController.create()` validates JWT → `WorkspaceService.create()` enforces business rules → `WorkspaceRepo.create()` + `CategoryRepo.create_defaults()` atomic transaction
-- Atomicity: Workspace + WorkspaceMember (OWNER role) + 10 default categories created in single transaction
-- Authorization: Authenticated users (all roles) can create; creator becomes OWNER
-
-**Data Requirements**
-
-- Workspace: name (required, max 255), type (enum), currency (defaults to USD), owner_id=authenticated_user_id, created_at, updated_at
-- WorkspaceMember: workspace_id, user_id=creator, role=OWNER, joined_at
-- Categories: 10 defaults per workspace (Salary, Bonus, Interest, Gift, Food, Rent, Utilities, Healthcare, Transport, Other)
-
-**API Endpoint(s)**
-
-```json
-POST /api/v1/workspaces
-Authorization: Bearer {access_token}
-Request: {
-  "name": "Family Finances",
-  "description": "Shared family budget",
-  "type": "FAMILY",
-  "currency": "USD"
-}
-Response: 201 Created
-{
-  "success": true,
-  "message": "Workspace created successfully",
-  "data": {
-    "id": "ws-uuid",
-    "name": "Family Finances",
-    "type": "FAMILY",
-    "currency": "USD",
-    "ownerId": "user-uuid",
-    "createdAt": "2026-07-30T10:05:00Z",
-    "role": "OWNER"
-  },
-  "timestamp": "2026-07-30T10:05:00Z"
-}
-```
-
-Frontend Behavior
-
-- Form: name input (required, 1-255 chars), description textarea (optional), type dropdown (Personal/Family/Custom)
-- Validation: name required and non-empty, type selected
-- On submit: show loading state; POST to API
-- Success: toast "Workspace created!"; redirect to `/app/workspace/{id}/dashboard`
-- Error display: error summary at top; field highlighting if applicable
-
-Authorization & CSRF
-
-- Auth required (Bearer token in Authorization header)
-- CSRF token required for POST (obtained via GET /api/v1/auth/csrf first)
-- All authenticated users can create (no role restriction)
-- Audit log: WS_AUDIT event=WS_CREATE result=success workspace_id={id} actor_user_id={uid} actor_role={role} ip={ip_address}
-
-Error Handling
-
-- `INVALID_WORKSPACE_NAME` (400) — empty or too long name
-- `INVALID_WORKSPACE_TYPE` (400) — type not in enum
-- `WORKSPACE_NAME_EXISTS` (409) — duplicate name per owner (users can create multiple workspaces)
-- `UNAUTHORIZED` (401) — missing or invalid JWT
-- `INVALID_CSRF` (403) — CSRF token missing or invalid
-
----
-
-#### WS-US-02: Invite Member
-
-**SRS Reference:** SRS §9.2 WS-US-02 / Invite Member
-
-**Description**
-
-Workspace OWNER sends invitation to non-member with specified role. Single-use token expires in 7 days. Invitee receives email with acceptance link.
-
-**Design Approach**
-
-- Frontend: Form on `/app/workspaces/{id}/members/invite` with email input and role dropdown
-- Backend: `WorkspaceController.invite()` → `WorkspaceService.invite()` validates email not already member → `InvitationRepo.create()` generates HMAC token → Email service sends invitation
-- Email: HTML template with 7-day expiry token; resendable (max 3 times/day)
-- Acceptance: `POST /api/v1/invitations/accept` with the token in the request body creates the WorkspaceMember record
-
-**Data Requirements**
-
-- Invitations table: email, workspace_id, inviter_id, role, token (unique), status (pending/accepted/declined/expired), expires_at
-
-**API Endpoint(s)**
-
-```json
-POST /api/v1/workspaces/{workspaceId}/invite
-Authorization: Bearer {access_token}
-Request: { "email": "newmember@example.com", "role": "MEMBER" }
-Response: 201 Created
-{
-  "success": true,
-  "message": "Invitation sent",
-  "data": {
-    "invitationId": "uuid",
-    "email": "newmember@example.com",
-    "role": "MEMBER",
-    "expiresAt": "2026-08-06T10:25:00Z",
-    "status": "pending"
-  },
-  "timestamp": "2026-07-30T10:25:00Z"
-}
-```
-
-**Error Handling**
-
-- `INVALID_EMAIL` (400) — malformed email or email on blocklist
-- `USER_ALREADY_MEMBER` (409) — user already member of workspace
-- `WORKSPACE_NOT_FOUND` (404) — workspace does not exist
-- `PERMISSION_DENIED` (403) — user not OWNER
-
----
-
-### 8.3 Transaction Management (TXN)
-
-Remaining transaction stories (TXN-US-01 through TXN-US-06) follow the detailed specification format demonstrated in §8.1 (AUTH) and §8.2 (WS). Each story includes: Description, Design Approach, Data Requirements, API Endpoint(s), Frontend Behavior, Authorization & CSRF, and Error Handling.
-
-**Placeholder Note:** Complete implementations of TXN-US-01 through TXN-US-06, ACC-US-01 through ACC-US-06, BUD-US-01 through BUD-US-06, SAV-US-01 through SAV-US-05, CAT-US-01 through CAT-US-04, BILL-US-01 through BILL-US-05, DASH-US-01 through DASH-US-03, and AUDIT-US-01 follow the same comprehensive template structure shown above. Refer to SRS §9 for story descriptions and acceptance criteria; use API Index (§6.1) and Error Catalog (§6.2) for endpoint and error mappings.
-
----
-
 
 ## Appendix: Design Notes
 
-### Soft Deletion Strategy
-- Categories, accounts, bills use soft-delete (`deleted_at` column)
-- Queries filter `WHERE deleted_at IS NULL` by default
-- Archiving makes them invisible in forms but visible in historical context
-- Example: Archived category remains on old transactions; not available for new transactions
+### Archival, not soft deletion
 
-### Transaction Atomicity
-- Transfers create two linked transactions in a single DB transaction (`@Transactional`)
-- If either fails, both roll back; no partial state
-- Budget impact calculated atomically
+Wallets, accounts, categories, budgets and goals carry a `status` column and are archived, never
+marked `deleted_at` and never row-deleted. Transactions are cancelled (a third status value, not
+archival). The one true deletion is a goal contribution. See [BR-09](SRS.md#4-business-rules).
 
-### Audit Logging
-- Append-only; never edited or deleted
-- Logged at service layer before commit
-- Contains: event name, action, entity type/ID, actor, changes (JSON), timestamp, IP
-- Indexed by event, entity, and timestamp for efficient querying
+### Cross-wallet transfer atomicity
 
-### Workspace Scoping
-- Enforced at service and repository layer
-- Every query filters by workspace_id
-- Authorization middleware validates workspace membership before routing to controller
-- No table-level row security; application-layer scoping
+A transfer — same-wallet or cross-wallet — is **one row**, not a linked debit/credit pair. There
+is nothing to leave half-committed, and cancelling it reverses both sides at once because there is
+one row to cancel ([BR-03](SRS.md#4-business-rules), [BR-04](SRS.md#4-business-rules)).
 
-### Pagination & Sorting
-- Default: `page=1, pageSize=25, sortBy=-date` (descending)
-- Max page size: 1000
-- Response includes `total`, `page`, `pageSize`, `hasMore`
-- Sorting by multiple fields supported via comma-separated sortBy
+### Audit logging
 
+Append-only by convention — no update or delete path exists anywhere in the API. Denied attempts
+are logged alongside successes ([BR-14](SRS.md#4-business-rules)); a cross-wallet transfer is
+logged against both wallets.
+
+### Wallet scoping
+
+Enforced by `RequireWalletRoleGuard` before a controller method body runs, resolving the
+404-vs-403 distinction ([BR-05](SRS.md#4-business-rules)) once rather than leaving each service to
+reimplement it. There is no database row-level security; scoping is entirely at the guard/service
+layer, backed by the FK structure (an account/category/budget/goal names its wallet directly; a
+transaction's wallet is derived from its account(s)).
+
+### Pagination
+
+`page`/`pageSize` query params, `meta.pagination: {page, pageSize, total, hasMore}` in the
+envelope. Page size is bounded server-side regardless of what a caller requests
+([SRS §5](SRS.md#5-non-functional-considerations), Performance).
