@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "Finance Tracker",
-    "slug": "finance-tracker",
+    "name": "Sora",
+    "slug": "sora",
     "version": "0.1.0",
     "orientation": "portrait",
-    "scheme": "financetracker",
+    "scheme": "sora",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.finance.tracker"
+      "bundleIdentifier": "com.sora.app"
     },
     "android": {
-      "package": "com.finance.tracker",
+      "package": "com.sora.app",
       "edgeToEdgeEnabled": true
     },
     "web": {
@@ -21,6 +21,12 @@
     "plugins": [
       "expo-web-browser",
       "expo-localization"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c8173a51-4fc5-4ffc-a75a-f59309cd65be"
+      }
+    },
+    "owner": "tam-le-team"
   }
 }
