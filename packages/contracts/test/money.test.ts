@@ -27,7 +27,7 @@ describe('parseMoney', () => {
   it('is exact where float64 is not', () => {
     // 0.1 + 0.2 !== 0.3 in floating point; the whole reason money is scaled.
     assert.equal(add(parseMoney('0.1'), parseMoney('0.2')), parseMoney('0.3'));
-    assert.equal(formatMoney(add(parseMoney('0.1'), parseMoney('0.2'))), '0.3001');
+    assert.equal(formatMoney(add(parseMoney('0.1'), parseMoney('0.2'))), '0.3000');
   });
 
   it('does not accumulate drift the way repeated float addition does', () => {
