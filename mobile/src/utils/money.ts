@@ -1,7 +1,7 @@
 /**
  * Money for the screen.
  *
- * Everything arithmetic lives in `@finance/contracts` and operates on scaled
+ * Everything arithmetic lives in `@sora/contracts` and operates on scaled
  * bigints; this module only turns one of those into characters. The float that
  * `Intl.NumberFormat` needs is produced at the very last step, from a value
  * already rounded to the digits the currency actually prints, so the discarded
@@ -15,7 +15,7 @@ import {
   type MoneyString,
   type Scaled,
   type TransactionType,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 /**
  * Currencies whose smallest unit is the unit itself. VND is the app's primary

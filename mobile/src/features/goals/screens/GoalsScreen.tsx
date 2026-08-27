@@ -1,6 +1,6 @@
 import { Target } from 'lucide-react-native';
 import { FlatList, View } from 'react-native';
-import type { GoalResponse } from '@finance/contracts';
+import type { GoalResponse } from '@sora/contracts';
 
 import { Card, EmptyState, ErrorState, Money, ProgressBar, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';

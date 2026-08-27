@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateContributionRequest, CreateGoalRequest } from '@finance/contracts';
+import type { CreateContributionRequest, CreateGoalRequest } from '@sora/contracts';
 
 import { CONTRIBUTION_INVALIDATION_KEYS, queryKeys, type GoalListParams } from '../../../app/config/queryKeys.ts';
 import { goalsApi } from '../../../services/api/goals.ts';

@@ -1,13 +1,13 @@
 /**
  * Handlers return either a bare payload or an `Enveloped`, and the interceptor
- * wraps whichever it gets into the ApiEnvelope from @finance/contracts.
+ * wraps whichever it gets into the ApiEnvelope from @sora/contracts.
  *
  * The wrapper exists so a handler can attach `message` or `pagination` without
  * hand-building the envelope — which is what lets one interceptor guarantee
  * every response has the same shape.
  */
 
-import type { PaginationMeta } from '@finance/contracts';
+import type { PaginationMeta } from '@sora/contracts';
 
 export class Enveloped<T> {
   constructor(

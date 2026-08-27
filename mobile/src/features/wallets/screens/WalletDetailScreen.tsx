@@ -1,6 +1,6 @@
 import { Landmark, Plus, Settings, UsersRound } from 'lucide-react-native';
 import { Pressable, ScrollView, View } from 'react-native';
-import type { AccountResponse } from '@finance/contracts';
+import type { AccountResponse } from '@sora/contracts';
 
 import { Card, EmptyState, ErrorState, Money, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';

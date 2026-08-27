@@ -1,4 +1,4 @@
-# Finance Tracker — Claude Code Instructions
+# Sora — Claude Code Instructions
 
 > Auto-loaded each session. Governs all code, spec, and design decisions in this repo.
 >
@@ -64,6 +64,17 @@ History begins at `a307c29`, a baseline snapshot of the superseded FastAPI + Nex
 implementation taken immediately before the wallet-model rewrite. The deleted `backend/`,
 `frontend/` and `specs/` trees are recoverable from it (`git show a307c29:backend/...`) — which
 is why they were deleted outright rather than left behind commented out or renamed.
+
+### Destructive Commands
+
+**Never run a command that removes, wipes, or discards something without the user's explicit
+permission for that specific action.** This covers `rm`/`rm -rf`, `git reset --hard`, `git clean`,
+`git push --force`, `git checkout`/`restore` that discards uncommitted work, `git branch -D`,
+overwriting a file the user didn't ask to have overwritten, and dropping/resetting the database
+(the database-specific version of this rule, with its own examples, is in Data Safety below —
+that one is not superseded by this one, both apply). A prior approval to run a destructive command
+once does not carry forward to the next occasion; ask again. When in doubt about whether an
+action is reversible, treat it as destructive and ask.
 
 ### Keep It Short
 
@@ -209,11 +220,11 @@ document restating them is how that dangling reference happened in the first pla
 ### Project Structure
 
 One npm monorepo. The root `package.json` links `packages/*`, `api` and `mobile` as sibling
-packages so `@finance/contracts` resolves from source with no publish step.
+packages so `@sora/contracts` resolves from source with no publish step.
 
 ```text
 finance/
-├── packages/contracts/        # @finance/contracts — the shared contract (see below)
+├── packages/contracts/        # @sora/contracts — the shared contract (see below)
 │   ├── src/
 │   │   ├── enums.ts           # domain enums + roleSatisfies()/rankOf()
 │   │   ├── money.ts           # MoneyString ↔ scaled bigint; never a JS number
@@ -222,7 +233,7 @@ finance/
 │   │   ├── responses.ts       # response DTOs, ERROR_CODES, ERROR_STATUS
 │   │   └── routes.ts          # ROUTES + API_PREFIX, written once
 │   └── test/                  # node --test, no runner dependency
-├── api/                       # @finance/api — NestJS 11, ESM, Kysely
+├── server/                    # @sora/server — NestJS 11, ESM, Kysely
 │   └── src/
 │       ├── config/            # env.ts validates every var at boot
 │       ├── database/          # Kysely types, pool, SQL migration runner
@@ -230,13 +241,13 @@ finance/
 │       ├── auth/  wallets/  accounts/  categories/
 │       ├── transactions/  budgets/  goals/  dashboard/  audit/
 │       └── main.ts
-├── mobile/                    # @finance/mobile — Expo + React Native
+├── mobile/                    # @sora/mobile — Expo + React Native
 │   └── src/                   # App.tsx, navigation, features, design tokens
 ├── db/
 │   ├── migrations/            # raw SQL, forward-only, immutable once applied
 │   └── tests/                 # psql constraint probes against a real Postgres
 ├── scripts/                   # check-contract-parity.mjs, migrate.mjs
-├── .github/workflows/ci.yml   # contracts → database → api + mobile
+├── .github/workflows/ci.yml   # contracts → database → server + mobile
 ├── docs/API_SPECIFICATION.md
 ├── SRS.md  SDS.md
 ├── finance_tracker_domain_database_design.md   # domain + schema rationale
@@ -251,18 +262,18 @@ the removed sharing model; they were deleted in the pivot. Nothing should refere
 
 The documented, always-available path is local Postgres and npm (rule 10) — a compose file existed
 for the deleted stack and was removed rather than rewritten (see the README). The root
-`docker-compose.yml` and `api/Dockerfile` are an **optional** addition on top of that, covering
-only `api/` and Postgres (`docker compose up -d`, needs `JWT_SECRET`/`GOOGLE_CLIENT_ID` set in
-`.env` first) — not `mobile/` (needs LAN/USB device access) and not the parked `frontend/`.
+`docker-compose.yml` and `server/Dockerfile` are an **optional** addition on top of that, covering
+only `server/` and Postgres (`docker compose up -d`, needs `JWT_SECRET`/`GOOGLE_CLIENT_ID` set in
+`.env` first) — not `mobile/` (needs LAN/USB device access) and not the parked `webpage/`.
 Postgres's container defaults to host port 5433, not 5432, so it can run alongside the host
 Postgres this section describes rather than colliding with it.
 
 ```bash
 npm install                                   # root; links every package
 
-npm run build -w @finance/contracts           # contracts must build before the API typechecks
+npm run build -w @sora/contracts           # contracts must build before the API typechecks
 npm test                                      # every package that defines a test script
-npm test -w @finance/contracts                # money/derivation math, ~37 assertions
+npm test -w @sora/contracts                # money/derivation math, ~37 assertions
 npm run typecheck                             # every package
 
 node scripts/check-contract-parity.mjs        # contract ↔ schema ↔ API spec agreement
@@ -272,12 +283,16 @@ npm run db:test                               # apply, then run db/tests/*.sql p
 # By hand, and the fallback while the runner is being written:
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/001_initial_wallet_schema.sql
 
-npm run build -w @finance/api && npm start -w @finance/api
-npm start -w @finance/mobile                  # expo start
+npm run setup                                 # install + build contracts + migrate, one shot
+npm run dev:server                            # server: build, then watch + auto-restart
+npm run dev:mobile                            # mobile: expo start
+npm run dev                                   # both together
+# One-shot, no watch:
+npm run build -w @sora/server && npm start -w @sora/server
 ```
 
 CI (`.github/workflows/ci.yml`) runs contracts alone first, then the migrations against a real
-PostgreSQL 17 — applied, probed, then applied **again** to prove idempotence — then api and
+PostgreSQL 17 — applied, probed, then applied **again** to prove idempotence — then server and
 mobile in parallel. Passing migrations only prove the DDL parses; `db/tests/*.sql` is what
 proves the rules are enforced, which is why both run.
 
@@ -291,7 +306,7 @@ proves the rules are enforced, which is why both run.
 | API (Docker) | `http://localhost:3001` (`API_HOST_PORT`) |
 | Database (Docker) | `postgresql://<user>:<pass>@localhost:5433/<db>` (`POSTGRES_HOST_PORT`) |
 
-`.env.example` and `api/src/config/env.ts` currently disagree on several variable names
+`.env.example` and `server/src/config/env.ts` currently disagree on several variable names
 (`API_PORT` vs `PORT`, `JWT_ACCESS_TTL` vs `ACCESS_TOKEN_TTL_SECONDS`). **`env.ts` is what is
 actually read** — it validates at boot and refuses to start on a bad value. Fix the example
 against it, never the reverse.
@@ -423,7 +438,7 @@ Every `401` and `403` at `WARN` with actor, resolved role, and target.
 
 ### The Shared Contract
 
-**`@finance/contracts` is the single source for everything both sides must agree on** — enum
+**`@sora/contracts` is the single source for everything both sides must agree on** — enum
 members, Zod validation, response shapes, error codes, route paths, and all money and
 derivation math. The API imports it and the app imports it; **neither redefines any of it**. A
 second copy of a rule is a rule that will diverge, and the divergence surfaces as a `500` from
@@ -489,7 +504,7 @@ which breaks on any copy change or translation.
 **MB-02** — Server state is TanStack Query; UI state is Zustand. Do not mirror API data into
 Zustand — two caches of the same money is BR-05 repeated in the client.
 
-**MB-03** — Forms are React Hook Form + the Zod schema from `@finance/contracts`. The app does
+**MB-03** — Forms are React Hook Form + the Zod schema from `@sora/contracts`. The app does
 not author its own validation rules.
 
 **MB-04** — Tokens live in `expo-secure-store` (Keychain / Keystore), never
@@ -544,7 +559,7 @@ A feature is done when all seven hold. The item-by-item form, with the commands,
 restating them.
 
 1. **Traceable** — to an `SRS.md` user story and an endpoint in `docs/API_SPECIFICATION.md`.
-2. **Contract-first** — schemas, response types and error codes live in `@finance/contracts`,
+2. **Contract-first** — schemas, response types and error codes live in `@sora/contracts`,
    and `check-contract-parity.mjs` passes.
 3. **Authorized** — minimum role enforced server-side, AC-01 honoured (`404` for non-members),
    audit row written.
@@ -560,7 +575,7 @@ restating them.
 
 ## Part 6: Technology Stack
 
-**Shared** — `@finance/contracts`: TypeScript 5.7, Zod 3, `node --test`. No runtime dependency
+**Shared** — `@sora/contracts`: TypeScript 5.7, Zod 3, `node --test`. No runtime dependency
 beyond Zod, so the app bundles it without pulling server code in.
 
 **API** — Node 22+, NestJS 11, TypeScript ESM (`NodeNext`, `.ts` specifiers rewritten on emit),
@@ -575,12 +590,12 @@ derivations need is SQL, and an ORM's abstraction over `GROUP BY` costs more tha
 Hook Form + Zod, `expo-secure-store`, `lucide-react-native`, dark mode default.
 
 **Local environment** — PostgreSQL 17 installed on the host, npm; no container runtime in the
-documented workflow (rule 10). `docker-compose.yml`/`api/Dockerfile` at the repo root are an
-optional alternative for `api/` + Postgres, not a replacement for this path.
+documented workflow (rule 10). `docker-compose.yml`/`server/Dockerfile` at the repo root are an
+optional alternative for `server/` + Postgres, not a replacement for this path.
 
 ### Configuration
 
-`api/src/config/env.ts` validates the whole environment once at boot and refuses to start on
+`server/src/config/env.ts` validates the whole environment once at boot and refuses to start on
 anything missing or unusable — a `JWT_SECRET` that reads as configured but is 8 characters
 authenticates nothing while looking fine.
 
@@ -657,7 +672,7 @@ rewriting it.
 
    The driver is the easy half to miss: `node-postgres` parses `NUMERIC` (OID 1700) and `INT8`
    (OID 20) into JS numbers by default, silently rounding every amount it *reads* even when the
-   write path is perfect. `api/src/database/pg-types.ts` overrides both to return text. Never
+   write path is perfect. `server/src/database/pg-types.ts` overrides both to return text. Never
    `Number(amount)`, and never remove those type parsers.
 
 2. **A `403` for a non-member leaks existence.** A caller with no membership row on a wallet gets
@@ -690,9 +705,9 @@ rewriting it.
    joins on. Making it nullable to model an invite weakens the foreign key that authorizes every
    request, to save one table. Invitations live in `wallet_invitations`, keyed by email.
 
-7. **`@finance/contracts` is the single source, and duplicating from it is the failure mode to
+7. **`@sora/contracts` is the single source, and duplicating from it is the failure mode to
    watch for.** Enums, Zod schemas, response types, error codes, route paths and all
-   money/derivation math are defined there once and imported by both `api/` and `mobile/`. A
+   money/derivation math are defined there once and imported by both `server/` and `mobile/`. A
    second copy diverges, and the divergence surfaces as a `500` from Postgres or as two screens
    showing different balances. `node scripts/check-contract-parity.mjs` proves agreement
    mechanically — enum tuples against the `CHECK` constraints in both directions, every error

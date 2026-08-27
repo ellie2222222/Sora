@@ -1,7 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import type { z } from 'zod';
 
-import { ROUTES, dashboardQuerySchema, type DashboardResponse } from '@finance/contracts';
+import { ROUTES, dashboardQuerySchema, type DashboardResponse } from '@sora/contracts';
 
 import { CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';

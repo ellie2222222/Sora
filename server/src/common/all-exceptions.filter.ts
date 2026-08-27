@@ -3,7 +3,7 @@
  *
  * Domain failures resolve to an ErrorCode and read their status from
  * ERROR_STATUS, so no handler chooses a number and the mapping stays where
- * @finance/contracts defines it.
+ * @sora/contracts defines it.
  */
 
 import {
@@ -16,7 +16,7 @@ import {
 import type { Request, Response } from 'express';
 import { ZodError } from 'zod';
 
-import { ERROR_STATUS, type ApiErrorBody, type ErrorCode } from '@finance/contracts';
+import { ERROR_STATUS, type ApiErrorBody, type ErrorCode } from '@sora/contracts';
 
 import { AppError } from './app-error.ts';
 

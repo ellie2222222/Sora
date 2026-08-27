@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react-native';
 import { FlatList, Pressable, View } from 'react-native';
-import type { ContributionResponse } from '@finance/contracts';
+import type { ContributionResponse } from '@sora/contracts';
 
 import { Card, ErrorState, Money, ProgressBar, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';

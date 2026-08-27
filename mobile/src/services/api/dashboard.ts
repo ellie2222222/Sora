@@ -3,7 +3,7 @@ import {
   apiUrl,
   type DashboardQuery,
   type DashboardResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { getOne } from './client.ts';
 

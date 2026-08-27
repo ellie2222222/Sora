@@ -8,7 +8,7 @@ import {
   transactionQuerySchema,
   updateTransactionSchema,
   type TransactionResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { ClientIp, CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
 import type { Enveloped } from '../common/envelope.ts';

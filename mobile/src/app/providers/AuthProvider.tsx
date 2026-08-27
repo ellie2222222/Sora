@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { GoogleAuthRequest, LoginRequest, RegisterRequest, UserResponse } from '@finance/contracts';
+import type { GoogleAuthRequest, LoginRequest, RegisterRequest, UserResponse } from '@sora/contracts';
 
 import { authApi } from '../../services/api/auth.ts';
 import { session, type StoredSession } from '../../services/auth/index.ts';

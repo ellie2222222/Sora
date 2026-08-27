@@ -11,7 +11,7 @@ import {
   type AuthResponse,
   type AuthTokens,
   type UserResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { ClientIp, CurrentUser, Public, type AuthenticatedUser } from '../common/decorators.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';

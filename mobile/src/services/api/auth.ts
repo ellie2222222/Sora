@@ -7,7 +7,7 @@ import {
   type RegisterRequest,
   type UpdatePreferencesRequest,
   type UserResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { getOne, patchOne, postOne, postVoid } from './client.ts';
 

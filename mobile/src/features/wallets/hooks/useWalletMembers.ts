@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { InviteMemberRequest, UpdateMemberRequest } from '@finance/contracts';
+import type { InviteMemberRequest, UpdateMemberRequest } from '@sora/contracts';
 
 import { MEMBERSHIP_INVALIDATION_KEYS, queryKeys } from '../../../app/config/queryKeys.ts';
 import { invitationsApi } from '../../../services/api/invitations.ts';

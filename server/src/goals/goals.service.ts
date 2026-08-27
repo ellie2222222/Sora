@@ -2,7 +2,7 @@
  * Goals CRUD (§13.1-13.5 of the API specification).
  *
  * `currentAmount`/`remaining`/`progressPercentage` are never stored — they are
- * recomputed from goal_contributions via @finance/contracts' calc.ts, the same
+ * recomputed from goal_contributions via @sora/contracts' calc.ts, the same
  * functions the mobile app uses for optimistic values.
  */
 
@@ -20,7 +20,7 @@ import {
   type GoalStatus,
   type Scaled,
   type UpdateGoalRequest,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';

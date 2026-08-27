@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
-import type { AuthTokens } from '@finance/contracts';
+import type { AuthTokens } from '@sora/contracts';
 
 import {
   SessionManager,

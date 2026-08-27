@@ -7,7 +7,7 @@
  *    confirms the resource exists, which tells someone with no access whether a
  *    given wallet or account id is real. `403` is only ever for "you are a
  *    member here, but your role is too low".
- * 2. Rank comparison is `roleSatisfies()` from @finance/contracts — the same
+ * 2. Rank comparison is `roleSatisfies()` from @sora/contracts — the same
  *    function the app uses to decide whether to show a button — so a guard here
  *    and a disabled control there can never disagree.
  */
@@ -15,7 +15,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Kysely, Transaction } from 'kysely';
 
-import { roleSatisfies, type WalletRole } from '@finance/contracts';
+import { roleSatisfies, type WalletRole } from '@sora/contracts';
 
 import { AppError } from '../common/app-error.ts';
 import { DatabaseService } from '../database/database.service.ts';

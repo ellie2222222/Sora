@@ -14,7 +14,7 @@ import { Injectable, type CanActivate, type ExecutionContext } from '@nestjs/com
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 
-import type { WalletRole } from '@finance/contracts';
+import type { WalletRole } from '@sora/contracts';
 
 import { AppError } from '../common/app-error.ts';
 import {

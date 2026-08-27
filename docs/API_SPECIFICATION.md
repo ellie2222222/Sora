@@ -1,9 +1,9 @@
-# Finance Tracker — API Specification
+# Sora — API Specification
 
 **Version:** v1
 **Base path:** `/api/v1`
 **Transport:** HTTPS, JSON only (`Content-Type: application/json`)
-**Status:** authoritative contract. The types and validation rules referenced throughout are exported from [`@finance/contracts`](../packages/contracts/src/) and imported by both the API and the mobile app — this document describes them, it does not re-declare them.
+**Status:** authoritative contract. The types and validation rules referenced throughout are exported from [`@sora/contracts`](../packages/contracts/src/) and imported by both the API and the mobile app — this document describes them, it does not re-declare them.
 
 Every endpoint below documents: **Method · URL · Authentication · Authorization · Request · Validation · Response · Errors · Side effects**, per §7 of the development plan.
 
@@ -56,7 +56,7 @@ Every response — success or failure — is wrapped. Type: `ApiEnvelope<T>`.
 
 ### 2.2 Money
 
-**All monetary values are JSON strings, never numbers** — `"150000.0000"`, not `150000`. The columns are `DECIMAL(19,4)`, whose range exceeds the 2^53 boundary where float64 stops representing integers exactly, and float arithmetic cannot represent `0.1 + 0.2` either. Clients must parse with `parseMoney()` from `@finance/contracts` and never with `Number()`.
+**All monetary values are JSON strings, never numbers** — `"150000.0000"`, not `150000`. The columns are `DECIMAL(19,4)`, whose range exceeds the 2^53 boundary where float64 stops representing integers exactly, and float arithmetic cannot represent `0.1 + 0.2` either. Clients must parse with `parseMoney()` from `@sora/contracts` and never with `Number()`.
 
 Amounts are always **positive**; direction comes from the transaction `type` and from which account side is populated.
 

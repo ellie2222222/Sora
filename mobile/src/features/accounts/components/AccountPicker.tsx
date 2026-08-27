@@ -1,7 +1,7 @@
 import { Landmark, Wallet as WalletIcon, CreditCard, Banknote } from 'lucide-react-native';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
-import type { AccountResponse, AccountType } from '@finance/contracts';
+import type { AccountResponse, AccountType } from '@sora/contracts';
 
 import { Card, Money, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';

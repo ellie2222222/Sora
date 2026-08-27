@@ -1,4 +1,4 @@
-import type { MoneyString, TransactionType } from '@finance/contracts';
+import type { MoneyString, TransactionType } from '@sora/contracts';
 
 import { useTheme } from '../app/providers/ThemeProvider.tsx';
 import { directionOf, formatMoneyString, type MoneyFormatOptions } from '../utils/money.ts';

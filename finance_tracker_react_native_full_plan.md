@@ -1,4 +1,4 @@
-# Finance Tracker — Full React Native Development Plan
+# Sora — Full React Native Development Plan
 
 ## 1. Product Goal
 

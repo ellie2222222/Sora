@@ -1,6 +1,6 @@
 # Software Requirements Specification (SRS)
 
-**Personal & Shared Finance Tracker — Wallet Model**
+**Sora — Wallet Model**
 
 **Version:** 2.0 · **Status:** current · **Supersedes:** v1 (see [§10 Migration note](#10-migration-note-v1--v2))
 
@@ -33,7 +33,7 @@
 
 ### 1.1 Purpose
 
-This SRS defines what the Personal & Shared Finance Tracker does and why, and is the single source of truth for acceptance. It states requirements in business terms only: entity names, rules, flows and user stories. Every technology name, interface path and storage detail belongs to [SDS.md](SDS.md) and [docs/API_SPECIFICATION.md](docs/API_SPECIFICATION.md), so that a design change that does not change behaviour does not touch this document.
+This SRS defines what Sora does and why, and is the single source of truth for acceptance. It states requirements in business terms only: entity names, rules, flows and user stories. Every technology name, interface path and storage detail belongs to [SDS.md](SDS.md) and [docs/API_SPECIFICATION.md](docs/API_SPECIFICATION.md), so that a design change that does not change behaviour does not touch this document.
 
 ### 1.2 Scope
 

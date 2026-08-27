@@ -1,4 +1,4 @@
-import type { PaginationMeta } from '@finance/contracts';
+import type { PaginationMeta } from '@sora/contracts';
 
 export function paginationMeta(page: number, pageSize: number, total: number): PaginationMeta {
   return { page, pageSize, total, hasMore: page * pageSize < total };

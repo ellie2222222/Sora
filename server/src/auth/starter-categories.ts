@@ -7,7 +7,7 @@
  * rather than by anything in this file.
  */
 
-import type { CategoryType } from '@finance/contracts';
+import type { CategoryType } from '@sora/contracts';
 
 export interface StarterCategory {
   name: string;

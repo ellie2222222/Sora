@@ -9,7 +9,7 @@
  * moment ago.
  */
 
-import type { ErrorCode } from '@finance/contracts';
+import type { ErrorCode } from '@sora/contracts';
 
 import { AppError } from './app-error.ts';
 

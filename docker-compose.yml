@@ -9,39 +9,39 @@
 services:
   postgres:
     image: postgres:17
-    container_name: finance-postgres
+    container_name: sora-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-finance}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finance}
-      POSTGRES_DB: ${POSTGRES_DB:-finance_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-sora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sora}
+      POSTGRES_DB: ${POSTGRES_DB:-sora_dev}
     ports:
       - '${POSTGRES_HOST_PORT:-5433}:5432'
     volumes:
-      - finance_postgres_data:/var/lib/postgresql/data
+      - sora_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-finance}']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-sora}']
       interval: 5s
       timeout: 5s
       retries: 10
 
-  api:
+  server:
     build:
       context: .
-      dockerfile: api/Dockerfile
-    container_name: finance-api
+      dockerfile: server/Dockerfile
+    container_name: sora-server
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-finance}:${POSTGRES_PASSWORD:-finance}@postgres:5432/${POSTGRES_DB:-finance_dev}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sora}:${POSTGRES_PASSWORD:-sora}@postgres:5432/${POSTGRES_DB:-sora_dev}
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
       PORT: 3001
       NODE_ENV: production
-      # Not defaulted or required here: api/src/config/env.ts already refuses to
+      # Not defaulted or required here: server/src/config/env.ts already refuses to
       # boot without a usable JWT_SECRET/GOOGLE_CLIENT_ID, and a `:?` guard on
       # these would also block `docker compose build`, which never reads them.
       JWT_SECRET: ${JWT_SECRET:-}
-      JWT_ISSUER: ${JWT_ISSUER:-finance-api}
+      JWT_ISSUER: ${JWT_ISSUER:-sora-server}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
       INVITATION_TTL_DAYS: ${INVITATION_TTL_DAYS:-7}
@@ -54,4 +54,4 @@ services:
       - '${API_HOST_PORT:-3001}:3001'
 
 volumes:
-  finance_postgres_data:
+  sora_postgres_data:

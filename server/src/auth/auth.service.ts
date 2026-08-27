@@ -13,7 +13,7 @@ import type {
   RegisterRequest,
   UpdatePreferencesRequest,
   UserResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';

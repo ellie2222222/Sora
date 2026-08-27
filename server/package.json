@@ -1,5 +1,5 @@
 {
-  "name": "@finance/api",
+  "name": "@sora/server",
   "version": "0.1.0",
   "private": true,
   "description": "Wallet-model finance tracker API — NestJS 11, Kysely, PostgreSQL",
@@ -9,12 +9,12 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/src/main.js",
-    "start:dev": "tsc -p tsconfig.json --watch",
+    "start:dev": "npm run build && concurrently -k -n tsc,server -c blue,green \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"node --watch dist/src/main.js\"",
     "db:migrate": "node ../scripts/migrate.mjs",
     "test": "npm run build && node --test dist/test/*.test.js"
   },
   "dependencies": {
-    "@finance/contracts": "*",
+    "@sora/contracts": "*",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",

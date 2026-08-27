@@ -6,7 +6,7 @@ import {
   type CategoryType,
   type CreateCategoryRequest,
   type UpdateCategoryRequest,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { deleteVoid, getList, patchOne, postOne } from './client.ts';
 

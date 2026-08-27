@@ -7,7 +7,7 @@ import {
   type AccountType,
   type CreateAccountRequest,
   type UpdateAccountRequest,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { deleteVoid, getList, getOne, patchOne, postOne } from './client.ts';
 

@@ -3,7 +3,7 @@
  *
  * The API serves every balance, budget `spent` and goal progress already
  * derived, so these run only in the window between a mutation succeeding and its
- * refetch landing. They call the shared functions in `@finance/contracts` rather
+ * refetch landing. They call the shared functions in `@sora/contracts` rather
  * than re-deriving anything, because a locally-invented rule that disagrees with
  * the server produces a figure that flickers to a different number a moment
  * later — the exact bug the shared math exists to prevent.
@@ -27,7 +27,7 @@ import {
   type Scaled,
   type SpendRelevantTransaction,
   type TransactionResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 export function toBalanceRelevant(transaction: TransactionResponse): BalanceRelevantTransaction {
   return {

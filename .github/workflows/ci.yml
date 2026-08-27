@@ -15,7 +15,7 @@ env:
 jobs:
   # The shared contract is checked on its own and first: every other job depends
   # on it, so a break here should report as one clear failure rather than as a
-  # confusing cascade in the api and mobile jobs.
+  # confusing cascade in the server and mobile jobs.
   contracts:
     name: Contracts (types, tests, parity)
     runs-on: ubuntu-latest
@@ -30,10 +30,10 @@ jobs:
       - run: npm ci
 
       - name: Typecheck
-        run: npm run typecheck --workspace @finance/contracts
+        run: npm run typecheck --workspace @sora/contracts
 
       - name: Unit tests (money and derivation math)
-        run: npm run test --workspace @finance/contracts
+        run: npm run test --workspace @sora/contracts
 
       # Asserts the enum members, error-code map and route list agree with the
       # SQL CHECK constraints and the API specification. A drift here would
@@ -49,9 +49,9 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_USER: finance
-          POSTGRES_PASSWORD: finance
-          POSTGRES_DB: finance_ci
+          POSTGRES_USER: sora
+          POSTGRES_PASSWORD: sora
+          POSTGRES_DB: sora_ci
         ports: ['5432:5432']
         options: >-
           --health-cmd pg_isready
@@ -75,16 +75,16 @@ jobs:
       # prove the rules are actually enforced.
       - name: Migrate and run constraint suites
         env:
-          DATABASE_URL: postgresql://finance:finance@localhost:5432/finance_ci
+          DATABASE_URL: postgresql://sora:sora@localhost:5432/sora_ci
         run: node scripts/migrate.mjs --constraints
 
       - name: Re-run to prove migrations are idempotent
         env:
-          DATABASE_URL: postgresql://finance:finance@localhost:5432/finance_ci
+          DATABASE_URL: postgresql://sora:sora@localhost:5432/sora_ci
         run: node scripts/migrate.mjs
 
-  api:
-    name: API (types, tests)
+  server:
+    name: Server (types, tests)
     runs-on: ubuntu-latest
     needs: contracts
 
@@ -92,9 +92,9 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_USER: finance
-          POSTGRES_PASSWORD: finance
-          POSTGRES_DB: finance_test
+          POSTGRES_USER: sora
+          POSTGRES_PASSWORD: sora
+          POSTGRES_DB: sora_test
         ports: ['5432:5432']
         options: >-
           --health-cmd pg_isready
@@ -113,21 +113,21 @@ jobs:
       - run: npm ci
 
       - name: Build contracts
-        run: npm run build --workspace @finance/contracts
+        run: npm run build --workspace @sora/contracts
 
       - name: Typecheck
-        run: npm run typecheck --workspace @finance/api
+        run: npm run typecheck --workspace @sora/server
 
       - name: Migrate test database
         env:
-          DATABASE_URL: postgresql://finance:finance@localhost:5432/finance_test
+          DATABASE_URL: postgresql://sora:sora@localhost:5432/sora_test
         run: node scripts/migrate.mjs
 
       - name: Tests
         env:
-          DATABASE_URL: postgresql://finance:finance@localhost:5432/finance_test
+          DATABASE_URL: postgresql://sora:sora@localhost:5432/sora_test
           JWT_SECRET: ci-only-secret-not-used-anywhere-else
-        run: npm run test --workspace @finance/api
+        run: npm run test --workspace @sora/server
 
   mobile:
     name: Mobile (types, tests, bundle)
@@ -145,13 +145,13 @@ jobs:
       - run: npm ci
 
       - name: Build contracts
-        run: npm run build --workspace @finance/contracts
+        run: npm run build --workspace @sora/contracts
 
       - name: Typecheck
-        run: npm run typecheck --workspace @finance/mobile
+        run: npm run typecheck --workspace @sora/mobile
 
       - name: Tests
-        run: npm run test --workspace @finance/mobile
+        run: npm run test --workspace @sora/mobile
 
       # No emulator runs in CI, so a successful bundle is the strongest
       # available evidence that every import resolves and the app would start.

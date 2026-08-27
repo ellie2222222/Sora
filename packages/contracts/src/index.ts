@@ -1,5 +1,5 @@
 /**
- * @finance/contracts — the shared contract between the API and the mobile app.
+ * @sora/contracts — the shared contract between the API and the mobile app.
  *
  * Anything both sides must agree on lives here and nowhere else: enum members,
  * request validation, response shapes, error codes, and the money and derivation

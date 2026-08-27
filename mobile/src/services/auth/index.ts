@@ -8,7 +8,7 @@
  */
 
 import axios from 'axios';
-import { API_PREFIX, ROUTES, apiUrl, type ApiEnvelope, type AuthTokens } from '@finance/contracts';
+import { API_PREFIX, ROUTES, apiUrl, type ApiEnvelope, type AuthTokens } from '@sora/contracts';
 
 import { env } from '../../app/config/env.ts';
 import { SESSION_STORAGE_KEY, secureStore } from '../storage/secureStore.ts';

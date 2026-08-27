@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateBudgetRequest, UpdateBudgetRequest } from '@finance/contracts';
+import type { CreateBudgetRequest, UpdateBudgetRequest } from '@sora/contracts';
 
 import { queryKeys, type BudgetListParams } from '../../../app/config/queryKeys.ts';
 import { budgetsApi } from '../../../services/api/budgets.ts';

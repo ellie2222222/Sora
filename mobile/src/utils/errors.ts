@@ -7,7 +7,7 @@
  * there is no server response to render: no network, a timeout, a non-JSON body.
  */
 
-import { ERROR_STATUS, type ApiErrorBody, type ErrorCode } from '@finance/contracts';
+import { ERROR_STATUS, type ApiErrorBody, type ErrorCode } from '@sora/contracts';
 
 export type FieldErrors = Record<string, string[]>;
 

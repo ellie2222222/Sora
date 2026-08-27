@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, View } from 'react-native';
 import { Archive, Pencil, Trash2 } from 'lucide-react-native';
-import type { CategoryResponse } from '@finance/contracts';
+import type { CategoryResponse } from '@sora/contracts';
 
 import { Button, Card, ErrorState, Input, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';

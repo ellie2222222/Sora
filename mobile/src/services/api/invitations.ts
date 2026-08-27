@@ -7,14 +7,14 @@ import {
   type WalletInvitationResponse,
   type WalletResponse,
   type WalletRole,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { deleteVoid, getList, postOne } from './client.ts';
 
 export type InvitationState = 'open' | 'accepted' | 'revoked' | 'expired';
 
 /**
- * The preview body (API spec §8.4) has no type in @finance/contracts. `role` is
+ * The preview body (API spec §8.4) has no type in @sora/contracts. `role` is
  * reused from the shared enum; `invitedEmail` arrives masked, because the
  * endpoint is public and the token may have been pasted anywhere.
  */

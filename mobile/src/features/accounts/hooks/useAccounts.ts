@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateAccountRequest } from '@finance/contracts';
+import type { CreateAccountRequest } from '@sora/contracts';
 
 import { ACCOUNT_INVALIDATION_KEYS, queryKeys, type AccountListParams } from '../../../app/config/queryKeys.ts';
 import { accountsApi } from '../../../services/api/accounts.ts';

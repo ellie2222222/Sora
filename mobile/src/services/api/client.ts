@@ -13,7 +13,7 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from 'axios';
-import type { ApiEnvelope, PaginationMeta } from '@finance/contracts';
+import type { ApiEnvelope, PaginationMeta } from '@sora/contracts';
 
 import { env } from '../../app/config/env.ts';
 import { toApiError } from '../../utils/errors.ts';

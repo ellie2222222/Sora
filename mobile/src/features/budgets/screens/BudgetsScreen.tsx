@@ -1,6 +1,6 @@
 import { PiggyBank } from 'lucide-react-native';
 import { FlatList, View } from 'react-native';
-import type { BudgetResponse } from '@finance/contracts';
+import type { BudgetResponse } from '@sora/contracts';
 
 import { Card, EmptyState, ErrorState, Money, ProgressBar, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';

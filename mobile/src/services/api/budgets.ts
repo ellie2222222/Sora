@@ -5,7 +5,7 @@ import {
   type BudgetStatus,
   type CreateBudgetRequest,
   type UpdateBudgetRequest,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { deleteVoid, getList, getOne, patchOne, postOne } from './client.ts';
 

@@ -6,7 +6,7 @@ import {
   type TransactionQuery,
   type TransactionResponse,
   type UpdateTransactionRequest,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { getList, getOne, idempotencyHeaders, patchOne, postOne } from './client.ts';
 

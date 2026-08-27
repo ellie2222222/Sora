@@ -4,12 +4,12 @@ import {
   type MemberStatus,
   type UpdateMemberRequest,
   type WalletMemberResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { deleteVoid, getList, patchOne, postOne } from './client.ts';
 
 /**
- * `POST /wallets/{id}/transfer-ownership` has no schema in @finance/contracts —
+ * `POST /wallets/{id}/transfer-ownership` has no schema in @sora/contracts —
  * its body is documented in API spec §7.4 only. Declared here so the call site is
  * still typed; it belongs in the contracts package.
  */

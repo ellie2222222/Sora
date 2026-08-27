@@ -8,7 +8,7 @@ form/dialog structure, all of which are worth porting rather than re-deriving.
 route tree, API service layer and Zod schemas are all shaped around a concept the product no
 longer has.
 
-Current work is `mobile/` (Expo React Native) against `api/` (NestJS). Mobile is the priority;
+Current work is `mobile/` (Expo React Native) against `server/` (NestJS). Mobile is the priority;
 this is on hold until that vertical slice is working.
 
 ## Why it still says "workspace" everywhere
@@ -25,7 +25,7 @@ Roughly, in dependency order:
    `src/app/app/workspaces/` moves, and the `[id]` param changes meaning from a workspace to a
    wallet.
 2. Delete `src/lib/workspace-api.service.ts` and `src/schemas/workspace.ts`; replace both with
-   imports from `@finance/contracts`, which already supplies the types, the Zod schemas and the
+   imports from `@sora/contracts`, which already supplies the types, the Zod schemas and the
    money math this code hand-rolls.
 3. Point the axios base URL at the NestJS API and adopt the `ApiEnvelope` response shape.
 4. Replace every `number` amount with the string + `parseMoney` handling — this code does float

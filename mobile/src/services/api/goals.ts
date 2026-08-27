@@ -7,7 +7,7 @@ import {
   type GoalResponse,
   type GoalStatus,
   type UpdateGoalRequest,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { deleteVoid, getList, getOne, idempotencyHeaders, patchOne, postOne } from './client.ts';
 

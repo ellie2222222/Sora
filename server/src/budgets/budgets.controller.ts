@@ -9,7 +9,7 @@ import {
   updateBudgetSchema,
   uuidSchema,
   type BudgetResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { ClientIp, CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';

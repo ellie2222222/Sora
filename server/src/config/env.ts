@@ -21,7 +21,7 @@ const envSchema = z.object({
    * impractical; a shorter one is a configuration mistake, not a choice.
    */
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
-  JWT_ISSUER: z.string().min(1).default('finance-api'),
+  JWT_ISSUER: z.string().min(1).default('sora-server'),
 
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).default(7),

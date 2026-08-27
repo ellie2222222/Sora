@@ -27,7 +27,7 @@ import {
   type WalletInvitationResponse,
   type WalletMemberResponse,
   type WalletResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { AuditService } from '../audit/audit.service.ts';
 import {
@@ -45,7 +45,7 @@ import { RequireWalletRoleGuard } from './require-wallet-role.guard.ts';
 import { WalletsService } from './wallets.service.ts';
 
 /**
- * Query and body shapes with no counterpart in @finance/contracts.
+ * Query and body shapes with no counterpart in @sora/contracts.
  *
  * The contracts package covers what both sides validate; these are list filters
  * and one body the app does not validate client-side, so they are declared where
@@ -70,7 +70,7 @@ const invitationListQuerySchema = z.object({
 
 const transferOwnershipSchema = z.object({ toUserId: uuidSchema });
 
-/** §15.1's filters — `event` is not in @finance/contracts (see audit-events.ts's own note). */
+/** §15.1's filters — `event` is not in @sora/contracts (see audit-events.ts's own note). */
 const auditLogQuerySchema = z.object({
   event: z.string().trim().min(1).optional(),
   dateFrom: isoDateSchema.optional(),

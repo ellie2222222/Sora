@@ -10,7 +10,7 @@ import {
   uuidSchema,
   type ContributionResponse,
   type GoalResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { ClientIp, CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
 import type { Enveloped } from '../common/envelope.ts';

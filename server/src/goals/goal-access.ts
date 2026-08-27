@@ -9,7 +9,7 @@
 
 import type { Kysely, Transaction } from 'kysely';
 
-import { roleSatisfies, type GoalStatus, type WalletRole } from '@finance/contracts';
+import { roleSatisfies, type GoalStatus, type WalletRole } from '@sora/contracts';
 
 import { AppError } from '../common/app-error.ts';
 import type { DB } from '../database/types.ts';

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateWalletRequest } from '@finance/contracts';
+import type { CreateWalletRequest } from '@sora/contracts';
 
 import { queryKeys } from '../../../app/config/queryKeys.ts';
 import { walletsApi } from '../../../services/api/wallets.ts';

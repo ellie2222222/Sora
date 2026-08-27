@@ -1,4 +1,4 @@
-# Finance Tracker
+# Sora
 
 A mobile finance tracker for **your money and the money of the people you share it with**.
 
@@ -58,19 +58,19 @@ name on them rather than becoming anonymous.
 ## Repository layout
 
 One npm monorepo; the root `package.json` links the packages below as siblings, so
-`@finance/contracts` resolves from source with no publish or build-copy step.
+`@sora/contracts` resolves from source with no publish or build-copy step.
 
 ```text
-packages/contracts/   @finance/contracts — enums, Zod schemas, response types,
+packages/contracts/   @sora/contracts — enums, Zod schemas, response types,
                       error codes, route paths, and all money/derivation math.
                       Imported by both sides; redefined by neither.
-api/                  NestJS 11 + Kysely + pg. TypeScript ESM.
+server/               NestJS 11 + Kysely + pg. TypeScript ESM.
 mobile/               Expo + React Native, React Navigation, TanStack Query, Zustand.
 db/migrations/        Raw SQL, forward-only, immutable once applied.
 db/tests/             psql probes proving the constraints reject what they should.
 docs/API_SPECIFICATION.md   The authoritative 50-endpoint contract.
 scripts/check-contract-parity.mjs   Proves contract ↔ schema ↔ spec agreement.
-.github/workflows/ci.yml    Contracts → database → api + mobile.
+.github/workflows/ci.yml    Contracts → database → server + mobile.
 ```
 
 Design and requirements: [`SRS.md`](SRS.md), [`SDS.md`](SDS.md),
@@ -82,7 +82,10 @@ and schema rationale), [`finance_tracker_react_native_full_plan.md`](finance_tra
 ## Setup
 
 Requirements: **Node 22+**, **PostgreSQL 17** running locally. No container runtime is required —
-see [Docker](#docker) for the optional containerized `api/` + Postgres path.
+see [Docker](#docker) for the optional containerized `server/` + Postgres path.
+
+Already have Postgres running and `.env` filled in? `npm run setup` does steps 1, 4 and 5 below
+in one shot (install, migrate, build the contract). Otherwise follow the steps in order.
 
 **1. Install.**
 
@@ -94,8 +97,8 @@ npm install
 `DATABASE_URL` below.
 
 ```bash
-sudo -u postgres createuser --pwprompt finance
-sudo -u postgres createdb --owner=finance finance_db
+sudo -u postgres createuser --pwprompt sora
+sudo -u postgres createdb --owner=sora sora_db
 ```
 
 **3. Configure.**
@@ -105,7 +108,7 @@ cp .env.example .env
 ```
 
 Fill in at minimum `DATABASE_URL` and `JWT_SECRET` (`openssl rand -base64 48`).
-`api/src/config/env.ts` validates the whole environment once at boot and the process refuses to
+`server/src/config/env.ts` validates the whole environment once at boot and the process refuses to
 start on anything missing or unusable — a secret that reads as configured but is 8 characters
 authenticates nothing while looking fine, so that failure has to be loud and early rather than
 a degraded request path. It is also the authoritative list of variable names and defaults; where
@@ -130,35 +133,42 @@ permission to — grant it, or run the file once as a superuser.
 **5. Build the shared contract**, which both the API and the app typecheck against:
 
 ```bash
-npm run build -w @finance/contracts
+npm run build -w @sora/contracts
 ```
 
-**6. Run the API.**
+**6. Run the API (backend).**
 
 ```bash
-npm run build -w @finance/api && npm start -w @finance/api
-npm run start:dev -w @finance/api                            # watch mode
+npm run dev:server                 # build, then watch + auto-restart on every change
+npm run build -w @sora/server && npm start -w @sora/server   # one-shot, no watch
 ```
 
 `GET /api/v1/health` answers `{ "status": "ok", "version": ..., "database": "up" }` and is the
 one endpoint deliberately outside the response envelope, so an uptime probe needs no JSON
 parsing beyond the status code.
 
-**7. Run the app.**
+**7. Run the app (mobile — there is no separate web frontend; see [Docker](#docker) for why
+`webpage/` doesn't count).**
 
 ```bash
-npm start -w @finance/mobile          # or: cd mobile && npx expo start
+npm run dev:mobile                 # or: npm start -w @sora/mobile / cd mobile && npx expo start
 ```
 
 Set `EXPO_PUBLIC_API_URL` to a host **the device** can reach. On a physical phone `localhost`
 resolves to the phone itself, so it must be your machine's LAN address; the API's
 `CORS_ORIGINS` needs to allow the Expo dev origin in return.
 
+**Both at once**, from the repo root:
+
+```bash
+npm run dev                        # server (watch) + Expo dev server together
+```
+
 ## Tests and checks
 
 ```bash
 npm test                            # every package with a test script
-npm test -w @finance/contracts      # money and derivation math (node --test)
+npm test -w @sora/contracts      # money and derivation math (node --test)
 npm run typecheck                   # every package
 node scripts/check-contract-parity.mjs
 ```
@@ -197,7 +207,7 @@ are `DECIMAL(19,4)`, whose range exceeds the `2^53` boundary where float64 stops
 integers exactly, and float arithmetic cannot represent `0.1 + 0.2` either. Both failures
 produce a balance wrong by an amount nobody can trace back to a cause.
 
-Parse with `parseMoney()` from `@finance/contracts` (scaled `bigint`), render with
+Parse with `parseMoney()` from `@sora/contracts` (scaled `bigint`), render with
 `formatMoney()`. Never `Number()`. Amounts are always positive; direction comes from the
 transaction `type` and from which account side is populated. `initialBalance` is the one signed
 amount — a credit card opens negative.
@@ -205,8 +215,8 @@ amount — a credit card opens negative.
 ## Docker
 
 The documented workflow above (host PostgreSQL 17 + npm) remains the primary, always-available
-path — see CLAUDE.md's Part 7, rule 10. `docker-compose.yml` and `api/Dockerfile` at the repo
-root are an **optional** addition covering only `api/` and Postgres:
+path — see CLAUDE.md's Part 7, rule 10. `docker-compose.yml` and `server/Dockerfile` at the repo
+root are an **optional** addition covering only `server/` and Postgres:
 
 ```bash
 cp .env.example .env   # fill in JWT_SECRET and GOOGLE_CLIENT_ID at minimum
@@ -218,7 +228,7 @@ Postgres's container publishes to host port **5433**, not 5432, so it can run al
 host Postgres above instead of colliding with it — override `POSTGRES_HOST_PORT` in `.env` if you'd
 rather point it at 5432 directly. `mobile/` isn't containerized (Expo's dev server needs direct
 LAN/USB access to a physical device, which containerizing complicates for no gain), and neither is
-`frontend/` (parked — see `frontend/PARKED.md`, it doesn't run against the current API at all).
+`webpage/` (parked — see `webpage/PARKED.md`, it doesn't run against the current API at all).
 
 The original `docker-compose.yml` here was removed rather than rewritten for the old stack: it
 built two services from `./backend` and `./frontend`, which no longer exist, so it could not

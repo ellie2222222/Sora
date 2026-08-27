@@ -11,7 +11,7 @@
 
 import { Injectable } from '@nestjs/common';
 
-import type { ContributionResponse, CreateContributionRequest } from '@finance/contracts';
+import type { ContributionResponse, CreateContributionRequest } from '@sora/contracts';
 
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';

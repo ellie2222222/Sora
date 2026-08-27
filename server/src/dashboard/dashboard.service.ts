@@ -34,7 +34,7 @@ import {
   type Scaled,
   type TransactionAccountRef,
   type TransactionResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { BalanceService } from '../accounts/balance.service.ts';

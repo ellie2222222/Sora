@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Kysely, Transaction } from 'kysely';
 
-import type { AuditLogResponse, WalletRole } from '@finance/contracts';
+import type { AuditLogResponse, WalletRole } from '@sora/contracts';
 
 import { DatabaseService } from '../database/database.service.ts';
 import type { AuditResult, DB } from '../database/types.ts';

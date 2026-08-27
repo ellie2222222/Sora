@@ -1,7 +1,7 @@
 /**
  * The audited event vocabulary (§16.1).
  *
- * Not in @finance/contracts because no client consumes it as a request or
+ * Not in @sora/contracts because no client consumes it as a request or
  * response value — the mobile app never sends an event name. It is read back
  * only through GET /wallets/{id}/audit-logs, whose rows carry the string as
  * data.

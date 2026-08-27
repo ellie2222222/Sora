@@ -1,4 +1,4 @@
-// Monorepo wiring: @finance/contracts is consumed as TypeScript source (its
+// Monorepo wiring: @sora/contracts is consumed as TypeScript source (its
 // package "exports" point at src/index.ts), so Metro must watch the workspace
 // root and resolve the hoisted root node_modules as well as the app's own.
 const path = require('path');

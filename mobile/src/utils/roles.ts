@@ -6,7 +6,7 @@
  * security boundary, and nothing here may be the only check on a write.
  */
 
-import { REQUIRED_ROLE, roleSatisfies, type WalletRole } from '@finance/contracts';
+import { REQUIRED_ROLE, roleSatisfies, type WalletRole } from '@sora/contracts';
 
 export interface WalletPermissions {
   canRead: boolean;

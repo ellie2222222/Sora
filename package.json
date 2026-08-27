@@ -1,27 +1,32 @@
 {
-  "name": "finance-tracker",
+  "name": "sora",
   "private": true,
   "version": "0.1.0",
   "description": "Wallet-model finance tracker — NestJS API, React Native app, PostgreSQL",
   "workspaces": [
     "packages/*",
-    "api",
+    "server",
     "mobile"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "build": "npm run build --workspace @finance/contracts && npm run build --workspace @finance/api",
+    "build": "npm run build --workspace @sora/contracts && npm run build --workspace @sora/server",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "db:migrate": "node scripts/migrate.mjs",
     "db:reset": "node scripts/migrate.mjs --reset",
-    "db:test": "node scripts/migrate.mjs --constraints"
+    "db:test": "node scripts/migrate.mjs --constraints",
+    "setup": "npm install && npm run build --workspace @sora/contracts && npm run db:migrate",
+    "dev": "concurrently -k -n server,mobile -c blue,magenta \"npm:dev:server\" \"npm:dev:mobile\"",
+    "dev:server": "npm run start:dev --workspace @sora/server",
+    "dev:mobile": "npm start --workspace @sora/mobile"
   },
   "devDependencies": {
-    "typescript": "^5.7.2"
+    "concurrently": "^10.0.5",
+    "typescript": "~6.0.3"
   },
   "dependencies": {
     "pg": "^8.23.0"

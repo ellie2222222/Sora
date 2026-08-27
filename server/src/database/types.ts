@@ -5,7 +5,7 @@
  * constraints, partial unique indexes and the GIST exclusion constraint are
  * business rules authored as SQL, and a tool that re-derives DDL from these
  * types would drift from them. The enum unions below are imported from
- * @finance/contracts, which is byte-checked against those CHECK constraints by
+ * @sora/contracts, which is byte-checked against those CHECK constraints by
  * scripts/check-contract-parity.mjs — so a column type here cannot disagree
  * with the database without that check failing.
  */
@@ -24,7 +24,7 @@ import type {
   TransactionType,
   WalletRole,
   WalletStatus,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 /** TIMESTAMPTZ. Read as Date; writable as Date or an ISO string. */
 type Timestamp = ColumnType<Date, Date | string | undefined, Date | string>;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
-import type { TransactionType } from '@finance/contracts';
+import type { TransactionType } from '@sora/contracts';
 
 import { Button, Input, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';

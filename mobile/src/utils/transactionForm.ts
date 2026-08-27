@@ -20,7 +20,7 @@ import {
   type TransactionResponse,
   type TransactionStatus,
   type TransactionType,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 /** Every field the form can hold, regardless of which type is selected. */
 export interface TransactionDraft {

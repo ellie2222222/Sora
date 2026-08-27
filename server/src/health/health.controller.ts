@@ -1,7 +1,7 @@
 import { Controller, Get, HttpStatus, Inject, Res } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { ROUTES } from '@finance/contracts';
+import { ROUTES } from '@sora/contracts';
 
 import { NoEnvelope, Public } from '../common/decorators.ts';
 import { CONFIG, type AppConfig } from '../config/env.ts';

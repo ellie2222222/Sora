@@ -10,7 +10,7 @@ import {
   uuidSchema,
   type AccountDetailResponse,
   type AccountResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { ClientIp, CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';

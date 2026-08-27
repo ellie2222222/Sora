@@ -2,7 +2,7 @@
  * Derived balances.
  *
  * Nothing here is stored. Every figure is recomputed from transaction rows by
- * `calculateAccountBalance` / `calculateWalletBalance` in @finance/contracts —
+ * `calculateAccountBalance` / `calculateWalletBalance` in @sora/contracts —
  * the same functions the mobile app uses for optimistic values — rather than by
  * a SQL `SUM`. A SQL aggregate would be a second implementation of the rule
  * "only COMPLETED transactions move a balance, and direction comes from which
@@ -24,7 +24,7 @@ import {
   type CurrencyTotal,
   type MoneyString,
   type Scaled,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { CurrencyLedger } from '../common/currency-totals.ts';
 import { DatabaseService } from '../database/database.service.ts';

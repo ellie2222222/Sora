@@ -3,7 +3,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { loginSchema, type LoginRequest } from '@finance/contracts';
+import { loginSchema, type LoginRequest } from '@sora/contracts';
 
 import { Button, Input, Text } from '../../../components/index.ts';
 import { useAuth } from '../../../app/providers/AuthProvider.tsx';

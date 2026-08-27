@@ -1,5 +1,5 @@
 /**
- * Validation runs the Zod schemas exported by @finance/contracts.
+ * Validation runs the Zod schemas exported by @sora/contracts.
  *
  * class-validator is deliberately not used: it would be a second, independently
  * maintained statement of rules the contracts package already owns and the app

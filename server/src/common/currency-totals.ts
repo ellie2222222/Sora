@@ -4,7 +4,7 @@
  * Every total this API reports is an array keyed by currency, never a scalar. A
  * wallet holding a VND and a USD account has no single balance, and adding the
  * two numbers produces a figure that is silently meaningless — conversion is out
- * of scope for v1 (§16.4). Summation itself is `add` from @finance/contracts, so
+ * of scope for v1 (§16.4). Summation itself is `add` from @sora/contracts, so
  * the arithmetic stays on scaled bigints.
  */
 
@@ -15,7 +15,7 @@ import {
   subtract,
   type CurrencyTotal,
   type Scaled,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 export class CurrencyLedger {
   private readonly totals = new Map<string, Scaled>();

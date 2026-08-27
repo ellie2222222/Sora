@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
-import type { CategoryResponse, CategoryType } from '@finance/contracts';
+import type { CategoryResponse, CategoryType } from '@sora/contracts';
 
 import { Card, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';

@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { WalletResponse } from '@finance/contracts';
+import type { WalletResponse } from '@sora/contracts';
 
 import { queryKeys } from '../config/queryKeys.ts';
 import { walletsApi } from '../../services/api/wallets.ts';

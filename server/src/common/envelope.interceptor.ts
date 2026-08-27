@@ -7,7 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { map, type Observable } from 'rxjs';
 
-import type { ApiEnvelope } from '@finance/contracts';
+import type { ApiEnvelope } from '@sora/contracts';
 
 import { Enveloped, NO_ENVELOPE } from './envelope.ts';
 

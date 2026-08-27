@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
-import { BUDGET_PERIOD_TYPES, type BudgetPeriodType } from '@finance/contracts';
+import { BUDGET_PERIOD_TYPES, type BudgetPeriodType } from '@sora/contracts';
 
 import { Button, Input, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';

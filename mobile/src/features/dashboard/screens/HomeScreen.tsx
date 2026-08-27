@@ -1,7 +1,7 @@
 import { ArrowDownLeft, ArrowUpRight, Settings as SettingsIcon, Wallet as WalletIcon } from 'lucide-react-native';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import type { CategorySpendSlice, CurrencyTotal } from '@finance/contracts';
+import type { CategorySpendSlice, CurrencyTotal } from '@sora/contracts';
 
 import { Card, EmptyState, ErrorState, Money, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';

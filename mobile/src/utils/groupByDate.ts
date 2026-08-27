@@ -6,7 +6,7 @@
  * would silently override a user who asked for oldest-first or largest-first.
  */
 
-import type { TransactionResponse } from '@finance/contracts';
+import type { TransactionResponse } from '@sora/contracts';
 import { dayOfInstant, type CalendarDay } from './date.ts';
 
 export interface DayGroup {

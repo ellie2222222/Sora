@@ -2,7 +2,7 @@
  * Budgets CRUD (§12 of the API specification).
  *
  * `spent`/`remaining`/`usagePercentage`/`isOverBudget` are never stored — they
- * are recomputed from completed EXPENSE transactions via @finance/contracts'
+ * are recomputed from completed EXPENSE transactions via @sora/contracts'
  * calc.ts, the same functions the mobile app uses for optimistic values, so
  * this layer can never round or classify a transaction differently than the
  * app already did.
@@ -25,7 +25,7 @@ import {
   type SpendRelevantTransaction,
   type UpdateBudgetRequest,
   type WalletRole,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';

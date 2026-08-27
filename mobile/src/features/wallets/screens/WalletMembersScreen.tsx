@@ -1,6 +1,6 @@
 import { UsersRound, X } from 'lucide-react-native';
 import { Pressable, ScrollView, View } from 'react-native';
-import type { WalletInvitationResponse, WalletMemberResponse } from '@finance/contracts';
+import type { WalletInvitationResponse, WalletMemberResponse } from '@sora/contracts';
 
 import { Button, Card, ErrorState, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';

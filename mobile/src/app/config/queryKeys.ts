@@ -17,7 +17,7 @@ import type {
   MemberStatus,
   TransactionQuery,
   WalletStatus,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 export type QueryKey = readonly unknown[];
 

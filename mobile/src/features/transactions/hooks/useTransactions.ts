@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateTransactionRequest, TransactionQuery } from '@finance/contracts';
+import type { CreateTransactionRequest, TransactionQuery } from '@sora/contracts';
 
 import { queryKeys, TRANSACTION_INVALIDATION_KEYS } from '../../../app/config/queryKeys.ts';
 import { transactionsApi } from '../../../services/api/transactions.ts';

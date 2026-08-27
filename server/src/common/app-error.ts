@@ -1,12 +1,12 @@
 /**
  * The one error type every service throws.
  *
- * It carries an ErrorCode from @finance/contracts rather than an HTTP status:
+ * It carries an ErrorCode from @sora/contracts rather than an HTTP status:
  * ERROR_STATUS is the single mapping from code to status, so a service never
  * picks a number and the API's status conventions cannot drift per call site.
  */
 
-import { ERROR_STATUS, type ErrorCode } from '@finance/contracts';
+import { ERROR_STATUS, type ErrorCode } from '@sora/contracts';
 
 export class AppError extends Error {
   readonly code: ErrorCode;

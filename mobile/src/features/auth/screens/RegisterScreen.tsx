@@ -3,7 +3,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { registerSchema } from '@finance/contracts';
+import { registerSchema } from '@sora/contracts';
 import type { z } from 'zod';
 
 import { Button, Input, Text } from '../../../components/index.ts';

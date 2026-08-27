@@ -1,4 +1,4 @@
-# Finance Tracker — Domain & Database Design
+# Sora — Domain & Database Design
 
 ## 1. Purpose
 
@@ -1095,7 +1095,7 @@ The 500,000 repayment is a TRANSFER, not an expense, even though it crosses wall
 
 ```mermaid
 mindmap
-  root((Finance Tracker))
+  root((Sora))
     Money
       Wallet
         Account

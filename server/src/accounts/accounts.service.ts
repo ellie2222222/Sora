@@ -3,7 +3,7 @@
  *
  * Balances are never read from a stored column — BalanceService derives every
  * figure from transaction rows, so a response here can never disagree with
- * @finance/contracts' own calc.ts, which the app uses for its optimistic values.
+ * @sora/contracts' own calc.ts, which the app uses for its optimistic values.
  */
 
 import { Injectable } from '@nestjs/common';
@@ -16,7 +16,7 @@ import {
   type AccountType,
   type CreateAccountRequest,
   type UpdateAccountRequest,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';

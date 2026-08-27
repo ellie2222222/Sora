@@ -1,7 +1,7 @@
 import { ChevronDown, UsersRound } from 'lucide-react-native';
 import { useState } from 'react';
 import { Modal, Pressable, View } from 'react-native';
-import type { WalletResponse } from '@finance/contracts';
+import type { WalletResponse } from '@sora/contracts';
 
 import { Card, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';

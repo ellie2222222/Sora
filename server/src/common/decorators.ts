@@ -1,6 +1,6 @@
 import { SetMetadata, createParamDecorator, type ExecutionContext } from '@nestjs/common';
 
-import type { WalletRole } from '@finance/contracts';
+import type { WalletRole } from '@sora/contracts';
 
 import { NO_ENVELOPE } from './envelope.ts';
 

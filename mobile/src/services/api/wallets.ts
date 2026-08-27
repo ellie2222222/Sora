@@ -4,7 +4,7 @@ import {
   type CreateWalletRequest,
   type UpdateWalletRequest,
   type WalletResponse,
-} from '@finance/contracts';
+} from '@sora/contracts';
 
 import { deleteVoid, getList, getOne, patchOne, postOne } from './client.ts';
 

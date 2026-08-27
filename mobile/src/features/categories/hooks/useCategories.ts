@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type { CreateCategoryRequest, UpdateCategoryRequest } from '@finance/contracts';
+import type { CreateCategoryRequest, UpdateCategoryRequest } from '@sora/contracts';
 
 import { CATEGORY_INVALIDATION_KEYS, queryKeys, type CategoryListParams } from '../../../app/config/queryKeys.ts';
 import { categoriesApi } from '../../../services/api/categories.ts';

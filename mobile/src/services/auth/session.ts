@@ -12,7 +12,7 @@
  * Nothing here imports React Native or axios, so the latch is testable directly.
  */
 
-import type { AuthTokens } from '@finance/contracts';
+import type { AuthTokens } from '@sora/contracts';
 
 export interface StoredSession {
   accessToken: string;
