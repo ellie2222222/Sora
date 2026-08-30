@@ -6,45 +6,61 @@ import { Card, EmptyState, ErrorState, Money, ProgressBar, Text } from '../../..
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
+import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
 import { useGoals } from '../hooks/useGoals.ts';
 import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
 
 export function GoalsScreen({ navigation }: MainTabScreenProps<'Goals'>) {
   const theme = useTheme();
   const { activeWalletId, permissions } = useWallets();
+  const onManage = () => navigation.getParent()?.navigate('WalletList');
 
   const goals = useGoals({ walletId: activeWalletId ?? '', status: 'ACTIVE' });
 
-  if (activeWalletId === null || goals.isLoading) return <SkeletonList rows={4} rowHeight={110} />;
+  if (activeWalletId === null || goals.isLoading) {
+    return (
+      <WalletContextBar onManage={onManage}>
+        <SkeletonList rows={4} rowHeight={110} />
+      </WalletContextBar>
+    );
+  }
   if (goals.isError) {
-    return <ErrorState error={goals.error} onRetry={() => void goals.refetch()} testID="goals-error" />;
+    return (
+      <WalletContextBar onManage={onManage}>
+        <ErrorState error={goals.error} onRetry={() => void goals.refetch()} testID="goals-error" />
+      </WalletContextBar>
+    );
   }
 
   const items = goals.data ?? [];
 
   if (items.length === 0) {
     return (
-      <EmptyState
-        icon={Target}
-        title="No savings goals"
-        description="Set a target and track how close you are."
-        actionLabel={permissions.canWrite ? 'Add goal' : undefined}
-        onAction={permissions.canWrite ? () => navigation.getParent()?.navigate('AddGoal') : undefined}
-        testID="goals-empty"
-      />
+      <WalletContextBar onManage={onManage}>
+        <EmptyState
+          icon={Target}
+          title="No savings goals"
+          description="Set a target and track how close you are."
+          actionLabel={permissions.canWrite ? 'Add goal' : undefined}
+          onAction={permissions.canWrite ? () => navigation.getParent()?.navigate('AddGoal') : undefined}
+          testID="goals-empty"
+        />
+      </WalletContextBar>
     );
   }
 
   return (
-    <FlatList
-      testID="goals-list"
-      data={items}
-      keyExtractor={(item) => item.id}
-      contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
-      renderItem={({ item }) => (
-        <GoalCard goal={item} onPress={() => navigation.getParent()?.navigate('GoalDetail', { goalId: item.id })} />
-      )}
-    />
+    <WalletContextBar onManage={onManage}>
+      <FlatList
+        testID="goals-list"
+        data={items}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
+        renderItem={({ item }) => (
+          <GoalCard goal={item} onPress={() => navigation.getParent()?.navigate('GoalDetail', { goalId: item.id })} />
+        )}
+      />
+    </WalletContextBar>
   );
 }
 

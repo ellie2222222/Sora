@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import type { TransactionType } from '@sora/contracts';
 
 import { Button, Input, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
+import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
 import { AccountPicker } from '../../accounts/components/AccountPicker.tsx';
 import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
 import { messageOf } from '../../../utils/errors.ts';
@@ -41,6 +42,19 @@ export function AddTransactionScreen({ navigation }: MainTabScreenProps<'AddTran
   const fields = fieldsForType(draft.type);
   const primaryAccount = primaryAccountOf(draft);
 
+  // Switching the active wallet mid-draft would leave a picked account/category
+  // pointing at the wallet just left behind, so start a clean draft instead of
+  // silently submitting against the wrong wallet's data.
+  useEffect(() => {
+    setDraft(emptyDraft({ currency: 'VND', transactionDate: nowInstant() }));
+    setAmountText('');
+    setToAccountWalletId(undefined);
+    setFieldErrors({});
+    setSubmitError(null);
+    // Deliberately keyed on walletId alone: this must run once per wallet
+    // switch, not on every keystroke that updates the draft it resets.
+  }, [walletId]);
+
   // The "to" side of a transfer is browsed with no walletId filter (it may
   // legitimately sit in someone else's wallet); the picker hands back which
   // wallet was picked from, and comparing that against the active wallet is
@@ -48,13 +62,17 @@ export function AddTransactionScreen({ navigation }: MainTabScreenProps<'AddTran
   const crossWallet =
     draft.type === 'TRANSFER' && toAccountWalletId !== undefined && toAccountWalletId !== walletId;
 
+  const onManage = () => navigation.getParent()?.navigate('WalletList');
+
   if (!permissions.canWrite) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}>
-        <Text tone="muted" style={{ textAlign: 'center' }}>
-          You have view-only access to this wallet and cannot record transactions.
-        </Text>
-      </View>
+      <WalletContextBar onManage={onManage}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}>
+          <Text tone="muted" style={{ textAlign: 'center' }}>
+            You have view-only access to this wallet and cannot record transactions.
+          </Text>
+        </View>
+      </WalletContextBar>
     );
   }
 
@@ -84,6 +102,7 @@ export function AddTransactionScreen({ navigation }: MainTabScreenProps<'AddTran
       style={{ flex: 1, backgroundColor: theme.colors.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <WalletContextBar onManage={onManage} />
       <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
         <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
           {TYPES.map(({ type, label }) => (

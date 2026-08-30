@@ -11,6 +11,7 @@ import { GoalDetailScreen } from '../../features/goals/screens/GoalDetailScreen.
 import { TransactionDetailScreen } from '../../features/transactions/screens/TransactionDetailScreen.tsx';
 import { SettingsScreen } from '../../features/settings/screens/SettingsScreen.tsx';
 import { InviteMemberScreen } from '../../features/wallets/screens/InviteMemberScreen.tsx';
+import { WalletActivityScreen } from '../../features/wallets/screens/WalletActivityScreen.tsx';
 import { WalletDetailScreen } from '../../features/wallets/screens/WalletDetailScreen.tsx';
 import { WalletListScreen } from '../../features/wallets/screens/WalletListScreen.tsx';
 import { WalletMembersScreen } from '../../features/wallets/screens/WalletMembersScreen.tsx';
@@ -33,6 +34,7 @@ export function AppNavigator() {
       <Stack.Screen name="WalletDetail" component={WalletDetailScreen} options={{ title: '' }} />
       <Stack.Screen name="WalletMembers" component={WalletMembersScreen} options={{ title: 'Members' }} />
       <Stack.Screen name="InviteMember" component={InviteMemberScreen} options={{ title: 'Invite' }} />
+      <Stack.Screen name="WalletActivity" component={WalletActivityScreen} options={{ title: 'Activity' }} />
 
       <Stack.Screen name="AccountDetail" component={AccountDetailScreen} options={{ title: 'Account' }} />
       <Stack.Screen name="AddAccount" component={AddAccountScreen} options={{ title: 'Add Account', presentation: 'modal' }} />

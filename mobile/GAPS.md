@@ -25,11 +25,6 @@ assuming a surface is finished.
   (`env.googleClientIdWeb/Ios/Android`, all unset by default). Exercising it
   needs a real Google Cloud OAuth client, which does not exist in this
   environment — nothing about the actual OAuth round-trip has been run.
-- **Ownership transfer UI.** `useTransferOwnership()` exists in
-  `useWalletMembers.ts` and the API supports it (§7.4), but no screen calls it.
-  An owner currently cannot hand off a wallet from within the app.
-- **Wallet archive / leave UI.** `useArchiveWallet()` and `useLeaveWallet()`
-  exist as hooks; nothing in the UI calls them yet.
 - **Category edit/archive UI.** Create-only; `categoriesApi.update()` and
   `.archive()` have no screen.
 - **Push notifications / background refresh.** Not attempted — no such

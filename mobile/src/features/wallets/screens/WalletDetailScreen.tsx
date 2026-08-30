@@ -1,15 +1,19 @@
-import { Landmark, Plus, Settings, UsersRound } from 'lucide-react-native';
+import { Archive, History, Landmark, LogOut, Plus, Settings, UsersRound } from 'lucide-react-native';
+import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import type { AccountResponse } from '@sora/contracts';
 
-import { Card, EmptyState, ErrorState, Money, Text } from '../../../components/index.ts';
+import { Card, ConfirmDialog, EmptyState, ErrorState, Money, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useAccounts } from '../../accounts/hooks/useAccounts.ts';
+import { messageOf } from '../../../utils/errors.ts';
 import { permissionsFor, ROLE_LABELS } from '../../../utils/roles.ts';
-import { useWalletDetail } from '../hooks/useWallets.ts';
-import { useWalletMembers } from '../hooks/useWalletMembers.ts';
+import { useArchiveWallet, useWalletDetail } from '../hooks/useWallets.ts';
+import { useLeaveWallet, useWalletMembers } from '../hooks/useWalletMembers.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
+
+type PendingAction = 'leave' | 'archive' | null;
 
 export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'WalletDetail'>) {
   const theme = useTheme();
@@ -18,6 +22,11 @@ export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'W
   const wallet = useWalletDetail(walletId);
   const accounts = useAccounts({ walletId, status: 'ACTIVE' });
   const members = useWalletMembers(walletId);
+  const leaveWallet = useLeaveWallet();
+  const archiveWallet = useArchiveWallet();
+
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   if (wallet.isLoading || accounts.isLoading) return <SkeletonList rows={5} />;
   if (wallet.isError) return <ErrorState error={wallet.error} onRetry={() => void wallet.refetch()} />;
@@ -26,15 +35,33 @@ export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'W
   if (data === undefined) return null;
 
   const permissions = permissionsFor(data.role);
+  const canLeave = data.role !== 'OWNER';
+
+  async function handleConfirmAction() {
+    setActionError(null);
+    try {
+      if (pendingAction === 'leave') await leaveWallet.mutateAsync(walletId);
+      else if (pendingAction === 'archive') await archiveWallet.mutateAsync(walletId);
+      setPendingAction(null);
+      navigation.navigate('WalletList');
+    } catch (error) {
+      setActionError(messageOf(error));
+    }
+  }
 
   return (
     <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text variant="heading">{data.isOwn ? data.name : data.relationLabel ?? data.name}</Text>
         {permissions.canAdminister ? (
-          <Pressable testID="wallet-detail-settings" onPress={() => navigation.navigate('WalletMembers', { walletId })}>
-            <Settings size={22} color={theme.colors.textMuted} />
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
+            <Pressable testID="wallet-detail-activity" onPress={() => navigation.navigate('WalletActivity', { walletId })}>
+              <History size={22} color={theme.colors.textMuted} />
+            </Pressable>
+            <Pressable testID="wallet-detail-settings" onPress={() => navigation.navigate('WalletMembers', { walletId })}>
+              <Settings size={22} color={theme.colors.textMuted} />
+            </Pressable>
+          </View>
         ) : null}
       </View>
 
@@ -93,6 +120,55 @@ export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'W
           ))}
         </View>
       ) : null}
+
+      {canLeave || permissions.canAdminister ? (
+        <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
+          <Text variant="label" tone="muted">
+            Wallet actions
+          </Text>
+          {actionError !== null ? <Text tone="danger">{actionError}</Text> : null}
+          {canLeave ? (
+            <Pressable
+              testID="wallet-detail-leave"
+              onPress={() => {
+                setActionError(null);
+                setPendingAction('leave');
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}
+            >
+              <LogOut size={18} color={theme.colors.danger} />
+              <Text tone="danger">Leave wallet</Text>
+            </Pressable>
+          ) : null}
+          {permissions.canAdminister ? (
+            <Pressable
+              testID="wallet-detail-archive"
+              onPress={() => {
+                setActionError(null);
+                setPendingAction('archive');
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}
+            >
+              <Archive size={18} color={theme.colors.danger} />
+              <Text tone="danger">Archive wallet</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      <ConfirmDialog
+        visible={pendingAction !== null}
+        title={pendingAction === 'leave' ? 'Leave this wallet?' : 'Archive this wallet?'}
+        message={
+          pendingAction === 'leave'
+            ? 'You will lose access until someone invites you back.'
+            : 'This wallet and its accounts will be hidden, not deleted. No transaction history is lost.'
+        }
+        confirmLabel={pendingAction === 'leave' ? 'Leave' : 'Archive'}
+        destructive
+        onConfirm={() => void handleConfirmAction()}
+        onCancel={() => setPendingAction(null)}
+      />
     </ScrollView>
   );
 }

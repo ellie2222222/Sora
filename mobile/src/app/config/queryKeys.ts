@@ -58,6 +58,14 @@ export interface WalletListParams {
   status?: WalletStatus | undefined;
 }
 
+export interface AuditLogListParams {
+  event?: string | undefined;
+  dateFrom?: string | undefined;
+  dateTo?: string | undefined;
+  page?: number | undefined;
+  pageSize?: number | undefined;
+}
+
 export const queryKeys = {
   auth: {
     root: () => ['auth'] as const,
@@ -71,6 +79,8 @@ export const queryKeys = {
       ['wallets', 'members', walletId, status] as const,
     invitations: (walletId: string, state = 'open') =>
       ['wallets', 'invitations', walletId, state] as const,
+    auditLogs: (walletId: string, params: AuditLogListParams = {}) =>
+      ['wallets', 'auditLogs', walletId, params] as const,
   },
   accounts: {
     root: () => ['accounts'] as const,

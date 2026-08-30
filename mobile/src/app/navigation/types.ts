@@ -30,6 +30,7 @@ export type AppStackParamList = {
   WalletDetail: { walletId: string };
   WalletMembers: { walletId: string };
   InviteMember: { walletId: string };
+  WalletActivity: { walletId: string };
   AccountDetail: { accountId: string };
   AddAccount: { walletId?: string } | undefined;
   CategoryList: { walletId?: string } | undefined;

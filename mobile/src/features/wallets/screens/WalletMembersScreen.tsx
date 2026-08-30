@@ -1,15 +1,18 @@
 import { UsersRound, X } from 'lucide-react-native';
+import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import type { WalletInvitationResponse, WalletMemberResponse } from '@sora/contracts';
 
-import { Button, Card, ErrorState, Text } from '../../../components/index.ts';
+import { Button, Card, ConfirmDialog, ErrorState, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useAuth } from '../../../app/providers/AuthProvider.tsx';
+import { messageOf } from '../../../utils/errors.ts';
 import { useWalletDetail } from '../hooks/useWallets.ts';
 import {
   useRemoveMember,
   useRevokeInvitation,
+  useTransferOwnership,
   useWalletInvitations,
   useWalletMembers,
 } from '../hooks/useWalletMembers.ts';
@@ -26,11 +29,26 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
   const invitations = useWalletInvitations(walletId);
   const removeMember = useRemoveMember(walletId);
   const revokeInvitation = useRevokeInvitation(walletId);
+  const transferOwnership = useTransferOwnership(walletId);
+
+  const [transferTarget, setTransferTarget] = useState<WalletMemberResponse | null>(null);
+  const [transferError, setTransferError] = useState<string | null>(null);
 
   if (wallet.isLoading || members.isLoading) return <SkeletonList rows={4} />;
   if (members.isError) return <ErrorState error={members.error} onRetry={() => void members.refetch()} />;
 
   const isOwner = canAdminister(wallet.data?.role ?? null);
+
+  async function handleConfirmTransfer() {
+    if (transferTarget === null) return;
+    setTransferError(null);
+    try {
+      await transferOwnership.mutateAsync({ toUserId: transferTarget.userId });
+      setTransferTarget(null);
+    } catch (error) {
+      setTransferError(messageOf(error));
+    }
+  }
 
   return (
     <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
@@ -46,6 +64,8 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
         ) : null}
       </View>
 
+      {transferError !== null ? <Text tone="danger">{transferError}</Text> : null}
+
       {(members.data ?? []).map((member) => (
         <MemberRow
           key={member.id}
@@ -53,8 +73,26 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
           isSelf={member.userId === user?.id}
           canManage={isOwner}
           onRemove={() => removeMember.mutate(member.id)}
+          onMakeOwner={() => {
+            setTransferError(null);
+            setTransferTarget(member);
+          }}
         />
       ))}
+
+      <ConfirmDialog
+        visible={transferTarget !== null}
+        title="Transfer ownership?"
+        message={
+          transferTarget !== null
+            ? `${transferTarget.displayName} becomes the owner of this wallet. You become an Editor.`
+            : undefined
+        }
+        confirmLabel="Transfer"
+        destructive
+        onConfirm={() => void handleConfirmTransfer()}
+        onCancel={() => setTransferTarget(null)}
+      />
 
       {isOwner && invitations.data !== undefined && invitations.data.length > 0 ? (
         <View>
@@ -79,13 +117,16 @@ function MemberRow({
   isSelf,
   canManage,
   onRemove,
+  onMakeOwner,
 }: {
   member: WalletMemberResponse;
   isSelf: boolean;
   canManage: boolean;
   onRemove: () => void;
+  onMakeOwner: () => void;
 }) {
   const theme = useTheme();
+  const canPromote = canManage && !isSelf && member.role !== 'OWNER';
 
   return (
     <Card testID={`wallet-member-${member.id}`}>
@@ -103,11 +144,20 @@ function MemberRow({
             </Text>
           </View>
         </View>
-        {canManage && !isSelf && member.role !== 'OWNER' ? (
-          <Pressable testID={`wallet-member-remove-${member.id}`} onPress={onRemove}>
-            <X size={18} color={theme.colors.danger} />
-          </Pressable>
-        ) : null}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
+          {canPromote ? (
+            <Pressable testID={`wallet-member-make-owner-${member.id}`} onPress={onMakeOwner}>
+              <Text variant="caption" tone="muted">
+                Make owner
+              </Text>
+            </Pressable>
+          ) : null}
+          {canPromote ? (
+            <Pressable testID={`wallet-member-remove-${member.id}`} onPress={onRemove}>
+              <X size={18} color={theme.colors.danger} />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
     </Card>
   );

@@ -6,6 +6,7 @@ import { Card, EmptyState, ErrorState, Money, ProgressBar, Text } from '../../..
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
+import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
 import { today } from '../../../utils/date.ts';
 import { formatMoneyString } from '../../../utils/money.ts';
 import { useBudgets } from '../hooks/useBudgets.ts';
@@ -14,37 +15,52 @@ import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
 export function BudgetsScreen({ navigation }: MainTabScreenProps<'Budgets'>) {
   const theme = useTheme();
   const { activeWalletId, permissions } = useWallets();
+  const onManage = () => navigation.getParent()?.navigate('WalletList');
 
   const budgets = useBudgets({ walletId: activeWalletId ?? '', status: 'ACTIVE', activeOn: today() });
 
-  if (activeWalletId === null || budgets.isLoading) return <SkeletonList rows={4} rowHeight={96} />;
+  if (activeWalletId === null || budgets.isLoading) {
+    return (
+      <WalletContextBar onManage={onManage}>
+        <SkeletonList rows={4} rowHeight={96} />
+      </WalletContextBar>
+    );
+  }
   if (budgets.isError) {
-    return <ErrorState error={budgets.error} onRetry={() => void budgets.refetch()} testID="budgets-error" />;
+    return (
+      <WalletContextBar onManage={onManage}>
+        <ErrorState error={budgets.error} onRetry={() => void budgets.refetch()} testID="budgets-error" />
+      </WalletContextBar>
+    );
   }
 
   const items = budgets.data ?? [];
 
   if (items.length === 0) {
     return (
-      <EmptyState
-        icon={PiggyBank}
-        title="No active budgets"
-        description="Plan how much you want to spend in a category this period."
-        actionLabel={permissions.canWrite ? 'Add budget' : undefined}
-        onAction={permissions.canWrite ? () => navigation.getParent()?.navigate('AddBudget') : undefined}
-        testID="budgets-empty"
-      />
+      <WalletContextBar onManage={onManage}>
+        <EmptyState
+          icon={PiggyBank}
+          title="No active budgets"
+          description="Plan how much you want to spend in a category this period."
+          actionLabel={permissions.canWrite ? 'Add budget' : undefined}
+          onAction={permissions.canWrite ? () => navigation.getParent()?.navigate('AddBudget') : undefined}
+          testID="budgets-empty"
+        />
+      </WalletContextBar>
     );
   }
 
   return (
-    <FlatList
-      testID="budgets-list"
-      data={items}
-      keyExtractor={(item) => item.id}
-      contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
-      renderItem={({ item }) => <BudgetCard budget={item} onPress={() => navigation.getParent()?.navigate('BudgetDetail', { budgetId: item.id })} />}
-    />
+    <WalletContextBar onManage={onManage}>
+      <FlatList
+        testID="budgets-list"
+        data={items}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
+        renderItem={({ item }) => <BudgetCard budget={item} onPress={() => navigation.getParent()?.navigate('BudgetDetail', { budgetId: item.id })} />}
+      />
+    </WalletContextBar>
   );
 }
 

@@ -5,6 +5,7 @@ import { EmptyState, ErrorState, Money, Text } from '../../../components/index.t
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
+import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
 import { formatDayHeading, formatTimeOfDay } from '../../../utils/date.ts';
 import { groupTransactionsByDay } from '../../../utils/groupByDate.ts';
 import { useTransactions } from '../hooks/useTransactions.ts';
@@ -13,6 +14,7 @@ import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
 export function TransactionsScreen({ route, navigation }: MainTabScreenProps<'Transactions'>) {
   const theme = useTheme();
   const { activeWalletId } = useWallets();
+  const onManage = () => navigation.getParent()?.navigate('WalletList');
 
   const transactions = useTransactions({
     walletId: activeWalletId ?? undefined,
@@ -21,23 +23,35 @@ export function TransactionsScreen({ route, navigation }: MainTabScreenProps<'Tr
     pageSize: 100,
   });
 
-  if (transactions.isLoading) return <SkeletonList rows={8} />;
+  if (transactions.isLoading) {
+    return (
+      <WalletContextBar onManage={onManage}>
+        <SkeletonList rows={8} />
+      </WalletContextBar>
+    );
+  }
   if (transactions.isError) {
-    return <ErrorState error={transactions.error} onRetry={() => void transactions.refetch()} testID="transactions-error" />;
+    return (
+      <WalletContextBar onManage={onManage}>
+        <ErrorState error={transactions.error} onRetry={() => void transactions.refetch()} testID="transactions-error" />
+      </WalletContextBar>
+    );
   }
 
   const items = transactions.data?.items ?? [];
 
   if (items.length === 0) {
     return (
-      <EmptyState
-        icon={Receipt}
-        title="No transactions yet"
-        description="Record your first expense, income or transfer."
-        actionLabel="Add transaction"
-        onAction={() => navigation.navigate('AddTransaction')}
-        testID="transactions-empty"
-      />
+      <WalletContextBar onManage={onManage}>
+        <EmptyState
+          icon={Receipt}
+          title="No transactions yet"
+          description="Record your first expense, income or transfer."
+          actionLabel="Add transaction"
+          onAction={() => navigation.navigate('AddTransaction')}
+          testID="transactions-empty"
+        />
+      </WalletContextBar>
     );
   }
 
@@ -48,6 +62,7 @@ export function TransactionsScreen({ route, navigation }: MainTabScreenProps<'Tr
 
   return (
     <SectionList
+      ListHeaderComponent={<WalletContextBar onManage={onManage} />}
       testID="transactions-list"
       sections={sections}
       keyExtractor={(item) => item.id}
