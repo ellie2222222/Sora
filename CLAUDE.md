@@ -743,7 +743,11 @@ rewriting it.
     stale rationale attached to different logic. Delete dead code outright instead of commenting
     it out — git history is the record. `TODO`/`FIXME` must point at something concrete (a
     `verifications/` doc, an issue link); a bare `TODO` with no tracking reference is worse than
-    no comment at all.
+    no comment at all. **Never write a comment as a debug journal.** Don't narrate the
+    investigation, the bug's symptom history, or a fix's before/after reasoning in prose inside
+    the code — that belongs in the commit message or a `verifications/` report. One or two
+    lines, why-only; if it needs more than that, the code needs a better name or an extraction,
+    not more comment.
 
 12. **No AI-authorship lines anywhere.** See Git above. No "Generated with", no
     `Co-Authored-By: Claude`, no model names — not in commit messages, PR bodies, code comments,
