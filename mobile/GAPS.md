@@ -27,6 +27,12 @@ assuming a surface is finished.
   environment — nothing about the actual OAuth round-trip has been run.
 - **Category edit/archive UI.** Create-only; `categoriesApi.update()` and
   `.archive()` have no screen.
+- **Editing a member's `relationLabel` after invitation.** `updateMemberSchema`
+  (`@sora/contracts`) only carries `role`; there is no endpoint to change the
+  label once a member is active. Would need a contract/API change, not just a
+  screen — the mobile Member Actions sheet (`WalletMembersScreen`) only offers
+  what the existing endpoint supports (role change, ownership transfer,
+  removal).
 - **Push notifications / background refresh.** Not attempted — no such
   requirement in the plan.
 

@@ -1,6 +1,7 @@
 export * from './Text.tsx';
 export * from './Button.tsx';
 export * from './Card.tsx';
+export * from './ActionSheet.tsx';
 export * from './ConfirmDialog.tsx';
 export * from './Input.tsx';
 export * from './Money.tsx';

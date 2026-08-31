@@ -1,9 +1,10 @@
-import { UsersRound, X } from 'lucide-react-native';
+import { MoreVertical, UsersRound, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import type { WalletInvitationResponse, WalletMemberResponse } from '@sora/contracts';
+import type { WalletInvitationResponse, WalletMemberResponse, WalletRole } from '@sora/contracts';
 
-import { Button, Card, ConfirmDialog, ErrorState, Text } from '../../../components/index.ts';
+import { ActionSheet, Button, Card, ConfirmDialog, ErrorState, Text } from '../../../components/index.ts';
+import type { ActionSheetAction } from '../../../components/ActionSheet.tsx';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useAuth } from '../../../app/providers/AuthProvider.tsx';
@@ -13,6 +14,7 @@ import {
   useRemoveMember,
   useRevokeInvitation,
   useTransferOwnership,
+  useUpdateMemberRole,
   useWalletInvitations,
   useWalletMembers,
 } from '../hooks/useWalletMembers.ts';
@@ -30,9 +32,12 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
   const removeMember = useRemoveMember(walletId);
   const revokeInvitation = useRevokeInvitation(walletId);
   const transferOwnership = useTransferOwnership(walletId);
+  const updateMemberRole = useUpdateMemberRole(walletId);
 
   const [transferTarget, setTransferTarget] = useState<WalletMemberResponse | null>(null);
   const [transferError, setTransferError] = useState<string | null>(null);
+  const [actionTarget, setActionTarget] = useState<WalletMemberResponse | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   if (wallet.isLoading || members.isLoading) return <SkeletonList rows={4} />;
   if (members.isError) return <ErrorState error={members.error} onRetry={() => void members.refetch()} />;
@@ -50,6 +55,39 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
     }
   }
 
+  async function handleRoleChange(member: WalletMemberResponse, role: WalletRole) {
+    setActionError(null);
+    try {
+      await updateMemberRole.mutateAsync({ memberId: member.id, body: { role } });
+    } catch (error) {
+      setActionError(messageOf(error));
+    }
+  }
+
+  const memberActions: ActionSheetAction[] =
+    actionTarget === null
+      ? []
+      : [
+          ...(actionTarget.role !== 'EDITOR'
+            ? [{ label: 'Set as Editor', onPress: () => void handleRoleChange(actionTarget, 'EDITOR') }]
+            : []),
+          ...(actionTarget.role !== 'VIEWER'
+            ? [{ label: 'Set as Viewer', onPress: () => void handleRoleChange(actionTarget, 'VIEWER') }]
+            : []),
+          {
+            label: 'Make owner',
+            onPress: () => {
+              setTransferError(null);
+              setTransferTarget(actionTarget);
+            },
+          },
+          {
+            label: 'Remove from wallet',
+            destructive: true,
+            onPress: () => removeMember.mutate(actionTarget.id),
+          },
+        ];
+
   return (
     <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -65,6 +103,7 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
       </View>
 
       {transferError !== null ? <Text tone="danger">{transferError}</Text> : null}
+      {actionError !== null ? <Text tone="danger">{actionError}</Text> : null}
 
       {(members.data ?? []).map((member) => (
         <MemberRow
@@ -72,13 +111,19 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
           member={member}
           isSelf={member.userId === user?.id}
           canManage={isOwner}
-          onRemove={() => removeMember.mutate(member.id)}
-          onMakeOwner={() => {
-            setTransferError(null);
-            setTransferTarget(member);
+          onOpenActions={() => {
+            setActionError(null);
+            setActionTarget(member);
           }}
         />
       ))}
+
+      <ActionSheet
+        visible={actionTarget !== null}
+        title={actionTarget?.displayName}
+        actions={memberActions}
+        onCancel={() => setActionTarget(null)}
+      />
 
       <ConfirmDialog
         visible={transferTarget !== null}
@@ -116,17 +161,15 @@ function MemberRow({
   member,
   isSelf,
   canManage,
-  onRemove,
-  onMakeOwner,
+  onOpenActions,
 }: {
   member: WalletMemberResponse;
   isSelf: boolean;
   canManage: boolean;
-  onRemove: () => void;
-  onMakeOwner: () => void;
+  onOpenActions: () => void;
 }) {
   const theme = useTheme();
-  const canPromote = canManage && !isSelf && member.role !== 'OWNER';
+  const canAct = canManage && !isSelf && member.role !== 'OWNER';
 
   return (
     <Card testID={`wallet-member-${member.id}`}>
@@ -144,20 +187,11 @@ function MemberRow({
             </Text>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
-          {canPromote ? (
-            <Pressable testID={`wallet-member-make-owner-${member.id}`} onPress={onMakeOwner}>
-              <Text variant="caption" tone="muted">
-                Make owner
-              </Text>
-            </Pressable>
-          ) : null}
-          {canPromote ? (
-            <Pressable testID={`wallet-member-remove-${member.id}`} onPress={onRemove}>
-              <X size={18} color={theme.colors.danger} />
-            </Pressable>
-          ) : null}
-        </View>
+        {canAct ? (
+          <Pressable testID={`wallet-member-actions-${member.id}`} onPress={onOpenActions}>
+            <MoreVertical size={18} color={theme.colors.textMuted} />
+          </Pressable>
+        ) : null}
       </View>
     </Card>
   );
