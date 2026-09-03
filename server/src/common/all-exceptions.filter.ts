@@ -43,7 +43,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = http.getResponse<Response>();
     const request = http.getRequest<Request & { user?: { id: string } }>();
 
-    const { code, message, status, fields } = classify(exception);
+    const { code, message, status, fields, internal } = classify(exception);
 
     // §16.1: every 401 and 403 is logged at WARN with actor and target. Tokens
     // and passwords are never part of the logged line.
@@ -53,7 +53,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.warn(`${code} actor=${actor} target=${target}`);
     } else if (status >= 500) {
       this.logger.error(
-        `${code} actor=${actor} target=${target}: ${message}`,
+        `${code} actor=${actor} target=${target}: ${internal ?? message}`,
         exception instanceof Error ? exception.stack : undefined,
       );
     }
@@ -74,6 +74,8 @@ interface Classified {
   status: number;
   message: string;
   fields?: Record<string, string[]>;
+  /** Logged instead of `message` when the real text is unsafe to return. */
+  internal?: string;
 }
 
 function classify(exception: unknown): Classified {
@@ -104,10 +106,14 @@ function classify(exception: unknown): Classified {
     };
   }
 
+  // An unhandled error's own text is written by whatever threw it — a driver
+  // message names the database user, a constraint, or a column. The caller gets
+  // a fixed string; the real text reaches the ERROR log above via `internal`.
   return {
     code: 'INTERNAL_ERROR',
     status: ERROR_STATUS.INTERNAL_ERROR,
-    message: exception instanceof Error ? exception.message : 'Unexpected error',
+    message: 'Unexpected error',
+    ...(exception instanceof Error ? { internal: exception.message } : {}),
   };
 }
 
