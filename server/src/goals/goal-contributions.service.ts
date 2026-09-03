@@ -92,7 +92,7 @@ export class GoalContributionsService {
     if (goal.status !== 'ACTIVE') throw new AppError('GOAL_NOT_ACTIVE');
 
     const account = await this.access.requireAccount(user.id, request.accountId, 'VIEWER');
-    if (account.walletId !== goal.wallet_id) throw new AppError('FORBIDDEN');
+    if (account.walletId !== goal.wallet_id) throw AppError.forbidden(account.role);
     if (request.currency !== goal.currency || request.currency !== account.currency) {
       throw new AppError('ACCOUNT_CURRENCY_MISMATCH');
     }

@@ -65,7 +65,7 @@ export async function requireGoalAccess(
     .executeTakeFirst();
 
   if (!found || found.member_role === null) throw new AppError('GOAL_NOT_FOUND');
-  if (!roleSatisfies(found.member_role, required)) throw new AppError('FORBIDDEN');
+  if (!roleSatisfies(found.member_role, required)) throw AppError.forbidden(found.member_role);
 
   const { member_role, ...goal } = found;
   return { goal, role: member_role };

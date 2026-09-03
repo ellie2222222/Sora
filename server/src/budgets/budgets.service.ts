@@ -239,7 +239,7 @@ export class BudgetsService {
       .executeTakeFirst();
 
     if (!found || found.member_role === null) throw new AppError('BUDGET_NOT_FOUND');
-    if (!roleSatisfies(found.member_role, required)) throw new AppError('FORBIDDEN');
+    if (!roleSatisfies(found.member_role, required)) throw AppError.forbidden(found.member_role);
 
     const { member_role, ...row } = found;
     return { row, walletId: row.wallet_id, role: member_role };

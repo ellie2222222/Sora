@@ -93,7 +93,7 @@ export class WalletAccessService {
       .executeTakeFirst();
 
     if (!row) throw new AppError('WALLET_NOT_FOUND');
-    if (!roleSatisfies(row.role, required)) throw new AppError('FORBIDDEN');
+    if (!roleSatisfies(row.role, required)) throw AppError.forbidden(row.role);
 
     return {
       walletId: row.wallet_id,
@@ -179,7 +179,7 @@ export class WalletAccessService {
     if (!row || row.role === null || row.member_id === null) {
       throw new AppError('ACCOUNT_NOT_FOUND');
     }
-    if (!roleSatisfies(row.role, required)) throw new AppError('FORBIDDEN');
+    if (!roleSatisfies(row.role, required)) throw AppError.forbidden(row.role);
 
     return {
       accountId: row.account_id,

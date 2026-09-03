@@ -6,17 +6,38 @@
  * picks a number and the API's status conventions cannot drift per call site.
  */
 
-import { ERROR_STATUS, type ErrorCode } from '@sora/contracts';
+import { ERROR_STATUS, type ErrorCode, type WalletRole } from '@sora/contracts';
 
 export class AppError extends Error {
   readonly code: ErrorCode;
   readonly fields?: Record<string, string[]>;
+  /**
+   * The role the caller actually holds, on a denial that resolved one. LA-03
+   * requires the WARN line to name it, and it is known only at the throw site —
+   * the guard never stashes it, because the request is rejected before it would.
+   */
+  readonly resolvedRole?: WalletRole;
 
-  constructor(code: ErrorCode, message?: string, fields?: Record<string, string[]>) {
+  constructor(
+    code: ErrorCode,
+    message?: string,
+    fields?: Record<string, string[]>,
+    resolvedRole?: WalletRole,
+  ) {
     super(message ?? defaultMessage(code));
     this.name = 'AppError';
     this.code = code;
     if (fields) this.fields = fields;
+    if (resolvedRole) this.resolvedRole = resolvedRole;
+  }
+
+  /**
+   * A denial that knows the role the caller actually holds, so the WARN line
+   * can name it (LA-03). Preferred over the constructor, which would need two
+   * `undefined` placeholders to reach the role.
+   */
+  static forbidden(resolvedRole: WalletRole): AppError {
+    return new AppError('FORBIDDEN', undefined, undefined, resolvedRole);
   }
 
   get status(): number {

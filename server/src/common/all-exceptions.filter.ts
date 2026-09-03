@@ -16,7 +16,7 @@ import {
 import type { Request, Response } from 'express';
 import { ZodError } from 'zod';
 
-import { ERROR_STATUS, type ApiErrorBody, type ErrorCode } from '@sora/contracts';
+import { ERROR_STATUS, HTTP_STATUS, type ApiErrorBody, type ErrorCode } from '@sora/contracts';
 
 import { AppError } from './app-error.ts';
 
@@ -27,11 +27,11 @@ import { AppError } from './app-error.ts';
  * `WALLET_NOT_FOUND` and tell a client a wallet was missing when the route was.
  */
 const FRAMEWORK_CODES: Record<number, ErrorCode> = {
-  400: 'VALIDATION_FAILED',
-  401: 'UNAUTHENTICATED',
-  403: 'FORBIDDEN',
-  422: 'VALIDATION_FAILED',
-  429: 'RATE_LIMITED',
+  [HTTP_STATUS.BAD_REQUEST]: 'VALIDATION_FAILED',
+  [HTTP_STATUS.UNAUTHORIZED]: 'UNAUTHENTICATED',
+  [HTTP_STATUS.FORBIDDEN]: 'FORBIDDEN',
+  [HTTP_STATUS.UNPROCESSABLE_ENTITY]: 'VALIDATION_FAILED',
+  [HTTP_STATUS.TOO_MANY_REQUESTS]: 'RATE_LIMITED',
 };
 
 @Catch()
@@ -45,13 +45,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const { code, message, status, fields, internal } = classify(exception);
 
-    // §16.1: every 401 and 403 is logged at WARN with actor and target. Tokens
-    // and passwords are never part of the logged line.
+    // §16.1: every 401 and 403 is logged at WARN with actor, role and target.
+    // Tokens and passwords are never part of the logged line. `role` is `none`
+    // where no membership resolved at all — a 401, or a 404 standing in for one
+    // (AC-01) — which is itself the fact worth recording.
     const actor = request.user?.id ?? 'anonymous';
     const target = `${request.method} ${request.originalUrl}`;
-    if (status === 401 || status === 403) {
-      this.logger.warn(`${code} actor=${actor} target=${target}`);
-    } else if (status >= 500) {
+    if (status === HTTP_STATUS.UNAUTHORIZED || status === HTTP_STATUS.FORBIDDEN) {
+      const role = exception instanceof AppError ? (exception.resolvedRole ?? 'none') : 'none';
+      this.logger.warn(`${code} actor=${actor} role=${role} target=${target}`);
+    } else if (status >= HTTP_STATUS.INTERNAL_SERVER_ERROR) {
       this.logger.error(
         `${code} actor=${actor} target=${target}: ${internal ?? message}`,
         exception instanceof Error ? exception.stack : undefined,
