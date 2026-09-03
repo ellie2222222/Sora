@@ -13,7 +13,7 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from 'axios';
-import type { ApiEnvelope, PaginationMeta } from '@sora/contracts';
+import { HTTP_STATUS, type ApiEnvelope, type PaginationMeta } from '@sora/contracts';
 
 import { env } from '../../app/config/env.ts';
 import { toApiError } from '../../utils/errors.ts';
@@ -50,7 +50,7 @@ http.interceptors.response.use(
     const status = error.response?.status;
 
     if (
-      status === 401 &&
+      status === HTTP_STATUS.UNAUTHORIZED &&
       config !== undefined &&
       config.retriedAfterRefresh !== true &&
       isRetryablePath(config.url)

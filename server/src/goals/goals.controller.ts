@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
 
 import {
@@ -71,7 +82,7 @@ export class GoalsController {
     return this.goals.update(user, goalId, body, ip);
   }
 
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(ROUTES.goals.archive(':id'))
   archive(
     @CurrentUser() user: AuthenticatedUser,
@@ -100,7 +111,7 @@ export class GoalsController {
     return this.contributions.create(user, goalId, body, ip);
   }
 
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(ROUTES.goals.contribution(':id', ':contributionId'))
   removeContribution(
     @CurrentUser() user: AuthenticatedUser,

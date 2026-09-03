@@ -1,4 +1,5 @@
 import {
+  HttpStatus,
   Injectable,
   type CallHandler,
   type ExecutionContext,
@@ -27,7 +28,7 @@ export class EnvelopeInterceptor implements NestInterceptor {
 
         const response = context.switchToHttp().getResponse<{ statusCode: number }>();
         // 204 means "no body"; wrapping would put one back and contradict the status.
-        if (response.statusCode === 204 || value === undefined) return value;
+        if (response.statusCode === HttpStatus.NO_CONTENT || value === undefined) return value;
 
         return wrap(value);
       }),

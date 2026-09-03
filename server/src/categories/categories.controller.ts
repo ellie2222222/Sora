@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
 
 import {
@@ -59,7 +70,7 @@ export class CategoriesController {
     return this.categories.update(user, categoryId, body, ip);
   }
 
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(ROUTES.categories.archive(':id'))
   remove(
     @CurrentUser() user: AuthenticatedUser,

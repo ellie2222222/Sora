@@ -1,4 +1,13 @@
-import { Body, Controller, Get, HttpCode, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { z } from 'zod';
 
 import {
@@ -41,7 +50,7 @@ export class AuthController {
 
   @Public()
   @UseGuards(AuthRateLimitGuard)
-  @HttpCode(200)
+  @HttpCode(HttpStatus.OK)
   @Post(ROUTES.auth.login())
   login(
     @Body(zodPipe(loginSchema)) body: z.infer<typeof loginSchema>,
@@ -52,7 +61,7 @@ export class AuthController {
 
   @Public()
   @UseGuards(AuthRateLimitGuard)
-  @HttpCode(200)
+  @HttpCode(HttpStatus.OK)
   @Post(ROUTES.auth.google())
   google(
     @Body(zodPipe(googleAuthSchema)) body: z.infer<typeof googleAuthSchema>,
@@ -63,7 +72,7 @@ export class AuthController {
 
   @Public()
   @UseGuards(AuthRateLimitGuard)
-  @HttpCode(200)
+  @HttpCode(HttpStatus.OK)
   @Post(ROUTES.auth.refresh())
   refresh(
     @Body(zodPipe(refreshSchema)) body: z.infer<typeof refreshSchema>,
@@ -72,7 +81,7 @@ export class AuthController {
     return this.auth.refresh(body, ip);
   }
 
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @Post(ROUTES.auth.logout())
   logout(
     @CurrentUser() user: AuthenticatedUser,

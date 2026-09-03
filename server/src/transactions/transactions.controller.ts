@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
 
 import {
@@ -59,7 +69,7 @@ export class TransactionsController {
     return this.transactions.update(user, transactionId, body, rawBody, ip);
   }
 
-  @HttpCode(200)
+  @HttpCode(HttpStatus.OK)
   @Post(ROUTES.transactions.cancel(':id'))
   cancel(
     @CurrentUser() user: AuthenticatedUser,

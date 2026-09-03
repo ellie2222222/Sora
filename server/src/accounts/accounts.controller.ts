@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
 
 import {
@@ -62,7 +73,7 @@ export class AccountsController {
     return this.accounts.update(user, accountId, body, ip);
   }
 
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(ROUTES.accounts.archive(':id'))
   archive(
     @CurrentUser() user: AuthenticatedUser,

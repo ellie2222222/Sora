@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -127,7 +128,7 @@ export class WalletsController {
   }
 
   @RequireWalletRole('OWNER')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(ROUTES.wallets.archive(':id'))
   archive(
     @CurrentUser() user: AuthenticatedUser,
@@ -160,7 +161,7 @@ export class WalletsController {
   }
 
   @RequireWalletRole('OWNER')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(ROUTES.wallets.member(':id', ':memberId'))
   removeMember(
     @CurrentUser() user: AuthenticatedUser,
@@ -172,7 +173,7 @@ export class WalletsController {
   }
 
   @RequireWalletRole('OWNER')
-  @HttpCode(200)
+  @HttpCode(HttpStatus.OK)
   @Post(ROUTES.wallets.transferOwnership(':id'))
   transferOwnership(
     @CurrentUser() user: AuthenticatedUser,
@@ -184,7 +185,7 @@ export class WalletsController {
   }
 
   @RequireWalletRole('VIEWER')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @Post(ROUTES.wallets.leave(':id'))
   leave(
     @CurrentUser() user: AuthenticatedUser,
@@ -216,7 +217,7 @@ export class WalletsController {
   }
 
   @RequireWalletRole('OWNER')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(ROUTES.wallets.invitation(':id', ':invitationId'))
   revokeInvitation(
     @CurrentUser() user: AuthenticatedUser,

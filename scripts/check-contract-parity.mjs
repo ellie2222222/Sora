@@ -130,7 +130,11 @@ const statusMapMatch = RESPONSES_TS.match(/export const ERROR_STATUS[^=]*= \{([^
 
 if (codeListMatch && statusMapMatch) {
   const codes = [...codeListMatch[1].matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);
-  const mapped = [...statusMapMatch[1].matchAll(/([A-Z_]+):\s*\d{3}/g)].map((m) => m[1]);
+  // Accepts either a bare number or HTTP_STATUS.NAME — the assertion is that
+  // every code has an entry, not what the status is.
+  const mapped = [...statusMapMatch[1].matchAll(/([A-Z_]+):\s*(?:\d{3}|HTTP_STATUS\.[A-Z_]+)/g)].map(
+    (m) => m[1],
+  );
   const unmapped = codes.filter((c) => !mapped.includes(c));
   const orphaned = mapped.filter((c) => !codes.includes(c));
 
