@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import type {
+  InvitationPreviewResponse,
   InviteMemberRequest,
   WalletInvitationCreatedResponse,
   WalletInvitationResponse,
@@ -20,13 +21,6 @@ import { WalletAccessService } from './wallet-access.service.ts';
 import { WalletsService } from './wallets.service.ts';
 
 export type InvitationState = 'open' | 'accepted' | 'revoked' | 'expired';
-
-export interface InvitationPreview {
-  walletName: string;
-  invitedEmail: string;
-  role: WalletRole;
-  expiresAt: string;
-}
 
 interface InvitationRow {
   id: string;
@@ -198,7 +192,7 @@ export class InvitationsService {
    * endpoint needs no authentication — handing back a full address would make it
    * an address-lookup oracle for anyone who obtains a token (§8.4).
    */
-  async preview(token: string): Promise<InvitationPreview> {
+  async preview(token: string): Promise<InvitationPreviewResponse> {
     const invitation = await this.byToken(token);
     this.assertOpen(invitation);
 

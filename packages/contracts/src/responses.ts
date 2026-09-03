@@ -228,6 +228,18 @@ export interface WalletInvitationCreatedResponse extends WalletInvitationRespons
   token: string;
 }
 
+/**
+ * The unauthenticated preview (§8.4). Deliberately narrower than
+ * WalletInvitationResponse: no ids, and `invitedEmail` arrives masked, because
+ * the endpoint is public and the token may have been pasted anywhere.
+ */
+export interface InvitationPreviewResponse {
+  walletName: string;
+  invitedEmail: string;
+  role: WalletRole;
+  expiresAt: string;
+}
+
 export interface AccountResponse {
   id: string;
   walletId: string;

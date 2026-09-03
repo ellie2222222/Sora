@@ -153,6 +153,15 @@ export const acceptInvitationSchema = z.object({
   token: z.string().min(1),
 });
 
+/**
+ * Same shape as accepting, kept separate because the two are different requests
+ * with different auth (§8.4 is public, §8.5 is not) — collapsing them would put
+ * one name on both and make a later divergence a breaking rename.
+ */
+export const previewInvitationSchema = z.object({
+  token: z.string().min(1),
+});
+
 export const updateMemberSchema = z.object({
   role: z.enum(WALLET_ROLES),
 });
@@ -381,6 +390,7 @@ export type CreateWalletRequest = z.infer<typeof createWalletSchema>;
 export type UpdateWalletRequest = z.infer<typeof updateWalletSchema>;
 export type InviteMemberRequest = z.infer<typeof inviteMemberSchema>;
 export type AcceptInvitationRequest = z.infer<typeof acceptInvitationSchema>;
+export type PreviewInvitationRequest = z.infer<typeof previewInvitationSchema>;
 export type UpdateMemberRequest = z.infer<typeof updateMemberSchema>;
 export type CreateAccountRequest = z.infer<typeof createAccountSchema>;
 export type UpdateAccountRequest = z.infer<typeof updateAccountSchema>;
