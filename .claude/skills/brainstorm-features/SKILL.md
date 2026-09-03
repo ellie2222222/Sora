@@ -58,6 +58,13 @@ multiply the value of existing infrastructure.
 - Configuration management that's ad hoc in one place but structured in another
 - Error handling or retry logic that's inconsistent across services
 
+## Phase 0 — Scope
+
+- **Named by the user** (a feature, an entity, a subsystem) — confine Phase 1's inventory and every
+  later phase to that area, rather than the whole repo.
+- **Unscoped** ("brainstorm what we could build next", "suggest features based on what we've built") —
+  the whole repo, since that's what this skill is for by default.
+
 ## How It Works
 
 **Phase 1 — Pattern Inventory**
