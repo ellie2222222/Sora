@@ -241,13 +241,14 @@ finance/
 │   │   └── routes.ts          # ROUTES + API_PREFIX, written once
 │   └── test/                  # node --test, no runner dependency
 ├── server/                    # @sora/server — NestJS 11, ESM, Kysely
-│   └── src/
-│       ├── config/            # env.ts validates every var at boot
-│       ├── database/          # Kysely types, pool, SQL migration runner
-│       ├── common/            # guards, interceptors, envelope, error mapping
-│       ├── auth/  wallets/  accounts/  categories/
-│       ├── transactions/  budgets/  goals/  dashboard/  audit/
-│       └── main.ts
+│   ├── src/
+│   │   ├── config/            # env.ts validates every var at boot
+│   │   ├── database/          # Kysely types, pool, SQL migration runner
+│   │   ├── common/            # guards, interceptors, envelope, error mapping
+│   │   ├── auth/  wallets/  accounts/  categories/
+│   │   ├── transactions/  budgets/  goals/  dashboard/  audit/
+│   │   └── main.ts
+│   └── test/                  # node --test; boots the DI graph, no database
 ├── mobile/                    # @sora/mobile — Expo + React Native
 │   └── src/                   # App.tsx, navigation, features, design tokens
 ├── db/
@@ -280,7 +281,8 @@ npm install                                   # root; links every package
 
 npm run build -w @sora/contracts           # contracts must build before the API typechecks
 npm test                                      # every package that defines a test script
-npm test -w @sora/contracts                # money/derivation math, ~37 assertions
+npm test -w @sora/contracts                # money/derivation math, 61 tests
+npm test -w @sora/server                   # asserts every ROUTES path is mounted
 npm run typecheck                             # every package
 
 node scripts/check-contract-parity.mjs        # contract ↔ schema ↔ API spec agreement

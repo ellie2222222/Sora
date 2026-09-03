@@ -169,6 +169,7 @@ npm run dev                        # server (watch) + Expo dev server together
 ```bash
 npm test                            # every package with a test script
 npm test -w @sora/contracts      # money and derivation math (node --test)
+npm test -w @sora/server         # every declared route is actually mounted
 npm run typecheck                   # every package
 node scripts/check-contract-parity.mjs
 ```
