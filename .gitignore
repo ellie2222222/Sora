@@ -35,6 +35,10 @@ ios/build/
 .vscode/
 *.swp
 
+# Claude Code — personal/local state, not shared project skills (.claude/skills/ stays tracked)
+.claude/settings.json
+.claude/settings.local.json
+
 # Logs & coverage
 *.log
 npm-debug.log*
