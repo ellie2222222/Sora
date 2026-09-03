@@ -27,6 +27,13 @@ In `.claude/skills/`. Reach for these instead of improvising the same sweep by h
 | `brainstorm-features` | Feature suggestions grounded in this repo's actual current patterns, discovered live |
 | `skill-audit` | Audits the skill files themselves — frozen path references, trigger collisions, advice with no observable check |
 
+`.claude/skills/` also carries the [Front-End Checklist](https://frontendchecklist.io) skill corpus
+(MIT-licensed, vendored from `thedaviddias/Front-End-Checklist` at `/home/app/Front-End-Checklist`) —
+`frontend-checklist-global` plus ~390 individual rule-specific skills (HTML, CSS, JS, performance,
+accessibility, SEO, security, images, testing, privacy, i18n). Reach for `frontend-checklist-global`
+first for a broad audit; a narrow ask ("check alt text", "check color contrast") should match its own
+named skill directly instead.
+
 ---
 
 ## Part 1: How To Work Here
