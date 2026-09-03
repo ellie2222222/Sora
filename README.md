@@ -221,7 +221,7 @@ root are an **optional** addition covering only `server/` and Postgres:
 ```bash
 cp .env.example .env   # fill in JWT_SECRET and GOOGLE_CLIENT_ID at minimum
 docker compose up -d --build
-curl http://localhost:3001/health
+curl http://localhost:3001/api/v1/health
 ```
 
 Postgres's container publishes to host port **5433**, not 5432, so it can run alongside the

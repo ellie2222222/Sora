@@ -5,6 +5,8 @@ import { AccountsModule } from './accounts/accounts.module.ts';
 import { AuditModule } from './audit/audit.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { JwtAuthGuard } from './auth/jwt-auth.guard.ts';
+import { BudgetsModule } from './budgets/budgets.module.ts';
+import { CategoriesModule } from './categories/categories.module.ts';
 import { AllExceptionsFilter } from './common/all-exceptions.filter.ts';
 import { CommonModule } from './common/common.module.ts';
 import { EnvelopeInterceptor } from './common/envelope.interceptor.ts';
@@ -12,7 +14,9 @@ import { IdempotencyInterceptor } from './common/idempotency.interceptor.ts';
 import { ConfigModule } from './config/config.module.ts';
 import { DashboardModule } from './dashboard/dashboard.module.ts';
 import { DatabaseModule } from './database/database.module.ts';
+import { GoalsModule } from './goals/goals.module.ts';
 import { HealthModule } from './health/health.module.ts';
+import { TransactionsModule } from './transactions/transactions.module.ts';
 import { WalletsModule } from './wallets/wallets.module.ts';
 
 /**
@@ -38,6 +42,10 @@ import { WalletsModule } from './wallets/wallets.module.ts';
     AuthModule,
     WalletsModule,
     AccountsModule,
+    CategoriesModule,
+    TransactionsModule,
+    BudgetsModule,
+    GoalsModule,
     DashboardModule,
   ],
   providers: [
