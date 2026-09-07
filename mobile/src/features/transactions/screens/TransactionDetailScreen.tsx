@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { Button, Card, ErrorState, Money, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
+import { useWallets } from '../../../app/providers/WalletProvider.tsx';
 import { formatDay, formatTimeOfDay } from '../../../utils/date.ts';
 import { messageOf } from '../../../utils/errors.ts';
 import { useCancelTransaction, useTransaction } from '../hooks/useTransactions.ts';
@@ -15,6 +16,8 @@ export function TransactionDetailScreen({ route, navigation }: AppStackScreenPro
   const theme = useTheme();
   const { transactionId } = route.params;
 
+  const { permissions } = useWallets();
+
   const transaction = useTransaction(transactionId);
   const cancelTransaction = useCancelTransaction();
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +28,8 @@ export function TransactionDetailScreen({ route, navigation }: AppStackScreenPro
   const data = transaction.data;
   if (data === undefined) return null;
 
-  const canCancel = data.status === 'COMPLETED';
+  // A cancelled transaction accepts neither an edit nor a second cancel (§11.4).
+  const isEditable = data.status === 'COMPLETED' && permissions.canWrite;
 
   async function handleCancel() {
     setError(null);
@@ -74,13 +78,24 @@ export function TransactionDetailScreen({ route, navigation }: AppStackScreenPro
 
       {error !== null ? <Text tone="danger">{error}</Text> : null}
 
-      {canCancel ? (
+      {isEditable ? (
+        <Button
+          testID="transaction-detail-edit"
+          label="Edit details"
+          variant="secondary"
+          onPress={() => navigation.navigate('EditTransaction', { transactionId })}
+          fullWidth
+        />
+      ) : null}
+
+      {isEditable ? (
         <Button
           testID="transaction-detail-cancel"
           label="Cancel transaction"
           variant="danger"
           onPress={handleCancel}
           loading={cancelTransaction.isPending}
+          fullWidth
         />
       ) : null}
     </View>

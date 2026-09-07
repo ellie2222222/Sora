@@ -36,6 +36,16 @@ export function instantOfDay(day: CalendarDay): Instant {
   return new Date(`${day}T12:00:00Z`).toISOString();
 }
 
+/**
+ * Move an instant to another calendar day, keeping its time of day.
+ *
+ * Correcting the date on a record should not silently restamp the clock time it
+ * was recorded at, which is what rebuilding it through `instantOfDay` would do.
+ */
+export function replaceDay(instant: Instant, day: CalendarDay): Instant {
+  return `${day}${instant.slice(10)}`;
+}
+
 export function parseDay(day: CalendarDay): { year: number; month: number; date: number } {
   const [year = '1970', month = '01', date = '01'] = day.split('-');
   return { year: Number(year), month: Number(month), date: Number(date) };

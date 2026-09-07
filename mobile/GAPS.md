@@ -5,12 +5,6 @@ assuming a surface is finished.
 
 ## Not built
 
-- **Edit transaction.** The API supports `PATCH /transactions/{id}` for
-  description/date/category/reference (amount/type/accounts are immutable —
-  see API spec §11.4). `EditTransaction` is deliberately absent from
-  `AppStackParamList` rather than declared-but-unregistered, so this is a type
-  error to reach, not a silent runtime failure. `transactionsApi.update()` in
-  `services/api/transactions.ts` already exists; only the screen is missing.
 - **i18n coverage outside nav/auth/settings/home.** The i18next architecture
   (`app/i18n/`, `en.ts`/`vi.ts`, `LocaleProvider`) is real and wired end to
   end, and the navigation tab bar, both auth screens, `SettingsScreen`, and

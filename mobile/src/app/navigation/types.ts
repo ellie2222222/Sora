@@ -41,9 +41,7 @@ export type AppStackParamList = {
   AddGoal: undefined;
   AddContribution: { goalId: string };
   Settings: undefined;
-  // EditTransaction is not yet built — see mobile/GAPS.md. Deliberately
-  // absent here rather than declared-but-unregistered, so navigating to it
-  // is a type error instead of a silent runtime failure.
+  EditTransaction: { transactionId: string };
 };
 
 export type AuthStackScreenProps<Screen extends keyof AuthStackParamList> = NativeStackScreenProps<

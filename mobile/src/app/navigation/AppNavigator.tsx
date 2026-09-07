@@ -6,6 +6,7 @@ import { AddBudgetScreen } from '../../features/budgets/screens/AddBudgetScreen.
 import { BudgetDetailScreen } from '../../features/budgets/screens/BudgetDetailScreen.tsx';
 import { CategoryListScreen } from '../../features/categories/screens/CategoryListScreen.tsx';
 import { AddContributionScreen } from '../../features/goals/screens/AddContributionScreen.tsx';
+import { EditTransactionScreen } from '../../features/transactions/screens/EditTransactionScreen.tsx';
 import { AddGoalScreen } from '../../features/goals/screens/AddGoalScreen.tsx';
 import { GoalDetailScreen } from '../../features/goals/screens/GoalDetailScreen.tsx';
 import { TransactionDetailScreen } from '../../features/transactions/screens/TransactionDetailScreen.tsx';
@@ -42,6 +43,7 @@ export function AppNavigator() {
       <Stack.Screen name="CategoryList" component={CategoryListScreen} options={{ title: 'Categories' }} />
 
       <Stack.Screen name="TransactionDetail" component={TransactionDetailScreen} options={{ title: 'Transaction' }} />
+      <Stack.Screen name="EditTransaction" component={EditTransactionScreen} options={{ title: 'Edit Transaction', presentation: 'modal' }} />
 
       <Stack.Screen name="BudgetDetail" component={BudgetDetailScreen} options={{ title: 'Budget' }} />
       <Stack.Screen name="AddBudget" component={AddBudgetScreen} options={{ title: 'New Budget', presentation: 'modal' }} />
