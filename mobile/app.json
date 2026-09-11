@@ -13,7 +13,6 @@
     },
     "android": {
       "package": "com.sora.app",
-      "edgeToEdgeEnabled": true
     },
     "web": {
       "bundler": "metro"

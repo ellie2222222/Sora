@@ -5,11 +5,12 @@ import type { WalletResponse } from '@sora/contracts';
 
 import { Button, Card, ErrorState, Input, Money, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
+import { useAuth } from '../../../app/providers/AuthProvider.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
+import { useCreateWalletMutation } from '../../../app/store/api/walletsApi.ts';
 import { ROLE_LABELS } from '../../../utils/roles.ts';
 import { messageOf } from '../../../utils/errors.ts';
-import { useCreateWallet } from '../hooks/useWallets.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 /**
@@ -19,6 +20,7 @@ import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
  */
 export function WalletListScreen({ navigation }: AppStackScreenProps<'WalletList'>) {
   const theme = useTheme();
+  const { isGuest } = useAuth();
   const { wallets, isLoading, isError, refetch, setActiveWalletId } = useWallets();
   const [creating, setCreating] = useState(false);
 
@@ -38,12 +40,16 @@ export function WalletListScreen({ navigation }: AppStackScreenProps<'WalletList
         ListHeaderComponent={
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: theme.spacing.sm }}>
             <Text variant="title">Wallets</Text>
-            <Button
-              testID="wallet-list-create"
-              label="New wallet"
-              size="sm"
-              onPress={() => setCreating(true)}
-            />
+            {/* Guest mode is single-wallet by scope decision — guestWalletsApi
+                has no create path to serve this. */}
+            {!isGuest ? (
+              <Button
+                testID="wallet-list-create"
+                label="New wallet"
+                size="sm"
+                onPress={() => setCreating(true)}
+              />
+            ) : null}
           </View>
         }
         renderItem={({ item }) => (
@@ -90,14 +96,14 @@ function WalletRow({ wallet, onPress }: { wallet: WalletResponse; onPress: () =>
 
 function CreateWalletModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const theme = useTheme();
-  const createWallet = useCreateWallet();
+  const [createWallet, { isLoading: isCreating }] = useCreateWalletMutation();
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   async function handleCreate() {
     setError(null);
     try {
-      await createWallet.mutateAsync({ name });
+      await createWallet({ name }).unwrap();
       setName('');
       onClose();
     } catch (submitError) {
@@ -124,7 +130,7 @@ function CreateWalletModal({ visible, onClose }: { visible: boolean; onClose: ()
                 testID="create-wallet-submit"
                 label="Create"
                 onPress={handleCreate}
-                loading={createWallet.isPending}
+                loading={isCreating}
                 disabled={name.trim().length === 0}
                 fullWidth
               />

@@ -49,15 +49,19 @@ export const goalsApi = {
   /**
    * Idempotency-keyed for the same reason a transaction create is: with
    * `recordAsTransaction` set, this moves real money out of an account.
+   *
+   * `idempotencyKey` lets a caller pin its own key (guest-mode upload) instead
+   * of a fresh one per call; every other caller omits it.
    */
   addContribution(
     goalId: string,
     body: CreateContributionRequest,
+    idempotencyKey?: string,
   ): Promise<ContributionResponse> {
     return postOne<ContributionResponse>(
       apiUrl(ROUTES.goals.contributions(goalId)),
       body,
-      idempotencyHeaders(),
+      idempotencyHeaders(idempotencyKey),
     );
   },
 

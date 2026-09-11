@@ -4,7 +4,7 @@ import type { CategoryResponse, CategoryType } from '@sora/contracts';
 
 import { Card, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useCategories } from '../hooks/useCategories.ts';
+import { useListCategoriesQuery } from '../../../app/store/api/categoriesApi.ts';
 
 export interface CategoryPickerProps {
   walletId: string;
@@ -18,7 +18,7 @@ export interface CategoryPickerProps {
 export function CategoryPicker({ walletId, type, value, onChange, error, testID }: CategoryPickerProps) {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
-  const categories = useCategories({ walletId, type, status: 'ACTIVE' });
+  const categories = useListCategoriesQuery({ walletId, type, status: 'ACTIVE' });
   const selected = categories.data?.find((c) => c.id === value);
 
   return (

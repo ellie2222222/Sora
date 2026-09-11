@@ -6,9 +6,9 @@ import { Button, ErrorState, Input, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
+import { useGetTransactionQuery, useUpdateTransactionMutation } from '../../../app/store/api/transactionsApi.ts';
 import { dayOfInstant, replaceDay } from '../../../utils/date.ts';
 import { messageOf } from '../../../utils/errors.ts';
-import { useTransaction, useUpdateTransaction } from '../hooks/useTransactions.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -25,8 +25,8 @@ export function EditTransactionScreen({ route, navigation }: AppStackScreenProps
   const theme = useTheme();
   const { transactionId } = route.params;
 
-  const transaction = useTransaction(transactionId);
-  const updateTransaction = useUpdateTransaction();
+  const transaction = useGetTransactionQuery(transactionId);
+  const [updateTransaction, { isLoading: isSaving }] = useUpdateTransactionMutation();
 
   const [description, setDescription] = useState<string | null>(null);
   const [day, setDay] = useState<string | null>(null);
@@ -95,7 +95,7 @@ export function EditTransactionScreen({ route, navigation }: AppStackScreenProps
     }
 
     try {
-      await updateTransaction.mutateAsync({ transactionId, body });
+      await updateTransaction({ transactionId, body }).unwrap();
       navigation.goBack();
     } catch (error) {
       setSubmitError(messageOf(error));
@@ -147,7 +147,7 @@ export function EditTransactionScreen({ route, navigation }: AppStackScreenProps
         testID="edit-transaction-submit"
         label="Save changes"
         onPress={() => void handleSubmit(data)}
-        loading={updateTransaction.isPending}
+        loading={isSaving}
         fullWidth
       />
     </ScrollView>

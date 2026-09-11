@@ -18,7 +18,7 @@ import {
   switchType,
   validateDraft,
 } from '../../../utils/transactionForm.ts';
-import { useCreateTransaction } from '../hooks/useTransactions.ts';
+import { useCreateTransactionMutation } from '../../../app/store/api/transactionsApi.ts';
 import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
 
 const TYPES: { type: TransactionType; label: string }[] = [
@@ -30,7 +30,7 @@ const TYPES: { type: TransactionType; label: string }[] = [
 export function AddTransactionScreen({ navigation }: MainTabScreenProps<'AddTransaction'>) {
   const theme = useTheme();
   const { activeWallet, permissions } = useWallets();
-  const createTransaction = useCreateTransaction();
+  const [createTransaction, { isLoading: isSubmitting }] = useCreateTransactionMutation();
 
   const [draft, setDraft] = useState(() => emptyDraft({ currency: 'VND', transactionDate: nowInstant() }));
   const [amountText, setAmountText] = useState('');
@@ -90,7 +90,7 @@ export function AddTransactionScreen({ navigation }: MainTabScreenProps<'AddTran
 
     setFieldErrors({});
     try {
-      await createTransaction.mutateAsync(result.payload);
+      await createTransaction(result.payload).unwrap();
       navigation.goBack();
     } catch (error) {
       setSubmitError(messageOf(error));
@@ -208,7 +208,7 @@ export function AddTransactionScreen({ navigation }: MainTabScreenProps<'AddTran
           testID="transaction-submit"
           label="Save"
           onPress={handleSubmit}
-          loading={createTransaction.isPending}
+          loading={isSubmitting}
           fullWidth
         />
       </ScrollView>

@@ -5,8 +5,8 @@ import { ACCOUNT_TYPES, type AccountType } from '@sora/contracts';
 import { Button, Input, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
+import { useCreateAccountMutation } from '../../../app/store/api/accountsApi.ts';
 import { messageOf } from '../../../utils/errors.ts';
-import { useCreateAccount } from '../hooks/useAccounts.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 const TYPE_LABEL: Record<AccountType, string> = {
@@ -20,7 +20,7 @@ export function AddAccountScreen({ route, navigation }: AppStackScreenProps<'Add
   const theme = useTheme();
   const { activeWallet } = useWallets();
   const walletId = route.params?.walletId ?? activeWallet?.id;
-  const createAccount = useCreateAccount();
+  const [createAccount, { isLoading: isCreating }] = useCreateAccountMutation();
 
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('BANK_ACCOUNT');
@@ -39,13 +39,13 @@ export function AddAccountScreen({ route, navigation }: AppStackScreenProps<'Add
   async function handleSubmit() {
     setError(null);
     try {
-      await createAccount.mutateAsync({
+      await createAccount({
         walletId: walletId as string,
         name,
         type,
         currency,
         initialBalance,
-      });
+      }).unwrap();
       navigation.goBack();
     } catch (submitError) {
       setError(messageOf(submitError));
@@ -94,7 +94,7 @@ export function AddAccountScreen({ route, navigation }: AppStackScreenProps<'Add
           testID="add-account-submit"
           label="Add account"
           onPress={handleSubmit}
-          loading={createAccount.isPending}
+          loading={isCreating}
           disabled={name.trim().length === 0}
           fullWidth
         />

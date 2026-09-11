@@ -5,9 +5,9 @@ import { Button, Card, ErrorState, Money, Text } from '../../../components/index
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
+import { useCancelTransactionMutation, useGetTransactionQuery } from '../../../app/store/api/transactionsApi.ts';
 import { formatDay, formatTimeOfDay } from '../../../utils/date.ts';
 import { messageOf } from '../../../utils/errors.ts';
-import { useCancelTransaction, useTransaction } from '../hooks/useTransactions.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 const TYPE_LABEL = { INCOME: 'Income', EXPENSE: 'Expense', TRANSFER: 'Transfer' } as const;
@@ -18,8 +18,8 @@ export function TransactionDetailScreen({ route, navigation }: AppStackScreenPro
 
   const { permissions } = useWallets();
 
-  const transaction = useTransaction(transactionId);
-  const cancelTransaction = useCancelTransaction();
+  const transaction = useGetTransactionQuery(transactionId);
+  const [cancelTransaction, { isLoading: isCancelling }] = useCancelTransactionMutation();
   const [error, setError] = useState<string | null>(null);
 
   if (transaction.isLoading) return <SkeletonList rows={3} />;
@@ -34,7 +34,7 @@ export function TransactionDetailScreen({ route, navigation }: AppStackScreenPro
   async function handleCancel() {
     setError(null);
     try {
-      await cancelTransaction.mutateAsync({ transactionId });
+      await cancelTransaction({ transactionId }).unwrap();
       navigation.goBack();
     } catch (submitError) {
       setError(messageOf(submitError));
@@ -94,7 +94,7 @@ export function TransactionDetailScreen({ route, navigation }: AppStackScreenPro
           label="Cancel transaction"
           variant="danger"
           onPress={handleCancel}
-          loading={cancelTransaction.isPending}
+          loading={isCancelling}
           fullWidth
         />
       ) : null}

@@ -9,7 +9,7 @@ import { useWallets } from '../../../app/providers/WalletProvider.tsx';
 import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
 import { today } from '../../../utils/date.ts';
 import { formatMoneyString } from '../../../utils/money.ts';
-import { useBudgets } from '../hooks/useBudgets.ts';
+import { useListBudgetsQuery } from '../../../app/store/api/budgetsApi.ts';
 import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
 
 export function BudgetsScreen({ navigation }: MainTabScreenProps<'Budgets'>) {
@@ -17,7 +17,10 @@ export function BudgetsScreen({ navigation }: MainTabScreenProps<'Budgets'>) {
   const { activeWalletId, permissions } = useWallets();
   const onManage = () => navigation.getParent()?.navigate('WalletList');
 
-  const budgets = useBudgets({ walletId: activeWalletId ?? '', status: 'ACTIVE', activeOn: today() });
+  const budgets = useListBudgetsQuery(
+    { walletId: activeWalletId ?? '', status: 'ACTIVE', activeOn: today() },
+    { skip: activeWalletId === null },
+  );
 
   if (activeWalletId === null || budgets.isLoading) {
     return (

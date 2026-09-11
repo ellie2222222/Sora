@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import {
   createContext,
   useContext,
@@ -9,8 +8,7 @@ import {
 } from 'react';
 import type { WalletResponse } from '@sora/contracts';
 
-import { queryKeys } from '../config/queryKeys.ts';
-import { walletsApi } from '../../services/api/wallets.ts';
+import { useListWalletsQuery } from '../store/api/walletsApi.ts';
 import { permissionsFor, type WalletPermissions } from '../../utils/roles.ts';
 import { useAuth } from './AuthProvider.tsx';
 
@@ -36,14 +34,13 @@ interface WalletContextValue {
 const WalletContext = createContext<WalletContextValue | null>(null);
 
 export function WalletProvider({ children }: { children: ReactNode }): ReactNode {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isGuest } = useAuth();
   const [activeWalletId, setActiveWalletId] = useState<string | null>(null);
 
-  const query = useQuery({
-    queryKey: queryKeys.wallets.list(),
-    queryFn: () => walletsApi.list({ status: 'ACTIVE' }),
-    enabled: isAuthenticated,
-  });
+  const query = useListWalletsQuery(
+    { status: 'ACTIVE' },
+    { skip: !(isAuthenticated || isGuest) },
+  );
 
   const wallets = query.data ?? [];
 

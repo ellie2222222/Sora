@@ -46,6 +46,7 @@ const vi: TranslationResource = {
     orDivider: 'hoặc',
     continueWithGoogle: 'Tiếp tục với Google',
     googleSignInFailed: 'Đăng nhập Google đã bị hủy hoặc không thành công',
+    continueAsGuest: 'Tiếp tục mà không cần tài khoản',
   },
   settings: {
     title: 'Cài đặt',
@@ -82,6 +83,28 @@ const vi: TranslationResource = {
     noWalletDescription: 'Tạo một ví để bắt đầu theo dõi tài chính.',
     crossWallet: 'liên ví',
     wallets: 'Ví',
+  },
+  guest: {
+    settings: {
+      banner: 'Bạn đang dùng Sora mà không có tài khoản. Dữ liệu chỉ nằm trên thiết bị này.',
+      signUpOrIn: 'Tạo tài khoản hoặc đăng nhập',
+      keepDataNote: 'Dữ liệu của bạn sẽ đi cùng bạn khi bạn làm vậy.',
+      clearData: 'Xóa dữ liệu cục bộ',
+      clearConfirmTitle: 'Xóa dữ liệu cục bộ?',
+      clearConfirmBody:
+        'Mọi tài khoản, giao dịch, ngân sách và mục tiêu trên thiết bị này sẽ bị xóa. Không thể hoàn tác.',
+    },
+    upload: {
+      title: 'Đưa dữ liệu của bạn vào',
+      subtitle: 'Chọn ví mà dữ liệu cục bộ của bạn sẽ chuyển vào.',
+      autoSelecting: 'Đang tải lên {{name}}…',
+      uploading: 'Đang tải dữ liệu của bạn lên…',
+      chooseWallet: 'Chọn một ví',
+      useThisWallet: 'Dùng ví này',
+      createNew: 'Hoặc tạo ví mới',
+      newWalletPlaceholder: 'vd: Ví của tôi',
+      createAndUse: 'Tạo và sử dụng',
+    },
   },
 };
 

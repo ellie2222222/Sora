@@ -46,8 +46,30 @@ export function toApiError(status: number | undefined, body: unknown, transportM
   return new ApiError('INTERNAL_ERROR', transportMessage ?? UNKNOWN_ERROR_MESSAGE, status);
 }
 
-export function isApiError(error: unknown): error is ApiError {
-  return error instanceof ApiError;
+/** The data `ApiError` carries, with no prototype chain — see `serializeApiError`. */
+export interface ApiErrorLike {
+  readonly code: ErrorCode;
+  readonly message: string;
+  readonly status: number;
+  readonly fields: FieldErrors;
+}
+
+/** Structural rather than `instanceof`, so it also matches a serialized (plain-object) `ApiErrorLike`. */
+export function isApiError(error: unknown): error is ApiErrorLike {
+  if (typeof error !== 'object' || error === null) return false;
+  const candidate = error as Partial<ApiErrorLike>;
+  return (
+    typeof candidate.code === 'string' &&
+    typeof candidate.message === 'string' &&
+    typeof candidate.status === 'number' &&
+    typeof candidate.fields === 'object' &&
+    candidate.fields !== null
+  );
+}
+
+/** Strips the `Error` prototype chain so the result is safe to put in Redux state/actions. */
+export function serializeApiError(error: ApiErrorLike): ApiErrorLike {
+  return { code: error.code, message: error.message, status: error.status, fields: error.fields };
 }
 
 export function messageOf(error: unknown, fallback: string = UNKNOWN_ERROR_MESSAGE): string {

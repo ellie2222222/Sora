@@ -6,7 +6,7 @@ import type { AccountResponse, AccountType } from '@sora/contracts';
 import { Card, Money, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
-import { useAccounts } from '../hooks/useAccounts.ts';
+import { useListAccountsQuery } from '../../../app/store/api/accountsApi.ts';
 
 const ACCOUNT_ICON: Record<AccountType, typeof Landmark> = {
   BANK_ACCOUNT: Landmark,
@@ -33,7 +33,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID 
   const theme = useTheme();
   const { wallets } = useWallets();
   const [open, setOpen] = useState(false);
-  const accounts = useAccounts({ walletId, status: 'ACTIVE' });
+  const accounts = useListAccountsQuery({ walletId, status: 'ACTIVE' });
 
   const selected = accounts.data?.find((a) => a.id === value);
   const walletNameOf = (id: string): string => wallets.find((w) => w.id === id)?.name ?? '';

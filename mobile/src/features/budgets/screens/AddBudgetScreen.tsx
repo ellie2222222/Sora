@@ -6,9 +6,9 @@ import { Button, Input, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
 import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
+import { useCreateBudgetMutation } from '../../../app/store/api/budgetsApi.ts';
 import { messageOf } from '../../../utils/errors.ts';
 import { addMonths, endOfMonth, startOfMonth, today } from '../../../utils/date.ts';
-import { useCreateBudget } from '../hooks/useBudgets.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 const PERIOD_LABEL: Record<BudgetPeriodType, string> = {
@@ -20,7 +20,7 @@ const PERIOD_LABEL: Record<BudgetPeriodType, string> = {
 export function AddBudgetScreen({ navigation }: AppStackScreenProps<'AddBudget'>) {
   const theme = useTheme();
   const { activeWallet } = useWallets();
-  const createBudget = useCreateBudget();
+  const [createBudget, { isLoading: isCreating }] = useCreateBudgetMutation();
 
   const [name, setName] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -42,7 +42,7 @@ export function AddBudgetScreen({ navigation }: AppStackScreenProps<'AddBudget'>
     const endDate = periodType === 'MONTHLY' ? endOfMonth(today()) : addMonths(startDate, 1);
 
     try {
-      await createBudget.mutateAsync({
+      await createBudget({
         walletId,
         categoryId,
         name: name.trim().length > 0 ? name : `${PERIOD_LABEL[periodType]} budget`,
@@ -51,7 +51,7 @@ export function AddBudgetScreen({ navigation }: AppStackScreenProps<'AddBudget'>
         periodType,
         startDate,
         endDate,
-      });
+      }).unwrap();
       navigation.goBack();
     } catch (submitError) {
       setError(messageOf(submitError));
@@ -101,7 +101,7 @@ export function AddBudgetScreen({ navigation }: AppStackScreenProps<'AddBudget'>
           testID="add-budget-submit"
           label="Create budget"
           onPress={handleSubmit}
-          loading={createBudget.isPending}
+          loading={isCreating}
           fullWidth
         />
       </ScrollView>

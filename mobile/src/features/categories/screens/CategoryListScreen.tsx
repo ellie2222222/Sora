@@ -7,14 +7,14 @@ import { Button, Card, ErrorState, Input, Text } from '../../../components/index
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
-import { messageOf } from '../../../utils/errors.ts';
 import {
-  useArchiveCategory,
-  useCategories,
-  useCreateCategory,
-  useDeleteCategoryPermanently,
-  useUpdateCategory,
-} from '../hooks/useCategories.ts';
+  useArchiveCategoryMutation,
+  useCreateCategoryMutation,
+  useDeleteCategoryPermanentlyMutation,
+  useListCategoriesQuery,
+  useUpdateCategoryMutation,
+} from '../../../app/store/api/categoriesApi.ts';
+import { messageOf } from '../../../utils/errors.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 /** INCOME and EXPENSE are managed as two lists — a category is one or the other, never both. */
@@ -25,8 +25,8 @@ export function CategoryListScreen({ route }: AppStackScreenProps<'CategoryList'
   const [creating, setCreating] = useState(false);
   const [deletingCategory, setDeletingCategory] = useState<CategoryResponse | null>(null);
 
-  const expense = useCategories({ walletId: walletId ?? '', type: 'EXPENSE', status: 'ACTIVE' });
-  const income = useCategories({ walletId: walletId ?? '', type: 'INCOME', status: 'ACTIVE' });
+  const expense = useListCategoriesQuery({ walletId: walletId ?? '', type: 'EXPENSE', status: 'ACTIVE' });
+  const income = useListCategoriesQuery({ walletId: walletId ?? '', type: 'INCOME', status: 'ACTIVE' });
 
   if (walletId === undefined) return null;
   if (expense.isLoading || income.isLoading) return <SkeletonList rows={6} rowHeight={44} />;
@@ -108,7 +108,7 @@ function CreateCategoryModal({
   onClose: () => void;
 }) {
   const theme = useTheme();
-  const createCategory = useCreateCategory();
+  const [createCategory, { isLoading: isCreating }] = useCreateCategoryMutation();
   const [name, setName] = useState('');
   const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +116,7 @@ function CreateCategoryModal({
   async function handleCreate() {
     setError(null);
     try {
-      await createCategory.mutateAsync({ walletId, name, type });
+      await createCategory({ walletId, name, type }).unwrap();
       setName('');
       onClose();
     } catch (submitError) {
@@ -137,7 +137,7 @@ function CreateCategoryModal({
                 <Button label="Income" size="sm" variant={type === 'INCOME' ? 'primary' : 'secondary'} onPress={() => setType('INCOME')} />
               </View>
               {error !== null ? <Text tone="danger">{error}</Text> : null}
-              <Button testID="create-category-submit" label="Create" onPress={handleCreate} loading={createCategory.isPending} disabled={name.trim().length === 0} fullWidth />
+              <Button testID="create-category-submit" label="Create" onPress={handleCreate} loading={isCreating} disabled={name.trim().length === 0} fullWidth />
             </Card>
           </Pressable>
         </View>
@@ -163,9 +163,9 @@ function CategoryDeleteDialog({
   onClose: () => void;
 }) {
   const theme = useTheme();
-  const updateCategory = useUpdateCategory();
-  const archiveCategory = useArchiveCategory();
-  const deleteCategory = useDeleteCategoryPermanently();
+  const [updateCategory, { isLoading: isRenaming }] = useUpdateCategoryMutation();
+  const [archiveCategory, { isLoading: isArchiving }] = useArchiveCategoryMutation();
+  const [deleteCategory, { isLoading: isDeleting }] = useDeleteCategoryPermanentlyMutation();
   const [mode, setMode] = useState<'choose' | 'rename'>('choose');
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +182,7 @@ function CategoryDeleteDialog({
     if (category === null) return;
     setError(null);
     try {
-      await updateCategory.mutateAsync({ categoryId: category.id, body: { name } });
+      await updateCategory({ categoryId: category.id, body: { name } }).unwrap();
       onClose();
     } catch (submitError) {
       setError(messageOf(submitError));
@@ -193,7 +193,7 @@ function CategoryDeleteDialog({
     if (category === null) return;
     setError(null);
     try {
-      await archiveCategory.mutateAsync(category.id);
+      await archiveCategory(category.id).unwrap();
       onClose();
     } catch (submitError) {
       setError(messageOf(submitError));
@@ -204,7 +204,7 @@ function CategoryDeleteDialog({
     if (category === null || unused !== true) return;
     setError(null);
     try {
-      await deleteCategory.mutateAsync(category.id);
+      await deleteCategory(category.id).unwrap();
       onClose();
     } catch (submitError) {
       setError(messageOf(submitError));
@@ -228,7 +228,7 @@ function CategoryDeleteDialog({
                       testID="category-rename-submit"
                       label="Save"
                       onPress={handleRename}
-                      loading={updateCategory.isPending}
+                      loading={isRenaming}
                       disabled={name.trim().length === 0}
                       style={{ flex: 1 }}
                     />
@@ -263,7 +263,7 @@ function CategoryDeleteDialog({
                     label="Archive category"
                     description="Keep historical transactions"
                     onPress={handleArchive}
-                    loading={archiveCategory.isPending}
+                    loading={isArchiving}
                   />
                   <DeleteOption
                     testID="category-delete-permanent"
@@ -277,7 +277,7 @@ function CategoryDeleteDialog({
                     onPress={handleDeletePermanently}
                     disabled={unused !== true}
                     danger
-                    loading={deleteCategory.isPending}
+                    loading={isDeleting}
                   />
 
                   {error !== null ? <Text tone="danger">{error}</Text> : null}

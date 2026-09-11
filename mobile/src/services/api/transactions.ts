@@ -28,12 +28,15 @@ export const transactionsApi = {
    * Sent with an idempotency key: a retry over a flaky mobile connection must not
    * record the same payment twice, and a duplicate transaction is a real
    * financial error rather than a cosmetic one.
+   *
+   * `idempotencyKey` lets a caller pin its own key (guest-mode upload) instead
+   * of a fresh one per call; every other caller omits it.
    */
-  create(body: CreateTransactionRequest): Promise<TransactionResponse> {
+  create(body: CreateTransactionRequest, idempotencyKey?: string): Promise<TransactionResponse> {
     return postOne<TransactionResponse>(
       apiUrl(ROUTES.transactions.create()),
       body,
-      idempotencyHeaders(),
+      idempotencyHeaders(idempotencyKey),
     );
   },
 

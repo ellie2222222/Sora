@@ -9,12 +9,13 @@ import { useLocaleControl } from '../../../app/providers/LocaleProvider.tsx';
 import { useTheme, useThemeControl } from '../../../app/providers/ThemeProvider.tsx';
 import { THEME_NAMES, colorsByTheme, type ThemeName } from '../../../design-system/index.ts';
 import { SUPPORTED_LOCALES, type SupportedLocale } from '../../../app/i18n/index.ts';
+import { guestStore } from '../../../services/guest/guestStorage.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 export function SettingsScreen(_props: AppStackScreenProps<'Settings'>) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { user, logout } = useAuth();
+  const { user, logout, isGuest } = useAuth();
   const [confirmingLogout, setConfirmingLogout] = useState(false);
 
   return (
@@ -34,18 +35,24 @@ export function SettingsScreen(_props: AppStackScreenProps<'Settings'>) {
       </Section>
 
       <Section title={t('settings.account')}>
-        <Text tone="muted" variant="label">
-          {t('settings.signedInAs')}
-        </Text>
-        <Text weight="semibold" style={{ marginBottom: theme.spacing.md }}>
-          {user?.email ?? ''}
-        </Text>
-        <Button
-          testID="settings-logout"
-          label={t('settings.logout')}
-          variant="danger"
-          onPress={() => setConfirmingLogout(true)}
-        />
+        {isGuest ? (
+          <GuestAccountSection />
+        ) : (
+          <>
+            <Text tone="muted" variant="label">
+              {t('settings.signedInAs')}
+            </Text>
+            <Text weight="semibold" style={{ marginBottom: theme.spacing.md }}>
+              {user?.email ?? ''}
+            </Text>
+            <Button
+              testID="settings-logout"
+              label={t('settings.logout')}
+              variant="danger"
+              onPress={() => setConfirmingLogout(true)}
+            />
+          </>
+        )}
       </Section>
 
       <ConfirmDialog
@@ -61,6 +68,64 @@ export function SettingsScreen(_props: AppStackScreenProps<'Settings'>) {
         onCancel={() => setConfirmingLogout(false)}
       />
     </ScrollView>
+  );
+}
+
+/**
+ * Replaces signed-in-as/logout in guest mode. `exitGuestModeToAuth` keeps the
+ * local data rather than discarding it, so registering or signing in from here
+ * lands on the upload-resolution screen with everything intact; "clear local
+ * data" is the only path that actually destroys it, behind a confirmation
+ * because nothing in guest mode is recoverable from a server.
+ */
+function GuestAccountSection() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const { exitGuestModeToAuth } = useAuth();
+  const [confirmingClear, setConfirmingClear] = useState(false);
+
+  async function clearLocalData() {
+    await guestStore.clear();
+    await exitGuestModeToAuth();
+  }
+
+  return (
+    <View style={{ gap: theme.spacing.md }}>
+      <Text tone="muted">{t('guest.settings.banner')}</Text>
+      <Text variant="caption" tone="faint">
+        {t('guest.settings.keepDataNote')}
+      </Text>
+
+      {/* One CTA, not separate register/login buttons: both would run the same
+          `exitGuestModeToAuth`, and the auth stack opens on Login, which already
+          links to Register. */}
+      <Button
+        testID="settings-guest-sign-up-or-in"
+        label={t('guest.settings.signUpOrIn')}
+        onPress={() => void exitGuestModeToAuth()}
+        fullWidth
+      />
+      <Button
+        testID="settings-guest-clear"
+        label={t('guest.settings.clearData')}
+        variant="danger"
+        onPress={() => setConfirmingClear(true)}
+        fullWidth
+      />
+
+      <ConfirmDialog
+        visible={confirmingClear}
+        title={t('guest.settings.clearConfirmTitle')}
+        message={t('guest.settings.clearConfirmBody')}
+        confirmLabel={t('guest.settings.clearData')}
+        destructive
+        onConfirm={() => {
+          setConfirmingClear(false);
+          void clearLocalData();
+        }}
+        onCancel={() => setConfirmingClear(false)}
+      />
+    </View>
   );
 }
 

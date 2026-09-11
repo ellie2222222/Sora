@@ -48,6 +48,7 @@ const en = {
     orDivider: 'or',
     continueWithGoogle: 'Continue with Google',
     googleSignInFailed: 'Google sign-in was cancelled or failed',
+    continueAsGuest: 'Continue without an account',
   },
   settings: {
     title: 'Settings',
@@ -84,6 +85,28 @@ const en = {
     noWalletDescription: 'Create a wallet to start tracking money.',
     crossWallet: 'cross-wallet',
     wallets: 'Wallets',
+  },
+  guest: {
+    settings: {
+      banner: "You're using Sora without an account. Your data stays on this device.",
+      signUpOrIn: 'Create an account or sign in',
+      keepDataNote: 'Your data comes with you when you do.',
+      clearData: 'Clear local data',
+      clearConfirmTitle: 'Clear local data?',
+      clearConfirmBody:
+        'Every account, transaction, budget and goal on this device is deleted. This cannot be undone.',
+    },
+    upload: {
+      title: 'Bring your data in',
+      subtitle: 'Choose which wallet your local data should join.',
+      autoSelecting: 'Uploading into {{name}}…',
+      uploading: 'Uploading your data…',
+      chooseWallet: 'Choose a wallet',
+      useThisWallet: 'Use this wallet',
+      createNew: 'Or create a new wallet',
+      newWalletPlaceholder: 'e.g. My Wallet',
+      createAndUse: 'Create and use',
+    },
   },
 };
 

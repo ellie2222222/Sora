@@ -3,14 +3,14 @@ import { ScrollView, View } from 'react-native';
 import { Card, ErrorState, Money, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useAccount } from '../hooks/useAccounts.ts';
+import { useGetAccountQuery } from '../../../app/store/api/accountsApi.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'AccountDetail'>) {
   const theme = useTheme();
   const { accountId } = route.params;
 
-  const account = useAccount(accountId);
+  const account = useGetAccountQuery(accountId);
 
   if (account.isLoading) return <SkeletonList rows={3} />;
   if (account.isError) return <ErrorState error={account.error} onRetry={() => void account.refetch()} />;

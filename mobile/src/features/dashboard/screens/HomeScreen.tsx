@@ -8,15 +8,18 @@ import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
 import { WalletSwitcher } from '../../wallets/components/WalletSwitcher.tsx';
-import { formatDayHeading } from '../../../utils/date.ts';
-import { useDashboard } from '../hooks/useDashboard.ts';
+import { useGetDashboardSummaryQuery } from '../../../app/store/api/dashboardApi.ts';
+import { endOfMonth, formatDayHeading, startOfMonth, today } from '../../../utils/date.ts';
 import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
 
 export function HomeScreen({ navigation }: MainTabScreenProps<'Home'>) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { activeWalletId, isLoading: walletsLoading, isError: walletsError, refetch: refetchWallets } = useWallets();
-  const dashboard = useDashboard(activeWalletId);
+  const dashboard = useGetDashboardSummaryQuery(
+    { walletId: activeWalletId ?? '', dateFrom: startOfMonth(today()), dateTo: endOfMonth(today()) },
+    { skip: activeWalletId === null },
+  );
 
   if (walletsLoading) return <SkeletonList rows={5} />;
   if (walletsError) return <ErrorState error={new Error('Could not load your wallets')} onRetry={refetchWallets} />;

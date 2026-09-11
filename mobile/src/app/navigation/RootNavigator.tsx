@@ -1,6 +1,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { ActivityIndicator, Platform, View } from 'react-native';
 
+import { GuestUploadScreen } from '../../features/guest/screens/GuestUploadScreen.tsx';
 import { useAuth } from '../providers/AuthProvider.tsx';
 import { useTheme } from '../providers/ThemeProvider.tsx';
 import { WalletProvider } from '../providers/WalletProvider.tsx';
@@ -14,7 +15,7 @@ import { AuthNavigator } from './AuthNavigator.tsx';
  */
 export function RootNavigator() {
   const theme = useTheme();
-  const { isAuthenticated, restoring } = useAuth();
+  const { isAuthenticated, isGuest, pendingGuestUpload, restoring } = useAuth();
 
   if (restoring) {
     return (
@@ -28,7 +29,9 @@ export function RootNavigator() {
     <NavigationContainer
       theme={{ dark: theme.mode === 'dark', colors: navigationColors(theme), fonts }}
     >
-      {isAuthenticated ? (
+      {pendingGuestUpload ? (
+        <GuestUploadScreen />
+      ) : isAuthenticated || isGuest ? (
         <WalletProvider>
           <AppNavigator />
         </WalletProvider>

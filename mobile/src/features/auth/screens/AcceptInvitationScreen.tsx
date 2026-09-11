@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { UsersRound } from 'lucide-react-native';
@@ -6,7 +5,7 @@ import { UsersRound } from 'lucide-react-native';
 import { Button, ErrorState, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { invitationsApi } from '../../../services/api/invitations.ts';
+import { useAcceptInvitationMutation, usePreviewInvitationQuery } from '../../../app/store/api/invitationsApi.ts';
 import { useAuth } from '../../../app/providers/AuthProvider.tsx';
 import { messageOf } from '../../../utils/errors.ts';
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '../../../utils/roles.ts';
@@ -25,11 +24,8 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
 
-  const preview = useQuery({
-    queryKey: ['invitation-preview', token],
-    queryFn: () => invitationsApi.preview(token as string),
-    enabled: token !== undefined,
-  });
+  const preview = usePreviewInvitationQuery(token ?? '', { skip: token === undefined });
+  const [acceptInvitation] = useAcceptInvitationMutation();
 
   if (token === undefined) {
     return (
@@ -51,7 +47,7 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
     setAccepting(true);
     setAcceptError(null);
     try {
-      await invitationsApi.accept({ token: token as string });
+      await acceptInvitation({ token: token as string }).unwrap();
       // The wallet list refetches on its own (it is not this stack's concern);
       // landing back at the root is enough for the app to pick it up.
       navigation.popToTop();

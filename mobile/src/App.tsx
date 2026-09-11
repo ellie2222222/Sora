@@ -1,12 +1,15 @@
 import { StatusBar } from 'expo-status-bar';
+import { Provider as ReduxProvider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import './app/i18n/index.ts';
+import './services/guest/guestRuntime.ts';
 import { AuthProvider } from './app/providers/AuthProvider.tsx';
 import { LocaleProvider } from './app/providers/LocaleProvider.tsx';
 import { QueryProvider } from './app/providers/QueryProvider.tsx';
 import { ThemeProvider } from './app/providers/ThemeProvider.tsx';
 import { RootNavigator } from './app/navigation/RootNavigator.tsx';
+import { store } from './app/store/index.ts';
 
 /**
  * Provider order matters:
@@ -18,17 +21,19 @@ import { RootNavigator } from './app/navigation/RootNavigator.tsx';
  */
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <QueryProvider>
-        <AuthProvider>
-          <ThemeProvider>
-            <LocaleProvider>
-              <StatusBar style="auto" />
-              <RootNavigator />
-            </LocaleProvider>
-          </ThemeProvider>
-        </AuthProvider>
-      </QueryProvider>
-    </SafeAreaProvider>
+    <ReduxProvider store={store}>
+      <SafeAreaProvider>
+        <QueryProvider>
+          <AuthProvider>
+            <ThemeProvider>
+              <LocaleProvider>
+                <StatusBar style="auto" />
+                <RootNavigator />
+              </LocaleProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </QueryProvider>
+      </SafeAreaProvider>
+    </ReduxProvider>
   );
 }

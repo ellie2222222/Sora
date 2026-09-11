@@ -6,8 +6,8 @@ import { Card, ErrorState, Money, ProgressBar, Text } from '../../../components/
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
+import { useGetGoalQuery, useListGoalContributionsQuery } from '../../../app/store/api/goalsApi.ts';
 import { formatDay } from '../../../utils/date.ts';
-import { useGoal, useGoalContributions } from '../hooks/useGoals.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 export function GoalDetailScreen({ route, navigation }: AppStackScreenProps<'GoalDetail'>) {
@@ -15,8 +15,8 @@ export function GoalDetailScreen({ route, navigation }: AppStackScreenProps<'Goa
   const { goalId } = route.params;
   const { permissions } = useWallets();
 
-  const goal = useGoal(goalId);
-  const contributions = useGoalContributions(goalId);
+  const goal = useGetGoalQuery(goalId);
+  const contributions = useListGoalContributionsQuery(goalId);
 
   if (goal.isLoading) return <SkeletonList rows={4} />;
   if (goal.isError) return <ErrorState error={goal.error} onRetry={() => void goal.refetch()} />;

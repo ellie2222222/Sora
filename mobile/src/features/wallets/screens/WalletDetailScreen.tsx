@@ -5,12 +5,13 @@ import type { AccountResponse } from '@sora/contracts';
 
 import { Card, ConfirmDialog, EmptyState, ErrorState, Money, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
+import { useAuth } from '../../../app/providers/AuthProvider.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useAccounts } from '../../accounts/hooks/useAccounts.ts';
+import { useListAccountsQuery } from '../../../app/store/api/accountsApi.ts';
+import { useLeaveWalletMutation, useListMembersQuery } from '../../../app/store/api/membersApi.ts';
+import { useArchiveWalletMutation, useGetWalletQuery } from '../../../app/store/api/walletsApi.ts';
 import { messageOf } from '../../../utils/errors.ts';
 import { permissionsFor, ROLE_LABELS } from '../../../utils/roles.ts';
-import { useArchiveWallet, useWalletDetail } from '../hooks/useWallets.ts';
-import { useLeaveWallet, useWalletMembers } from '../hooks/useWalletMembers.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 type PendingAction = 'leave' | 'archive' | null;
@@ -18,12 +19,14 @@ type PendingAction = 'leave' | 'archive' | null;
 export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'WalletDetail'>) {
   const theme = useTheme();
   const { walletId } = route.params;
+  const { isGuest } = useAuth();
 
-  const wallet = useWalletDetail(walletId);
-  const accounts = useAccounts({ walletId, status: 'ACTIVE' });
-  const members = useWalletMembers(walletId);
-  const leaveWallet = useLeaveWallet();
-  const archiveWallet = useArchiveWallet();
+  const wallet = useGetWalletQuery(walletId);
+  const accounts = useListAccountsQuery({ walletId, status: 'ACTIVE' });
+  // Sharing is out of scope for guest mode — see membersApi's note.
+  const members = useListMembersQuery({ walletId }, { skip: isGuest });
+  const [leaveWallet] = useLeaveWalletMutation();
+  const [archiveWallet] = useArchiveWalletMutation();
 
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -35,13 +38,17 @@ export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'W
   if (data === undefined) return null;
 
   const permissions = permissionsFor(data.role);
-  const canLeave = data.role !== 'OWNER';
+  // Guest mode fabricates an OWNER role, so every sharing affordance below
+  // would otherwise render with nothing behind it (no members, no audit log,
+  // no archive path in guestWalletsApi).
+  const canShare = permissions.canAdminister && !isGuest;
+  const canLeave = data.role !== 'OWNER' && !isGuest;
 
   async function handleConfirmAction() {
     setActionError(null);
     try {
-      if (pendingAction === 'leave') await leaveWallet.mutateAsync(walletId);
-      else if (pendingAction === 'archive') await archiveWallet.mutateAsync(walletId);
+      if (pendingAction === 'leave') await leaveWallet(walletId).unwrap();
+      else if (pendingAction === 'archive') await archiveWallet(walletId).unwrap();
       setPendingAction(null);
       navigation.navigate('WalletList');
     } catch (error) {
@@ -53,7 +60,7 @@ export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'W
     <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text variant="heading">{data.isOwn ? data.name : data.relationLabel ?? data.name}</Text>
-        {permissions.canAdminister ? (
+        {canShare ? (
           <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
             <Pressable testID="wallet-detail-activity" onPress={() => navigation.navigate('WalletActivity', { walletId })}>
               <History size={22} color={theme.colors.textMuted} />
@@ -69,14 +76,16 @@ export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'W
         {data.balances.map((total) => (
           <Money key={total.currency} amount={total.amount} currency={total.currency} variant="heading" />
         ))}
-        <Pressable
-          testID="wallet-detail-members"
-          onPress={() => navigation.navigate('WalletMembers', { walletId })}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}
-        >
-          <UsersRound size={16} color={theme.colors.textMuted} />
-          <Text tone="muted">{data.memberCount}</Text>
-        </Pressable>
+        {!isGuest ? (
+          <Pressable
+            testID="wallet-detail-members"
+            onPress={() => navigation.navigate('WalletMembers', { walletId })}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}
+          >
+            <UsersRound size={16} color={theme.colors.textMuted} />
+            <Text tone="muted">{data.memberCount}</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -121,7 +130,7 @@ export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'W
         </View>
       ) : null}
 
-      {canLeave || permissions.canAdminister ? (
+      {canLeave || canShare ? (
         <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
           <Text variant="label" tone="muted">
             Wallet actions
@@ -140,7 +149,7 @@ export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'W
               <Text tone="danger">Leave wallet</Text>
             </Pressable>
           ) : null}
-          {permissions.canAdminister ? (
+          {canShare ? (
             <Pressable
               testID="wallet-detail-archive"
               onPress={() => {

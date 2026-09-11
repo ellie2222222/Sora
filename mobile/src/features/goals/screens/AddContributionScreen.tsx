@@ -6,17 +6,16 @@ import { Button, Input, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { AccountPicker } from '../../accounts/components/AccountPicker.tsx';
 import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
+import { useAddContributionMutation, useGetGoalQuery } from '../../../app/store/api/goalsApi.ts';
 import { messageOf } from '../../../utils/errors.ts';
 import { nowInstant } from '../../../utils/date.ts';
-import { useGoal } from '../hooks/useGoals.ts';
-import { useAddContribution } from '../hooks/useGoals.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 export function AddContributionScreen({ route, navigation }: AppStackScreenProps<'AddContribution'>) {
   const theme = useTheme();
   const { goalId } = route.params;
-  const goal = useGoal(goalId);
-  const addContribution = useAddContribution();
+  const goal = useGetGoalQuery(goalId);
+  const [addContribution, { isLoading: isSubmitting }] = useAddContributionMutation();
 
   const [accountId, setAccountId] = useState<string | null>(null);
   const [walletId, setWalletId] = useState<string | undefined>(undefined);
@@ -40,7 +39,7 @@ export function AddContributionScreen({ route, navigation }: AppStackScreenProps
     }
 
     try {
-      await addContribution.mutateAsync({
+      await addContribution({
         goalId,
         body: {
           accountId,
@@ -51,7 +50,7 @@ export function AddContributionScreen({ route, navigation }: AppStackScreenProps
           recordAsTransaction,
           categoryId: recordAsTransaction && categoryId !== null ? categoryId : undefined,
         },
-      });
+      }).unwrap();
       navigation.goBack();
     } catch (submitError) {
       setError(messageOf(submitError));
@@ -123,7 +122,7 @@ export function AddContributionScreen({ route, navigation }: AppStackScreenProps
           testID="add-contribution-submit"
           label="Add contribution"
           onPress={handleSubmit}
-          loading={addContribution.isPending}
+          loading={isSubmitting}
           fullWidth
         />
       </ScrollView>

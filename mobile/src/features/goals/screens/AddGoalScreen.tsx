@@ -4,14 +4,14 @@ import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Button, Input, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
+import { useCreateGoalMutation } from '../../../app/store/api/goalsApi.ts';
 import { messageOf } from '../../../utils/errors.ts';
-import { useCreateGoal } from '../hooks/useGoals.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 export function AddGoalScreen({ navigation }: AppStackScreenProps<'AddGoal'>) {
   const theme = useTheme();
   const { activeWallet } = useWallets();
-  const createGoal = useCreateGoal();
+  const [createGoal, { isLoading: isCreating }] = useCreateGoalMutation();
 
   const [name, setName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
@@ -29,13 +29,13 @@ export function AddGoalScreen({ navigation }: AppStackScreenProps<'AddGoal'>) {
 
     setError(null);
     try {
-      await createGoal.mutateAsync({
+      await createGoal({
         walletId: activeWallet.id,
         name,
         targetAmount,
         currency: activeWallet.balances[0]?.currency ?? 'VND',
         targetDate: targetDate.trim().length > 0 ? targetDate.trim() : null,
-      });
+      }).unwrap();
       navigation.goBack();
     } catch (submitError) {
       setError(messageOf(submitError));
@@ -70,7 +70,7 @@ export function AddGoalScreen({ navigation }: AppStackScreenProps<'AddGoal'>) {
           testID="add-goal-submit"
           label="Create goal"
           onPress={handleSubmit}
-          loading={createGoal.isPending}
+          loading={isCreating}
           disabled={name.trim().length === 0}
           fullWidth
         />

@@ -3,25 +3,29 @@ import { SectionList, View } from 'react-native';
 
 import { EmptyState, ErrorState, Money, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
+import { useAuth } from '../../../app/providers/AuthProvider.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
+import { useListTransactionsQuery } from '../../../app/store/api/transactionsApi.ts';
 import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
 import { formatDayHeading, formatTimeOfDay } from '../../../utils/date.ts';
 import { groupTransactionsByDay } from '../../../utils/groupByDate.ts';
-import { useTransactions } from '../hooks/useTransactions.ts';
 import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
 
 export function TransactionsScreen({ route, navigation }: MainTabScreenProps<'Transactions'>) {
   const theme = useTheme();
+  const { isGuest } = useAuth();
   const { activeWalletId } = useWallets();
   const onManage = () => navigation.getParent()?.navigate('WalletList');
 
-  const transactions = useTransactions({
-    walletId: activeWalletId ?? undefined,
-    accountId: route.params?.accountId,
-    categoryId: route.params?.categoryId,
-    pageSize: 100,
-  });
+  const walletId = activeWalletId ?? undefined;
+  const accountId = route.params?.accountId;
+  const transactions = useListTransactionsQuery(
+    { walletId, accountId, categoryId: route.params?.categoryId, pageSize: 100 },
+    // Guest mode has one wallet and never receives a walletId filter from the
+    // wallet switcher, so gating on one would leave the list permanently idle.
+    { skip: !isGuest && walletId === undefined && accountId === undefined },
+  );
 
   if (transactions.isLoading) {
     return (

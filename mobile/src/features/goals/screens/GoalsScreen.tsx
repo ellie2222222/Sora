@@ -7,7 +7,7 @@ import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
 import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
-import { useGoals } from '../hooks/useGoals.ts';
+import { useListGoalsQuery } from '../../../app/store/api/goalsApi.ts';
 import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
 
 export function GoalsScreen({ navigation }: MainTabScreenProps<'Goals'>) {
@@ -15,7 +15,10 @@ export function GoalsScreen({ navigation }: MainTabScreenProps<'Goals'>) {
   const { activeWalletId, permissions } = useWallets();
   const onManage = () => navigation.getParent()?.navigate('WalletList');
 
-  const goals = useGoals({ walletId: activeWalletId ?? '', status: 'ACTIVE' });
+  const goals = useListGoalsQuery(
+    { walletId: activeWalletId ?? '', status: 'ACTIVE' },
+    { skip: activeWalletId === null },
+  );
 
   if (activeWalletId === null || goals.isLoading) {
     return (

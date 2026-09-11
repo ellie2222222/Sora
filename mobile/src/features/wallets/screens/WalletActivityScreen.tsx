@@ -5,9 +5,9 @@ import type { AuditLogResponse } from '@sora/contracts';
 import { Card, EmptyState, ErrorState, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
+import { useListAuditLogsQuery } from '../../../app/store/api/auditApi.ts';
 import { dayOfInstant, formatDayHeading, formatTimeOfDay } from '../../../utils/date.ts';
 import { ROLE_LABELS } from '../../../utils/roles.ts';
-import { useWalletActivity } from '../hooks/useWalletActivity.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 /** WAL-US-13. OWNER-only (API spec §15.1) — this screen is only ever reached from a control already gated to the owner. */
@@ -15,7 +15,7 @@ export function WalletActivityScreen({ route }: AppStackScreenProps<'WalletActiv
   const theme = useTheme();
   const { walletId } = route.params;
 
-  const activity = useWalletActivity(walletId, { pageSize: 50 });
+  const activity = useListAuditLogsQuery({ walletId, query: { pageSize: 50 } });
 
   if (activity.isLoading) return <SkeletonList rows={6} />;
   if (activity.isError) {

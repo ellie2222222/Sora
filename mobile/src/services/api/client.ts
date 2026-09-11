@@ -113,8 +113,14 @@ export async function deleteVoid(path: string, params?: unknown): Promise<void> 
  * An idempotency key for creates (API spec §2.10). It only has to be unique per
  * attempt, not unguessable, so a timestamp plus randomness is sufficient and
  * avoids pulling in a crypto dependency for it.
+ *
+ * `key` lets a caller pin its own value instead — the guest-mode upload
+ * sequencer (`guestUpload.ts`) needs one key per local transaction/contribution
+ * that stays stable across a retry, so a resumed upload after an app kill
+ * never double-records the same money. Every other caller omits it and gets
+ * the default fresh-per-attempt behaviour.
  */
-export function idempotencyHeaders(): AxiosRequestConfig {
-  const key = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
-  return { headers: { 'Idempotency-Key': key } };
+export function idempotencyHeaders(key?: string): AxiosRequestConfig {
+  const resolvedKey = key ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return { headers: { 'Idempotency-Key': resolvedKey } };
 }

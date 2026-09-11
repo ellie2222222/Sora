@@ -15,10 +15,11 @@ import type { AuthStackScreenProps } from '../../../app/navigation/types.ts';
 export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, enterGuestMode } = useAuth();
   const google = useGoogleSignIn();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [googlePending, setGooglePending] = useState(false);
+  const [guestPending, setGuestPending] = useState(false);
 
   const {
     control,
@@ -52,6 +53,19 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
       setSubmitError(messageOf(error));
     } finally {
       setGooglePending(false);
+    }
+  }
+
+  /** Seeds the local wallet on first entry, so the app opens on real data rather than an empty shell. */
+  async function onContinueAsGuest() {
+    setSubmitError(null);
+    setGuestPending(true);
+    try {
+      await enterGuestMode();
+    } catch (error) {
+      setSubmitError(messageOf(error));
+    } finally {
+      setGuestPending(false);
     }
   }
 
@@ -143,6 +157,14 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
           label={t('auth.goToRegister')}
           variant="ghost"
           onPress={() => navigation.navigate('Register')}
+        />
+
+        <Button
+          testID="login-continue-as-guest"
+          label={t('auth.continueAsGuest')}
+          variant="ghost"
+          onPress={() => void onContinueAsGuest()}
+          loading={guestPending}
         />
       </View>
     </KeyboardAvoidingView>

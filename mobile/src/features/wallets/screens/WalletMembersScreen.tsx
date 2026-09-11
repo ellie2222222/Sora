@@ -8,16 +8,15 @@ import type { ActionSheetAction } from '../../../components/ActionSheet.tsx';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useAuth } from '../../../app/providers/AuthProvider.tsx';
-import { messageOf } from '../../../utils/errors.ts';
-import { useWalletDetail } from '../hooks/useWallets.ts';
 import {
-  useRemoveMember,
-  useRevokeInvitation,
-  useTransferOwnership,
-  useUpdateMemberRole,
-  useWalletInvitations,
-  useWalletMembers,
-} from '../hooks/useWalletMembers.ts';
+  useListMembersQuery,
+  useRemoveMemberMutation,
+  useTransferOwnershipMutation,
+  useUpdateMemberRoleMutation,
+} from '../../../app/store/api/membersApi.ts';
+import { useListInvitationsQuery, useRevokeInvitationMutation } from '../../../app/store/api/invitationsApi.ts';
+import { useGetWalletQuery } from '../../../app/store/api/walletsApi.ts';
+import { messageOf } from '../../../utils/errors.ts';
 import { canAdminister, ROLE_LABELS } from '../../../utils/roles.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
@@ -26,13 +25,13 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
   const { walletId } = route.params;
   const { user } = useAuth();
 
-  const wallet = useWalletDetail(walletId);
-  const members = useWalletMembers(walletId);
-  const invitations = useWalletInvitations(walletId);
-  const removeMember = useRemoveMember(walletId);
-  const revokeInvitation = useRevokeInvitation(walletId);
-  const transferOwnership = useTransferOwnership(walletId);
-  const updateMemberRole = useUpdateMemberRole(walletId);
+  const wallet = useGetWalletQuery(walletId);
+  const members = useListMembersQuery({ walletId });
+  const invitations = useListInvitationsQuery({ walletId });
+  const [removeMember] = useRemoveMemberMutation();
+  const [revokeInvitation] = useRevokeInvitationMutation();
+  const [transferOwnership] = useTransferOwnershipMutation();
+  const [updateMemberRole] = useUpdateMemberRoleMutation();
 
   const [transferTarget, setTransferTarget] = useState<WalletMemberResponse | null>(null);
   const [transferError, setTransferError] = useState<string | null>(null);
@@ -48,7 +47,7 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
     if (transferTarget === null) return;
     setTransferError(null);
     try {
-      await transferOwnership.mutateAsync({ toUserId: transferTarget.userId });
+      await transferOwnership({ walletId, body: { toUserId: transferTarget.userId } }).unwrap();
       setTransferTarget(null);
     } catch (error) {
       setTransferError(messageOf(error));
@@ -58,7 +57,7 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
   async function handleRoleChange(member: WalletMemberResponse, role: WalletRole) {
     setActionError(null);
     try {
-      await updateMemberRole.mutateAsync({ memberId: member.id, body: { role } });
+      await updateMemberRole({ walletId, memberId: member.id, body: { role } }).unwrap();
     } catch (error) {
       setActionError(messageOf(error));
     }
@@ -84,7 +83,7 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
           {
             label: 'Remove from wallet',
             destructive: true,
-            onPress: () => removeMember.mutate(actionTarget.id),
+            onPress: () => void removeMember({ walletId, memberId: actionTarget.id }),
           },
         ];
 
@@ -148,7 +147,7 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
             <InvitationRow
               key={invitation.id}
               invitation={invitation}
-              onRevoke={() => revokeInvitation.mutate(invitation.id)}
+              onRevoke={() => void revokeInvitation({ walletId, invitationId: invitation.id })}
             />
           ))}
         </View>

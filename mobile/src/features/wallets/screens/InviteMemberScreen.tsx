@@ -4,9 +4,9 @@ import type { InvitableRole } from '@sora/contracts';
 
 import { Button, Input, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
+import { useCreateInvitationMutation } from '../../../app/store/api/invitationsApi.ts';
 import { messageOf } from '../../../utils/errors.ts';
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '../../../utils/roles.ts';
-import { useInviteMember } from '../hooks/useWalletMembers.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 const INVITABLE: InvitableRole[] = ['EDITOR', 'VIEWER'];
@@ -17,7 +17,7 @@ const SUGGESTED_LABELS = ['Girlfriend', 'Boyfriend', 'Partner', 'Mom', 'Dad', 'S
 export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'InviteMember'>) {
   const theme = useTheme();
   const { walletId } = route.params;
-  const inviteMember = useInviteMember(walletId);
+  const [inviteMember, { isLoading: isInviting }] = useCreateInvitationMutation();
 
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<InvitableRole>('EDITOR');
@@ -27,11 +27,14 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
   async function handleSubmit() {
     setError(null);
     try {
-      await inviteMember.mutateAsync({
-        email,
-        role,
-        relationLabel: relationLabel.trim().length > 0 ? relationLabel.trim() : undefined,
-      });
+      await inviteMember({
+        walletId,
+        body: {
+          email,
+          role,
+          relationLabel: relationLabel.trim().length > 0 ? relationLabel.trim() : undefined,
+        },
+      }).unwrap();
       navigation.goBack();
     } catch (submitError) {
       setError(messageOf(submitError));
@@ -104,7 +107,7 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
           testID="invite-submit"
           label="Send invitation"
           onPress={handleSubmit}
-          loading={inviteMember.isPending}
+          loading={isInviting}
           disabled={email.trim().length === 0}
           fullWidth
         />
