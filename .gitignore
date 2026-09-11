@@ -21,9 +21,8 @@ build/
 
 # React Native
 .expo/
-android/app/build/
-android/build/
-android/.gradle/
+# Full Expo prebuild output — managed workflow, regenerate via `expo prebuild`
+mobile/android/
 ios/Pods/
 ios/build/
 *.keystore
@@ -44,3 +43,6 @@ ios/build/
 npm-debug.log*
 yarn-error.log*
 coverage/
+
+# Workspace
+sora.code-workspace

@@ -44,6 +44,42 @@ Confirm the behaviour is specified before writing code. If a task conflicts with
 amend the spec in the same change — code does not lead, specs do. A change that silently
 diverges from `docs/API_SPECIFICATION.md` is a bug in both places.
 
+### Facts vs. Assumptions
+
+Everything asserted about this codebase is either a **fact** (verified by reading the actual code,
+running a command, or reading real output) or an **assumption** (an inference, a guess from
+naming, a pattern expected because it's common elsewhere). Label the second kind as such —
+"assuming X because Y, worth confirming" — instead of presenting it as established. Never invent a
+business rule, a data shape, or an API behaviour: if it isn't visible in `packages/contracts`, a
+migration, the API specification, or a test, say so and check one of those. "This is how it's
+usually done" is not evidence about this codebase — Part 3 exists because the obvious-seeming
+default was wrong here at least once (BR-02's reversal, BR-06).
+
+### Impact Before Committing to an Approach
+
+Before changing anything beyond a leaf-level, single-consumer function, find every real caller —
+grep, not memory — especially across the `server`/`mobile` boundary that `@sora/contracts` spans.
+`node scripts/check-contract-parity.mjs` catches a mismatch once one exists; it doesn't tell you
+who's affected before you make one.
+
+### Working Process
+
+A default shape for anything non-trivial, skipping steps that are genuinely unnecessary for
+something small: confirm what's actually being asked (ask first per below, if ambiguous) → read
+the governing document the change actually touches (the trigger table above) and its real callers
+→ for a cross-package change, sketch what moves and where before editing → make the smallest
+change that satisfies it → give new/changed behaviour test coverage, a bug fix a regression test →
+re-read the diff as a reviewer would, and run `check-contract-parity.mjs` if any enum/route/
+constraint moved → report via the structured summary, with only what was actually verified.
+
+### Ask, Don't Guess, When It Matters
+
+Ask before proceeding when a request is genuinely ambiguous with materially different outcomes,
+when satisfying it would require breaking something not mentioned, or at a real architectural fork
+with lasting consequences (a new dependency, a schema shape, a public contract) — beyond the
+destructive-action cases already covered below. Don't ask about anything resolvable by reading five
+more lines of code or grepping for the answer.
+
 ### Git
 
 **Never run `git commit` or `git push` directly.** Every commit goes through the
@@ -274,7 +310,9 @@ for the deleted stack and was removed rather than rewritten (see the README). Th
 only `server/` and Postgres (`docker compose up -d`, needs `JWT_SECRET`/`GOOGLE_CLIENT_ID` set in
 `.env` first) — not `mobile/` (needs LAN/USB device access) and not the parked `webpage/`.
 Postgres's container defaults to host port 5433, not 5432, so it can run alongside the host
-Postgres this section describes rather than colliding with it.
+Postgres this section describes rather than colliding with it. Debugging either container: plain
+`docker logs <container>` runs through rtk's `docker` filter and can summarize, so use
+`rtk proxy docker logs <container> --tail N` for the full unfiltered output.
 
 ```bash
 npm install                                   # root; links every package
