@@ -58,8 +58,13 @@ export function Text({
         {
           color,
           fontSize: theme.fontSize[VARIANT_SIZE[variant]],
+          // No fontWeight here: Mulish ships one static file per weight, and
+          // pairing a custom fontFamily with an explicit fontWeight makes
+          // Android's Typeface.create() look for a bold/normal *variant* of
+          // that exact family name, fail to find one, and silently fall back
+          // to the system font — the weight already lives in which font file
+          // this is.
           fontFamily: theme.fontFamily[weight ?? VARIANT_WEIGHT[variant]],
-          fontWeight: theme.fontWeight[weight ?? VARIANT_WEIGHT[variant]],
           fontVariant: numeric ? theme.numericFontVariant : undefined,
         },
         style,

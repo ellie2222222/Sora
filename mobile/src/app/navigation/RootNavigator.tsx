@@ -57,10 +57,16 @@ function navigationColors(theme: ReturnType<typeof useTheme>) {
  * react-navigation v7's Theme type requires a `fonts` block for its own header
  * and tab-bar chrome. Named per-weight, matching `design-system/typography.ts`'s
  * `fontFamily` tokens that every other screen's own text already uses.
+ *
+ * `fontWeight` is pinned to `'normal'` on every entry rather than named per
+ * weight: Mulish ships one static file per weight, and Android resolves a
+ * custom `fontFamily` + a non-`'normal'` `fontWeight` by looking for a bold
+ * variant of that exact family name — finds none, and silently substitutes
+ * the system font instead. The weight already lives in which file is named.
  */
 const fonts = {
-  regular: { fontFamily: 'Mulish_400Regular', fontWeight: '400' as const },
-  medium: { fontFamily: 'Mulish_500Medium', fontWeight: '500' as const },
-  bold: { fontFamily: 'Mulish_600SemiBold', fontWeight: '600' as const },
-  heavy: { fontFamily: 'Mulish_700Bold', fontWeight: '700' as const },
+  regular: { fontFamily: 'Mulish_400Regular', fontWeight: 'normal' as const },
+  medium: { fontFamily: 'Mulish_500Medium', fontWeight: 'normal' as const },
+  bold: { fontFamily: 'Mulish_600SemiBold', fontWeight: 'normal' as const },
+  heavy: { fontFamily: 'Mulish_700Bold', fontWeight: 'normal' as const },
 };
