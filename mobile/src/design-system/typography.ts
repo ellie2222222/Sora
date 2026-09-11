@@ -22,6 +22,19 @@ export const fontWeight: Record<
 };
 
 /**
+ * Mulish ships one static font file per weight (`@expo-google-fonts/mulish`),
+ * so Android renders weight correctly only when `fontFamily` names the exact
+ * weight — a single variable family plus numeric `fontWeight` silently falls
+ * back to the platform default there.
+ */
+export const fontFamily: Record<'regular' | 'medium' | 'semibold' | 'bold', string> = {
+  regular: 'Mulish_400Regular',
+  medium: 'Mulish_500Medium',
+  semibold: 'Mulish_600SemiBold',
+  bold: 'Mulish_700Bold',
+};
+
+/**
  * Monetary figures are tabular-aligned so a column of amounts does not jitter
  * as digits change width.
  */
@@ -29,3 +42,4 @@ export const numericFontVariant: NonNullable<TextStyle['fontVariant']> = ['tabul
 
 export type FontSize = typeof fontSize;
 export type FontWeight = typeof fontWeight;
+export type FontFamily = typeof fontFamily;

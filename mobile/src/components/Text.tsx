@@ -58,6 +58,7 @@ export function Text({
         {
           color,
           fontSize: theme.fontSize[VARIANT_SIZE[variant]],
+          fontFamily: theme.fontFamily[weight ?? VARIANT_WEIGHT[variant]],
           fontWeight: theme.fontWeight[weight ?? VARIANT_WEIGHT[variant]],
           fontVariant: numeric ? theme.numericFontVariant : undefined,
         },

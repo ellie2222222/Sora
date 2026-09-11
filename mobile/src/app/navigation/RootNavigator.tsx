@@ -1,5 +1,5 @@
 import { NavigationContainer } from '@react-navigation/native';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 
 import { GuestUploadScreen } from '../../features/guest/screens/GuestUploadScreen.tsx';
 import { useAuth } from '../providers/AuthProvider.tsx';
@@ -55,18 +55,12 @@ function navigationColors(theme: ReturnType<typeof useTheme>) {
 
 /**
  * react-navigation v7's Theme type requires a `fonts` block for its own header
- * and tab-bar chrome; this app's design-system tokens govern every screen's own
- * text, so only the platform system font needs to be named here.
+ * and tab-bar chrome. Named per-weight, matching `design-system/typography.ts`'s
+ * `fontFamily` tokens that every other screen's own text already uses.
  */
-const navigationFonts = Platform.select({
-  ios: { fontFamily: 'System' },
-  android: { fontFamily: 'sans-serif' },
-  default: { fontFamily: 'System' },
-});
-
 const fonts = {
-  regular: { ...navigationFonts, fontWeight: '400' as const },
-  medium: { ...navigationFonts, fontWeight: '500' as const },
-  bold: { ...navigationFonts, fontWeight: '600' as const },
-  heavy: { ...navigationFonts, fontWeight: '700' as const },
+  regular: { fontFamily: 'Mulish_400Regular', fontWeight: '400' as const },
+  medium: { fontFamily: 'Mulish_500Medium', fontWeight: '500' as const },
+  bold: { fontFamily: 'Mulish_600SemiBold', fontWeight: '600' as const },
+  heavy: { fontFamily: 'Mulish_700Bold', fontWeight: '700' as const },
 };

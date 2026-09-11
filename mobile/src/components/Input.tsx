@@ -41,6 +41,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
             paddingHorizontal: theme.spacing.md,
             color: theme.colors.text,
             fontSize: theme.fontSize.md,
+            fontFamily: theme.fontFamily.regular,
           },
           style,
         ]}

@@ -2,7 +2,7 @@ import { colorsByTheme, THEME_MODE_OF, type ColorTokens, type ThemeMode, type Th
 import { radius, type Radius } from './radius.ts';
 import { buildShadows, type Shadows } from './shadows.ts';
 import { spacing, type Spacing } from './spacing.ts';
-import { fontSize, fontWeight, numericFontVariant, type FontSize, type FontWeight } from './typography.ts';
+import { fontFamily, fontSize, fontWeight, numericFontVariant, type FontFamily, type FontSize, type FontWeight } from './typography.ts';
 
 export interface Theme {
   name: ThemeName;
@@ -13,6 +13,7 @@ export interface Theme {
   radius: Radius;
   fontSize: FontSize;
   fontWeight: FontWeight;
+  fontFamily: FontFamily;
   shadows: Shadows;
   numericFontVariant: typeof numericFontVariant;
 }
@@ -27,6 +28,7 @@ export function buildTheme(name: ThemeName): Theme {
     radius,
     fontSize,
     fontWeight,
+    fontFamily,
     shadows: buildShadows(colors.shadow),
     numericFontVariant,
   };
