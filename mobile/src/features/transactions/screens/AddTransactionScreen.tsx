@@ -19,7 +19,7 @@ import {
   validateDraft,
 } from '../../../utils/transactionForm.ts';
 import { useCreateTransactionMutation } from '../../../app/store/api/transactionsApi.ts';
-import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
+import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 const TYPES: { type: TransactionType; label: string }[] = [
   { type: 'EXPENSE', label: 'Expense' },
@@ -27,7 +27,7 @@ const TYPES: { type: TransactionType; label: string }[] = [
   { type: 'TRANSFER', label: 'Transfer' },
 ];
 
-export function AddTransactionScreen({ navigation }: MainTabScreenProps<'AddTransaction'>) {
+export function AddTransactionScreen({ navigation }: AppStackScreenProps<'AddTransaction'>) {
   const theme = useTheme();
   const { activeWallet, permissions } = useWallets();
   const [createTransaction, { isLoading: isSubmitting }] = useCreateTransactionMutation();
@@ -62,7 +62,7 @@ export function AddTransactionScreen({ navigation }: MainTabScreenProps<'AddTran
   const crossWallet =
     draft.type === 'TRANSFER' && toAccountWalletId !== undefined && toAccountWalletId !== walletId;
 
-  const onManage = () => navigation.getParent()?.navigate('WalletList');
+  const onManage = () => navigation.navigate('WalletList');
 
   if (!permissions.canWrite) {
     return (

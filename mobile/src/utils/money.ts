@@ -10,8 +10,10 @@
 
 import {
   MONEY_SCALE,
+  add,
   formatMoneyCompact,
   parseMoney,
+  ZERO,
   type MoneyString,
   type Scaled,
   type TransactionType,
@@ -137,6 +139,25 @@ export function tryParseMoney(input: string): Scaled | null {
  * cannot get wrong, because folding it into either side makes every other total
  * on the dashboard untrustworthy.
  */
+/**
+ * Sums `amountOf(item)` per `keyOf(item)` (currency, almost always), in
+ * bigint space — the one grouping loop every per-currency total in the app
+ * shares, rather than each screen hand-rolling its own Map-and-`add` (BR-07:
+ * a currency is never summed against another).
+ */
+export function sumScaledByKey<T>(
+  items: readonly T[],
+  keyOf: (item: T) => string,
+  amountOf: (item: T) => MoneyString,
+): Map<string, Scaled> {
+  const totals = new Map<string, Scaled>();
+  for (const item of items) {
+    const key = keyOf(item);
+    totals.set(key, add(totals.get(key) ?? ZERO, parseMoney(amountOf(item))));
+  }
+  return totals;
+}
+
 export function directionOf(type: TransactionType): 'in' | 'out' | 'neutral' {
   if (type === 'INCOME') return 'in';
   if (type === 'EXPENSE') return 'out';

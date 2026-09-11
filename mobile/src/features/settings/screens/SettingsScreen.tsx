@@ -10,9 +10,9 @@ import { useTheme, useThemeControl } from '../../../app/providers/ThemeProvider.
 import { THEME_NAMES, colorsByTheme, type ThemeName } from '../../../design-system/index.ts';
 import { SUPPORTED_LOCALES, type SupportedLocale } from '../../../app/i18n/index.ts';
 import { guestStore } from '../../../services/guest/guestStorage.ts';
-import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
+import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
 
-export function SettingsScreen(_props: AppStackScreenProps<'Settings'>) {
+export function SettingsScreen(_props: MainTabScreenProps<'Settings'>) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { user, logout, isGuest } = useAuth();

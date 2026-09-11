@@ -57,9 +57,7 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
 
       <Text
         tone="muted"
-        onPress={() =>
-          navigation.navigate('Main', { screen: 'Transactions', params: { accountId } })
-        }
+        onPress={() => navigation.navigate('Transactions', { accountId })}
       >
         View {data.transactionCount} transaction{data.transactionCount === 1 ? '' : 's'} →
       </Text>

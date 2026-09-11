@@ -10,10 +10,10 @@ export type AuthStackParamList = {
 
 export type MainTabParamList = {
   Home: undefined;
-  Transactions: { accountId?: string; categoryId?: string } | undefined;
-  AddTransaction: undefined;
-  Budgets: undefined;
+  Account: undefined;
   Goals: undefined;
+  Report: undefined;
+  Settings: undefined;
 };
 
 /**
@@ -34,14 +34,16 @@ export type AppStackParamList = {
   AccountDetail: { accountId: string };
   AddAccount: { walletId?: string } | undefined;
   CategoryList: { walletId?: string } | undefined;
+  Transactions: { accountId?: string; categoryId?: string } | undefined;
   TransactionDetail: { transactionId: string };
+  AddTransaction: undefined;
+  EditTransaction: { transactionId: string };
+  Budgets: undefined;
   BudgetDetail: { budgetId: string };
   AddBudget: undefined;
   GoalDetail: { goalId: string };
   AddGoal: undefined;
   AddContribution: { goalId: string };
-  Settings: undefined;
-  EditTransaction: { transactionId: string };
 };
 
 export type AuthStackScreenProps<Screen extends keyof AuthStackParamList> = NativeStackScreenProps<

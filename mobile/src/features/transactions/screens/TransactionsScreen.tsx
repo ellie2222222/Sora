@@ -1,22 +1,21 @@
-import { Receipt, UsersRound } from 'lucide-react-native';
-import { SectionList, View } from 'react-native';
+import { Receipt } from 'lucide-react-native';
+import { RefreshControl, ScrollView } from 'react-native';
 
-import { EmptyState, ErrorState, Money, Text } from '../../../components/index.ts';
+import { EmptyState, ErrorState, TransactionListSection } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useAuth } from '../../../app/providers/AuthProvider.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
 import { useListTransactionsQuery } from '../../../app/store/api/transactionsApi.ts';
 import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
-import { formatDayHeading, formatTimeOfDay } from '../../../utils/date.ts';
 import { groupTransactionsByDay } from '../../../utils/groupByDate.ts';
-import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
+import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
-export function TransactionsScreen({ route, navigation }: MainTabScreenProps<'Transactions'>) {
+export function TransactionsScreen({ route, navigation }: AppStackScreenProps<'Transactions'>) {
   const theme = useTheme();
   const { isGuest } = useAuth();
   const { activeWalletId } = useWallets();
-  const onManage = () => navigation.getParent()?.navigate('WalletList');
+  const onManage = () => navigation.navigate('WalletList');
 
   const walletId = activeWalletId ?? undefined;
   const accountId = route.params?.accountId;
@@ -59,56 +58,17 @@ export function TransactionsScreen({ route, navigation }: MainTabScreenProps<'Tr
     );
   }
 
-  const sections = groupTransactionsByDay(items).map((group) => ({
-    title: formatDayHeading(group.day),
-    data: group.transactions,
-  }));
+  const groups = groupTransactionsByDay(items);
 
   return (
-    <SectionList
-      ListHeaderComponent={<WalletContextBar onManage={onManage} />}
-      testID="transactions-list"
-      sections={sections}
-      keyExtractor={(item) => item.id}
-      contentContainerStyle={{ paddingBottom: theme.spacing.xxl }}
-      renderSectionHeader={({ section }) => (
-        <View style={{ backgroundColor: theme.colors.background, padding: theme.spacing.md, paddingBottom: theme.spacing.xs }}>
-          <Text variant="label" tone="muted">
-            {section.title}
-          </Text>
-        </View>
-      )}
-      renderItem={({ item }) => (
-        <View
-          testID={`transaction-row-${item.id}`}
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            paddingHorizontal: theme.spacing.md,
-            paddingVertical: theme.spacing.sm,
-          }}
-        >
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text numberOfLines={1}>
-              {item.description ?? item.category?.name ?? item.type}
-            </Text>
-            <View style={{ flexDirection: 'row', gap: theme.spacing.xs, alignItems: 'center' }}>
-              <Text variant="caption" tone="muted">
-                {formatTimeOfDay(item.transactionDate)}
-                {item.category !== null ? ` · ${item.category.name}` : ''}
-              </Text>
-              {item.isCrossWallet ? <UsersRound size={12} color={theme.colors.textFaint} /> : null}
-            </View>
-          </View>
-          <Money
-            amount={item.amount}
-            currency={item.currency}
-            type={item.type}
-            weight="semibold"
-            formatOptions={{ signDisplay: 'always' }}
-          />
-        </View>
-      )}
-    />
+    <WalletContextBar onManage={onManage}>
+      <ScrollView
+        testID="transactions-list"
+        contentContainerStyle={{ padding: theme.spacing.md, paddingBottom: theme.spacing.xxl }}
+        refreshControl={<RefreshControl refreshing={transactions.isFetching} onRefresh={() => void transactions.refetch()} />}
+      >
+        <TransactionListSection groups={groups} showDayTotals />
+      </ScrollView>
+    </WalletContextBar>
   );
 }

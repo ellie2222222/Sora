@@ -8,7 +8,7 @@ import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
 import { useListAccountsQuery } from '../../../app/store/api/accountsApi.ts';
 
-const ACCOUNT_ICON: Record<AccountType, typeof Landmark> = {
+export const ACCOUNT_ICON: Record<AccountType, typeof Landmark> = {
   BANK_ACCOUNT: Landmark,
   CASH: Banknote,
   E_WALLET: WalletIcon,

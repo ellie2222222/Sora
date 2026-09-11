@@ -24,10 +24,9 @@ const vi: TranslationResource = {
   },
   nav: {
     home: 'Trang chủ',
-    transactions: 'Giao dịch',
-    add: 'Thêm',
-    budgets: 'Ngân sách',
+    account: 'Tài khoản',
     goals: 'Mục tiêu',
+    report: 'Báo cáo',
   },
   auth: {
     loginTitle: 'Chào mừng trở lại',

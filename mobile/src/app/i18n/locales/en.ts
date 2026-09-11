@@ -26,10 +26,9 @@ const en = {
   },
   nav: {
     home: 'Home',
-    transactions: 'Transactions',
-    add: 'Add',
-    budgets: 'Budgets',
+    account: 'Account',
     goals: 'Goals',
+    report: 'Report',
   },
   auth: {
     loginTitle: 'Welcome back',

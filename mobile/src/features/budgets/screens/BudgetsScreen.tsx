@@ -10,12 +10,12 @@ import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx'
 import { today } from '../../../utils/date.ts';
 import { formatMoneyString } from '../../../utils/money.ts';
 import { useListBudgetsQuery } from '../../../app/store/api/budgetsApi.ts';
-import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
+import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
-export function BudgetsScreen({ navigation }: MainTabScreenProps<'Budgets'>) {
+export function BudgetsScreen({ navigation }: AppStackScreenProps<'Budgets'>) {
   const theme = useTheme();
   const { activeWalletId, permissions } = useWallets();
-  const onManage = () => navigation.getParent()?.navigate('WalletList');
+  const onManage = () => navigation.navigate('WalletList');
 
   const budgets = useListBudgetsQuery(
     { walletId: activeWalletId ?? '', status: 'ACTIVE', activeOn: today() },
@@ -47,7 +47,7 @@ export function BudgetsScreen({ navigation }: MainTabScreenProps<'Budgets'>) {
           title="No active budgets"
           description="Plan how much you want to spend in a category this period."
           actionLabel={permissions.canWrite ? 'Add budget' : undefined}
-          onAction={permissions.canWrite ? () => navigation.getParent()?.navigate('AddBudget') : undefined}
+          onAction={permissions.canWrite ? () => navigation.navigate('AddBudget') : undefined}
           testID="budgets-empty"
         />
       </WalletContextBar>
@@ -61,7 +61,7 @@ export function BudgetsScreen({ navigation }: MainTabScreenProps<'Budgets'>) {
         data={items}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
-        renderItem={({ item }) => <BudgetCard budget={item} onPress={() => navigation.getParent()?.navigate('BudgetDetail', { budgetId: item.id })} />}
+        renderItem={({ item }) => <BudgetCard budget={item} onPress={() => navigation.navigate('BudgetDetail', { budgetId: item.id })} />}
       />
     </WalletContextBar>
   );
