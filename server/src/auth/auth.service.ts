@@ -4,6 +4,7 @@ import { OAuth2Client } from 'google-auth-library';
 import type { Transaction } from 'kysely';
 import { randomUUID } from 'node:crypto';
 
+import { STARTER_CATEGORIES } from '@sora/contracts';
 import type {
   AuthResponse,
   AuthTokens,
@@ -24,7 +25,6 @@ import { RateLimitService } from '../common/rate-limit.service.ts';
 import { CONFIG, type AppConfig } from '../config/env.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
-import { STARTER_CATEGORIES } from './starter-categories.ts';
 import { TokenService } from './token.service.ts';
 
 /**

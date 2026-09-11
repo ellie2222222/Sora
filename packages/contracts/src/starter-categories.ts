@@ -5,9 +5,12 @@
  * unique over (wallet_id, parent, LOWER(name)) and does **not** include `type`,
  * so an "Other" under both INCOME and EXPENSE would be rejected by the database
  * rather than by anything in this file.
+ *
+ * Shared between the server (`auth.service.ts`'s `seedWallet`) and the mobile
+ * app's guest-mode local seed, so both produce an identical starting wallet.
  */
 
-import type { CategoryType } from '@sora/contracts';
+import type { CategoryType } from './enums.ts';
 
 export interface StarterCategory {
   name: string;

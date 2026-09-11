@@ -12,3 +12,4 @@ export * from './calc.ts';
 export * from './schemas.ts';
 export * from './responses.ts';
 export * from './routes.ts';
+export * from './starter-categories.ts';
