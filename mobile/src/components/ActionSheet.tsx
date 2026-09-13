@@ -1,8 +1,9 @@
-import { Modal, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
-import { Card } from './Card.tsx';
-import { Text } from './Text.tsx';
+import { useTheme } from '../app/providers/ThemeProvider';
+import { BottomSheetModal } from './BottomSheetModal';
+import { Text } from './Text';
 
 export interface ActionSheetAction {
   label: string;
@@ -20,60 +21,52 @@ export interface ActionSheetProps {
   onCancel: () => void;
 }
 
-/** Shared bottom-sheet action list, for a set of choices rather than ConfirmDialog's single confirm/cancel. */
-export function ActionSheet({ visible, title, actions, cancelLabel = 'Cancel', onCancel }: ActionSheetProps) {
+/**
+ * Shared bottom-sheet action list.
+ * Uses the primary `BottomSheetModal` component as its foundation.
+ */
+export function ActionSheet({ visible, title, actions, cancelLabel, onCancel }: ActionSheetProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
+  const resolvedCancelLabel = cancelLabel ?? t('common.cancel');
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel}>
-      <Pressable style={{ flex: 1, backgroundColor: theme.colors.overlay }} onPress={onCancel}>
-        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <Pressable onPress={(e) => e.stopPropagation()}>
-            <Card elevated style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
-              {title !== undefined ? (
-                <Text variant="title" style={{ marginBottom: theme.spacing.sm }}>
-                  {title}
-                </Text>
-              ) : null}
-              {actions.map((action, index) => (
-                <Pressable
-                  key={action.label}
-                  testID={action.testID}
-                  disabled={action.disabled}
-                  onPress={() => {
-                    onCancel();
-                    action.onPress();
-                  }}
-                  style={{
-                    paddingVertical: theme.spacing.md,
-                    borderTopWidth: index === 0 ? 0 : 1,
-                    borderTopColor: theme.colors.border,
-                    opacity: action.disabled === true ? 0.5 : 1,
-                  }}
-                >
-                  <Text tone={action.destructive === true ? 'danger' : 'default'} weight="medium">
-                    {action.label}
-                  </Text>
-                </Pressable>
-              ))}
-              <Pressable
-                testID="action-sheet-cancel"
-                onPress={onCancel}
-                style={{
-                  paddingVertical: theme.spacing.md,
-                  borderTopWidth: 1,
-                  borderTopColor: theme.colors.border,
-                  marginTop: theme.spacing.xs,
-                }}
-              >
-                <Text tone="muted" weight="medium" style={{ textAlign: 'center' }}>
-                  {cancelLabel}
-                </Text>
-              </Pressable>
-            </Card>
+    <BottomSheetModal visible={visible} onClose={onCancel} title={title}>
+      <View style={{ gap: theme.spacing.xs }}>
+        {actions.map((action, index) => (
+          <Pressable
+            key={action.label}
+            testID={action.testID}
+            disabled={action.disabled}
+            onPress={action.onPress}
+            style={{
+              paddingVertical: theme.spacing.md,
+              borderTopWidth: index === 0 && title === undefined ? 0 : 1,
+              borderTopColor: theme.colors.border,
+              opacity: action.disabled === true ? 0.5 : 1,
+            }}
+          >
+            <Text tone={action.destructive === true ? 'danger' : 'default'} weight="medium">
+              {action.label}
+            </Text>
           </Pressable>
-        </View>
-      </Pressable>
-    </Modal>
+        ))}
+
+        <Pressable
+          testID="action-sheet-cancel"
+          onPress={onCancel}
+          style={{
+            paddingVertical: theme.spacing.md,
+            borderTopWidth: 1,
+            borderTopColor: theme.colors.border,
+            marginTop: theme.spacing.xs,
+          }}
+        >
+          <Text tone="muted" weight="medium" style={{ textAlign: 'center' }}>
+            {resolvedCancelLabel}
+          </Text>
+        </Pressable>
+      </View>
+    </BottomSheetModal>
   );
 }

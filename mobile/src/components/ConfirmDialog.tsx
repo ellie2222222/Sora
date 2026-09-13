@@ -1,9 +1,16 @@
-import { Modal, Pressable, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import type { LucideIcon } from 'lucide-react-native';
+import { AlertCircle, Info, TriangleAlert } from 'lucide-react-native';
+import { View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
-import { Button } from './Button.tsx';
-import { Card } from './Card.tsx';
-import { Text } from './Text.tsx';
+import { useTheme } from '../app/providers/ThemeProvider';
+import { BottomSheetModal } from './BottomSheetModal';
+import { Button } from './Button';
+import { Input } from './Input';
+import { Text } from './Text';
+
+export type ConfirmDialogVariant = 'danger' | 'warning' | 'info' | 'primary';
 
 export interface ConfirmDialogProps {
   visible: boolean;
@@ -11,49 +18,148 @@ export interface ConfirmDialogProps {
   message?: string;
   confirmLabel: string;
   cancelLabel?: string;
-  /** Renders the confirm button as `danger` instead of `primary`, for an irreversible action. */
+  variant?: ConfirmDialogVariant;
+  /** Renders the confirm button as `danger` instead of `primary` (legacy shorthand, equivalent to variant="danger"). */
   destructive?: boolean;
+  icon?: LucideIcon;
+  loading?: boolean;
+  /**
+   * Exact text the user must type to enable confirmation (e.g. "clear data" or "DELETE").
+   * When specified, renders an Input field in the dialog.
+   */
+  matchText?: string;
+  /** Optional custom instruction label above the match input field. */
+  matchTextLabel?: string;
+  /** Optional placeholder for the match input field. Defaults to `matchText`. */
+  matchTextPlaceholder?: string;
+  /** Whether matching is case-insensitive. Default: true. */
+  matchTextIgnoreCase?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-/** Shared bottom-sheet confirmation, matching the modal pattern already used for the create-wallet sheet. */
+const VARIANT_DEFAULT_ICON: Record<ConfirmDialogVariant, LucideIcon> = {
+  danger: TriangleAlert,
+  warning: AlertCircle,
+  info: Info,
+  primary: Info,
+};
+
+/**
+ * Shared bottom-sheet confirmation modal.
+ * Uses the primary `BottomSheetModal` component as its foundation for consistent
+ * slide-up spring bounce physics, zero-gap bottom anchoring, safe area, and drag gestures.
+ */
 export function ConfirmDialog({
   visible,
   title,
   message,
   confirmLabel,
-  cancelLabel = 'Cancel',
+  cancelLabel,
+  variant,
   destructive = false,
+  icon,
+  loading = false,
+  matchText,
+  matchTextLabel,
+  matchTextPlaceholder,
+  matchTextIgnoreCase = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
+  const [inputText, setInputText] = useState('');
+
+  useEffect(() => {
+    if (visible) setInputText('');
+  }, [visible]);
+
+  const resolvedCancelLabel = cancelLabel ?? t('common.cancel');
+  const resolvedVariant: ConfirmDialogVariant = variant ?? (destructive ? 'danger' : 'primary');
+  const IconComponent = icon ?? VARIANT_DEFAULT_ICON[resolvedVariant];
+
+  const iconColor = {
+    danger: theme.colors.danger,
+    warning: theme.colors.warning,
+    info: theme.colors.primary,
+    primary: theme.colors.primary,
+  }[resolvedVariant];
+
+  const iconBgColor = {
+    danger: theme.colors.dangerMuted,
+    warning: theme.colors.warningMuted,
+    info: theme.colors.primaryMuted,
+    primary: theme.colors.primaryMuted,
+  }[resolvedVariant];
+
+  const confirmBtnVariant = resolvedVariant === 'danger' ? 'danger' : 'primary';
+
+  const isMatchRequired = Boolean(matchText && matchText.trim().length > 0);
+  const normalizedInput = matchTextIgnoreCase ? inputText.trim().toLowerCase() : inputText.trim();
+  const normalizedMatch = matchText ? (matchTextIgnoreCase ? matchText.trim().toLowerCase() : matchText.trim()) : '';
+  const isMatchValid = !isMatchRequired || normalizedInput === normalizedMatch;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel}>
-      <Pressable style={{ flex: 1, backgroundColor: theme.colors.overlay }} onPress={onCancel}>
-        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <Pressable onPress={(e) => e.stopPropagation()}>
-            <Card
-              elevated
-              style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, gap: theme.spacing.md }}
-            >
-              <Text variant="title">{title}</Text>
-              {message !== undefined ? <Text tone="muted">{message}</Text> : null}
-              <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
-                <Button label={cancelLabel} variant="secondary" onPress={onCancel} style={{ flex: 1 }} />
-                <Button
-                  label={confirmLabel}
-                  variant={destructive ? 'danger' : 'primary'}
-                  onPress={onConfirm}
-                  style={{ flex: 1 }}
-                />
-              </View>
-            </Card>
-          </Pressable>
+    <BottomSheetModal visible={visible} onClose={onCancel}>
+      <View style={{ gap: theme.spacing.lg }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
+          <View
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: theme.radius.pill,
+              backgroundColor: iconBgColor,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <IconComponent size={22} color={iconColor} strokeWidth={2} />
+          </View>
+          <Text variant="title" style={{ flex: 1, letterSpacing: 0.3 }}>
+            {title}
+          </Text>
         </View>
-      </Pressable>
-    </Modal>
+
+        {message !== undefined ? (
+          <Text tone="muted" style={{ lineHeight: 22, letterSpacing: 0.2 }}>
+            {message}
+          </Text>
+        ) : null}
+
+        {isMatchRequired ? (
+          <View style={{ gap: theme.spacing.xs }}>
+            <Text variant="caption" tone="muted" style={{ fontSize: 13, letterSpacing: 0.1 }}>
+              {matchTextLabel ?? t('common.matchConfirmPrompt', { word: matchText })}
+            </Text>
+            <Input
+              testID="confirm-dialog-match-input"
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder={matchTextPlaceholder ?? matchText}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+        ) : null}
+
+        <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.xs }}>
+          <Button label={resolvedCancelLabel} variant="secondary" onPress={onCancel} style={{ flex: 1 }} />
+          <Button
+            testID="confirm-dialog-confirm-button"
+            label={confirmLabel}
+            variant={confirmBtnVariant}
+            loading={loading}
+            disabled={!isMatchValid}
+            onPress={() => {
+              if (isMatchValid) {
+                onConfirm();
+              }
+            }}
+            style={{ flex: 1 }}
+          />
+        </View>
+      </View>
+    </BottomSheetModal>
   );
 }

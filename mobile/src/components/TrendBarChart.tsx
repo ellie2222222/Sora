@@ -28,7 +28,7 @@ export function TrendBarChart({ points, height = 140 }: TrendBarChartProps) {
             <View
               style={{
                 width: 6,
-                borderRadius: 3,
+                borderRadius: theme.radius.pill,
                 backgroundColor: theme.colors.income,
                 height: Math.max(2, (point.income / max) * barAreaHeight),
               }}
@@ -36,7 +36,7 @@ export function TrendBarChart({ points, height = 140 }: TrendBarChartProps) {
             <View
               style={{
                 width: 6,
-                borderRadius: 3,
+                borderRadius: theme.radius.pill,
                 backgroundColor: theme.colors.expense,
                 height: Math.max(2, (point.expense / max) * barAreaHeight),
               }}

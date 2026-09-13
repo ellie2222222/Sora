@@ -24,6 +24,7 @@ export const preferencesStore: KeyValueStore = {
 };
 
 export const THEME_STORAGE_KEY = 'finance.preferences.theme.v1';
+export const THEME_MODE_STORAGE_KEY = 'finance.preferences.themeMode.v1';
 export const LOCALE_STORAGE_KEY = 'finance.preferences.locale.v1';
 /** Presence (`'true'`) means the app should resume in guest mode on cold start. */
 export const GUEST_MODE_STORAGE_KEY = 'finance.preferences.guestMode.v1';

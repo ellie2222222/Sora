@@ -25,7 +25,7 @@ export class ApiError extends Error {
   }
 }
 
-export const NETWORK_ERROR_MESSAGE = 'Cannot reach the server. Check your connection and try again.';
+export const NETWORK_ERROR_MESSAGE = 'No internet connection. Check your connection and try again.';
 export const UNKNOWN_ERROR_MESSAGE = 'Something went wrong. Please try again.';
 
 function isErrorBody(value: unknown): value is ApiErrorBody {
@@ -33,6 +33,20 @@ function isErrorBody(value: unknown): value is ApiErrorBody {
   const candidate = value as { error?: unknown; message?: unknown };
   if (typeof candidate.error !== 'object' || candidate.error === null) return false;
   return typeof (candidate.error as { code?: unknown }).code === 'string';
+}
+
+/** Check if an error represents a network/connectivity failure. */
+export function isNetworkError(error: unknown): boolean {
+  if (isApiError(error)) {
+    if (error.status === 0) return true;
+    const msg = error.message.toLowerCase();
+    return msg.includes('network') || msg.includes('cannot reach') || msg.includes('fetch') || msg.includes('failed to fetch');
+  }
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return msg.includes('network') || msg.includes('cannot reach') || msg.includes('fetch') || msg.includes('failed to fetch');
+  }
+  return false;
 }
 
 /** Turn whatever the transport produced into an ApiError, never throwing itself. */

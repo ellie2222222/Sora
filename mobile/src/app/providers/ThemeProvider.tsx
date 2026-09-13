@@ -1,54 +1,120 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Platform } from 'react-native';
+import Animated, {
+  Easing,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
-import { buildTheme, THEME_NAMES, type Theme, type ThemeName } from '../../design-system/index.ts';
-import { authApi } from '../../services/api/auth.ts';
-import { THEME_STORAGE_KEY, preferencesStore } from '../../services/storage/preferencesStore.ts';
-import { useAuth } from './AuthProvider.tsx';
+import { buildTheme, THEME_MODES, THEME_NAMES, type Theme, type ThemeMode, type ThemeName } from '../../design-system/index';
+import { useColorScheme } from 'nativewind';
+import { authApi } from '../../services/api/auth';
+import { THEME_MODE_STORAGE_KEY, THEME_STORAGE_KEY, preferencesStore } from '../../services/storage/preferencesStore';
+import { useAuth } from './AuthProvider';
 
 interface ThemeContextValue {
   theme: Theme;
   themeName: ThemeName;
+  themeMode: ThemeMode;
   setThemeName: (name: ThemeName) => Promise<void>;
+  setThemeMode: (mode: ThemeMode) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 const DEFAULT_THEME: ThemeName = 'obsidian';
+const DEFAULT_MODE: ThemeMode = 'dark';
+
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const STYLE_ID = 'sora-theme-transition-styles';
+  if (!document.getElementById(STYLE_ID)) {
+    const styleEl = document.createElement('style');
+    styleEl.id = STYLE_ID;
+    styleEl.innerHTML = `
+      * {
+        transition: background-color 350ms cubic-bezier(0.4, 0, 0.2, 1),
+                    border-color 350ms cubic-bezier(0.4, 0, 0.2, 1),
+                    color 350ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
+  }
+}
 
 function isThemeName(value: string | null | undefined): value is ThemeName {
   return value !== null && value !== undefined && (THEME_NAMES as readonly string[]).includes(value);
 }
 
-/**
- * Must render inside AuthProvider — it reads `user.theme` to apply the
- * server's stored preference once, the first time a session is known, the
- * same hydrate-once pattern LocaleProvider uses (and for the same reason: a
- * returning user's device should show what they last chose, but this device's
- * own later choice should not keep being overwritten by a stale server value).
- *
- * The default is Obsidian regardless of the device's own light/dark setting —
- * unlike the dark/light toggle this replaced, the product spec calls for one
- * fixed default rather than following the system.
- */
+function isThemeMode(value: string | null | undefined): value is ThemeMode {
+  return value !== null && value !== undefined && (THEME_MODES as readonly string[]).includes(value);
+}
+
+function AnimatedThemeRoot({ children, theme }: { children: ReactNode; theme: Theme }) {
+  const prevBg = useRef(theme.colors.background);
+  const nextBg = theme.colors.background;
+  const progress = useSharedValue(1);
+
+  const [colors, setColors] = useState({ from: prevBg.current, to: nextBg });
+
+  useEffect(() => {
+    if (prevBg.current !== nextBg) {
+      setColors({ from: prevBg.current, to: nextBg });
+      prevBg.current = nextBg;
+      progress.value = 0;
+      progress.value = withTiming(1, {
+        duration: 380,
+        easing: Easing.inOut(Easing.ease),
+      });
+    }
+  }, [nextBg, progress]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const backgroundColor = interpolateColor(
+      progress.value,
+      [0, 1],
+      [colors.from, colors.to]
+    );
+    return {
+      flex: 1,
+      backgroundColor,
+    };
+  });
+
+  return <Animated.View style={animatedStyle}>{children}</Animated.View>;
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }): ReactNode {
   const { user } = useAuth();
+  const { setColorScheme } = useColorScheme();
   const [themeName, setThemeNameState] = useState<ThemeName>(DEFAULT_THEME);
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(DEFAULT_MODE);
   const hydratedFromServer = useRef(false);
   const hydratedFromCache = useRef(false);
 
   useEffect(() => {
-    void preferencesStore.get(THEME_STORAGE_KEY).then((cached) => {
+    try {
+      setColorScheme(themeMode);
+    } catch {
+      // Ignore if nativewind colorScheme configuration is not yet initialized
+    }
+  }, [themeMode, setColorScheme]);
+
+  useEffect(() => {
+    void Promise.all([
+      preferencesStore.get(THEME_STORAGE_KEY),
+      preferencesStore.get(THEME_MODE_STORAGE_KEY),
+    ]).then(([cachedTheme, cachedMode]) => {
       hydratedFromCache.current = true;
-      if (isThemeName(cached)) setThemeNameState(cached);
+      if (isThemeName(cachedTheme)) setThemeNameState(cachedTheme);
+      if (isThemeMode(cachedMode)) setThemeModeState(cachedMode);
     });
   }, []);
 
   useEffect(() => {
     if (user === null || hydratedFromServer.current) return;
     hydratedFromServer.current = true;
-    // A cached on-device choice (set before this user was known, e.g. a
-    // previous session on a shared device) still loses to the server once a
-    // user is confirmed — the server is the returning user's source of truth.
     if (isThemeName(user.theme) && user.theme !== themeName) {
       setThemeNameState(user.theme);
       void preferencesStore.set(THEME_STORAGE_KEY, user.theme);
@@ -64,10 +130,25 @@ export function ThemeProvider({ children }: { children: ReactNode }): ReactNode 
     [user],
   );
 
-  const theme = useMemo(() => buildTheme(themeName), [themeName]);
-  const value = useMemo(() => ({ theme, themeName, setThemeName }), [theme, themeName, setThemeName]);
+  const setThemeMode = useMemo(
+    () => async (next: ThemeMode) => {
+      setThemeModeState(next);
+      await preferencesStore.set(THEME_MODE_STORAGE_KEY, next);
+    },
+    [],
+  );
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  const theme = useMemo(() => buildTheme(themeName, themeMode), [themeName, themeMode]);
+  const value = useMemo(
+    () => ({ theme, themeName, themeMode, setThemeName, setThemeMode }),
+    [theme, themeName, themeMode, setThemeName, setThemeMode],
+  );
+
+  return (
+    <ThemeContext.Provider value={value}>
+      <AnimatedThemeRoot theme={theme}>{children}</AnimatedThemeRoot>
+    </ThemeContext.Provider>
+  );
 }
 
 export function useTheme(): Theme {

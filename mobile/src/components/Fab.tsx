@@ -1,37 +1,40 @@
 import { Plus } from 'lucide-react-native';
-import { Pressable, type PressableProps } from 'react-native';
+import { type PressableProps } from 'react-native';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
+import { useTheme } from '../app/providers/ThemeProvider';
+import { AnimatedPressable } from './AnimatedPressable';
 
-export interface FabProps extends Omit<PressableProps, 'children'> {
+export interface FabProps extends Omit<PressableProps, 'children' | 'style'> {
   size?: number;
+  bottomOffset?: number;
 }
 
-/** The floating add-transaction button. Positioning above the tab bar is the caller's job. */
-export function Fab({ size = 56, style, testID = 'fab-add-transaction', ...pressableProps }: FabProps) {
+/** The floating add-transaction button with smooth tactile micro-animations. */
+export function Fab({ size = 56, bottomOffset = 0, testID = 'fab-add-transaction', ...pressableProps }: FabProps) {
   const theme = useTheme();
 
   return (
-    <Pressable
+    <AnimatedPressable
       {...pressableProps}
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel="Add transaction"
-      style={(state) => [
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: theme.colors.primary,
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: state.pressed ? 0.85 : 1,
-          ...theme.shadows.lg,
-        },
-        typeof style === 'function' ? style(state) : style,
-      ]}
+      scaleTo={0.92}
+      style={{
+        position: 'absolute',
+        right: theme.spacing.md,
+        bottom: theme.spacing.md + bottomOffset,
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: theme.colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...theme.shadows.lg,
+      }}
     >
       <Plus size={size * 0.46} color={theme.colors.onPrimary} strokeWidth={2.5} />
-    </Pressable>
+    </AnimatedPressable>
   );
 }
+

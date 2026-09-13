@@ -9,6 +9,7 @@ import { sumScaledByKey } from '../utils/money.ts';
 import { Money } from './Money.tsx';
 import { Text } from './Text.tsx';
 import { TransactionRow } from './TransactionRow.tsx';
+import { ListItemEnter } from './ListItemEnter.tsx';
 
 export interface TransactionListSectionProps {
   groups: DayGroup[];
@@ -46,7 +47,9 @@ export function TransactionListSection({ groups, showDayTotals = false }: Transa
                     : { borderTopWidth: 1, borderTopColor: theme.colors.border }
                 }
               >
-                <TransactionRow transaction={transaction} testID={`transaction-row-${transaction.id}`} />
+                <ListItemEnter>
+                  <TransactionRow transaction={transaction} testID={`transaction-row-${transaction.id}`} />
+                </ListItemEnter>
               </View>
             ))}
           </View>

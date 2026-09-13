@@ -1,9 +1,10 @@
+import type { LucideIcon } from 'lucide-react-native';
 import { ActivityIndicator, Pressable, StyleSheet, type PressableProps } from 'react-native';
 
 import { useTheme } from '../app/providers/ThemeProvider.tsx';
 import { Text } from './Text.tsx';
 
-type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'danger-outline' | 'ghost';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends Omit<PressableProps, 'children'> {
@@ -12,10 +13,13 @@ export interface ButtonProps extends Omit<PressableProps, 'children'> {
   size?: ButtonSize;
   loading?: boolean;
   fullWidth?: boolean;
+  icon?: LucideIcon;
   testID?: string;
 }
 
-const SIZE_HEIGHT: Record<ButtonSize, number> = { sm: 36, md: 48, lg: 56 };
+const SIZE_HEIGHT: Record<ButtonSize, number> = { sm: 30, md: 38, lg: 46 };
+const SIZE_PADDING_VERTICAL: Record<ButtonSize, number> = { sm: 4, md: 6, lg: 8 };
+const SIZE_PADDING_HORIZONTAL: Record<ButtonSize, number> = { sm: 12, md: 16, lg: 20 };
 
 export function Button({
   label,
@@ -23,6 +27,7 @@ export function Button({
   size = 'md',
   loading = false,
   fullWidth = false,
+  icon: Icon,
   disabled,
   testID,
   style,
@@ -31,14 +36,20 @@ export function Button({
   const theme = useTheme();
   const isDisabled = disabled === true || loading;
 
-  const backgroundColor = {
+  const rawBackgroundColor = {
     primary: theme.colors.primary,
-    secondary: theme.colors.surfaceElevated,
+    secondary: theme.colors.surfaceMuted,
     danger: theme.colors.danger,
+    'danger-outline': 'transparent',
     ghost: 'transparent',
   }[variant];
 
-  const textTone = variant === 'primary' || variant === 'danger' ? 'onPrimary' : 'default';
+  const backgroundColor = isDisabled && (variant === 'primary' || variant === 'danger') ? theme.colors.surfaceMuted : rawBackgroundColor;
+  const textTone = isDisabled ? 'muted' : variant === 'primary' || variant === 'danger' ? 'onPrimary' : variant === 'danger-outline' ? 'danger' : 'default';
+  const iconColor = isDisabled ? theme.colors.textMuted : variant === 'primary' || variant === 'danger' ? theme.colors.onPrimary : variant === 'danger-outline' ? theme.colors.danger : theme.colors.text;
+  const iconSize = size === 'sm' ? 14 : size === 'lg' ? 18 : 16;
+  const borderWidth = variant === 'ghost' || variant === 'danger-outline' || variant === 'secondary' ? 1 : 0;
+  const borderColor = isDisabled ? theme.colors.border : variant === 'danger-outline' ? theme.colors.danger : theme.colors.border;
 
   return (
     <Pressable
@@ -53,10 +64,11 @@ export function Button({
           backgroundColor,
           height: SIZE_HEIGHT[size],
           borderRadius: theme.radius.md,
-          paddingHorizontal: theme.spacing.lg,
-          opacity: isDisabled ? 0.5 : state.pressed ? 0.85 : 1,
-          borderWidth: variant === 'ghost' ? 1 : 0,
-          borderColor: theme.colors.border,
+          paddingVertical: SIZE_PADDING_VERTICAL[size],
+          paddingHorizontal: SIZE_PADDING_HORIZONTAL[size],
+          opacity: isDisabled ? 0.7 : state.pressed ? 0.85 : 1,
+          borderWidth,
+          borderColor,
           alignSelf: fullWidth ? 'stretch' : 'flex-start',
         },
         typeof style === 'function' ? style(state) : style,
@@ -65,9 +77,12 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? theme.colors.onPrimary : theme.colors.primary} />
       ) : (
-        <Text variant="label" weight="semibold" tone={textTone}>
-          {label}
-        </Text>
+        <>
+          {Icon !== undefined ? <Icon size={iconSize} color={iconColor} style={{ marginRight: theme.spacing.xs }} /> : null}
+          <Text variant="label" weight="semibold" tone={textTone}>
+            {label}
+          </Text>
+        </>
       )}
     </Pressable>
   );
