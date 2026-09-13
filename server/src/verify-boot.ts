@@ -16,10 +16,9 @@ import { HealthModule } from './health/health.module.ts';
 import { TransactionsModule } from './transactions/transactions.module.ts';
 import { WalletsModule } from './wallets/wallets.module.ts';
 
-// Scratch harness, mirroring app.module.ts plus the not-yet-wired
-// TransactionsModule, to exercise the new module against a real Postgres
-// without editing app.module.ts (out of scope for this change). Deleted
-// after verification.
+// Scratch harness for exercising a module against a real Postgres without
+// booting the full app.module.ts. Meant to be deleted after verification —
+// it was not; see verifications/2026-09-03-infra-audit.md.
 @Module({
   imports: [
     ConfigModule,
