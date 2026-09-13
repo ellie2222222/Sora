@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { DarkModeProvider } from '@/components/providers/dark-mode-provider'
+import { ColorThemeProvider } from '@/components/providers/color-theme-provider'
 import { LocaleProvider } from '@/components/providers/locale-provider'
 import { ToastProvider } from '@/components/providers/toast-provider'
 
@@ -16,11 +17,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-50 transition-colors">
+      <body className="bg-background text-secondary transition-colors duration-300">
         <DarkModeProvider>
-          <LocaleProvider initialLocale="en">
-            <ToastProvider>{children}</ToastProvider>
-          </LocaleProvider>
+          <ColorThemeProvider>
+            <LocaleProvider initialLocale="en">
+              <ToastProvider>{children}</ToastProvider>
+            </LocaleProvider>
+          </ColorThemeProvider>
         </DarkModeProvider>
       </body>
     </html>

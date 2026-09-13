@@ -4,6 +4,94 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* Default Theme (Teal) */
+  :root {
+    --color-primary: 44 122 123;   /* #2C7A7B */
+    --color-secondary: 45 55 72;   /* #2D3748 */
+    --color-background: 253 251 247; /* #FDFBF7 */
+    --color-surface: 255 255 255;  /* #FFFFFF */
+    --color-soft: 230 255 250;     /* #E6FFFA */
+  }
+
+  /* Default Theme Dark Mode */
+  .dark {
+    --color-primary: 129 230 217;  /* #81E6D9 */
+    --color-secondary: 160 174 192;/* #A0AEC0 */
+    --color-background: 26 32 44;  /* #1A202C */
+    --color-surface: 45 55 72;     /* #2D3748 */
+    --color-soft: 35 78 82;        /* #234E52 */
+  }
+
+  /* Ocean Theme */
+  [data-theme="ocean"] {
+    --color-primary: 43 108 176;   /* #2B6CB0 */
+    --color-secondary: 45 55 72;   /* #2D3748 */
+    --color-background: 247 250 252; /* #F7FAFC */
+    --color-surface: 255 255 255;  /* #FFFFFF */
+    --color-soft: 235 248 255;     /* #EBF8FF */
+  }
+
+  .dark[data-theme="ocean"] {
+    --color-primary: 99 179 237;   /* #63B3ED */
+    --color-secondary: 160 174 192;/* #A0AEC0 */
+    --color-background: 26 32 44;  /* #1A202C */
+    --color-surface: 45 55 72;     /* #2D3748 */
+    --color-soft: 42 67 101;       /* #2A4365 */
+  }
+
+  /* Sunset Theme */
+  [data-theme="sunset"] {
+    --color-primary: 192 86 33;    /* #C05621 */
+    --color-secondary: 60 54 51;   /* #3C3633 */
+    --color-background: 255 250 240; /* #FFFAF0 */
+    --color-surface: 255 255 255;  /* #FFFFFF */
+    --color-soft: 254 235 200;     /* #FEEBC8 */
+  }
+
+  .dark[data-theme="sunset"] {
+    --color-primary: 251 211 141;  /* #FBD38D */
+    --color-secondary: 160 174 192;/* #A0AEC0 */
+    --color-background: 45 55 72;  /* #2D3748 */
+    --color-surface: 74 85 104;    /* #4A5568 */
+    --color-soft: 123 52 30;       /* #7B341E */
+  }
+
+  /* Forest Theme */
+  [data-theme="forest"] {
+    --color-primary: 47 133 90;    /* #2F855A */
+    --color-secondary: 34 84 61;   /* #22543D */
+    --color-background: 240 255 244; /* #F0FFF4 */
+    --color-surface: 255 255 255;  /* #FFFFFF */
+    --color-soft: 198 246 213;     /* #C6F6D5 */
+  }
+
+  .dark[data-theme="forest"] {
+    --color-primary: 104 211 145;  /* #68D391 */
+    --color-secondary: 160 174 192;/* #A0AEC0 */
+    --color-background: 26 32 44;  /* #1A202C */
+    --color-surface: 45 55 72;     /* #2D3748 */
+    --color-soft: 34 84 61;        /* #22543D */
+  }
+
+  /* Amethyst Theme */
+  [data-theme="amethyst"] {
+    --color-primary: 107 70 193;   /* #6B46C1 */
+    --color-secondary: 68 51 122;  /* #44337A */
+    --color-background: 250 245 255; /* #FAF5FF */
+    --color-surface: 255 255 255;  /* #FFFFFF */
+    --color-soft: 233 216 253;     /* #E9D8FD */
+  }
+
+  .dark[data-theme="amethyst"] {
+    --color-primary: 183 148 244;  /* #B794F4 */
+    --color-secondary: 160 174 192;/* #A0AEC0 */
+    --color-background: 26 32 44;  /* #1A202C */
+    --color-surface: 45 55 72;     /* #2D3748 */
+    --color-soft: 68 51 122;       /* #44337A */
+  }
+}
+
 * {
   margin: 0;
   padding: 0;

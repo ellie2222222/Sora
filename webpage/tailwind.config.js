@@ -9,8 +9,11 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'primary': '#3b82f6',
-        'secondary': '#6b7280',
+        primary: 'rgb(var(--color-primary) / <alpha-value>)',
+        secondary: 'rgb(var(--color-secondary) / <alpha-value>)',
+        background: 'rgb(var(--color-background) / <alpha-value>)',
+        surface: 'rgb(var(--color-surface) / <alpha-value>)',
+        soft: 'rgb(var(--color-soft) / <alpha-value>)',
       },
       fontFamily: {
         // Quicksand leads the stack so Tailwind's own preflight `html` rule and
