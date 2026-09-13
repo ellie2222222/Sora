@@ -1,4 +1,4 @@
-import { colorsByTheme, THEME_MODE_OF, type ColorTokens, type ThemeMode, type ThemeName } from './colors.ts';
+import { getThemeColors, type ColorTokens, type ThemeMode, type ThemeName } from './colors.ts';
 import { radius, type Radius } from './radius.ts';
 import { buildShadows, type Shadows } from './shadows.ts';
 import { spacing, type Spacing } from './spacing.ts';
@@ -6,7 +6,6 @@ import { fontFamily, fontSize, fontWeight, numericFontVariant, type FontFamily, 
 
 export interface Theme {
   name: ThemeName;
-  /** Derived from `name` (Obsidian is dark, the other four are light) — only for choices that genuinely need dark-vs-light, e.g. the status bar style. */
   mode: ThemeMode;
   colors: ColorTokens;
   spacing: Spacing;
@@ -18,11 +17,11 @@ export interface Theme {
   numericFontVariant: typeof numericFontVariant;
 }
 
-export function buildTheme(name: ThemeName): Theme {
-  const colors = colorsByTheme[name];
+export function buildTheme(name: ThemeName, mode: ThemeMode = 'dark'): Theme {
+  const colors = getThemeColors(name, mode);
   return {
     name,
-    mode: THEME_MODE_OF[name],
+    mode,
     colors,
     spacing,
     radius,

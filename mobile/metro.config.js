@@ -3,6 +3,7 @@
 // root and resolve the hoisted root node_modules as well as the app's own.
 const path = require('path');
 const { getDefaultConfig } = require('expo/metro-config');
+const { withNativeWind } = require('nativewind/metro');
 
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, '..');
@@ -14,6 +15,12 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
+config.resolver.extraNodeModules = {
+  '@': path.resolve(projectRoot, 'src'),
+  '@sora/contracts': path.resolve(workspaceRoot, 'packages/contracts'),
+};
 config.resolver.unstable_enablePackageExports = true;
 
-module.exports = config;
+
+module.exports = withNativeWind(config, { input: './global.css' });
+
