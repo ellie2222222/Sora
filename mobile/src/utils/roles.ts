@@ -6,7 +6,7 @@
  * security boundary, and nothing here may be the only check on a write.
  */
 
-import { REQUIRED_ROLE, roleSatisfies, type WalletRole } from '@sora/contracts';
+import { REQUIRED_ROLE, roleSatisfies, WalletRole } from '@sora/contracts';
 
 export interface WalletPermissions {
   canRead: boolean;
@@ -52,13 +52,27 @@ export function canTransferBetween(
 }
 
 export const ROLE_LABELS: Record<WalletRole, string> = {
-  OWNER: 'Owner',
-  EDITOR: 'Editor',
-  VIEWER: 'Viewer',
+  [WalletRole.OWNER]: 'Owner',
+  [WalletRole.EDITOR]: 'Editor',
+  [WalletRole.VIEWER]: 'Viewer',
 };
 
 export const ROLE_DESCRIPTIONS: Record<WalletRole, string> = {
-  OWNER: 'Full control, including members and roles',
-  EDITOR: 'Can add and edit money records',
-  VIEWER: 'Can look, cannot change anything',
+  [WalletRole.OWNER]: 'Full control, including members and roles',
+  [WalletRole.EDITOR]: 'Can add and edit money records',
+  [WalletRole.VIEWER]: 'Can look, cannot change anything',
 };
+
+export function getRoleLabel(role: WalletRole, t?: (key: string) => string): string {
+  if (!t) return ROLE_LABELS[role];
+  const key = `roles.${role.toLowerCase()}`;
+  const translated = t(key);
+  return translated !== key ? translated : ROLE_LABELS[role];
+}
+
+export function getRoleDescription(role: WalletRole, t?: (key: string) => string): string {
+  if (!t) return ROLE_DESCRIPTIONS[role];
+  const key = `roles.${role.toLowerCase()}Desc`;
+  const translated = t(key);
+  return translated !== key ? translated : ROLE_DESCRIPTIONS[role];
+}

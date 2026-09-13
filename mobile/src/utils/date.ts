@@ -7,6 +7,8 @@
  * "today" and verbatim for anything that arrived as a date already.
  */
 
+import i18next from 'i18next';
+
 export type CalendarDay = string;
 export type Instant = string;
 
@@ -46,9 +48,13 @@ export function replaceDay(instant: Instant, day: CalendarDay): Instant {
   return `${day}${instant.slice(10)}`;
 }
 
-export function parseDay(day: CalendarDay): { year: number; month: number; date: number } {
+export function parseDay(day?: CalendarDay | null): { year: number; month: number; date: number } {
+  if (!day || typeof day !== 'string' || !day.includes('-')) {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() + 1, date: d.getDate() };
+  }
   const [year = '1970', month = '01', date = '01'] = day.split('-');
-  return { year: Number(year), month: Number(month), date: Number(date) };
+  return { year: Number(year) || 1970, month: Number(month) || 1, date: Number(date) || 1 };
 }
 
 export function startOfMonth(day: CalendarDay = today()): CalendarDay {
@@ -100,30 +106,49 @@ const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
 export const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 
-export function monthName(month: number): string {
-  return MONTH_NAMES[month - 1] ?? '';
+export function monthName(month: number, locale: string = i18next.language || 'en'): string {
+  const validMonth = Math.max(1, Math.min(12, Number(month) || 1));
+  const date = new Date(Date.UTC(2026, validMonth - 1, 15));
+  return date.toLocaleDateString(locale, { month: 'short', timeZone: 'UTC' });
 }
 
-export function formatDay(day: CalendarDay): string {
+export function formatDay(day: CalendarDay, locale: string = i18next.language || 'en'): string {
+  if (!day || typeof day !== 'string') return '';
   const { year, month, date } = parseDay(day);
-  return `${date} ${monthName(month)} ${year}`;
+  const d = new Date(Date.UTC(year, month - 1, date));
+  if (Number.isNaN(d.getTime())) return day;
+  return d.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
-export function formatMonthYear(day: CalendarDay): string {
+export function formatMonthYear(day: CalendarDay, locale: string = i18next.language || 'en'): string {
+  if (!day || typeof day !== 'string') return '';
   const { year, month } = parseDay(day);
-  return `${monthName(month)} ${year}`;
+  const d = new Date(Date.UTC(year, month - 1, 15));
+  if (Number.isNaN(d.getTime())) return day;
+  return d.toLocaleDateString(locale, { month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
 /** "Today" / "Yesterday" / "22 Aug 2026" — the transaction list's day headers. */
-export function formatDayHeading(day: CalendarDay, reference: CalendarDay = today()): string {
-  if (day === reference) return 'Today';
-  if (day === addDays(reference, -1)) return 'Yesterday';
+export function formatDayHeading(
+  day: CalendarDay,
+  reference: CalendarDay = today(),
+  locale: string = i18next.language || 'en',
+): string {
+  if (!day || typeof day !== 'string') return '';
+  if (day === reference) return i18next.t('common.today', { defaultValue: 'Today' });
+  if (day === addDays(reference, -1)) return i18next.t('common.yesterday', { defaultValue: 'Yesterday' });
+
   const { year, month, date } = parseDay(day);
-  const weekday = WEEKDAY_NAMES[new Date(Date.UTC(year, month - 1, date)).getUTCDay()] ?? '';
+  const d = new Date(Date.UTC(year, month - 1, date));
+  if (Number.isNaN(d.getTime())) return day;
   const sameYear = parseDay(reference).year === year;
-  return sameYear
-    ? `${weekday}, ${date} ${monthName(month)}`
-    : `${weekday}, ${date} ${monthName(month)} ${year}`;
+
+  return d.toLocaleDateString(
+    locale,
+    sameYear
+      ? { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }
+      : { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' },
+  );
 }
 
 export function formatTimeOfDay(instant: Instant): string {
