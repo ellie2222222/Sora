@@ -1,0 +1,126 @@
+import { useEffect, useState } from 'react';
+import { ScrollView, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { ACCOUNT_TYPES, AccountType } from '@sora/contracts';
+
+import { BottomSheetModal, Button, Input, Text } from '../../../components';
+import { useTheme } from '../../../app/providers/ThemeProvider';
+import { useWallets } from '../../../app/providers/WalletProvider';
+import { useCreateAccountMutation } from '../../../app/store/api/accountsApi';
+import { messageOf } from '../../../utils/errors';
+
+export interface AddAccountModalProps {
+  visible: boolean;
+  walletId?: string;
+  onClose: () => void;
+}
+
+export function AddAccountModal({ visible, walletId: propWalletId, onClose }: AddAccountModalProps) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const { activeWallet } = useWallets();
+  const walletId = propWalletId ?? activeWallet?.id;
+  const [createAccount, { isLoading: isCreating }] = useCreateAccountMutation();
+
+  const [name, setName] = useState('');
+  const [type, setType] = useState<AccountType>(AccountType.BANK_ACCOUNT);
+  const [currency, setCurrency] = useState(activeWallet?.balances[0]?.currency ?? 'VND');
+  const [initialBalance, setInitialBalance] = useState('0');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      setName('');
+      setType(AccountType.BANK_ACCOUNT);
+      setCurrency(activeWallet?.balances[0]?.currency ?? 'VND');
+      setInitialBalance('0');
+      setError(null);
+    }
+  }, [visible, activeWallet]);
+
+  const TYPE_LABEL: Record<AccountType, string> = {
+    [AccountType.BANK_ACCOUNT]: t('accounts.bankAccount', { defaultValue: 'Bank account' }),
+    [AccountType.CASH]: t('accounts.cash', { defaultValue: 'Cash' }),
+    [AccountType.E_WALLET]: t('accounts.eWallet', { defaultValue: 'E-wallet' }),
+    [AccountType.CREDIT_CARD]: t('accounts.creditCard', { defaultValue: 'Credit card' }),
+  };
+
+  if (!visible) return null;
+
+  if (walletId === undefined) {
+    return (
+      <BottomSheetModal visible={visible} onClose={onClose} title={t('accounts.addAccount')}>
+        <View style={{ padding: theme.spacing.lg, alignItems: 'center', justifyContent: 'center' }}>
+          <Text tone="muted">{t('accounts.noWalletSelected', { defaultValue: 'No wallet selected.' })}</Text>
+        </View>
+      </BottomSheetModal>
+    );
+  }
+
+  async function handleSubmit() {
+    setError(null);
+    try {
+      await createAccount({
+        walletId: walletId as string,
+        name,
+        type,
+        currency,
+        initialBalance,
+      }).unwrap();
+      onClose();
+    } catch (submitError) {
+      setError(messageOf(submitError));
+    }
+  }
+
+  return (
+    <BottomSheetModal visible={visible} onClose={onClose} title={t('accounts.addAccount')}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.xl }}
+      >
+        <Input testID="add-account-name" label={t('categories.name', { defaultValue: 'Name' })} placeholder={t('accounts.namePlaceholder', 'e.g. Vietcombank VND')} value={name} onChangeText={setName} />
+
+        <View style={{ gap: theme.spacing.sm }}>
+          <Text variant="label" tone="muted">
+            {t('transactions.type', { defaultValue: 'Type' })}
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
+            {ACCOUNT_TYPES.map((candidate) => (
+              <Button
+                key={candidate}
+                testID={`add-account-type-${candidate}`}
+                label={TYPE_LABEL[candidate]}
+                size="sm"
+                variant={type === candidate ? 'primary' : 'secondary'}
+                onPress={() => setType(candidate)}
+              />
+            ))}
+          </View>
+        </View>
+
+        <Input testID="add-account-currency" label={t('accounts.currency', { defaultValue: 'Currency' })} autoCapitalize="characters" maxLength={3} value={currency} onChangeText={setCurrency} />
+
+        <Input
+          testID="add-account-initial-balance"
+          label={type === AccountType.CREDIT_CARD ? t('accounts.openingBalanceCreditCard', { defaultValue: 'Opening balance (negative if you owe)' }) : t('accounts.openingBalance', { defaultValue: 'Opening balance' })}
+          keyboardType="numbers-and-punctuation"
+          value={initialBalance}
+          onChangeText={setInitialBalance}
+        />
+
+        {error !== null ? <Text tone="danger">{error}</Text> : null}
+
+        <Button
+          testID="add-account-submit"
+          label={t('accounts.addAccount')}
+          onPress={handleSubmit}
+          loading={isCreating}
+          disabled={name.trim().length === 0}
+          fullWidth
+        />
+      </ScrollView>
+    </BottomSheetModal>
+  );
+}

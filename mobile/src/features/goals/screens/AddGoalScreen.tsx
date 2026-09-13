@@ -1,15 +1,18 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
-import { Button, Input, Text } from '../../../components/index.ts';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useWallets } from '../../../app/providers/WalletProvider.tsx';
-import { useCreateGoalMutation } from '../../../app/store/api/goalsApi.ts';
-import { messageOf } from '../../../utils/errors.ts';
-import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
+import { BottomSheetModal, Button, Input, Text } from '../../../components';
+import { useTheme } from '../../../app/providers/ThemeProvider';
+import { useWallets } from '../../../app/providers/WalletProvider';
+import { useCreateGoalMutation } from '../../../app/store/api/goalsApi';
+import { messageOf } from '../../../utils/errors';
+import type { AppStackScreenProps } from '../../../app/navigation/types';
+
 
 export function AddGoalScreen({ navigation }: AppStackScreenProps<'AddGoal'>) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { activeWallet } = useWallets();
   const [createGoal, { isLoading: isCreating }] = useCreateGoalMutation();
 
@@ -18,13 +21,17 @@ export function AddGoalScreen({ navigation }: AppStackScreenProps<'AddGoal'>) {
   const [targetDate, setTargetDate] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  if (activeWallet === null) return null;
+  if (activeWallet === null) {
+    return (
+      <BottomSheetModal visible={true} onClose={() => navigation.goBack()} title={t('goals.newGoal')}>
+        <View style={{ padding: theme.spacing.lg, alignItems: 'center', justifyContent: 'center' }}>
+          <Text tone="muted">{t('accounts.noWalletSelected', { defaultValue: 'No wallet selected.' })}</Text>
+        </View>
+      </BottomSheetModal>
+    );
+  }
 
   async function handleSubmit() {
-    // Re-checked here, not just at the top of the component: TS does not carry
-    // a closed-over const's narrowing into a nested function body, and this
-    // guard also protects against activeWallet becoming null between renders
-    // (e.g. the wallet was archived) if this closure outlives that render.
     if (activeWallet === null) return;
 
     setError(null);
@@ -43,38 +50,39 @@ export function AddGoalScreen({ navigation }: AppStackScreenProps<'AddGoal'>) {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.colors.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
-        <Input testID="add-goal-name" label="Name" placeholder="e.g. New Laptop" value={name} onChangeText={setName} />
-        <Input
-          testID="add-goal-target"
-          label="Target amount"
-          keyboardType="decimal-pad"
-          value={targetAmount}
-          onChangeText={setTargetAmount}
-        />
-        <Input
-          testID="add-goal-date"
-          label="Target date (optional)"
-          placeholder="YYYY-MM-DD"
-          value={targetDate}
-          onChangeText={setTargetDate}
-        />
+    <BottomSheetModal visible={true} onClose={() => navigation.goBack()} title={t('goals.newGoal')}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.xl }}
+      >
+          <Input testID="add-goal-name" label={t('categories.name', { defaultValue: 'Name' })} placeholder={t('goals.namePlaceholder', 'e.g. New Laptop')} value={name} onChangeText={setName} />
+          <Input
+            testID="add-goal-target"
+            label={t('goals.targetAmount', { defaultValue: 'Target amount' })}
+            keyboardType="decimal-pad"
+            value={targetAmount}
+            onChangeText={setTargetAmount}
+          />
+          <Input
+            testID="add-goal-date"
+            label={t('goals.targetDateOptional', { defaultValue: 'Target date (optional)' })}
+            placeholder="YYYY-MM-DD"
+            value={targetDate}
+            onChangeText={setTargetDate}
+          />
 
-        {error !== null ? <Text tone="danger">{error}</Text> : null}
+          {error !== null ? <Text tone="danger">{error}</Text> : null}
 
-        <Button
-          testID="add-goal-submit"
-          label="Create goal"
-          onPress={handleSubmit}
-          loading={isCreating}
-          disabled={name.trim().length === 0}
-          fullWidth
-        />
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <Button
+            testID="add-goal-submit"
+            label={t('goals.newGoal')}
+            onPress={handleSubmit}
+            loading={isCreating}
+            disabled={name.trim().length === 0}
+            fullWidth
+          />
+        </ScrollView>
+    </BottomSheetModal>
   );
 }

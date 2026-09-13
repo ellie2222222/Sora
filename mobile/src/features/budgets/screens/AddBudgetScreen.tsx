@@ -1,24 +1,21 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { BUDGET_PERIOD_TYPES, type BudgetPeriodType } from '@sora/contracts';
 
-import { Button, Input, Text } from '../../../components/index.ts';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useWallets } from '../../../app/providers/WalletProvider.tsx';
-import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
-import { useCreateBudgetMutation } from '../../../app/store/api/budgetsApi.ts';
-import { messageOf } from '../../../utils/errors.ts';
-import { addMonths, endOfMonth, startOfMonth, today } from '../../../utils/date.ts';
-import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
+import { BottomSheetModal, Button, Input, Text } from '../../../components';
+import { useTheme } from '../../../app/providers/ThemeProvider';
+import { useWallets } from '../../../app/providers/WalletProvider';
+import { CategoryPicker } from '../../categories/components/CategoryPicker';
+import { useCreateBudgetMutation } from '../../../app/store/api/budgetsApi';
+import { messageOf } from '../../../utils/errors';
+import { addMonths, endOfMonth, startOfMonth, today } from '../../../utils/date';
+import type { AppStackScreenProps } from '../../../app/navigation/types';
 
-const PERIOD_LABEL: Record<BudgetPeriodType, string> = {
-  WEEKLY: 'Weekly',
-  MONTHLY: 'Monthly',
-  CUSTOM: 'Custom',
-};
 
 export function AddBudgetScreen({ navigation }: AppStackScreenProps<'AddBudget'>) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { activeWallet } = useWallets();
   const [createBudget, { isLoading: isCreating }] = useCreateBudgetMutation();
 
@@ -30,10 +27,16 @@ export function AddBudgetScreen({ navigation }: AppStackScreenProps<'AddBudget'>
 
   const walletId = activeWallet?.id;
 
+  const PERIOD_LABEL: Record<BudgetPeriodType, string> = {
+    WEEKLY: t('budgets.weekly', { defaultValue: 'Weekly' }),
+    MONTHLY: t('budgets.monthly', { defaultValue: 'Monthly' }),
+    CUSTOM: t('budgets.custom', { defaultValue: 'Custom' }),
+  };
+
   async function handleSubmit() {
     setError(null);
     if (categoryId === null) {
-      setError('Choose a category first.');
+      setError(t('budgets.chooseCategoryFirst', { defaultValue: 'Choose a category first.' }));
       return;
     }
     if (walletId === undefined) return;
@@ -58,53 +61,62 @@ export function AddBudgetScreen({ navigation }: AppStackScreenProps<'AddBudget'>
     }
   }
 
-  if (walletId === undefined) return null;
+  if (walletId === undefined) {
+    return (
+      <BottomSheetModal visible={true} onClose={() => navigation.goBack()} title={t('budgets.newBudget')}>
+        <View style={{ padding: theme.spacing.lg, alignItems: 'center', justifyContent: 'center' }}>
+          <Text tone="muted">{t('accounts.noWalletSelected', { defaultValue: 'No wallet selected.' })}</Text>
+        </View>
+      </BottomSheetModal>
+    );
+  }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.colors.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
-        <Input testID="add-budget-name" label="Name" placeholder="e.g. Food August" value={name} onChangeText={setName} />
+    <BottomSheetModal visible={true} onClose={() => navigation.goBack()} title={t('budgets.newBudget')}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.xl }}
+      >
+          <Input testID="add-budget-name" label={t('categories.name', { defaultValue: 'Name' })} placeholder={t('budgets.namePlaceholder', 'e.g. Food August')} value={name} onChangeText={setName} />
 
-        <CategoryPicker
-          testID="add-budget-category"
-          walletId={walletId}
-          type="EXPENSE"
-          value={categoryId}
-          onChange={setCategoryId}
-        />
+          <CategoryPicker
+            testID="add-budget-category"
+            walletId={walletId}
+            type="EXPENSE"
+            value={categoryId}
+            onChange={setCategoryId}
+          />
 
-        <Input testID="add-budget-amount" label="Amount" keyboardType="decimal-pad" value={amount} onChangeText={setAmount} />
+          <Input testID="add-budget-amount" label={t('transactions.amount', { defaultValue: 'Amount' })} keyboardType="decimal-pad" value={amount} onChangeText={setAmount} />
 
-        <View style={{ gap: theme.spacing.sm }}>
-          <Text variant="label" tone="muted">
-            Period
-          </Text>
-          <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
-            {BUDGET_PERIOD_TYPES.map((candidate) => (
-              <Button
-                key={candidate}
-                label={PERIOD_LABEL[candidate]}
-                size="sm"
-                variant={periodType === candidate ? 'primary' : 'secondary'}
-                onPress={() => setPeriodType(candidate)}
-              />
-            ))}
+          <View style={{ gap: theme.spacing.sm }}>
+            <Text variant="label" tone="muted">
+              {t('budgets.period', { defaultValue: 'Period' })}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
+              {BUDGET_PERIOD_TYPES.map((candidate) => (
+                <Button
+                  key={candidate}
+                  label={PERIOD_LABEL[candidate]}
+                  size="sm"
+                  variant={periodType === candidate ? 'primary' : 'secondary'}
+                  onPress={() => setPeriodType(candidate)}
+                />
+              ))}
+            </View>
           </View>
-        </View>
 
-        {error !== null ? <Text tone="danger">{error}</Text> : null}
+          {error !== null ? <Text tone="danger">{error}</Text> : null}
 
-        <Button
-          testID="add-budget-submit"
-          label="Create budget"
-          onPress={handleSubmit}
-          loading={isCreating}
-          fullWidth
-        />
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <Button
+            testID="add-budget-submit"
+            label={t('budgets.newBudget')}
+            onPress={handleSubmit}
+            loading={isCreating}
+            fullWidth
+          />
+        </ScrollView>
+    </BottomSheetModal>
   );
 }

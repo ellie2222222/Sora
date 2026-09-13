@@ -1,9 +1,10 @@
 import { Archive, History, Landmark, LogOut, Plus, Settings, UsersRound } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import type { AccountResponse } from '@sora/contracts';
+import { useTranslation } from 'react-i18next';
+import { WalletRole, type AccountResponse } from '@sora/contracts';
 
-import { Card, ConfirmDialog, EmptyState, ErrorState, Money, Text } from '../../../components/index.ts';
+import { Card, ConfirmDialog, Money, StateView, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useAuth } from '../../../app/providers/AuthProvider.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
@@ -18,6 +19,7 @@ type PendingAction = 'leave' | 'archive' | null;
 
 export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'WalletDetail'>) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { walletId } = route.params;
   const { isGuest } = useAuth();
 
@@ -31,19 +33,6 @@ export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'W
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  if (wallet.isLoading || accounts.isLoading) return <SkeletonList rows={5} />;
-  if (wallet.isError) return <ErrorState error={wallet.error} onRetry={() => void wallet.refetch()} />;
-
-  const data = wallet.data;
-  if (data === undefined) return null;
-
-  const permissions = permissionsFor(data.role);
-  // Guest mode fabricates an OWNER role, so every sharing affordance below
-  // would otherwise render with nothing behind it (no members, no audit log,
-  // no archive path in guestWalletsApi).
-  const canShare = permissions.canAdminister && !isGuest;
-  const canLeave = data.role !== 'OWNER' && !isGuest;
-
   async function handleConfirmAction() {
     setActionError(null);
     try {
@@ -56,129 +45,157 @@ export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'W
     }
   }
 
-  return (
-    <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text variant="heading">{data.isOwn ? data.name : data.relationLabel ?? data.name}</Text>
-        {canShare ? (
-          <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
-            <Pressable testID="wallet-detail-activity" onPress={() => navigation.navigate('WalletActivity', { walletId })}>
-              <History size={22} color={theme.colors.textMuted} />
+  const renderContent = () => {
+    if (wallet.isLoading || accounts.isLoading) return <SkeletonList rows={5} />;
+    if (wallet.isError) {
+      return <StateView variant="error" error={wallet.error} retryAction={() => void wallet.refetch()} />;
+    }
+
+    const data = wallet.data;
+    if (data === undefined) {
+      return <StateView variant="error" error={new Error(t('wallets.walletNotFound', 'Wallet not found'))} />;
+    }
+
+    const permissions = permissionsFor(data.role);
+    const canShare = permissions.canAdminister && !isGuest;
+    const canLeave = data.role !== WalletRole.OWNER && !isGuest;
+
+    return (
+      <>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text variant="heading">{data.isOwn ? data.name : data.relationLabel ?? data.name}</Text>
+          {canShare ? (
+            <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
+              <Pressable testID="wallet-detail-activity" onPress={() => navigation.navigate('WalletActivity', { walletId })}>
+                <History size={22} color={theme.colors.textMuted} />
+              </Pressable>
+              <Pressable testID="wallet-detail-settings" onPress={() => navigation.navigate('WalletMembers', { walletId })}>
+                <Settings size={22} color={theme.colors.textMuted} />
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          {data.balances.map((total) => (
+            <Money key={total.currency} amount={total.amount} currency={total.currency} variant="heading" />
+          ))}
+          {!isGuest ? (
+            <Pressable
+              testID="wallet-detail-members"
+              onPress={() => navigation.navigate('WalletMembers', { walletId })}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}
+            >
+              <UsersRound size={16} color={theme.colors.textMuted} />
+              <Text tone="muted">{data.memberCount}</Text>
             </Pressable>
-            <Pressable testID="wallet-detail-settings" onPress={() => navigation.navigate('WalletMembers', { walletId })}>
-              <Settings size={22} color={theme.colors.textMuted} />
+          ) : null}
+        </View>
+
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text variant="label" tone="muted">
+            {t('wallets.accounts')}
+          </Text>
+          {permissions.canWrite ? (
+            <Pressable testID="wallet-detail-add-account" onPress={() => navigation.navigate('AddAccount', { walletId })}>
+              <Plus size={20} color={theme.colors.primary} />
             </Pressable>
+          ) : null}
+        </View>
+
+        {(accounts.data ?? []).length === 0 ? (
+          <StateView
+            variant="empty"
+            icon={Landmark}
+            title={t('accounts.noAccountsTitle')}
+            message={t('accounts.noAccountsMessage')}
+            primaryAction={
+              permissions.canWrite
+                ? { label: t('accounts.addAccount'), onPress: () => navigation.navigate('AddAccount', { walletId }) }
+                : undefined
+            }
+          />
+        ) : (
+          (accounts.data ?? []).map((account) => (
+            <AccountRow key={account.id} account={account} onPress={() => navigation.navigate('AccountDetail', { accountId: account.id })} />
+          ))
+        )}
+
+        {members.data !== undefined && members.data.length > 1 ? (
+          <View>
+            <Text variant="label" tone="muted" style={{ marginBottom: theme.spacing.sm }}>
+              {t('wallets.members')}
+            </Text>
+            {members.data.map((member) => (
+              <View
+                key={member.id}
+                style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: theme.spacing.xs }}
+              >
+                <Text>{member.displayName}</Text>
+                <Text tone="muted">{member.relationLabel ?? ROLE_LABELS[member.role]}</Text>
+              </View>
+            ))}
           </View>
         ) : null}
-      </View>
 
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        {data.balances.map((total) => (
-          <Money key={total.currency} amount={total.amount} currency={total.currency} variant="heading" />
-        ))}
-        {!isGuest ? (
-          <Pressable
-            testID="wallet-detail-members"
-            onPress={() => navigation.navigate('WalletMembers', { walletId })}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}
-          >
-            <UsersRound size={16} color={theme.colors.textMuted} />
-            <Text tone="muted">{data.memberCount}</Text>
-          </Pressable>
+        {canLeave || canShare ? (
+          <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
+            <Text variant="label" tone="muted">
+              {t('wallets.walletActions')}
+            </Text>
+            {actionError !== null ? <Text tone="danger">{actionError}</Text> : null}
+            {canLeave ? (
+              <Pressable
+                testID="wallet-detail-leave"
+                onPress={() => {
+                  setActionError(null);
+                  setPendingAction('leave');
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}
+              >
+                <LogOut size={18} color={theme.colors.danger} />
+                <Text tone="danger">{t('wallets.leaveWallet')}</Text>
+              </Pressable>
+            ) : null}
+            {canShare ? (
+              <Pressable
+                testID="wallet-detail-archive"
+                onPress={() => {
+                  setActionError(null);
+                  setPendingAction('archive');
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}
+              >
+                <Archive size={18} color={theme.colors.danger} />
+                <Text tone="danger">{t('wallets.archiveWallet')}</Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
-      </View>
+      </>
+    );
+  };
 
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text variant="label" tone="muted">
-          Accounts
-        </Text>
-        {permissions.canWrite ? (
-          <Pressable testID="wallet-detail-add-account" onPress={() => navigation.navigate('AddAccount', { walletId })}>
-            <Plus size={20} color={theme.colors.primary} />
-          </Pressable>
-        ) : null}
-      </View>
-
-      {(accounts.data ?? []).length === 0 ? (
-        <EmptyState
-          icon={Landmark}
-          title="No accounts yet"
-          description="Add a bank account, cash, or an e-wallet."
-          actionLabel={permissions.canWrite ? 'Add account' : undefined}
-          onAction={permissions.canWrite ? () => navigation.navigate('AddAccount', { walletId }) : undefined}
-        />
-      ) : (
-        (accounts.data ?? []).map((account) => (
-          <AccountRow key={account.id} account={account} onPress={() => navigation.navigate('AccountDetail', { accountId: account.id })} />
-        ))
-      )}
-
-      {members.data !== undefined && members.data.length > 1 ? (
-        <View>
-          <Text variant="label" tone="muted" style={{ marginBottom: theme.spacing.sm }}>
-            Members
-          </Text>
-          {members.data.map((member) => (
-            <View
-              key={member.id}
-              style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: theme.spacing.xs }}
-            >
-              <Text>{member.displayName}</Text>
-              <Text tone="muted">{member.relationLabel ?? ROLE_LABELS[member.role]}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-
-      {canLeave || canShare ? (
-        <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
-          <Text variant="label" tone="muted">
-            Wallet actions
-          </Text>
-          {actionError !== null ? <Text tone="danger">{actionError}</Text> : null}
-          {canLeave ? (
-            <Pressable
-              testID="wallet-detail-leave"
-              onPress={() => {
-                setActionError(null);
-                setPendingAction('leave');
-              }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}
-            >
-              <LogOut size={18} color={theme.colors.danger} />
-              <Text tone="danger">Leave wallet</Text>
-            </Pressable>
-          ) : null}
-          {canShare ? (
-            <Pressable
-              testID="wallet-detail-archive"
-              onPress={() => {
-                setActionError(null);
-                setPendingAction('archive');
-              }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}
-            >
-              <Archive size={18} color={theme.colors.danger} />
-              <Text tone="danger">Archive wallet</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
+  return (
+    <>
+      <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
+        {renderContent()}
+      </ScrollView>
 
       <ConfirmDialog
         visible={pendingAction !== null}
-        title={pendingAction === 'leave' ? 'Leave this wallet?' : 'Archive this wallet?'}
+        title={pendingAction === 'leave' ? t('wallets.leaveConfirmTitle') : t('wallets.archiveConfirmTitle')}
         message={
           pendingAction === 'leave'
-            ? 'You will lose access until someone invites you back.'
-            : 'This wallet and its accounts will be hidden, not deleted. No transaction history is lost.'
+            ? t('wallets.leaveConfirmBody')
+            : t('wallets.archiveConfirmBody')
         }
-        confirmLabel={pendingAction === 'leave' ? 'Leave' : 'Archive'}
+        confirmLabel={pendingAction === 'leave' ? t('wallets.leaveWallet') : t('wallets.archiveWallet')}
         destructive
         onConfirm={() => void handleConfirmAction()}
         onCancel={() => setPendingAction(null)}
       />
-    </ScrollView>
+    </>
   );
 }
 

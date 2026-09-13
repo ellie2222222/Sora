@@ -1,11 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
+
 import { useTranslation } from 'react-i18next';
 import { loginSchema, type LoginRequest } from '@sora/contracts';
 
-import { Button, Input, Text } from '../../../components/index.ts';
+import { AnimatedScreen, Button, Input, Text } from '../../../components/index.ts';
 import { useAuth } from '../../../app/providers/AuthProvider.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { messageOf } from '../../../utils/errors.ts';
@@ -70,103 +71,114 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.colors.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={{ flex: 1, justifyContent: 'center', padding: theme.spacing.xl, gap: theme.spacing.md }}>
-        <Text variant="heading" style={{ marginBottom: theme.spacing.xs }}>
-          {t('auth.loginTitle')}
-        </Text>
-        <Text tone="muted" style={{ marginBottom: theme.spacing.lg }}>
-          {t('auth.loginSubtitle')}
-        </Text>
-
-        <Controller
-          control={control}
-          name="email"
-          render={({ field }) => (
-            <Input
-              testID="login-email"
-              label={t('auth.emailLabel')}
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              value={field.value}
-              onChangeText={field.onChange}
-              error={errors.email?.message}
-            />
-          )}
-        />
-
-        <Controller
-          control={control}
-          name="password"
-          render={({ field }) => (
-            <Input
-              testID="login-password"
-              label={t('auth.passwordLabel')}
-              secureTextEntry
-              autoCapitalize="none"
-              autoComplete="password"
-              value={field.value}
-              onChangeText={field.onChange}
-              error={errors.password?.message}
-            />
-          )}
-        />
-
-        {submitError !== null ? (
-          <Text tone="danger" testID="login-error">
-            {submitError}
+    <AnimatedScreen style={{ backgroundColor: theme.colors.background }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={{ flex: 1, justifyContent: 'center', padding: theme.spacing.xl, gap: theme.spacing.md }}>
+          <Text variant="heading" style={{ marginBottom: theme.spacing.xs }}>
+            {t('auth.loginTitle')}
           </Text>
-        ) : null}
+          <Text tone="muted" style={{ marginBottom: theme.spacing.lg }}>
+            {t('auth.loginSubtitle')}
+          </Text>
 
-        <Button
-          testID="login-submit"
-          label={t('auth.loginButton')}
-          onPress={onSubmit}
-          loading={isSubmitting}
-          fullWidth
-          style={{ marginTop: theme.spacing.sm }}
-        />
+          <Controller
+            control={control}
+            name="email"
+            render={({ field }) => (
+              <Input
+                testID="login-email"
+                label={t('auth.emailLabel')}
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                value={field.value}
+                onChangeText={field.onChange}
+                error={errors.email?.message}
+              />
+            )}
+          />
 
-        {google.available ? (
-          <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-              <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
-              <Text variant="caption" tone="faint">
-                {t('auth.orDivider')}
+          <Controller
+            control={control}
+            name="password"
+            render={({ field }) => (
+              <Input
+                testID="login-password"
+                label={t('auth.passwordLabel')}
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="password"
+                value={field.value}
+                onChangeText={field.onChange}
+                error={errors.password?.message}
+              />
+            )}
+          />
+
+          {submitError !== null ? (
+            <Text tone="danger" testID="login-error">
+              {submitError}
+            </Text>
+          ) : null}
+
+          <Button
+            testID="login-submit"
+            label={t('auth.loginButton')}
+            onPress={onSubmit}
+            loading={isSubmitting}
+            fullWidth
+            style={{ marginTop: theme.spacing.sm }}
+          />
+
+          {google.available ? (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+                <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+                <Text variant="caption" tone="faint">
+                  {t('auth.orDivider')}
+                </Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+              </View>
+
+              <Button
+                testID="login-google"
+                label={t('auth.continueWithGoogle')}
+                variant="secondary"
+                onPress={() => void onGoogleSignIn()}
+                loading={googlePending}
+                fullWidth
+              />
+            </>
+          ) : null}
+
+          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
+            <Text tone="muted">{t('auth.noAccountPrompt')}</Text>
+            <Pressable testID="login-go-register" onPress={() => navigation.navigate('Register')} hitSlop={8}>
+              <Text weight="semibold" style={{ color: theme.colors.primary }}>
+                {t('auth.signUpLink')}
               </Text>
-              <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
-            </View>
+            </Pressable>
+          </View>
 
-            <Button
-              testID="login-google"
-              label={t('auth.continueWithGoogle')}
-              variant="secondary"
-              onPress={() => void onGoogleSignIn()}
-              loading={googlePending}
-              fullWidth
-            />
-          </>
-        ) : null}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: theme.spacing.xs, marginTop: theme.spacing.xs }}>
+            <Text tone="muted">{t('auth.guestPrompt')}</Text>
+            <Pressable
+              testID="login-continue-as-guest"
+              onPress={() => void onContinueAsGuest()}
+              disabled={guestPending}
+              hitSlop={8}
+            >
+              <Text weight="semibold" style={{ color: theme.colors.primary, opacity: guestPending ? 0.5 : 1 }}>
+                {t('auth.continueAsGuestLink')}
+              </Text>
+            </Pressable>
+          </View>
 
-        <Button
-          testID="login-go-register"
-          label={t('auth.goToRegister')}
-          variant="ghost"
-          onPress={() => navigation.navigate('Register')}
-        />
-
-        <Button
-          testID="login-continue-as-guest"
-          label={t('auth.continueAsGuest')}
-          variant="ghost"
-          onPress={() => void onContinueAsGuest()}
-          loading={guestPending}
-        />
-      </View>
-    </KeyboardAvoidingView>
+        </View>
+      </KeyboardAvoidingView>
+    </AnimatedScreen>
   );
 }

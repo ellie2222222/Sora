@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { UsersRound } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 
-import { Button, ErrorState, Text } from '../../../components/index.ts';
+import { Button, StateView, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useAcceptInvitationMutation, usePreviewInvitationQuery } from '../../../app/store/api/invitationsApi.ts';
@@ -11,14 +12,9 @@ import { messageOf } from '../../../utils/errors.ts';
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '../../../utils/roles.ts';
 import type { AuthStackScreenProps } from '../../../app/navigation/types.ts';
 
-/**
- * Reached via a deep link carrying the invitation token. Preview is public
- * (API spec §8.4) so the invitee sees what they are being offered before
- * choosing to sign up or log in; acceptance itself requires being authenticated
- * as the invited address (§8.5), which is why this screen also offers login.
- */
 export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenProps<'AcceptInvitation'>) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const token = route.params?.token;
   const [accepting, setAccepting] = useState(false);
@@ -27,29 +23,11 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
   const preview = usePreviewInvitationQuery(token ?? '', { skip: token === undefined });
   const [acceptInvitation] = useAcceptInvitationMutation();
 
-  if (token === undefined) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Text tone="danger">No invitation token was provided.</Text>
-      </View>
-    );
-  }
-
-  if (preview.isLoading) return <SkeletonList rows={3} />;
-  if (preview.isError) {
-    return <ErrorState error={preview.error} onRetry={() => void preview.refetch()} />;
-  }
-
-  const invitation = preview.data;
-  if (invitation === undefined) return null;
-
   async function handleAccept() {
     setAccepting(true);
     setAcceptError(null);
     try {
       await acceptInvitation({ token: token as string }).unwrap();
-      // The wallet list refetches on its own (it is not this stack's concern);
-      // landing back at the root is enough for the app to pick it up.
       navigation.popToTop();
     } catch (error) {
       setAcceptError(messageOf(error));
@@ -58,43 +36,68 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
     }
   }
 
-  return (
-    <View style={{ flex: 1, padding: theme.spacing.xl, gap: theme.spacing.md, justifyContent: 'center' }}>
-      <UsersRound size={40} color={theme.colors.primary} style={{ alignSelf: 'center' }} />
-      <Text variant="title" style={{ textAlign: 'center' }}>
-        You're invited to {invitation.walletName}
-      </Text>
-      <Text tone="muted" style={{ textAlign: 'center' }}>
-        As {ROLE_LABELS[invitation.role]} — {ROLE_DESCRIPTIONS[invitation.role]}
-      </Text>
-      <Text tone="faint" style={{ textAlign: 'center' }}>
-        Invited: {invitation.invitedEmail}
-      </Text>
+  const renderContent = () => {
+    if (token === undefined) {
+      return <Text tone="danger">{t('invitations.noTokenError', 'No invitation token was provided.')}</Text>;
+    }
 
-      {acceptError !== null ? <Text tone="danger">{acceptError}</Text> : null}
+    if (preview.isLoading) return <SkeletonList rows={3} />;
+    if (preview.isError) {
+      return <StateView variant="error" error={preview.error} retryAction={() => void preview.refetch()} />;
+    }
 
-      {isAuthenticated ? (
-        <Button
-          testID="accept-invitation-submit"
-          label="Accept invitation"
-          onPress={handleAccept}
-          loading={accepting}
-          fullWidth
-        />
-      ) : (
-        <>
-          <Text tone="muted" style={{ textAlign: 'center' }}>
-            Log in or create an account with this email to accept.
-          </Text>
-          <Button label="Log in" onPress={() => navigation.navigate('Login')} fullWidth />
+    const invitation = preview.data;
+    if (invitation === undefined) {
+      return <StateView variant="error" error={new Error(t('invitations.notFound', 'Invitation not found.'))} />;
+    }
+
+    return (
+      <>
+        <UsersRound size={40} color={theme.colors.primary} style={{ alignSelf: 'center' }} />
+        <Text variant="title" style={{ textAlign: 'center' }}>
+          {t('invitations.invitedTo', "You're invited to {{name}}", { name: invitation.walletName })}
+        </Text>
+        <Text tone="muted" style={{ textAlign: 'center' }}>
+          {t('invitations.roleAs', 'As {{role}} — {{description}}', {
+            role: ROLE_LABELS[invitation.role],
+            description: ROLE_DESCRIPTIONS[invitation.role],
+          })}
+        </Text>
+        <Text tone="faint" style={{ textAlign: 'center' }}>
+          {t('invitations.invitedEmail', 'Invited: {{email}}', { email: invitation.invitedEmail })}
+        </Text>
+
+        {acceptError !== null ? <Text tone="danger">{acceptError}</Text> : null}
+
+        {isAuthenticated ? (
           <Button
-            label="Create an account"
-            variant="secondary"
-            onPress={() => navigation.navigate('Register')}
+            testID="accept-invitation-submit"
+            label={t('invitations.acceptButton', 'Accept invitation')}
+            onPress={handleAccept}
+            loading={accepting}
             fullWidth
           />
-        </>
-      )}
+        ) : (
+          <>
+            <Text tone="muted" style={{ textAlign: 'center' }}>
+              {t('invitations.loginPrompt', 'Log in or create an account with this email to accept.')}
+            </Text>
+            <Button label={t('auth.signInLink', 'Log in')} onPress={() => navigation.navigate('Login')} fullWidth />
+            <Button
+              label={t('auth.registerButton', 'Create an account')}
+              variant="secondary"
+              onPress={() => navigation.navigate('Register')}
+              fullWidth
+            />
+          </>
+        )}
+      </>
+    );
+  };
+
+  return (
+    <View style={{ flex: 1, padding: theme.spacing.xl, gap: theme.spacing.md, justifyContent: 'center' }}>
+      {renderContent()}
     </View>
   );
 }

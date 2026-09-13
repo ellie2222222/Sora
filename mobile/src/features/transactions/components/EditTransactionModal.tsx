@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { TransactionStatus, TransactionType, CategoryType, type TransactionResponse, type UpdateTransactionRequest } from '@sora/contracts';
@@ -10,17 +10,20 @@ import { CategoryPicker } from '../../categories/components/CategoryPicker';
 import { useGetTransactionQuery, useUpdateTransactionMutation } from '../../../app/store/api/transactionsApi';
 import { dayOfInstant, replaceDay } from '../../../utils/date';
 import { messageOf } from '../../../utils/errors';
-import type { AppStackScreenProps } from '../../../app/navigation/types';
-
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-export function EditTransactionScreen({ route, navigation }: AppStackScreenProps<'EditTransaction'>) {
+export interface EditTransactionModalProps {
+  visible: boolean;
+  transactionId?: string;
+  onClose: () => void;
+}
+
+export function EditTransactionModal({ visible, transactionId, onClose }: EditTransactionModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { transactionId } = route.params;
 
-  const transaction = useGetTransactionQuery(transactionId);
+  const transaction = useGetTransactionQuery(transactionId ?? '', { skip: !visible || !transactionId });
   const [updateTransaction, { isLoading: isSaving }] = useUpdateTransactionMutation();
 
   const [description, setDescription] = useState<string | null>(null);
@@ -30,13 +33,61 @@ export function EditTransactionScreen({ route, navigation }: AppStackScreenProps
   const [dayError, setDayError] = useState<string | undefined>(undefined);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const data = transaction.data;
+  useEffect(() => {
+    if (visible) {
+      setDescription(null);
+      setDay(null);
+      setCategoryId(null);
+      setReference(null);
+      setDayError(undefined);
+      setSubmitError(null);
+    }
+  }, [visible, transactionId]);
 
-  const descriptionValue = description ?? data?.description ?? '';
-  const dayValue = day ?? (data !== undefined ? dayOfInstant(data.transactionDate) : '');
-  const categoryValue = categoryId ?? data?.category?.id ?? null;
-  const referenceValue = reference ?? data?.reference ?? '';
-  const categoryWalletId = data?.fromAccount?.walletId ?? data?.toAccount?.walletId;
+  if (!visible || !transactionId) return null;
+
+  if (transaction.isLoading) {
+    return (
+      <BottomSheetModal visible={visible} onClose={onClose} title={t('transactions.editTransaction')}>
+        <SkeletonList rows={4} />
+      </BottomSheetModal>
+    );
+  }
+
+  if (transaction.isError) {
+    return (
+      <BottomSheetModal visible={visible} onClose={onClose} title={t('transactions.editTransaction')}>
+        <StateView variant="error" error={transaction.error} retryAction={() => void transaction.refetch()} testID="edit-transaction-error" />
+      </BottomSheetModal>
+    );
+  }
+
+  const data = transaction.data;
+  if (data === undefined) {
+    return (
+      <BottomSheetModal visible={visible} onClose={onClose} title={t('transactions.editTransaction')}>
+        <StateView variant="error" error={transaction.error ?? new Error('Transaction unavailable')} retryAction={() => void transaction.refetch()} testID="edit-transaction-missing" />
+      </BottomSheetModal>
+    );
+  }
+
+  if (data.status === TransactionStatus.CANCELLED) {
+    return (
+      <BottomSheetModal visible={visible} onClose={onClose} title={t('transactions.editTransaction')}>
+        <View style={{ padding: theme.spacing.lg, alignItems: 'center', justifyContent: 'center' }}>
+          <Text tone="muted" style={{ textAlign: 'center' }}>
+            {t('transactions.cancelledNotice', { defaultValue: 'A cancelled transaction cannot be edited. Record a new one instead.' })}
+          </Text>
+        </View>
+      </BottomSheetModal>
+    );
+  }
+
+  const descriptionValue = description ?? data.description ?? '';
+  const dayValue = day ?? dayOfInstant(data.transactionDate);
+  const categoryValue = categoryId ?? data.category?.id ?? null;
+  const referenceValue = reference ?? data.reference ?? '';
+  const categoryWalletId = data.fromAccount?.walletId ?? data.toAccount?.walletId;
 
   async function handleSubmit(current: TransactionResponse) {
     setSubmitError(null);
@@ -62,39 +113,20 @@ export function EditTransactionScreen({ route, navigation }: AppStackScreenProps
     }
 
     if (Object.keys(body).length === 0) {
-      navigation.goBack();
+      onClose();
       return;
     }
 
     try {
-      await updateTransaction({ transactionId, body }).unwrap();
-      navigation.goBack();
+      await updateTransaction({ transactionId: transactionId as string, body }).unwrap();
+      onClose();
     } catch (error) {
       setSubmitError(messageOf(error));
     }
   }
 
-  const renderContent = () => {
-    if (transaction.isLoading) return <SkeletonList rows={4} />;
-    if (transaction.isError) {
-      return <StateView variant="error" error={transaction.error} retryAction={() => void transaction.refetch()} testID="edit-transaction-error" />;
-    }
-
-    if (data === undefined) {
-      return <StateView variant="error" error={new Error(t('transactions.transactionNotFound', 'Transaction not found'))} testID="edit-transaction-not-found" />;
-    }
-
-    if (data.status === TransactionStatus.CANCELLED) {
-      return (
-        <View style={{ padding: theme.spacing.lg, alignItems: 'center', justifyContent: 'center' }}>
-          <Text tone="muted" style={{ textAlign: 'center' }}>
-            {t('transactions.cancelledNotice', { defaultValue: 'A cancelled transaction cannot be edited. Record a new one instead.' })}
-          </Text>
-        </View>
-      );
-    }
-
-    return (
+  return (
+    <BottomSheetModal visible={visible} onClose={onClose} title={t('transactions.editTransaction')}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -147,12 +179,6 @@ export function EditTransactionScreen({ route, navigation }: AppStackScreenProps
           fullWidth
         />
       </ScrollView>
-    );
-  };
-
-  return (
-    <BottomSheetModal visible={true} onClose={() => navigation.goBack()} title={t('transactions.editTransaction')}>
-      {renderContent()}
     </BottomSheetModal>
   );
 }

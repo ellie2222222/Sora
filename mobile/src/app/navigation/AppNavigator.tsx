@@ -1,4 +1,4 @@
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createStackNavigator } from '@react-navigation/stack';
 
 import { AccountDetailScreen } from '../../features/accounts/screens/AccountDetailScreen.tsx';
 import { AddAccountScreen } from '../../features/accounts/screens/AddAccountScreen.tsx';
@@ -18,19 +18,28 @@ import { WalletActivityScreen } from '../../features/wallets/screens/WalletActiv
 import { WalletDetailScreen } from '../../features/wallets/screens/WalletDetailScreen.tsx';
 import { WalletListScreen } from '../../features/wallets/screens/WalletListScreen.tsx';
 import { WalletMembersScreen } from '../../features/wallets/screens/WalletMembersScreen.tsx';
+import { ModalProvider } from '../providers/ModalProvider.tsx';
 import { MainTabNavigator } from './MainTabNavigator.tsx';
 import type { AppStackParamList } from './types.ts';
 
-const Stack = createNativeStackNavigator<AppStackParamList>();
+const Stack = createStackNavigator<AppStackParamList>();
+
+const transparentModalOptions = {
+  headerShown: false,
+  presentation: 'transparentModal' as const,
+  detachPreviousScreen: false,
+  cardStyle: { backgroundColor: 'transparent' },
+};
 
 /**
- * Everything reachable once signed in. The tab bar is one screen in this
- * stack ("Main") so a detail pushed from any tab still gets a native back
- * gesture/header, rather than nesting a second stack inside every tab.
+ * Main application navigation stack.
+ * Uses JS Stack Navigator (@react-navigation/stack) so transparentModal routes
+ * do not detach or hide the underlying main tab screen in the DOM.
  */
 export function AppNavigator() {
   return (
-    <Stack.Navigator>
+    <ModalProvider>
+      <Stack.Navigator>
       <Stack.Screen name="Main" component={MainTabNavigator} options={{ headerShown: false }} />
 
       <Stack.Screen name="WalletList" component={WalletListScreen} options={{ title: 'Wallets' }} />
@@ -40,22 +49,24 @@ export function AppNavigator() {
       <Stack.Screen name="WalletActivity" component={WalletActivityScreen} options={{ title: 'Activity' }} />
 
       <Stack.Screen name="AccountDetail" component={AccountDetailScreen} options={{ title: 'Account' }} />
-      <Stack.Screen name="AddAccount" component={AddAccountScreen} options={{ title: 'Add Account', presentation: 'modal' }} />
+      <Stack.Screen name="AddAccount" component={AddAccountScreen} options={transparentModalOptions} />
 
       <Stack.Screen name="CategoryList" component={CategoryListScreen} options={{ title: 'Categories' }} />
 
       <Stack.Screen name="Transactions" component={TransactionsScreen} options={{ title: 'Transactions' }} />
       <Stack.Screen name="TransactionDetail" component={TransactionDetailScreen} options={{ title: 'Transaction' }} />
-      <Stack.Screen name="AddTransaction" component={AddTransactionScreen} options={{ title: 'Add Transaction', presentation: 'modal' }} />
-      <Stack.Screen name="EditTransaction" component={EditTransactionScreen} options={{ title: 'Edit Transaction', presentation: 'modal' }} />
+      <Stack.Screen name="AddTransaction" component={AddTransactionScreen} options={transparentModalOptions} />
+      <Stack.Screen name="EditTransaction" component={EditTransactionScreen} options={transparentModalOptions} />
 
       <Stack.Screen name="Budgets" component={BudgetsScreen} options={{ title: 'Budgets' }} />
       <Stack.Screen name="BudgetDetail" component={BudgetDetailScreen} options={{ title: 'Budget' }} />
-      <Stack.Screen name="AddBudget" component={AddBudgetScreen} options={{ title: 'New Budget', presentation: 'modal' }} />
+      <Stack.Screen name="AddBudget" component={AddBudgetScreen} options={transparentModalOptions} />
 
       <Stack.Screen name="GoalDetail" component={GoalDetailScreen} options={{ title: 'Goal' }} />
-      <Stack.Screen name="AddGoal" component={AddGoalScreen} options={{ title: 'New Goal', presentation: 'modal' }} />
-      <Stack.Screen name="AddContribution" component={AddContributionScreen} options={{ title: 'Add Contribution', presentation: 'modal' }} />
+      <Stack.Screen name="AddGoal" component={AddGoalScreen} options={transparentModalOptions} />
+      <Stack.Screen name="AddContribution" component={AddContributionScreen} options={transparentModalOptions} />
+
     </Stack.Navigator>
+    </ModalProvider>
   );
 }

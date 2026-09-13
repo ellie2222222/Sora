@@ -1,4 +1,6 @@
+import '../global.css';
 import { useCallback, useEffect } from 'react';
+
 import {
   Mulish_400Regular,
   Mulish_500Medium,
@@ -17,6 +19,7 @@ import { AuthProvider } from './app/providers/AuthProvider.tsx';
 import { LocaleProvider } from './app/providers/LocaleProvider.tsx';
 import { QueryProvider } from './app/providers/QueryProvider.tsx';
 import { ThemeProvider } from './app/providers/ThemeProvider.tsx';
+import { NetworkStatusProvider } from './hooks/useNetworkStatus.ts';
 import { RootNavigator } from './app/navigation/RootNavigator.tsx';
 import { store } from './app/store/index.ts';
 
@@ -56,14 +59,16 @@ export default function App() {
     <ReduxProvider store={store}>
       <SafeAreaProvider>
         <QueryProvider>
-          <AuthProvider>
-            <ThemeProvider>
-              <LocaleProvider>
-                <StatusBar style="auto" />
-                <RootNavigator />
-              </LocaleProvider>
-            </ThemeProvider>
-          </AuthProvider>
+          <NetworkStatusProvider>
+            <AuthProvider>
+              <ThemeProvider>
+                <LocaleProvider>
+                  <StatusBar style="auto" />
+                  <RootNavigator />
+                </LocaleProvider>
+              </ThemeProvider>
+            </AuthProvider>
+          </NetworkStatusProvider>
         </QueryProvider>
       </SafeAreaProvider>
     </ReduxProvider>

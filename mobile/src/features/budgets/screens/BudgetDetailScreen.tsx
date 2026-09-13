@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
-import { Button, Card, ConfirmDialog, ErrorState, Input, Money, ProgressBar, Text } from '../../../components/index.ts';
+import { BudgetStatus } from '@sora/contracts';
+import { Button, Card, ConfirmDialog, Input, Money, ProgressBar, StateView, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
@@ -13,14 +15,9 @@ import {
 import { messageOf } from '../../../utils/errors.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
-/**
- * Only `name`, `amount` and `status` are adjustable (§12.4). The category and
- * the window (periodType/startDate/endDate) are immutable — moving a window
- * would change which transactions the budget ever covered, which is a
- * different budget; archive and create instead.
- */
 export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'BudgetDetail'>) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { budgetId } = route.params;
   const { permissions } = useWallets();
 
@@ -33,21 +30,10 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
   const [archiving, setArchiving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  if (budget.isLoading) return <SkeletonList rows={3} />;
-  if (budget.isError) return <ErrorState error={budget.error} onRetry={() => void budget.refetch()} />;
-
-  const data = budget.data;
-  if (data === undefined) return null;
-
-  const canEdit = permissions.canWrite && data.status === 'ACTIVE';
-  const nameValue = name ?? data.name;
-  const amountValue = amount ?? data.amount;
-  const isDirty = nameValue !== data.name || amountValue !== data.amount;
-
-  // Takes the loaded record as a parameter: this is a hoisted declaration, so
-  // the `data === undefined` narrowing above does not reach inside it.
   async function handleSave(current: { name: string; amount: string }) {
     setActionError(null);
+    const nameValue = name ?? current.name;
+    const amountValue = amount ?? current.amount;
     try {
       await updateBudget({
         budgetId,
@@ -72,84 +58,107 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
     }
   }
 
+  const renderContent = () => {
+    if (budget.isLoading) return <SkeletonList rows={3} />;
+    if (budget.isError) {
+      return <StateView variant="error" error={budget.error} retryAction={() => void budget.refetch()} />;
+    }
+
+    const data = budget.data;
+    if (data === undefined) {
+      return <StateView variant="error" error={new Error(t('budgets.budgetNotFound', 'Budget not found'))} />;
+    }
+
+    const canEdit = permissions.canWrite && data.status === BudgetStatus.ACTIVE;
+    const nameValue = name ?? data.name;
+    const amountValue = amount ?? data.amount;
+    const isDirty = nameValue !== data.name || amountValue !== data.amount;
+
+    return (
+      <>
+        <Card>
+          <Text variant="title">{data.name}</Text>
+          <Text tone="muted" style={{ marginBottom: theme.spacing.sm }}>
+            {data.category.name} · {data.startDate} to {data.endDate}
+          </Text>
+
+          <ProgressBar percentage={data.usagePercentage} danger={data.isOverBudget} height={12} />
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: theme.spacing.md }}>
+            <View>
+              <Text variant="label" tone="muted">
+                {t('budgets.spent', 'Spent')}
+              </Text>
+              <Money amount={data.spent} currency={data.currency} variant="title" />
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text variant="label" tone="muted">
+                {data.isOverBudget ? t('budgets.overBy', 'Over by') : t('budgets.remaining', 'Remaining')}
+              </Text>
+              <Money amount={data.remaining} currency={data.currency} variant="title" />
+            </View>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: theme.spacing.xs, marginTop: theme.spacing.sm }}>
+            <Text variant="caption" tone="muted">
+              {t('budgets.planned', 'Planned:')}
+            </Text>
+            <Money amount={data.amount} currency={data.currency} variant="caption" />
+          </View>
+
+          {data.status === BudgetStatus.ARCHIVED ? (
+            <Text tone="muted" weight="semibold" style={{ marginTop: theme.spacing.sm }}>
+              {t('common.archive', 'Archived')}
+            </Text>
+          ) : null}
+        </Card>
+
+        {canEdit ? (
+          <Card style={{ gap: theme.spacing.sm }}>
+            <Text variant="label" tone="muted">
+              {t('budgets.editBudget', 'Edit budget')}
+            </Text>
+            <Input testID="budget-detail-name" label={t('categories.name', 'Name')} value={nameValue} onChangeText={setName} />
+            <Input
+              testID="budget-detail-amount"
+              label={t('transactions.amount', 'Amount')}
+              keyboardType="decimal-pad"
+              value={amountValue}
+              onChangeText={setAmount}
+            />
+
+            {actionError !== null ? <Text tone="danger">{actionError}</Text> : null}
+
+            <Button
+              testID="budget-detail-save"
+              label={t('common.save', 'Save')}
+              onPress={() => void handleSave(data)}
+              loading={isSaving}
+              disabled={!isDirty}
+              fullWidth
+            />
+            <Button
+              testID="budget-detail-archive"
+              label={t('budgets.archiveBudget', 'Archive budget')}
+              variant="danger"
+              onPress={() => setArchiving(true)}
+              fullWidth
+            />
+          </Card>
+        ) : null}
+      </>
+    );
+  };
+
   return (
     <View style={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
-      <Card>
-        <Text variant="title">{data.name}</Text>
-        <Text tone="muted" style={{ marginBottom: theme.spacing.sm }}>
-          {data.category.name} · {data.startDate} to {data.endDate}
-        </Text>
-
-        <ProgressBar percentage={data.usagePercentage} danger={data.isOverBudget} height={12} />
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: theme.spacing.md }}>
-          <View>
-            <Text variant="label" tone="muted">
-              Spent
-            </Text>
-            <Money amount={data.spent} currency={data.currency} variant="title" />
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text variant="label" tone="muted">
-              {data.isOverBudget ? 'Over by' : 'Remaining'}
-            </Text>
-            <Money amount={data.remaining} currency={data.currency} variant="title" />
-          </View>
-        </View>
-
-        <View style={{ flexDirection: 'row', gap: theme.spacing.xs, marginTop: theme.spacing.sm }}>
-          <Text variant="caption" tone="muted">
-            Planned:
-          </Text>
-          <Money amount={data.amount} currency={data.currency} variant="caption" />
-        </View>
-
-        {data.status === 'ARCHIVED' ? (
-          <Text tone="muted" weight="semibold" style={{ marginTop: theme.spacing.sm }}>
-            Archived
-          </Text>
-        ) : null}
-      </Card>
-
-      {canEdit ? (
-        <Card style={{ gap: theme.spacing.sm }}>
-          <Text variant="label" tone="muted">
-            Edit budget
-          </Text>
-          <Input testID="budget-detail-name" label="Name" value={nameValue} onChangeText={setName} />
-          <Input
-            testID="budget-detail-amount"
-            label="Amount"
-            keyboardType="decimal-pad"
-            value={amountValue}
-            onChangeText={setAmount}
-          />
-
-          {actionError !== null ? <Text tone="danger">{actionError}</Text> : null}
-
-          <Button
-            testID="budget-detail-save"
-            label="Save changes"
-            onPress={() => void handleSave(data)}
-            loading={isSaving}
-            disabled={!isDirty}
-            fullWidth
-          />
-          <Button
-            testID="budget-detail-archive"
-            label="Archive budget"
-            variant="danger"
-            onPress={() => setArchiving(true)}
-            fullWidth
-          />
-        </Card>
-      ) : null}
+      {renderContent()}
 
       <ConfirmDialog
         visible={archiving}
-        title="Archive this budget?"
-        message="It stops tracking new spending. Past figures stay visible."
-        confirmLabel="Archive"
+        title={t('budgets.archiveConfirmTitle', 'Archive this budget?')}
+        message={t('budgets.archiveConfirmMessage', 'It stops tracking new spending. Past figures stay visible.')}
+        confirmLabel={t('common.archive', 'Archive')}
         destructive
         onConfirm={() => void handleConfirmArchive()}
         onCancel={() => setArchiving(false)}

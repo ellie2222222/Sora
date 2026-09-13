@@ -13,6 +13,7 @@ export type MainTabParamList = {
   Account: undefined;
   Goals: undefined;
   Report: undefined;
+  Dashboard: undefined;
   Settings: undefined;
 };
 

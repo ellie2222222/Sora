@@ -1,26 +1,28 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
-import type { InvitableRole } from '@sora/contracts';
+import { useTranslation } from 'react-i18next';
+import { WalletRole, type InvitableRole } from '@sora/contracts';
 
 import { Button, Input, Text } from '../../../components/index.ts';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useCreateInvitationMutation } from '../../../app/store/api/invitationsApi.ts';
 import { messageOf } from '../../../utils/errors.ts';
-import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '../../../utils/roles.ts';
+import { getRoleDescription, getRoleLabel } from '../../../utils/roles.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
-const INVITABLE: InvitableRole[] = ['EDITOR', 'VIEWER'];
+const INVITABLE: InvitableRole[] = [WalletRole.EDITOR, WalletRole.VIEWER];
 
 /** Common relationships offered as one-tap chips; free text always works too. */
 const SUGGESTED_LABELS = ['Girlfriend', 'Boyfriend', 'Partner', 'Mom', 'Dad', 'Sibling', 'Friend'];
 
 export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'InviteMember'>) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { walletId } = route.params;
   const [inviteMember, { isLoading: isInviting }] = useCreateInvitationMutation();
 
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<InvitableRole>('EDITOR');
+  const [role, setRole] = useState<InvitableRole>(WalletRole.EDITOR);
   const [relationLabel, setRelationLabel] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -48,13 +50,12 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
     >
       <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
         <Text tone="muted">
-          Invite someone by email. They'll see this wallet and can add or view money in it,
-          depending on the role you give them.
+          {t('invitations.inviteHelp')}
         </Text>
 
         <Input
           testID="invite-email"
-          label="Email"
+          label={t('auth.emailLabel')}
           autoCapitalize="none"
           keyboardType="email-address"
           value={email}
@@ -63,11 +64,11 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
 
         <View style={{ gap: theme.spacing.xs }}>
           <Text variant="label" tone="muted">
-            How do you know them? (optional)
+            {t('invitations.howDoYouKnow')}
           </Text>
           <Input
             testID="invite-relation-label"
-            placeholder="e.g. Girlfriend"
+            placeholder={t('invitations.relationPlaceholder')}
             value={relationLabel}
             onChangeText={setRelationLabel}
           />
@@ -87,13 +88,13 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
 
         <View style={{ gap: theme.spacing.sm }}>
           <Text variant="label" tone="muted">
-            Role
+            {t('invitations.role')}
           </Text>
           {INVITABLE.map((candidate) => (
             <Button
               key={candidate}
               testID={`invite-role-${candidate}`}
-              label={`${ROLE_LABELS[candidate]} — ${ROLE_DESCRIPTIONS[candidate]}`}
+              label={`${getRoleLabel(candidate, t)} — ${getRoleDescription(candidate, t)}`}
               variant={role === candidate ? 'primary' : 'secondary'}
               onPress={() => setRole(candidate)}
               fullWidth
@@ -105,7 +106,7 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
 
         <Button
           testID="invite-submit"
-          label="Send invitation"
+          label={t('invitations.sendInvitation')}
           onPress={handleSubmit}
           loading={isInviting}
           disabled={email.trim().length === 0}

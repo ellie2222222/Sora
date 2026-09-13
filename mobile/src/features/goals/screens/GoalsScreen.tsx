@@ -1,17 +1,21 @@
-import { Target } from 'lucide-react-native';
+import { Plus, Target } from 'lucide-react-native';
 import { FlatList, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import type { GoalResponse } from '@sora/contracts';
 
-import { Card, EmptyState, ErrorState, Money, ProgressBar, Text } from '../../../components/index.ts';
-import { SkeletonList } from '../../../components/Skeleton.tsx';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useWallets } from '../../../app/providers/WalletProvider.tsx';
-import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
-import { useListGoalsQuery } from '../../../app/store/api/goalsApi.ts';
-import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
+import { AnimatedScreen, Card, ListItemEnter, Money, ProgressBar, StateView, Text } from '../../../components';
+import { SkeletonList } from '../../../components/Skeleton';
+import { useModal } from '../../../app/providers/ModalProvider';
+import { useTheme } from '../../../app/providers/ThemeProvider';
+import { useWallets } from '../../../app/providers/WalletProvider';
+import { WalletContextBar } from '../../wallets/components/WalletContextBar';
+import { useListGoalsQuery } from '../../../app/store/api/goalsApi';
+import type { MainTabScreenProps } from '../../../app/navigation/types';
 
 export function GoalsScreen({ navigation }: MainTabScreenProps<'Goals'>) {
   const theme = useTheme();
+  const { t } = useTranslation();
+  const { openModal } = useModal();
   const { activeWalletId, permissions } = useWallets();
   const onManage = () => navigation.getParent()?.navigate('WalletList');
 
@@ -20,55 +24,59 @@ export function GoalsScreen({ navigation }: MainTabScreenProps<'Goals'>) {
     { skip: activeWalletId === null },
   );
 
-  if (activeWalletId === null || goals.isLoading) {
-    return (
-      <WalletContextBar onManage={onManage}>
-        <SkeletonList rows={4} rowHeight={110} />
-      </WalletContextBar>
-    );
-  }
-  if (goals.isError) {
-    return (
-      <WalletContextBar onManage={onManage}>
-        <ErrorState error={goals.error} onRetry={() => void goals.refetch()} testID="goals-error" />
-      </WalletContextBar>
-    );
-  }
+  const renderContent = () => {
+    if (activeWalletId === null || goals.isLoading) {
+      return <SkeletonList rows={4} rowHeight={110} />;
+    }
+    if (goals.isError) {
+      return <StateView variant="error" error={goals.error} retryAction={() => void goals.refetch()} testID="goals-error" />;
+    }
 
-  const items = goals.data ?? [];
-
-  if (items.length === 0) {
-    return (
-      <WalletContextBar onManage={onManage}>
-        <EmptyState
+    const items = goals.data ?? [];
+    if (items.length === 0) {
+      return (
+        <StateView
+          variant="empty"
           icon={Target}
-          title="No savings goals"
-          description="Set a target and track how close you are."
-          actionLabel={permissions.canWrite ? 'Add goal' : undefined}
-          onAction={permissions.canWrite ? () => navigation.getParent()?.navigate('AddGoal') : undefined}
+          title={t('goals.noGoalsTitle')}
+          message={t('goals.noGoalsMessage')}
+          primaryAction={
+            permissions.canWrite
+              ? { label: t('goals.newGoal'), onPress: () => openModal('AddGoal'), icon: Plus }
+              : undefined
+          }
           testID="goals-empty"
         />
-      </WalletContextBar>
-    );
-  }
+      );
+    }
 
-  return (
-    <WalletContextBar onManage={onManage}>
+    return (
       <FlatList
         testID="goals-list"
         data={items}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
         renderItem={({ item }) => (
-          <GoalCard goal={item} onPress={() => navigation.getParent()?.navigate('GoalDetail', { goalId: item.id })} />
+          <ListItemEnter>
+            <GoalCard goal={item} onPress={() => navigation.getParent()?.navigate('GoalDetail', { goalId: item.id })} />
+          </ListItemEnter>
         )}
       />
-    </WalletContextBar>
+    );
+  };
+
+  return (
+    <AnimatedScreen>
+      <WalletContextBar onManage={onManage}>
+        {renderContent()}
+      </WalletContextBar>
+    </AnimatedScreen>
   );
 }
 
 function GoalCard({ goal, onPress }: { goal: GoalResponse; onPress: () => void }) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Card testID={`goal-card-${goal.id}`} onTouchEnd={onPress}>
@@ -88,14 +96,15 @@ function GoalCard({ goal, onPress }: { goal: GoalResponse; onPress: () => void }
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: theme.spacing.sm }}>
         <Text variant="caption" tone="muted">
-          {goal.progressPercentage.toFixed(0)}% there
+          {goal.progressPercentage.toFixed(0)}%
         </Text>
         {goal.targetDate !== null ? (
           <Text variant="caption" tone="muted">
-            Target: {goal.targetDate}
+            {t('goals.deadline')}: {goal.targetDate}
           </Text>
         ) : null}
       </View>
     </Card>
   );
 }
+

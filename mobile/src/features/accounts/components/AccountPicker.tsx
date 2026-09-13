@@ -1,12 +1,13 @@
-import { Landmark, Wallet as WalletIcon, CreditCard, Banknote } from 'lucide-react-native';
-import { useState } from 'react';
-import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { Banknote, Check, ChevronDown, CreditCard, Landmark, Wallet as WalletIcon } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import type { AccountResponse, AccountType } from '@sora/contracts';
 
-import { Card, Money, Text } from '../../../components/index.ts';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useWallets } from '../../../app/providers/WalletProvider.tsx';
-import { useListAccountsQuery } from '../../../app/store/api/accountsApi.ts';
+import { BottomSheetModal, Money, Text } from '../../../components';
+import { useTheme } from '../../../app/providers/ThemeProvider';
+import { useWallets } from '../../../app/providers/WalletProvider';
+import { useListAccountsQuery } from '../../../app/store/api/accountsApi';
 
 export const ACCOUNT_ICON: Record<AccountType, typeof Landmark> = {
   BANK_ACCOUNT: Landmark,
@@ -19,21 +20,32 @@ export interface AccountPickerProps {
   label: string;
   value: string | null;
   onChange: (accountId: string, walletId: string) => void;
-  /**
-   * Restrict to one wallet (the common case). Omit to browse every wallet the
-   * user can reach — used for a transfer's destination, which may legitimately
-   * sit in someone else's wallet.
-   */
   walletId?: string;
   error?: string;
   testID?: string;
 }
 
+/**
+ * Account picker component.
+ * Opens a slide-up bottom sheet modal to select an account.
+ * Automatically defaults to the first available account for enhanced UX.
+ */
 export function AccountPicker({ label, value, onChange, walletId, error, testID }: AccountPickerProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { wallets } = useWallets();
   const [open, setOpen] = useState(false);
   const accounts = useListAccountsQuery({ walletId, status: 'ACTIVE' });
+
+  useEffect(() => {
+    const list = accounts.data;
+    if ((value === null || value === undefined || value === '') && list !== undefined && list.length > 0) {
+      const first = list[0];
+      if (first !== undefined) {
+        onChange(first.id, first.walletId);
+      }
+    }
+  }, [accounts.data, value, onChange]);
 
   const selected = accounts.data?.find((a) => a.id === value);
   const walletNameOf = (id: string): string => wallets.find((w) => w.id === id)?.name ?? '';
@@ -56,9 +68,12 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID 
           justifyContent: 'center',
         }}
       >
-        <Text tone={selected === undefined ? 'faint' : 'default'}>
-          {selected === undefined ? 'Select an account' : selected.name}
-        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text tone={selected === undefined ? 'faint' : 'default'}>
+            {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Select an account' }) : selected.name}
+          </Text>
+          <ChevronDown size={18} color={theme.colors.textMuted} />
+        </View>
       </Pressable>
       {error !== undefined ? (
         <Text variant="caption" tone="danger">
@@ -66,41 +81,36 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID 
         </Text>
       ) : null}
 
-      <Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: theme.colors.overlay }} onPress={() => setOpen(false)}>
-          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-            <Pressable onPress={(e) => e.stopPropagation()}>
-              <Card
-                elevated
-                style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, maxHeight: '70%' }}
-              >
-                <Text variant="label" tone="muted" style={{ marginBottom: theme.spacing.sm }}>
-                  {label}
-                </Text>
-                <ScrollView>
-                  {(accounts.data ?? []).map((account) => (
-                    <AccountRow
-                      key={account.id}
-                      account={account}
-                      walletName={walletId === undefined ? walletNameOf(account.walletId) : undefined}
-                      selected={account.id === value}
-                      onPress={() => {
-                        onChange(account.id, account.walletId);
-                        setOpen(false);
-                      }}
-                    />
-                  ))}
-                  {accounts.data !== undefined && accounts.data.length === 0 ? (
-                    <Text tone="faint" style={{ paddingVertical: theme.spacing.md }}>
-                      No accounts here yet.
-                    </Text>
-                  ) : null}
-                </ScrollView>
-              </Card>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
+      <BottomSheetModal
+        visible={open}
+        onClose={() => setOpen(false)}
+        title={label || t('accounts.selectAccount', { defaultValue: 'Select an account' })}
+      >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          style={{ maxHeight: 360 }}
+          contentContainerStyle={{ gap: 4, paddingBottom: theme.spacing.md }}
+        >
+          {(accounts.data ?? []).map((account) => (
+            <AccountRow
+              key={account.id}
+              account={account}
+              walletName={walletId === undefined ? walletNameOf(account.walletId) : undefined}
+              selected={account.id === value}
+              onPress={() => {
+                onChange(account.id, account.walletId);
+                setOpen(false);
+              }}
+            />
+          ))}
+          {accounts.data !== undefined && accounts.data.length === 0 ? (
+            <Text tone="faint" style={{ padding: theme.spacing.md, textAlign: 'center' }}>
+              {t('accounts.noAccountsHereYet', { defaultValue: 'No accounts here yet.' })}
+            </Text>
+          ) : null}
+        </ScrollView>
+      </BottomSheetModal>
     </View>
   );
 }
@@ -128,7 +138,7 @@ function AccountRow({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingVertical: theme.spacing.sm,
-        paddingHorizontal: theme.spacing.xs,
+        paddingHorizontal: theme.spacing.sm,
         borderRadius: theme.radius.md,
         backgroundColor: selected ? theme.colors.primaryMuted : 'transparent',
       }}
@@ -144,7 +154,10 @@ function AccountRow({
           ) : null}
         </View>
       </View>
-      <Money amount={account.balance} currency={account.currency} variant="label" />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
+        <Money amount={account.balance} currency={account.currency} variant="label" />
+        {selected ? <Check size={16} color={theme.colors.primary} /> : null}
+      </View>
     </Pressable>
   );
 }

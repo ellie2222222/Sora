@@ -16,6 +16,7 @@ import { ensureSeeded } from '../../services/guest/guestSeed.ts';
 import { guestStore } from '../../services/guest/guestStorage.ts';
 import { uploadGuestData } from '../../services/guest/guestUpload.ts';
 import { GUEST_MODE_STORAGE_KEY, preferencesStore } from '../../services/storage/preferencesStore.ts';
+import { isNetworkError, isUnauthenticated } from '../../utils/errors.ts';
 import { setIsGuest as setIsGuestInStore } from '../store/authSlice.ts';
 import { useAppDispatch } from '../store/hooks.ts';
 
@@ -45,10 +46,11 @@ interface AuthContextValue {
    * kill mid-upload leaves this recoverable rather than stuck.
    */
   pendingGuestUpload: boolean;
-  resolveGuestUpload: (walletId: string) => Promise<void>;
+  resolveGuestUpload: (walletId: string, onProgress?: (phase: string, completed: boolean) => void) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
 
 export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   const queryClient = useQueryClient();
@@ -61,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
 
   // Mirrored into Redux so RTK Query `queryFn` endpoints — which only see
   // Redux state — can branch guest vs. real the same way this context's
-  // consumers do. Remove once auth itself moves into the store (phase 3).
+  // consumers do.
   useEffect(() => {
     dispatch(setIsGuestInStore(isGuest));
   }, [isGuest, dispatch]);
@@ -89,10 +91,16 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         try {
           const me = await authApi.me();
           if (!cancelled) setUser(me);
-        } catch {
-          // The refresh token may have been revoked while the app was closed.
-          // The interceptor has already cleared the session; land on login.
-          await session.clear();
+        } catch (err: unknown) {
+          if (isNetworkError(err)) {
+            // Server connection unavailable, but user has valid stored tokens.
+            // Retain local session so app remains usable offline.
+          } else if (isUnauthenticated(err)) {
+            // Token revoked/expired: clear session and return to login.
+            await session.clear();
+          } else {
+            // Other server errors: retain session locally so cached data works.
+          }
         }
       }
       if (!cancelled) setRestoring(false);
@@ -121,8 +129,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   }, [queryClient]);
 
   const resolveGuestUpload = useCallback(
-    async (walletId: string) => {
-      await uploadGuestData(walletId);
+    async (walletId: string, onProgress?: (phase: string, completed: boolean) => void) => {
+      await uploadGuestData(walletId, undefined, onProgress);
       await guestStore.clear();
       // Anything cached under a guest local id is now stale: the same records
       // exist server-side under different ids.
@@ -130,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     },
     [queryClient],
   );
+
 
   const login = useCallback(
     async (credentials: LoginRequest) => {

@@ -1,23 +1,26 @@
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
-import { BottomSheetModal, Button, Input, Text } from '../../../components';
+import { BottomSheetModal, Button, Input, SkeletonList, StateView, Text } from '../../../components';
 import { useTheme } from '../../../app/providers/ThemeProvider';
 import { AccountPicker } from '../../accounts/components/AccountPicker';
 import { CategoryPicker } from '../../categories/components/CategoryPicker';
 import { useAddContributionMutation, useGetGoalQuery } from '../../../app/store/api/goalsApi';
 import { messageOf } from '../../../utils/errors';
 import { nowInstant } from '../../../utils/date';
-import type { AppStackScreenProps } from '../../../app/navigation/types';
 
+export interface AddContributionModalProps {
+  visible: boolean;
+  goalId?: string;
+  onClose: () => void;
+}
 
-export function AddContributionScreen({ route, navigation }: AppStackScreenProps<'AddContribution'>) {
+export function AddContributionModal({ visible, goalId, onClose }: AddContributionModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { goalId } = route.params;
-  const goal = useGetGoalQuery(goalId);
+  const goal = useGetGoalQuery(goalId ?? '', { skip: !visible || !goalId });
   const [addContribution, { isLoading: isSubmitting }] = useAddContributionMutation();
 
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -27,6 +30,38 @@ export function AddContributionScreen({ route, navigation }: AppStackScreenProps
   const [recordAsTransaction, setRecordAsTransaction] = useState(true);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      setAccountId(null);
+      setWalletId(undefined);
+      setAmount('');
+      setNote('');
+      setRecordAsTransaction(true);
+      setCategoryId(null);
+      setError(null);
+    }
+  }, [visible, goalId]);
+
+  if (!visible || !goalId) return null;
+
+  if (goal.isLoading) {
+    return (
+      <BottomSheetModal visible={visible} onClose={onClose} title={t('goals.addContribution')}>
+        <SkeletonList rows={4} />
+      </BottomSheetModal>
+    );
+  }
+
+  if (goal.isError) {
+    return (
+      <BottomSheetModal visible={visible} onClose={onClose} title={t('goals.addContribution')}>
+        <StateView variant="error" error={goal.error} retryAction={() => void goal.refetch()} testID="add-contribution-error" />
+      </BottomSheetModal>
+    );
+  }
+
+  if (goal.data === undefined) return null;
 
   async function handleSubmit() {
     setError(null);
@@ -41,7 +76,7 @@ export function AddContributionScreen({ route, navigation }: AppStackScreenProps
 
     try {
       await addContribution({
-        goalId,
+        goalId: goalId as string,
         body: {
           accountId,
           amount,
@@ -52,31 +87,14 @@ export function AddContributionScreen({ route, navigation }: AppStackScreenProps
           categoryId: recordAsTransaction && categoryId !== null ? categoryId : undefined,
         },
       }).unwrap();
-      navigation.goBack();
+      onClose();
     } catch (submitError) {
       setError(messageOf(submitError));
     }
   }
 
-  const renderContent = () => {
-    if (goal.isLoading) {
-      return (
-        <View style={{ padding: theme.spacing.lg, alignItems: 'center' }}>
-          <Text tone="muted">{t('common.loading', 'Loading...')}</Text>
-        </View>
-      );
-    }
-    if (goal.isError || goal.data === undefined) {
-      return (
-        <View style={{ padding: theme.spacing.lg, alignItems: 'center' }}>
-          <Text tone="danger">{t('common.error', 'An error occurred.')}</Text>
-        </View>
-      );
-    }
-
-    const goalData = goal.data;
-
-    return (
+  return (
+    <BottomSheetModal visible={visible} onClose={onClose} title={t('goals.addContribution')}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -87,7 +105,7 @@ export function AddContributionScreen({ route, navigation }: AppStackScreenProps
         <AccountPicker
           testID="add-contribution-account"
           label={t('goals.fromAccount', { defaultValue: 'From account' })}
-          walletId={goalData.walletId}
+          walletId={goal.data.walletId}
           value={accountId}
           onChange={(id, pickedWalletId) => {
             setAccountId(id);
@@ -125,7 +143,7 @@ export function AddContributionScreen({ route, navigation }: AppStackScreenProps
         {recordAsTransaction ? (
           <CategoryPicker
             testID="add-contribution-category"
-            walletId={walletId ?? goalData.walletId}
+            walletId={walletId ?? goal.data.walletId}
             type="EXPENSE"
             value={categoryId}
             onChange={setCategoryId}
@@ -144,12 +162,6 @@ export function AddContributionScreen({ route, navigation }: AppStackScreenProps
           fullWidth
         />
       </ScrollView>
-    );
-  };
-
-  return (
-    <BottomSheetModal visible={true} onClose={() => navigation.goBack()} title={t('goals.addContribution')}>
-      {renderContent()}
     </BottomSheetModal>
   );
 }

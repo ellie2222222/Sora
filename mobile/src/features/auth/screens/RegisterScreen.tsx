@@ -1,12 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+
 import { useTranslation } from 'react-i18next';
 import { registerSchema } from '@sora/contracts';
 import type { z } from 'zod';
 
-import { Button, Input, Text } from '../../../components/index.ts';
+import { AnimatedScreen, Button, Input, Text } from '../../../components/index.ts';
 import { useAuth } from '../../../app/providers/AuthProvider.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { messageOf } from '../../../utils/errors.ts';
@@ -43,94 +44,99 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
   });
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.colors.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: 'center',
-          padding: theme.spacing.xl,
-          gap: theme.spacing.md,
-        }}
+    <AnimatedScreen style={{ backgroundColor: theme.colors.background }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Text variant="heading" style={{ marginBottom: theme.spacing.xs }}>
-          {t('auth.registerTitle')}
-        </Text>
-        <Text tone="muted" style={{ marginBottom: theme.spacing.lg }}>
-          {t('auth.registerSubtitle')}
-        </Text>
-
-        <Controller
-          control={control}
-          name="displayName"
-          render={({ field }) => (
-            <Input
-              testID="register-name"
-              label={t('auth.displayNameLabel')}
-              value={field.value}
-              onChangeText={field.onChange}
-              error={errors.displayName?.message}
-            />
-          )}
-        />
-
-        <Controller
-          control={control}
-          name="email"
-          render={({ field }) => (
-            <Input
-              testID="register-email"
-              label={t('auth.emailLabel')}
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              value={field.value}
-              onChangeText={field.onChange}
-              error={errors.email?.message}
-            />
-          )}
-        />
-
-        <Controller
-          control={control}
-          name="password"
-          render={({ field }) => (
-            <Input
-              testID="register-password"
-              label={t('auth.passwordLabel')}
-              secureTextEntry
-              autoCapitalize="none"
-              value={field.value}
-              onChangeText={field.onChange}
-              error={errors.password?.message}
-            />
-          )}
-        />
-
-        {submitError !== null ? (
-          <Text tone="danger" testID="register-error">
-            {submitError}
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: 'center',
+            padding: theme.spacing.xl,
+            gap: theme.spacing.md,
+          }}
+        >
+          <Text variant="heading" style={{ marginBottom: theme.spacing.xs }}>
+            {t('auth.registerTitle')}
           </Text>
-        ) : null}
+          <Text tone="muted" style={{ marginBottom: theme.spacing.lg }}>
+            {t('auth.registerSubtitle')}
+          </Text>
 
-        <Button
-          testID="register-submit"
-          label={t('auth.registerButton')}
-          onPress={onSubmit}
-          loading={isSubmitting}
-          fullWidth
-          style={{ marginTop: theme.spacing.sm }}
-        />
+          <Controller
+            control={control}
+            name="displayName"
+            render={({ field }) => (
+              <Input
+                testID="register-name"
+                label={t('auth.displayNameLabel')}
+                value={field.value}
+                onChangeText={field.onChange}
+                error={errors.displayName?.message}
+              />
+            )}
+          />
 
-        <Button
-          testID="register-go-login"
-          label={t('auth.hasAccount')}
-          variant="ghost"
-          onPress={() => navigation.navigate('Login')}
-        />
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <Controller
+            control={control}
+            name="email"
+            render={({ field }) => (
+              <Input
+                testID="register-email"
+                label={t('auth.emailLabel')}
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                value={field.value}
+                onChangeText={field.onChange}
+                error={errors.email?.message}
+              />
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="password"
+            render={({ field }) => (
+              <Input
+                testID="register-password"
+                label={t('auth.passwordLabel')}
+                secureTextEntry
+                autoCapitalize="none"
+                value={field.value}
+                onChangeText={field.onChange}
+                error={errors.password?.message}
+              />
+            )}
+          />
+
+          {submitError !== null ? (
+            <Text tone="danger" testID="register-error">
+              {submitError}
+            </Text>
+          ) : null}
+
+          <Button
+            testID="register-submit"
+            label={t('auth.registerButton')}
+            onPress={onSubmit}
+            loading={isSubmitting}
+            fullWidth
+            style={{ marginTop: theme.spacing.sm }}
+          />
+
+          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
+            <Text tone="muted">{t('auth.hasAccountPrompt')}</Text>
+            <Pressable testID="register-go-login" onPress={() => navigation.navigate('Login')} hitSlop={8}>
+              <Text weight="semibold" style={{ color: theme.colors.primary }}>
+                {t('auth.signInLink')}
+              </Text>
+            </Pressable>
+          </View>
+
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </AnimatedScreen>
   );
 }

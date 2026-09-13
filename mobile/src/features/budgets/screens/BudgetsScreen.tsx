@@ -1,9 +1,11 @@
-import { PiggyBank } from 'lucide-react-native';
+import { PiggyBank, Plus } from 'lucide-react-native';
 import { FlatList, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import type { BudgetResponse } from '@sora/contracts';
 
-import { Card, EmptyState, ErrorState, Money, ProgressBar, Text } from '../../../components/index.ts';
+import { AnimatedScreen, Card, Money, ProgressBar, StateView, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
+import { useModal } from '../../../app/providers/ModalProvider.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
 import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
@@ -14,7 +16,9 @@ import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 export function BudgetsScreen({ navigation }: AppStackScreenProps<'Budgets'>) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { activeWalletId, permissions } = useWallets();
+  const { openModal } = useModal();
   const onManage = () => navigation.navigate('WalletList');
 
   const budgets = useListBudgetsQuery(
@@ -22,40 +26,31 @@ export function BudgetsScreen({ navigation }: AppStackScreenProps<'Budgets'>) {
     { skip: activeWalletId === null },
   );
 
-  if (activeWalletId === null || budgets.isLoading) {
-    return (
-      <WalletContextBar onManage={onManage}>
-        <SkeletonList rows={4} rowHeight={96} />
-      </WalletContextBar>
-    );
-  }
-  if (budgets.isError) {
-    return (
-      <WalletContextBar onManage={onManage}>
-        <ErrorState error={budgets.error} onRetry={() => void budgets.refetch()} testID="budgets-error" />
-      </WalletContextBar>
-    );
-  }
+  const renderContent = () => {
+    if (activeWalletId === null || budgets.isLoading) {
+      return <SkeletonList rows={4} rowHeight={96} />;
+    }
+    if (budgets.isError) {
+      return <StateView variant="error" error={budgets.error} retryAction={() => void budgets.refetch()} testID="budgets-error" />;
+    }
 
-  const items = budgets.data ?? [];
-
-  if (items.length === 0) {
-    return (
-      <WalletContextBar onManage={onManage}>
-        <EmptyState
+    const items = budgets.data ?? [];
+    if (items.length === 0) {
+      return (
+        <StateView
+          variant="empty"
           icon={PiggyBank}
-          title="No active budgets"
-          description="Plan how much you want to spend in a category this period."
-          actionLabel={permissions.canWrite ? 'Add budget' : undefined}
-          onAction={permissions.canWrite ? () => navigation.navigate('AddBudget') : undefined}
+          title={t('budgets.noBudgetsTitle')}
+          message={t('budgets.noBudgetsMessage')}
+          primaryAction={
+            permissions.canWrite ? { label: t('budgets.newBudget'), onPress: () => openModal('AddBudget'), icon: Plus } : undefined
+          }
           testID="budgets-empty"
         />
-      </WalletContextBar>
-    );
-  }
+      );
+    }
 
-  return (
-    <WalletContextBar onManage={onManage}>
+    return (
       <FlatList
         testID="budgets-list"
         data={items}
@@ -63,12 +58,21 @@ export function BudgetsScreen({ navigation }: AppStackScreenProps<'Budgets'>) {
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
         renderItem={({ item }) => <BudgetCard budget={item} onPress={() => navigation.navigate('BudgetDetail', { budgetId: item.id })} />}
       />
-    </WalletContextBar>
+    );
+  };
+
+  return (
+    <AnimatedScreen>
+      <WalletContextBar onManage={onManage}>
+        {renderContent()}
+      </WalletContextBar>
+    </AnimatedScreen>
   );
 }
 
 function BudgetCard({ budget, onPress }: { budget: BudgetResponse; onPress: () => void }) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Card testID={`budget-card-${budget.id}`} onTouchEnd={onPress}>
@@ -76,7 +80,7 @@ function BudgetCard({ budget, onPress }: { budget: BudgetResponse; onPress: () =
         <Text weight="semibold">{budget.name}</Text>
         {budget.isOverBudget ? (
           <Text variant="caption" tone="danger">
-            Over budget
+            {t('budgets.overBudget')}
           </Text>
         ) : null}
       </View>
@@ -87,14 +91,15 @@ function BudgetCard({ budget, onPress }: { budget: BudgetResponse; onPress: () =
         <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
           <Money amount={budget.spent} currency={budget.currency} variant="caption" />
           <Text variant="caption" tone="muted">
-            of
+            /
           </Text>
           <Money amount={budget.amount} currency={budget.currency} variant="caption" />
         </View>
         <Text variant="caption" tone={budget.isOverBudget ? 'danger' : 'muted'} weight="semibold">
-          {formatMoneyString(budget.remaining, budget.currency, { signDisplay: 'always' })} left
+          {formatMoneyString(budget.remaining, budget.currency, { signDisplay: 'always' })} {t('budgets.remaining').toLowerCase()}
         </Text>
       </View>
     </Card>
   );
 }
+

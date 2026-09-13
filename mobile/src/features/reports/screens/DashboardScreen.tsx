@@ -1,28 +1,30 @@
 import { useCallback, useEffect, useState } from 'react';
+import { ArrowDownLeft, ArrowUpRight, PieChart as PieChartIcon } from 'lucide-react-native';
 import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { add, isNegative, maxOf, negate, percentageOf, parseMoney, ZERO } from '@sora/contracts';
 import type { CategorySpendSlice, CurrencyTotal, DashboardResponse } from '@sora/contracts';
 
-import { AnimatedScreen, Button, DonutChart, Money, MonthSelector, StateView, Text, TrendBarChart } from '../../../components';
-import { SkeletonList } from '../../../components/Skeleton';
-import { PieChart as PieChartIcon } from 'lucide-react-native';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
-import { WalletContextBar } from '../../wallets/components/WalletContextBar';
-import { useGetDashboardSummaryQuery } from '../../../app/store/api/dashboardApi';
-import { formatMoneyString } from '../../../utils/money';
-import { addMonths, endOfMonth, formatMonthYear, monthName, parseDay, startOfMonth, today } from '../../../utils/date';
-import type { CalendarDay } from '../../../utils/date';
-import type { MainTabScreenProps } from '../../../app/navigation/types';
+import { Button, Card, DonutChart, Money, MonthSelector, ProgressBar, StateView, Text, TrendBarChart } from '../../../components/index.ts';
+import { SkeletonList } from '../../../components/Skeleton.tsx';
+import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
+import { useWallets } from '../../../app/providers/WalletProvider.tsx';
+import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
+import { useGetDashboardSummaryQuery } from '../../../app/store/api/dashboardApi.ts';
+import { useListBudgetsQuery } from '../../../app/store/api/budgetsApi.ts';
+import { formatMoneyString } from '../../../utils/money.ts';
+import { addMonths, endOfMonth, formatMonthYear, monthName, parseDay, startOfMonth, today } from '../../../utils/date.ts';
+import type { CalendarDay } from '../../../utils/date.ts';
+import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
 
 type Period = 'monthly' | 'yearly';
 
-export function ReportScreen({ navigation }: MainTabScreenProps<'Report'>) {
+export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { activeWalletId } = useWallets();
   const onManage = () => navigation.getParent()?.navigate('WalletList');
+  const onViewAllBudgets = () => navigation.getParent()?.navigate('Budgets');
 
   const [period, setPeriod] = useState<Period>('monthly');
   const [selectedMonth, setSelectedMonth] = useState(() => startOfMonth(today()));
@@ -31,67 +33,66 @@ export function ReportScreen({ navigation }: MainTabScreenProps<'Report'>) {
   const isCurrentYear = selectedYear === parseDay(today()).year;
 
   return (
-    <AnimatedScreen>
-      <WalletContextBar onManage={onManage}>
-        <ScrollView testID="report-screen" contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.lg }}>
-          <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
-            <Button
-              testID="report-period-monthly"
-              label={t('reports.monthly')}
-              size="sm"
-              variant={period === 'monthly' ? 'primary' : 'secondary'}
-              onPress={() => setPeriod('monthly')}
-            />
-            <Button
-              testID="report-period-yearly"
-              label={t('reports.yearly')}
-              size="sm"
-              variant={period === 'yearly' ? 'primary' : 'secondary'}
-              onPress={() => setPeriod('yearly')}
-            />
-          </View>
+    <WalletContextBar onManage={onManage}>
+      <ScrollView testID="dashboard-screen" contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.lg }}>
+        <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+          <Button
+            testID="dashboard-period-monthly"
+            label={t('reports.monthly')}
+            size="sm"
+            variant={period === 'monthly' ? 'primary' : 'secondary'}
+            onPress={() => setPeriod('monthly')}
+          />
+          <Button
+            testID="dashboard-period-yearly"
+            label={t('reports.yearly')}
+            size="sm"
+            variant={period === 'yearly' ? 'primary' : 'secondary'}
+            onPress={() => setPeriod('yearly')}
+          />
+        </View>
 
-          {activeWalletId === null ? (
-            <StateView variant="empty" icon={PieChartIcon} title={t('reports.noWalletYet')} message={t('reports.createWalletToSee')} testID="report-empty" />
-          ) : period === 'monthly' ? (
-            <>
-              <MonthSelector
-                testID="report-month-selector"
-                label={formatMonthYear(selectedMonth)}
-                onPrev={() => setSelectedMonth((month) => addMonths(month, -1))}
-                onNext={() => setSelectedMonth((month) => addMonths(month, 1))}
-                disableNext={isCurrentMonth}
-              />
-              <MonthlyReport walletId={activeWalletId} month={selectedMonth} />
-            </>
-          ) : (
-            <>
-              <MonthSelector
-                testID="report-year-selector"
-                label={String(selectedYear)}
-                onPrev={() => setSelectedYear((year) => year - 1)}
-                onNext={() => setSelectedYear((year) => year + 1)}
-                disableNext={isCurrentYear}
-              />
-              <YearlyReport walletId={activeWalletId} year={selectedYear} />
-            </>
-          )}
-        </ScrollView>
-      </WalletContextBar>
-    </AnimatedScreen>
+        {activeWalletId === null ? (
+          <StateView variant="empty" icon={PieChartIcon} title={t('dashboard.noWalletYet')} message={t('dashboard.createWalletToSee')} testID="dashboard-empty" />
+        ) : period === 'monthly' ? (
+          <>
+            <MonthSelector
+              testID="dashboard-month-selector"
+              label={formatMonthYear(selectedMonth)}
+              onPrev={() => setSelectedMonth((month) => addMonths(month, -1))}
+              onNext={() => setSelectedMonth((month) => addMonths(month, 1))}
+              disableNext={isCurrentMonth}
+            />
+            <MonthlyReport walletId={activeWalletId} month={selectedMonth} onViewAllBudgets={onViewAllBudgets} />
+          </>
+        ) : (
+          <>
+            <MonthSelector
+              testID="dashboard-year-selector"
+              label={String(selectedYear)}
+              onPrev={() => setSelectedYear((year) => year - 1)}
+              onNext={() => setSelectedYear((year) => year + 1)}
+              disableNext={isCurrentYear}
+            />
+            <YearlyReport walletId={activeWalletId} year={selectedYear} />
+          </>
+        )}
+      </ScrollView>
+    </WalletContextBar>
   );
 }
 
-function MonthlyReport({ walletId, month }: { walletId: string; month: CalendarDay }) {
+function MonthlyReport({ walletId, month, onViewAllBudgets }: { walletId: string; month: CalendarDay; onViewAllBudgets: () => void }) {
   const theme = useTheme();
   const { t } = useTranslation();
   const previousMonth = addMonths(month, -1);
 
   const current = useGetDashboardSummaryQuery({ walletId, dateFrom: startOfMonth(month), dateTo: endOfMonth(month) });
   const previous = useGetDashboardSummaryQuery({ walletId, dateFrom: startOfMonth(previousMonth), dateTo: endOfMonth(previousMonth) });
+  const budgets = useListBudgetsQuery({ walletId, status: 'ACTIVE', activeOn: today() });
 
   if (current.isLoading) return <SkeletonList rows={5} />;
-  if (current.isError) return <StateView variant="error" error={current.error} retryAction={() => void current.refetch()} testID="report-monthly-error" />;
+  if (current.isError) return <StateView variant="error" error={current.error} retryAction={() => void current.refetch()} testID="dashboard-monthly-error" />;
 
   const data = current.data;
   if (data === undefined) return <StateView variant="error" error={new Error(t('reports.noData', 'No report data available.'))} />;
@@ -102,19 +103,75 @@ function MonthlyReport({ walletId, month }: { walletId: string; month: CalendarD
   const savingsRate = income !== undefined && net !== undefined ? percentageOf(parseMoney(net.amount), parseMoney(income.amount), 0) : null;
   const topCategory = data.spendingByCategory[0];
   const insights = buildMonthlyInsights(t, data, previous.data, topCategory, savingsRate);
+  const topBudgets = [...(budgets.data ?? [])].sort((a, b) => b.usagePercentage - a.usagePercentage).slice(0, 3);
 
   return (
     <View style={{ gap: theme.spacing.lg }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <SummaryFigure label={t('reports.income')} total={income} />
-        <SummaryFigure label={t('reports.expenses')} total={expense} />
-        <SummaryFigure label={t('reports.net')} total={net} />
+      <Card elevated>
+        <Text variant="label" tone="muted">
+          {t('dashboard.totalBalance')}
+        </Text>
+        <BalanceTotals totals={data.totalBalance} />
+      </Card>
+
+      <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
+        <Card style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
+            <ArrowDownLeft size={16} color={theme.colors.income} />
+            <Text variant="label" tone="muted">
+              {t('dashboard.income')}
+            </Text>
+          </View>
+          <BalanceTotals totals={data.income} variant="body" />
+          <MoMBadge current={data.income} previous={previous.data?.income} />
+        </Card>
+        <Card style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
+            <ArrowUpRight size={16} color={theme.colors.expense} />
+            <Text variant="label" tone="muted">
+              {t('dashboard.expenses')}
+            </Text>
+          </View>
+          <BalanceTotals totals={data.expense} variant="body" />
+          <MoMBadge current={data.expense} previous={previous.data?.expense} />
+        </Card>
       </View>
+
+      {topBudgets.length > 0 ? (
+        <Card>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: theme.spacing.sm }}>
+            <Text variant="label" tone="muted">
+              {t('dashboard.budgets')}
+            </Text>
+            <Text variant="label" tone="muted" onPress={onViewAllBudgets} testID="dashboard-view-all-budgets">
+              {t('dashboard.viewAll')}
+            </Text>
+          </View>
+          <View style={{ gap: theme.spacing.sm }}>
+            {topBudgets.map((budget) => (
+              <View key={budget.id}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text numberOfLines={1} style={{ flex: 1 }}>
+                    {budget.name}
+                  </Text>
+                  <Text variant="caption" tone={budget.isOverBudget ? 'danger' : 'muted'}>
+                    {budget.usagePercentage.toFixed(0)}%
+                  </Text>
+                </View>
+                <ProgressBar percentage={budget.usagePercentage} danger={budget.isOverBudget} />
+              </View>
+            ))}
+          </View>
+        </Card>
+      ) : null}
 
       {data.spendingByCategory.length === 0 ? (
         <Text tone="faint">{t('reports.noSpendingThisMonth')}</Text>
       ) : (
         <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
+          <Text variant="label" tone="muted" style={{ alignSelf: 'flex-start' }}>
+            {t('dashboard.spendingByCategory')}
+          </Text>
           <DonutChart
             slices={data.spendingByCategory}
             centerLabel={expense !== undefined ? formatCompact(expense) : undefined}
@@ -249,14 +306,43 @@ function MonthDataPoint({
   return null;
 }
 
-function SummaryFigure({ label, total }: { label: string; total: CurrencyTotal | undefined }) {
+function BalanceTotals({ totals, variant = 'heading' }: { totals: CurrencyTotal[]; variant?: 'heading' | 'body' }) {
+  if (totals.length === 0) return <Text tone="faint">—</Text>;
   return (
-    <View>
-      <Text variant="label" tone="muted">
-        {label}
-      </Text>
-      {total !== undefined ? <Money amount={total.amount} currency={total.currency} variant="title" weight="bold" /> : <Text tone="faint">—</Text>}
-    </View>
+    <>
+      {totals.map((total) => (
+        <Money key={total.currency} amount={total.amount} currency={total.currency} variant={variant} />
+      ))}
+    </>
+  );
+}
+
+/**
+ * Month-over-month delta for one figure. Compares only the first (alphabetically
+ * lowest, per `CurrencyLedger.currencies()`) currency a wallet holds — not a
+ * "dominant" one, the domain has no such concept — so a multi-currency wallet's
+ * badge is a partial signal, not the whole picture.
+ */
+function MoMBadge({ current, previous }: { current: CurrencyTotal[]; previous: CurrencyTotal[] | undefined }) {
+  const { t } = useTranslation();
+  const currency = current[0]?.currency;
+  if (currency === undefined || previous === undefined) return null;
+
+  const previousTotal = previous.find((total) => total.currency === currency);
+  if (previousTotal === undefined) return null;
+
+  const currentAmount = parseMoney(current[0]?.amount ?? '0');
+  const previousAmount = parseMoney(previousTotal.amount);
+  if (previousAmount === ZERO) return null;
+
+  const denominator = isNegative(previousAmount) ? negate(previousAmount) : previousAmount;
+  const change = percentageOf(add(currentAmount, negate(previousAmount)), denominator, 0);
+  if (change === 0) return null;
+
+  return (
+    <Text variant="caption" tone="muted" style={{ marginTop: 2 }}>
+      {t('dashboard.vsLastMonth', { direction: change > 0 ? '▲' : '▼', change: Math.abs(change) })}
+    </Text>
   );
 }
 

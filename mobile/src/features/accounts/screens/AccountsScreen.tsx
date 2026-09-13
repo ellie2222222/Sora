@@ -3,19 +3,21 @@ import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { add, formatMoney, isNegative, negate, parseMoney, ZERO, type AccountResponse } from '@sora/contracts';
 
-import { Card, EmptyState, ErrorState, Money, Text } from '../../../components/index.ts';
-import { SkeletonList } from '../../../components/Skeleton.tsx';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useWallets } from '../../../app/providers/WalletProvider.tsx';
-import { useListAccountsQuery } from '../../../app/store/api/accountsApi.ts';
-import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
-import { sumScaledByKey } from '../../../utils/money.ts';
-import { ACCOUNT_ICON } from '../components/AccountPicker.tsx';
-import type { MainTabScreenProps } from '../../../app/navigation/types.ts';
+import { AnimatedScreen, Card, ListItemEnter, Money, StateView, Text } from '../../../components';
+import { SkeletonList } from '../../../components/Skeleton';
+import { useModal } from '../../../app/providers/ModalProvider';
+import { useTheme } from '../../../app/providers/ThemeProvider';
+import { useWallets } from '../../../app/providers/WalletProvider';
+import { useListAccountsQuery } from '../../../app/store/api/accountsApi';
+import { WalletContextBar } from '../../wallets/components/WalletContextBar';
+import { sumScaledByKey } from '../../../utils/money';
+import { ACCOUNT_ICON } from '../components/AccountPicker';
+import type { MainTabScreenProps } from '../../../app/navigation/types';
 
 export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { openModal } = useModal();
   const { activeWalletId, isLoading: walletsLoading, isError: walletsError, refetch: refetchWallets, permissions } = useWallets();
   const onManage = () => navigation.getParent()?.navigate('WalletList');
 
@@ -24,40 +26,34 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
     { skip: activeWalletId === null },
   );
 
-  if (walletsLoading) return <SkeletonList rows={5} />;
-  if (walletsError) return <ErrorState error={new Error('Could not load your wallets')} onRetry={refetchWallets} />;
+  // Determine what to render in the content area
+  const renderContent = () => {
+    if (walletsLoading) return <SkeletonList rows={5} />;
+    if (walletsError) {
+      return <StateView variant="error" error={new Error(t('errors.loadWalletsFailed'))} retryAction={refetchWallets} />;
+    }
 
-  if (activeWalletId === null) {
+    if (activeWalletId === null) {
+      return (
+        <StateView
+          variant="empty"
+          icon={WalletIcon}
+          title={t('home.noWalletTitle')}
+          message={t('home.noWalletDescription')}
+          testID="accounts-no-wallet"
+        />
+      );
+    }
+
+    if (accounts.isLoading) return <SkeletonList rows={5} />;
+    if (accounts.isError) {
+      return <StateView variant="error" error={accounts.error} retryAction={() => void accounts.refetch()} testID="accounts-error" />;
+    }
+
+    const items = accounts.data ?? [];
+    const { assets, liabilities, netWorth } = netWorthByCurrency(items);
+
     return (
-      <EmptyState
-        icon={WalletIcon}
-        title={t('home.noWalletTitle')}
-        description={t('home.noWalletDescription')}
-        testID="accounts-no-wallet"
-      />
-    );
-  }
-
-  if (accounts.isLoading) {
-    return (
-      <WalletContextBar onManage={onManage}>
-        <SkeletonList rows={5} />
-      </WalletContextBar>
-    );
-  }
-  if (accounts.isError) {
-    return (
-      <WalletContextBar onManage={onManage}>
-        <ErrorState error={accounts.error} onRetry={() => void accounts.refetch()} testID="accounts-error" />
-      </WalletContextBar>
-    );
-  }
-
-  const items = accounts.data ?? [];
-  const { assets, liabilities, netWorth } = netWorthByCurrency(items);
-
-  return (
-    <WalletContextBar onManage={onManage}>
       <ScrollView
         testID="accounts-screen"
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.lg }}
@@ -65,7 +61,7 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
       >
         <View>
           <Text variant="label" tone="muted">
-            Net worth
+            {t('accounts.netWorth')}
           </Text>
           {netWorth.length === 0 ? (
             <Text tone="faint">—</Text>
@@ -75,7 +71,7 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
           <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.sm }}>
             <View style={{ flex: 1 }}>
               <Text variant="caption" tone="muted">
-                Assets
+                {t('accounts.assets')}
               </Text>
               {assets.map((total) => (
                 <Money key={total.currency} amount={total.amount} currency={total.currency} variant="body" />
@@ -84,7 +80,7 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
             </View>
             <View style={{ flex: 1 }}>
               <Text variant="caption" tone="muted">
-                Liabilities
+                {t('accounts.liabilities')}
               </Text>
               {liabilities.length === 0 ? (
                 <Text tone="faint">—</Text>
@@ -98,12 +94,12 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
         <View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.xs }}>
             <Text variant="label" tone="muted">
-              Accounts
+              {t('accounts.accountsLabel')}
             </Text>
             {permissions.canWrite ? (
               <Pressable
                 testID="accounts-add"
-                onPress={() => navigation.getParent()?.navigate('AddAccount', { walletId: activeWalletId ?? undefined })}
+                onPress={() => openModal('AddAccount', { walletId: activeWalletId ?? undefined })}
               >
                 <Plus size={20} color={theme.colors.primary} />
               </Pressable>
@@ -111,14 +107,18 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
           </View>
 
           {items.length === 0 ? (
-            <EmptyState
+            <StateView
+              variant="empty"
               icon={Landmark}
-              title="No accounts yet"
-              description="Add a bank account, cash, or an e-wallet."
-              actionLabel={permissions.canWrite ? 'Add account' : undefined}
-              onAction={
+              title={t('accounts.noAccountsTitle')}
+              message={t('accounts.noAccountsMessage')}
+              primaryAction={
                 permissions.canWrite
-                  ? () => navigation.getParent()?.navigate('AddAccount', { walletId: activeWalletId ?? undefined })
+                  ? {
+                      label: t('accounts.addAccount'),
+                      onPress: () => openModal('AddAccount', { walletId: activeWalletId ?? undefined }),
+                      icon: Plus,
+                    }
                   : undefined
               }
               testID="accounts-empty"
@@ -127,17 +127,27 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
             <View style={{ borderTopWidth: 1, borderTopColor: theme.colors.border }}>
               {items.map((account, index) => (
                 <View key={account.id} style={index === 0 ? undefined : { borderTopWidth: 1, borderTopColor: theme.colors.border }}>
-                  <AccountRow
-                    account={account}
-                    onPress={() => navigation.getParent()?.navigate('AccountDetail', { accountId: account.id })}
-                  />
+                  <ListItemEnter>
+                    <AccountRow
+                      account={account}
+                      onPress={() => navigation.getParent()?.navigate('AccountDetail', { accountId: account.id })}
+                    />
+                  </ListItemEnter>
                 </View>
               ))}
             </View>
           )}
         </View>
       </ScrollView>
-    </WalletContextBar>
+    );
+  };
+
+  return (
+    <AnimatedScreen>
+      <WalletContextBar onManage={onManage}>
+        {renderContent()}
+      </WalletContextBar>
+    </AnimatedScreen>
   );
 }
 

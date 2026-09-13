@@ -1,57 +1,80 @@
 import { History } from 'lucide-react-native';
 import { SectionList, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import type { AuditLogResponse } from '@sora/contracts';
 
-import { Card, EmptyState, ErrorState, Text } from '../../../components/index.ts';
+import { Card, StateView, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useListAuditLogsQuery } from '../../../app/store/api/auditApi.ts';
 import { dayOfInstant, formatDayHeading, formatTimeOfDay } from '../../../utils/date.ts';
-import { ROLE_LABELS } from '../../../utils/roles.ts';
+import { getRoleLabel } from '../../../utils/roles.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 /** WAL-US-13. OWNER-only (API spec §15.1) — this screen is only ever reached from a control already gated to the owner. */
 export function WalletActivityScreen({ route }: AppStackScreenProps<'WalletActivity'>) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { walletId } = route.params;
 
   const activity = useListAuditLogsQuery({ walletId, query: { pageSize: 50 } });
 
-  if (activity.isLoading) return <SkeletonList rows={6} />;
-  if (activity.isError) {
-    return <ErrorState error={activity.error} onRetry={() => void activity.refetch()} testID="wallet-activity-error" />;
-  }
+  const renderContent = () => {
+    if (activity.isLoading) {
+      return (
+        <View style={{ padding: theme.spacing.md }}>
+          <SkeletonList rows={6} />
+        </View>
+      );
+    }
+    if (activity.isError) {
+      return (
+        <View style={{ padding: theme.spacing.md }}>
+          <StateView variant="error" error={activity.error} retryAction={() => void activity.refetch()} testID="wallet-activity-error" />
+        </View>
+      );
+    }
 
-  const items = activity.data?.items ?? [];
+    const items = activity.data?.items ?? [];
 
-  if (items.length === 0) {
+    if (items.length === 0) {
+      return (
+        <View style={{ padding: theme.spacing.md }}>
+          <StateView
+            variant="empty"
+            icon={History}
+            title={t('activity.noActivityYet')}
+            message={t('activity.noActivityMessage')}
+            testID="wallet-activity-empty"
+          />
+        </View>
+      );
+    }
+
+    const sections = groupByDay(items);
+
     return (
-      <EmptyState
-        icon={History}
-        title="No activity yet"
-        description="Every change made in this wallet will show up here."
-        testID="wallet-activity-empty"
+      <SectionList
+        testID="wallet-activity-list"
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.sm }}
+        renderSectionHeader={({ section }) => (
+          <View style={{ backgroundColor: theme.colors.background, paddingBottom: theme.spacing.xs }}>
+            <Text variant="label" tone="muted">
+              {section.title}
+            </Text>
+          </View>
+        )}
+        renderItem={({ item }) => <ActivityRow entry={item} />}
       />
     );
-  }
-
-  const sections = groupByDay(items);
+  };
 
   return (
-    <SectionList
-      testID="wallet-activity-list"
-      sections={sections}
-      keyExtractor={(item) => item.id}
-      contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.sm }}
-      renderSectionHeader={({ section }) => (
-        <View style={{ backgroundColor: theme.colors.background, paddingBottom: theme.spacing.xs }}>
-          <Text variant="label" tone="muted">
-            {section.title}
-          </Text>
-        </View>
-      )}
-      renderItem={({ item }) => <ActivityRow entry={item} />}
-    />
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      {renderContent()}
+    </View>
   );
 }
 
@@ -76,6 +99,7 @@ function humanizeEvent(event: string): string {
 
 function ActivityRow({ entry }: { entry: AuditLogResponse }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const failed = entry.result !== 'SUCCESS';
 
   return (
@@ -84,7 +108,7 @@ function ActivityRow({ entry }: { entry: AuditLogResponse }) {
         <View style={{ flex: 1, gap: 2 }}>
           <Text weight="semibold">{humanizeEvent(entry.event)}</Text>
           <Text variant="caption" tone="muted">
-            {entry.actorRole !== null ? `${ROLE_LABELS[entry.actorRole]} · ` : ''}
+            {entry.actorRole !== null ? `${getRoleLabel(entry.actorRole, t)} · ` : ''}
             {entry.entityType}
             {failed ? ` · ${entry.result.toLowerCase()}` : ''}
           </Text>
