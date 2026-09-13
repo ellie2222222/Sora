@@ -17,13 +17,15 @@ import { Injectable } from '@nestjs/common';
 import { sql, type Kysely, type Transaction } from 'kysely';
 
 import {
+  TransactionStatus,
+  TransactionType,
+  AccountStatus,
+  CategoryType,
   type CategoryResponse,
   type CreateTransactionRequest,
   type TransactionAccountRef,
   type TransactionQuery,
   type TransactionResponse,
-  type TransactionStatus,
-  type TransactionType,
   type UpdateTransactionRequest,
 } from '@sora/contracts';
 
@@ -290,7 +292,7 @@ export class TransactionsService {
     request: CreateTransactionRequest,
     ip: string | null,
   ): Promise<TransactionResponse> {
-    if (request.type === 'TRANSFER' && request.fromAccountId === request.toAccountId) {
+    if (request.type === TransactionType.TRANSFER && request.fromAccountId === request.toAccountId) {
       throw new AppError('TRANSFER_SAME_ACCOUNT');
     }
 
@@ -298,19 +300,19 @@ export class TransactionsService {
     const accessMap = await this.access.requireAccountsWritable(user.id, accountIds);
 
     for (const access of accessMap.values()) {
-      if (access.accountStatus === 'ARCHIVED') throw new AppError('ACCOUNT_ARCHIVED');
+      if (access.accountStatus === AccountStatus.ARCHIVED) throw new AppError('ACCOUNT_ARCHIVED');
       if (access.currency !== request.currency) throw new AppError('ACCOUNT_CURRENCY_MISMATCH');
     }
 
-    const fromAccess = request.type !== 'INCOME' ? accessMap.get(request.fromAccountId) : undefined;
-    const toAccess = request.type !== 'EXPENSE' ? accessMap.get(request.toAccountId) : undefined;
+    const fromAccess = request.type !== TransactionType.INCOME ? accessMap.get(request.fromAccountId) : undefined;
+    const toAccess = request.type !== TransactionType.EXPENSE ? accessMap.get(request.toAccountId) : undefined;
 
-    if (request.type === 'TRANSFER' && fromAccess!.currency !== toAccess!.currency) {
+    if (request.type === TransactionType.TRANSFER && fromAccess!.currency !== toAccess!.currency) {
       throw new AppError('TRANSFER_CURRENCY_MISMATCH');
     }
 
-    if (request.type === 'INCOME' || request.type === 'EXPENSE') {
-      const namedAccess = request.type === 'INCOME' ? toAccess! : fromAccess!;
+    if (request.type === TransactionType.INCOME || request.type === TransactionType.EXPENSE) {
+      const namedAccess = request.type === TransactionType.INCOME ? toAccess! : fromAccess!;
       const category = await this.categoryRow(request.categoryId);
       if (!category) throw new AppError('CATEGORY_NOT_FOUND');
       if (category.type !== request.type) throw new AppError('CATEGORY_WRONG_TYPE');
@@ -321,9 +323,9 @@ export class TransactionsService {
       .insertInto('transactions')
       .values({
         created_by_user_id: user.id,
-        from_account_id: request.type === 'INCOME' ? null : request.fromAccountId,
-        to_account_id: request.type === 'EXPENSE' ? null : request.toAccountId,
-        category_id: request.type === 'TRANSFER' ? null : request.categoryId,
+        from_account_id: request.type === TransactionType.INCOME ? null : request.fromAccountId,
+        to_account_id: request.type === TransactionType.EXPENSE ? null : request.toAccountId,
+        category_id: request.type === TransactionType.TRANSFER ? null : request.categoryId,
         type: request.type,
         amount: request.amount,
         currency: request.currency,
@@ -385,19 +387,19 @@ export class TransactionsService {
     }
 
     const row = await this.plainRow(transactionId);
-    if (row.status === 'CANCELLED') throw new AppError('TRANSACTION_ALREADY_CANCELLED');
+    if (row.status === TransactionStatus.CANCELLED) throw new AppError('TRANSACTION_ALREADY_CANCELLED');
 
     const accessMap = await this.access.requireAccountsWritable(user.id, accountIdsOfRow(row));
 
     if (body.categoryId !== undefined) {
-      if (row.type === 'TRANSFER') {
+      if (row.type === TransactionType.TRANSFER) {
         throw new AppError('CATEGORY_WRONG_TYPE', 'A transfer does not have a category');
       }
       const category = await this.categoryRow(body.categoryId);
       if (!category) throw new AppError('CATEGORY_NOT_FOUND');
       if (category.type !== row.type) throw new AppError('CATEGORY_WRONG_TYPE');
 
-      const namedAccountId = row.type === 'INCOME' ? row.to_account_id! : row.from_account_id!;
+      const namedAccountId = row.type === TransactionType.INCOME ? row.to_account_id! : row.from_account_id!;
       const walletId = accessMap.get(namedAccountId)!.walletId;
       if (category.wallet_id !== walletId) throw new AppError('CATEGORY_WRONG_WALLET');
     }
@@ -435,14 +437,14 @@ export class TransactionsService {
     ip: string | null,
   ): Promise<TransactionResponse> {
     const row = await this.plainRow(transactionId);
-    if (row.status === 'CANCELLED') throw new AppError('TRANSACTION_ALREADY_CANCELLED');
+    if (row.status === TransactionStatus.CANCELLED) throw new AppError('TRANSACTION_ALREADY_CANCELLED');
 
     const accessMap = await this.access.requireAccountsWritable(user.id, accountIdsOfRow(row));
 
     await this.database.db.transaction().execute(async (trx) => {
       await trx
         .updateTable('transactions')
-        .set({ status: 'CANCELLED', updated_at: new Date() })
+        .set({ status: TransactionStatus.CANCELLED, updated_at: new Date() })
         .where('id', '=', transactionId)
         .execute();
 
@@ -464,8 +466,8 @@ export class TransactionsService {
 }
 
 function accountIdsOf(request: CreateTransactionRequest): string[] {
-  if (request.type === 'INCOME') return [request.toAccountId];
-  if (request.type === 'EXPENSE') return [request.fromAccountId];
+  if (request.type === TransactionType.INCOME) return [request.toAccountId];
+  if (request.type === TransactionType.EXPENSE) return [request.fromAccountId];
   return [request.fromAccountId, request.toAccountId];
 }
 

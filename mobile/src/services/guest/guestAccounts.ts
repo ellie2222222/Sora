@@ -21,9 +21,11 @@ import {
   parseMoney,
   updateAccountSchema,
   ZERO,
+  AccountStatus,
+  TransactionStatus,
+  TransactionType,
   type AccountDetailResponse,
   type AccountResponse,
-  type AccountStatus,
   type AccountType,
   type CreateAccountRequest,
   type UpdateAccountRequest,
@@ -74,7 +76,7 @@ function toAccountResponse(account: GuestAccount, balance: bigint): AccountRespo
 
 /** Mirrors `accounts.service.ts`'s `assertNotLastActiveAccount`. */
 function assertNotLastActiveAccount(accounts: readonly GuestAccount[], excludingAccountId: string): void {
-  const remaining = accounts.filter((account) => account.status === 'ACTIVE' && account.id !== excludingAccountId);
+  const remaining = accounts.filter((account) => account.status === AccountStatus.ACTIVE && account.id !== excludingAccountId);
   if (remaining.length === 0) throw guestError('ACCOUNT_LAST_ACTIVE');
 }
 
@@ -104,13 +106,13 @@ export const guestAccountsApi = {
     let transferredOut = ZERO;
 
     for (const transaction of touching) {
-      if (transaction.status !== 'COMPLETED') continue;
+      if (transaction.status !== TransactionStatus.COMPLETED) continue;
       const amount = parseMoney(transaction.amount);
-      if (transaction.type === 'INCOME' && transaction.toAccountId === accountId) {
+      if (transaction.type === TransactionType.INCOME && transaction.toAccountId === accountId) {
         totalIncome = add(totalIncome, amount);
-      } else if (transaction.type === 'EXPENSE' && transaction.fromAccountId === accountId) {
+      } else if (transaction.type === TransactionType.EXPENSE && transaction.fromAccountId === accountId) {
         totalExpense = add(totalExpense, amount);
-      } else if (transaction.type === 'TRANSFER') {
+      } else if (transaction.type === TransactionType.TRANSFER) {
         if (transaction.toAccountId === accountId) transferredIn = add(transferredIn, amount);
         if (transaction.fromAccountId === accountId) transferredOut = add(transferredOut, amount);
       }
@@ -142,7 +144,7 @@ export const guestAccountsApi = {
       type: request.type,
       currency: request.currency,
       initialBalance: request.initialBalance,
-      status: 'ACTIVE',
+      status: AccountStatus.ACTIVE,
       createdAt: now,
       updatedAt: now,
     };
@@ -161,7 +163,7 @@ export const guestAccountsApi = {
     const { accounts } = guestStore.current();
     const existing = findAccount(accounts, accountId);
 
-    if (patch.status === 'ARCHIVED' && existing.status === 'ACTIVE') {
+    if (patch.status === AccountStatus.ARCHIVED && existing.status === AccountStatus.ACTIVE) {
       assertNotLastActiveAccount(accounts, accountId);
     }
 
@@ -185,7 +187,7 @@ export const guestAccountsApi = {
     requireWallet();
     const { accounts } = guestStore.current();
     const existing = findAccount(accounts, accountId);
-    if (existing.status === 'ARCHIVED') return;
+    if (existing.status === AccountStatus.ARCHIVED) return;
 
     assertNotLastActiveAccount(accounts, accountId);
 
@@ -193,7 +195,7 @@ export const guestAccountsApi = {
       ...current,
       accounts: current.accounts.map((candidate) =>
         candidate.id === accountId
-          ? { ...candidate, status: 'ARCHIVED' as const, updatedAt: new Date().toISOString() }
+          ? { ...candidate, status: AccountStatus.ARCHIVED, updatedAt: new Date().toISOString() }
           : candidate,
       ),
     }));

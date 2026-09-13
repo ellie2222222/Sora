@@ -17,14 +17,17 @@ import {
   ACCOUNT_TYPES,
   BUDGET_PERIOD_TYPES,
   CATEGORY_TYPES,
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
   INVITABLE_ROLES,
   LOCALES,
   THEME_NAMES,
   TRANSACTION_STATUSES,
   TRANSACTION_TYPES,
   WALLET_ROLES,
+  TransactionType,
 } from './enums.ts';
-import { MONEY_SCALE, parseMoney } from './money.ts';
+import { MONEY_SCALE, parseMoney, stripCurrencyInput } from './money.ts';
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -45,17 +48,22 @@ export const currencySchema = z
 export const positiveAmountSchema = z
   .union([z.string(), z.number()])
   .transform((value, ctx) => {
+    // Strip thousands separators a UI input may have applied (see
+    // formatCurrencyInput/stripCurrencyInput in money.ts) before parsing —
+    // MONEY_PATTERN rejects commas, and the raw value must not survive into
+    // the returned string either or a comma reaches the database as text.
+    const normalized = typeof value === 'string' ? stripCurrencyInput(value) : value;
     try {
-      const scaled = parseMoney(value);
+      const scaled = parseMoney(normalized);
       if (scaled <= 0n) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Amount must be greater than zero' });
         return z.NEVER;
       }
-      return String(value);
-    } catch (error) {
+      return String(normalized);
+    } catch {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: error instanceof Error ? error.message : 'Invalid amount',
+        message: 'Amount must be a valid number',
       });
       return z.NEVER;
     }
@@ -65,13 +73,14 @@ export const positiveAmountSchema = z
 export const signedAmountSchema = z
   .union([z.string(), z.number()])
   .transform((value, ctx) => {
+    const normalized = typeof value === 'string' ? stripCurrencyInput(value) : value;
     try {
-      parseMoney(value);
-      return String(value);
-    } catch (error) {
+      parseMoney(normalized);
+      return String(normalized);
+    } catch {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: error instanceof Error ? error.message : 'Invalid amount',
+        message: 'Amount must be a valid number',
       });
       return z.NEVER;
     }
@@ -255,7 +264,7 @@ export const createTransactionSchema = z.discriminatedUnion('type', [
   createExpenseSchema,
   createTransferSchema.innerType(),
 ]).superRefine((value, ctx) => {
-  if (value.type === 'TRANSFER' && value.fromAccountId === value.toAccountId) {
+  if (value.type === TransactionType.TRANSFER && value.fromAccountId === value.toAccountId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'A transfer needs two different accounts',
@@ -297,7 +306,7 @@ export const transactionQuerySchema = z.object({
   maxAmount: positiveAmountSchema.optional(),
   search: z.string().trim().max(200).optional(),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(200).default(25),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
   sortBy: z.string().trim().max(60).default('-transactionDate'),
 });
 

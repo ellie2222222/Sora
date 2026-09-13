@@ -16,6 +16,7 @@ import {
   isOverBudget,
   isWithinPeriod,
 } from '../src/calc.ts';
+import { TransactionStatus, TransactionType } from '../src/enums.ts';
 import { formatMoneyCompact, parseMoney } from '../src/money.ts';
 
 /**
@@ -31,29 +32,29 @@ const SALARY = 'c0000002';
 
 const ledger: BalanceRelevantTransaction[] = [
   {
-    type: 'INCOME',
-    status: 'COMPLETED',
+    type: TransactionType.INCOME,
+    status: TransactionStatus.COMPLETED,
     amount: parseMoney('15000000'),
     fromAccountId: null,
     toAccountId: VIETCOMBANK,
   },
   {
-    type: 'EXPENSE',
-    status: 'COMPLETED',
+    type: TransactionType.EXPENSE,
+    status: TransactionStatus.COMPLETED,
     amount: parseMoney('150000'),
     fromAccountId: VIETCOMBANK,
     toAccountId: null,
   },
   {
-    type: 'EXPENSE',
-    status: 'COMPLETED',
+    type: TransactionType.EXPENSE,
+    status: TransactionStatus.COMPLETED,
     amount: parseMoney('1000000'),
     fromAccountId: VIETCOMBANK,
     toAccountId: null,
   },
   {
-    type: 'TRANSFER',
-    status: 'COMPLETED',
+    type: TransactionType.TRANSFER,
+    status: TransactionStatus.COMPLETED,
     amount: parseMoney('500000'),
     fromAccountId: VIETCOMBANK,
     toAccountId: TECHCOMBANK,
@@ -79,8 +80,8 @@ describe('calculateAccountBalance', () => {
   it('debits one side of a transfer and credits the other in one pass', () => {
     const transfer: BalanceRelevantTransaction[] = [
       {
-        type: 'TRANSFER',
-        status: 'COMPLETED',
+        type: TransactionType.TRANSFER,
+        status: TransactionStatus.COMPLETED,
         amount: parseMoney('2000000'),
         fromAccountId: VIETCOMBANK,
         toAccountId: CASH,
@@ -99,15 +100,15 @@ describe('calculateAccountBalance', () => {
   it('ignores PENDING and CANCELLED rows', () => {
     const noise: BalanceRelevantTransaction[] = [
       {
-        type: 'INCOME',
-        status: 'PENDING',
+        type: TransactionType.INCOME,
+        status: TransactionStatus.PENDING,
         amount: parseMoney('9999'),
         fromAccountId: null,
         toAccountId: VIETCOMBANK,
       },
       {
-        type: 'EXPENSE',
-        status: 'CANCELLED',
+        type: TransactionType.EXPENSE,
+        status: TransactionStatus.CANCELLED,
         amount: parseMoney('8888'),
         fromAccountId: VIETCOMBANK,
         toAccountId: null,
@@ -143,43 +144,43 @@ describe('calculateWalletBalance', () => {
 
 const spending: SpendRelevantTransaction[] = [
   {
-    type: 'EXPENSE',
-    status: 'COMPLETED',
+    type: TransactionType.EXPENSE,
+    status: TransactionStatus.COMPLETED,
     amount: parseMoney('150000'),
     categoryId: FOOD,
     transactionDate: '2026-08-22T12:30:00Z',
   },
   {
-    type: 'EXPENSE',
-    status: 'COMPLETED',
+    type: TransactionType.EXPENSE,
+    status: TransactionStatus.COMPLETED,
     amount: parseMoney('1000000'),
     categoryId: FOOD,
     transactionDate: '2026-08-10T09:00:00Z',
   },
   {
-    type: 'TRANSFER',
-    status: 'COMPLETED',
+    type: TransactionType.TRANSFER,
+    status: TransactionStatus.COMPLETED,
     amount: parseMoney('2000000'),
     categoryId: null,
     transactionDate: '2026-08-15T09:00:00Z',
   },
   {
-    type: 'EXPENSE',
-    status: 'CANCELLED',
+    type: TransactionType.EXPENSE,
+    status: TransactionStatus.CANCELLED,
     amount: parseMoney('700000'),
     categoryId: FOOD,
     transactionDate: '2026-08-12T09:00:00Z',
   },
   {
-    type: 'EXPENSE',
-    status: 'COMPLETED',
+    type: TransactionType.EXPENSE,
+    status: TransactionStatus.COMPLETED,
     amount: parseMoney('300000'),
     categoryId: FOOD,
     transactionDate: '2026-09-02T09:00:00Z',
   },
   {
-    type: 'INCOME',
-    status: 'COMPLETED',
+    type: TransactionType.INCOME,
+    status: TransactionStatus.COMPLETED,
     amount: parseMoney('15000000'),
     categoryId: SALARY,
     transactionDate: '2026-08-01T09:00:00Z',
@@ -194,7 +195,7 @@ describe('calculateBudgetSpent', () => {
   });
 
   it('excludes transfers, which is the rule the whole model turns on', () => {
-    const transferOnly = spending.filter((t) => t.type === 'TRANSFER');
+    const transferOnly = spending.filter((t) => t.type === TransactionType.TRANSFER);
     assert.equal(formatMoneyCompact(calculateBudgetSpent(augustFood, transferOnly)), '0');
   });
 

@@ -10,6 +10,8 @@ import {
   calculateWalletBalance,
   formatMoney,
   parseMoney,
+  WalletStatus,
+  WalletRole,
   type CurrencyTotal,
   type WalletResponse,
 } from '@sora/contracts';
@@ -21,7 +23,7 @@ import { type GuestAccount, type GuestTransaction, type GuestWallet } from './gu
 import { toBalanceRelevant } from './guestTransactions.ts';
 
 export interface WalletListQuery {
-  status?: 'ACTIVE' | 'ARCHIVED';
+  status?: WalletStatus | undefined;
   includeOwn?: boolean;
   includeShared?: boolean;
 }
@@ -60,9 +62,9 @@ function toWalletResponse(
   return {
     id: wallet.id,
     name: wallet.name,
-    status: 'ACTIVE',
+    status: WalletStatus.ACTIVE,
     ownerUserId: GUEST_USER_ID,
-    role: 'OWNER',
+    role: WalletRole.OWNER,
     relationLabel: null,
     isOwn: true,
     memberCount: 1,
@@ -78,7 +80,7 @@ export const guestWalletsApi = {
     const wallet = requireWallet();
     // Guest mode's wallet is never archived and never shared — a filter
     // asking for anything else than the active, own set matches nothing.
-    if (query.status && query.status !== 'ACTIVE') return [];
+    if (query.status && query.status !== WalletStatus.ACTIVE) return [];
 
     const { accounts, transactions } = guestStore.current();
     return [toWalletResponse(wallet, accounts, transactions)];

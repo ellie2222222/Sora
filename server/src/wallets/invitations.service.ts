@@ -1,12 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import type {
-  InvitationPreviewResponse,
-  InviteMemberRequest,
-  WalletInvitationCreatedResponse,
-  WalletInvitationResponse,
-  WalletResponse,
+import {
   WalletRole,
+  MemberStatus,
+  type InvitationPreviewResponse,
+  type InviteMemberRequest,
+  type WalletInvitationCreatedResponse,
+  type WalletInvitationResponse,
+  type WalletResponse,
 } from '@sora/contracts';
 
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
@@ -58,7 +59,7 @@ export class InvitationsService {
     walletId: string,
     state: InvitationState,
   ): Promise<WalletInvitationResponse[]> {
-    const access = await this.access.require(user.id, walletId, 'OWNER');
+    const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
 
     let query = this.baseQuery().where('wallet_invitations.wallet_id', '=', access.walletId);
     const now = new Date();
@@ -89,14 +90,14 @@ export class InvitationsService {
     request: InviteMemberRequest,
     ip: string | null,
   ): Promise<WalletInvitationCreatedResponse> {
-    const access = await this.access.require(user.id, walletId, 'OWNER');
+    const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
 
     const existingMember = await this.database.db
       .selectFrom('wallet_members')
       .innerJoin('users', 'users.id', 'wallet_members.user_id')
       .select('wallet_members.id')
       .where('wallet_members.wallet_id', '=', access.walletId)
-      .where('wallet_members.status', '=', 'ACTIVE')
+      .where('wallet_members.status', '=', MemberStatus.ACTIVE)
       .where('users.email', '=', request.email)
       .executeTakeFirst();
 
@@ -156,7 +157,7 @@ export class InvitationsService {
     invitationId: string,
     ip: string | null,
   ): Promise<void> {
-    const access = await this.access.require(user.id, walletId, 'OWNER');
+    const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
 
     const invitation = await this.baseQuery()
       .where('wallet_invitations.id', '=', invitationId)
@@ -230,7 +231,7 @@ export class InvitationsService {
       .where('user_id', '=', user.id)
       .executeTakeFirst();
 
-    if (existing?.status === 'ACTIVE') throw new AppError('MEMBER_ALREADY_EXISTS');
+    if (existing?.status === MemberStatus.ACTIVE) throw new AppError('MEMBER_ALREADY_EXISTS');
 
     await translatingPgErrors(() =>
       this.database.db.transaction().execute(async (trx) => {
@@ -242,7 +243,7 @@ export class InvitationsService {
             .set({
               role: invitation.role,
               relation_label: invitation.relation_label,
-              status: 'ACTIVE',
+              status: MemberStatus.ACTIVE,
               joined_at: new Date(),
               updated_at: new Date(),
             })

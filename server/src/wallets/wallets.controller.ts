@@ -14,9 +14,14 @@ import {
 import { z } from 'zod';
 
 import {
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
   MEMBER_STATUSES,
+  MemberStatus,
   ROUTES,
   WALLET_STATUSES,
+  WalletRole,
+  WalletStatus,
   createWalletSchema,
   inviteMemberSchema,
   isoDateSchema,
@@ -56,13 +61,13 @@ import { WalletsService } from './wallets.service.ts';
  * silently duplicated.
  */
 const walletListQuerySchema = z.object({
-  status: z.enum(WALLET_STATUSES).default('ACTIVE'),
+  status: z.enum(WALLET_STATUSES).default(WalletStatus.ACTIVE),
   includeOwn: z.coerce.boolean().default(true),
   includeShared: z.coerce.boolean().default(true),
 });
 
 const memberListQuerySchema = z.object({
-  status: z.enum(MEMBER_STATUSES).default('ACTIVE'),
+  status: z.enum(MEMBER_STATUSES).default(MemberStatus.ACTIVE),
 });
 
 const invitationListQuerySchema = z.object({
@@ -77,7 +82,7 @@ const auditLogQuerySchema = z.object({
   dateFrom: isoDateSchema.optional(),
   dateTo: isoDateSchema.optional(),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(200).default(25),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
 });
 
 @UseGuards(RequireWalletRoleGuard)
@@ -107,7 +112,7 @@ export class WalletsController {
     return this.wallets.create(user, body, ip);
   }
 
-  @RequireWalletRole('VIEWER')
+  @RequireWalletRole(WalletRole.VIEWER)
   @Get(ROUTES.wallets.detail(':id'))
   detail(
     @CurrentUser() user: AuthenticatedUser,
@@ -116,7 +121,7 @@ export class WalletsController {
     return this.wallets.get(user, walletId);
   }
 
-  @RequireWalletRole('OWNER')
+  @RequireWalletRole(WalletRole.OWNER)
   @Patch(ROUTES.wallets.update(':id'))
   update(
     @CurrentUser() user: AuthenticatedUser,
@@ -127,7 +132,7 @@ export class WalletsController {
     return this.wallets.update(user, walletId, body, ip);
   }
 
-  @RequireWalletRole('OWNER')
+  @RequireWalletRole(WalletRole.OWNER)
   @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(ROUTES.wallets.archive(':id'))
   archive(
@@ -138,7 +143,7 @@ export class WalletsController {
     return this.wallets.archive(user, walletId, ip);
   }
 
-  @RequireWalletRole('VIEWER')
+  @RequireWalletRole(WalletRole.VIEWER)
   @Get(ROUTES.wallets.members(':id'))
   listMembers(
     @CurrentUser() user: AuthenticatedUser,
@@ -148,7 +153,7 @@ export class WalletsController {
     return this.members.list(user, walletId, query.status);
   }
 
-  @RequireWalletRole('OWNER')
+  @RequireWalletRole(WalletRole.OWNER)
   @Patch(ROUTES.wallets.member(':id', ':memberId'))
   updateMember(
     @CurrentUser() user: AuthenticatedUser,
@@ -160,7 +165,7 @@ export class WalletsController {
     return this.members.updateRole(user, walletId, memberId, body, ip);
   }
 
-  @RequireWalletRole('OWNER')
+  @RequireWalletRole(WalletRole.OWNER)
   @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(ROUTES.wallets.member(':id', ':memberId'))
   removeMember(
@@ -172,7 +177,7 @@ export class WalletsController {
     return this.members.remove(user, walletId, memberId, ip);
   }
 
-  @RequireWalletRole('OWNER')
+  @RequireWalletRole(WalletRole.OWNER)
   @HttpCode(HttpStatus.OK)
   @Post(ROUTES.wallets.transferOwnership(':id'))
   transferOwnership(
@@ -184,7 +189,7 @@ export class WalletsController {
     return this.members.transferOwnership(user, walletId, body.toUserId, ip);
   }
 
-  @RequireWalletRole('VIEWER')
+  @RequireWalletRole(WalletRole.VIEWER)
   @HttpCode(HttpStatus.NO_CONTENT)
   @Post(ROUTES.wallets.leave(':id'))
   leave(
@@ -195,7 +200,7 @@ export class WalletsController {
     return this.members.leave(user, walletId, ip);
   }
 
-  @RequireWalletRole('OWNER')
+  @RequireWalletRole(WalletRole.OWNER)
   @Get(ROUTES.wallets.invitations(':id'))
   listInvitations(
     @CurrentUser() user: AuthenticatedUser,
@@ -205,7 +210,7 @@ export class WalletsController {
     return this.invitations.list(user, walletId, query.state);
   }
 
-  @RequireWalletRole('OWNER')
+  @RequireWalletRole(WalletRole.OWNER)
   @Post(ROUTES.wallets.invitations(':id'))
   createInvitation(
     @CurrentUser() user: AuthenticatedUser,
@@ -216,7 +221,7 @@ export class WalletsController {
     return this.invitations.create(user, walletId, body, ip);
   }
 
-  @RequireWalletRole('OWNER')
+  @RequireWalletRole(WalletRole.OWNER)
   @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(ROUTES.wallets.invitation(':id', ':invitationId'))
   revokeInvitation(
@@ -233,7 +238,7 @@ export class WalletsController {
    * trail, so a VIEWER/EDITOR must not read it. `RequireWalletRoleGuard` has
    * already resolved the 404-vs-403 distinction by the time this body runs.
    */
-  @RequireWalletRole('OWNER')
+  @RequireWalletRole(WalletRole.OWNER)
   @Get(ROUTES.audit.list(':id'))
   async listAuditLogs(
     @Param('id') walletId: string,

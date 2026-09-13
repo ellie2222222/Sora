@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
-import type {
-  MemberStatus,
-  UpdateMemberRequest,
-  WalletMemberResponse,
+import {
   WalletRole,
+  MemberStatus,
+  type UpdateMemberRequest,
+  type WalletMemberResponse,
 } from '@sora/contracts';
 
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
@@ -41,7 +41,7 @@ export class MembersService {
     walletId: string,
     status: MemberStatus,
   ): Promise<WalletMemberResponse[]> {
-    const access = await this.access.require(user.id, walletId, 'VIEWER');
+    const access = await this.access.require(user.id, walletId, WalletRole.VIEWER);
     const rows = await this.rows(access.walletId, status);
     return rows.map(toMemberResponse);
   }
@@ -61,9 +61,9 @@ export class MembersService {
     request: UpdateMemberRequest,
     ip: string | null,
   ): Promise<WalletMemberResponse> {
-    const access = await this.access.require(user.id, walletId, 'OWNER');
+    const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
 
-    if (request.role === 'OWNER') {
+    if (request.role === WalletRole.OWNER) {
       throw new AppError(
         'VALIDATION_FAILED',
         'Use POST /wallets/{id}/transfer-ownership to move ownership',
@@ -72,11 +72,11 @@ export class MembersService {
     }
 
     const target = await this.member(access.walletId, memberId);
-    if (target.status !== 'ACTIVE') throw new AppError('MEMBER_NOT_FOUND');
+    if (target.status !== MemberStatus.ACTIVE) throw new AppError('MEMBER_NOT_FOUND');
 
     // A wallet has exactly one active owner, so demoting whoever holds the role
     // always leaves none — which is the unadministrable state §7.5 also guards.
-    if (target.role === 'OWNER') throw new AppError('WALLET_LAST_OWNER');
+    if (target.role === WalletRole.OWNER) throw new AppError('WALLET_LAST_OWNER');
 
     await this.database.db
       .updateTable('wallet_members')
@@ -110,15 +110,15 @@ export class MembersService {
     memberId: string,
     ip: string | null,
   ): Promise<void> {
-    const access = await this.access.require(user.id, walletId, 'OWNER');
+    const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
     const target = await this.member(access.walletId, memberId);
 
-    if (target.status !== 'ACTIVE') throw new AppError('MEMBER_NOT_FOUND');
-    if (target.role === 'OWNER') throw new AppError('WALLET_LAST_OWNER');
+    if (target.status !== MemberStatus.ACTIVE) throw new AppError('MEMBER_NOT_FOUND');
+    if (target.role === WalletRole.OWNER) throw new AppError('WALLET_LAST_OWNER');
 
     await this.database.db
       .updateTable('wallet_members')
-      .set({ status: 'REVOKED', updated_at: new Date() })
+      .set({ status: MemberStatus.REVOKED, updated_at: new Date() })
       .where('id', '=', target.id)
       .execute();
 
@@ -149,7 +149,7 @@ export class MembersService {
     toUserId: string,
     ip: string | null,
   ): Promise<WalletMemberResponse[]> {
-    const access = await this.access.require(user.id, walletId, 'OWNER');
+    const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
 
     await translatingPgErrors(() =>
       this.database.db.transaction().execute(async (trx) => {
@@ -157,15 +157,15 @@ export class MembersService {
           .selectFrom('wallet_members')
           .select(['id', 'user_id', 'role', 'status'])
           .where('wallet_id', '=', access.walletId)
-          .where('status', '=', 'ACTIVE')
+          .where('status', '=', MemberStatus.ACTIVE)
           .forUpdate()
           .execute();
 
-        const currentOwner = members.find((member) => member.role === 'OWNER');
+        const currentOwner = members.find((member) => member.role === WalletRole.OWNER);
         const incoming = members.find((member) => member.user_id === toUserId);
 
         if (!incoming) throw new AppError('MEMBER_NOT_FOUND');
-        if (incoming.role === 'OWNER') {
+        if (incoming.role === WalletRole.OWNER) {
           throw new AppError('VALIDATION_FAILED', 'That member already owns this wallet', {
             toUserId: ['Already the owner'],
           });
@@ -174,14 +174,14 @@ export class MembersService {
         if (currentOwner) {
           await trx
             .updateTable('wallet_members')
-            .set({ role: 'EDITOR', updated_at: new Date() })
+            .set({ role: WalletRole.EDITOR, updated_at: new Date() })
             .where('id', '=', currentOwner.id)
             .execute();
         }
 
         await trx
           .updateTable('wallet_members')
-          .set({ role: 'OWNER', updated_at: new Date() })
+          .set({ role: WalletRole.OWNER, updated_at: new Date() })
           .where('id', '=', incoming.id)
           .execute();
 
@@ -207,7 +207,7 @@ export class MembersService {
       }),
     );
 
-    return (await this.rows(access.walletId, 'ACTIVE')).map(toMemberResponse);
+    return (await this.rows(access.walletId, MemberStatus.ACTIVE)).map(toMemberResponse);
   }
 
   /**
@@ -217,12 +217,12 @@ export class MembersService {
    * must transfer ownership or archive it first (§7.5).
    */
   async leave(user: AuthenticatedUser, walletId: string, ip: string | null): Promise<void> {
-    const access = await this.access.require(user.id, walletId, 'VIEWER');
-    if (access.role === 'OWNER') throw new AppError('WALLET_LAST_OWNER');
+    const access = await this.access.require(user.id, walletId, WalletRole.VIEWER);
+    if (access.role === WalletRole.OWNER) throw new AppError('WALLET_LAST_OWNER');
 
     await this.database.db
       .updateTable('wallet_members')
-      .set({ status: 'REVOKED', updated_at: new Date() })
+      .set({ status: MemberStatus.REVOKED, updated_at: new Date() })
       .where('id', '=', access.memberId)
       .execute();
 

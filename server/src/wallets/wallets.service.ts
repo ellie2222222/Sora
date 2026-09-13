@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 
-import type {
-  CreateWalletRequest,
-  UpdateWalletRequest,
-  WalletResponse,
+import {
   WalletRole,
   WalletStatus,
+  MemberStatus,
+  type CreateWalletRequest,
+  type UpdateWalletRequest,
+  type WalletResponse,
 } from '@sora/contracts';
 
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
@@ -64,7 +65,7 @@ export class WalletsService {
         'wallet_members.relation_label as relation_label',
       ])
       .where('wallet_members.user_id', '=', user.id)
-      .where('wallet_members.status', '=', 'ACTIVE')
+      .where('wallet_members.status', '=', MemberStatus.ACTIVE)
       .where('wallets.status', '=', filter.status)
       .orderBy('wallets.created_at', 'asc')
       .execute();
@@ -78,7 +79,7 @@ export class WalletsService {
   }
 
   async get(user: AuthenticatedUser, walletId: string): Promise<WalletResponse> {
-    const access = await this.access.require(user.id, walletId, 'VIEWER');
+    const access = await this.access.require(user.id, walletId, WalletRole.VIEWER);
     const row = await this.row(access.walletId);
     const [response] = await this.decorate(user, [
       { ...row, role: access.role, relation_label: access.relationLabel },
@@ -109,7 +110,7 @@ export class WalletsService {
 
       await trx
         .insertInto('wallet_members')
-        .values({ wallet_id: created.id, user_id: user.id, role: 'OWNER' })
+        .values({ wallet_id: created.id, user_id: user.id, role: WalletRole.OWNER })
         .execute();
 
       await this.audit.record(
@@ -119,7 +120,7 @@ export class WalletsService {
           entityId: created.id,
           actorId: user.id,
           walletId: created.id,
-          actorRole: 'OWNER',
+          actorRole: WalletRole.OWNER,
           ip,
         },
         trx,
@@ -129,7 +130,7 @@ export class WalletsService {
     });
 
     const [response] = await this.decorate(user, [
-      { ...wallet, role: 'OWNER' as const, relation_label: null },
+      { ...wallet, role: WalletRole.OWNER, relation_label: null },
     ]);
     if (!response) throw new AppError('WALLET_NOT_FOUND');
     return response;
@@ -143,7 +144,7 @@ export class WalletsService {
   ): Promise<WalletResponse> {
     // Deliberately not requireWritable: un-archiving is an update, so an
     // archived wallet has to accept this one.
-    const access = await this.access.require(user.id, walletId, 'OWNER');
+    const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
 
     const updated = await this.database.db
       .updateTable('wallets')
@@ -182,11 +183,11 @@ export class WalletsService {
    * cross-wallet transfer it took part in (§6.5).
    */
   async archive(user: AuthenticatedUser, walletId: string, ip: string | null): Promise<void> {
-    const access = await this.access.require(user.id, walletId, 'OWNER');
+    const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
 
     await this.database.db
       .updateTable('wallets')
-      .set({ status: 'ARCHIVED', updated_at: new Date() })
+      .set({ status: WalletStatus.ARCHIVED, updated_at: new Date() })
       .where('id', '=', access.walletId)
       .execute();
 
@@ -256,7 +257,7 @@ export class WalletsService {
       .selectFrom(table)
       .select(({ fn }) => ['wallet_id', fn.countAll<string>().as('total')])
       .where('wallet_id', 'in', [...walletIds])
-      .where('status', '=', 'ACTIVE')
+      .where('status', '=', WalletStatus.ACTIVE)
       .groupBy('wallet_id')
       .execute();
 

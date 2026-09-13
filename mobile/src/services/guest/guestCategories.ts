@@ -11,8 +11,9 @@
 import {
   createCategorySchema,
   updateCategorySchema,
+  CategoryStatus,
+  BudgetStatus,
   type CategoryResponse,
-  type CategoryStatus,
   type CategoryType,
   type CreateCategoryRequest,
   type UpdateCategoryRequest,
@@ -161,7 +162,7 @@ export const guestCategoriesApi = {
       type: request.type,
       icon: request.icon ?? null,
       color: request.color ?? null,
-      status: 'ACTIVE',
+      status: CategoryStatus.ACTIVE,
       createdAt: now,
       updatedAt: now,
     };
@@ -203,9 +204,9 @@ export const guestCategoriesApi = {
   async archive(categoryId: string): Promise<void> {
     const { categories, budgets } = guestStore.current();
     const existing = findCategory(categories, categoryId);
-    if (existing.status === 'ARCHIVED') return;
+    if (existing.status === CategoryStatus.ARCHIVED) return;
 
-    const activeBudget = budgets.some((budget) => budget.categoryId === categoryId && budget.status === 'ACTIVE');
+    const activeBudget = budgets.some((budget) => budget.categoryId === categoryId && budget.status === BudgetStatus.ACTIVE);
     if (activeBudget) throw guestError('CATEGORY_IN_USE');
 
     const descendantIds = collectDescendantLevels(categories, categoryId).flat();
@@ -215,7 +216,7 @@ export const guestCategoriesApi = {
       ...current,
       categories: current.categories.map((candidate) =>
         candidate.id === categoryId || descendantIds.includes(candidate.id)
-          ? { ...candidate, status: 'ARCHIVED' as const, updatedAt: now }
+          ? { ...candidate, status: CategoryStatus.ARCHIVED, updatedAt: now }
           : candidate,
       ),
     }));

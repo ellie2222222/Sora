@@ -7,6 +7,7 @@
  * note in guestStore.ts.
  */
 
+import { AccountStatus, AccountType, CategoryStatus, CategoryType } from '@sora/contracts';
 import { guestStore } from './guestStorage.ts';
 import type { GuestPersistence } from './guestStore.ts';
 
@@ -70,10 +71,10 @@ export async function seedFixture(): Promise<void> {
         id: ACCOUNT_ID,
         walletId: WALLET_ID,
         name: 'Cash',
-        type: 'CASH' as const,
+        type: AccountType.CASH,
         currency: 'VND',
         initialBalance: '1000000.0000',
-        status: 'ACTIVE' as const,
+        status: AccountStatus.ACTIVE,
         createdAt: NOW,
         updatedAt: NOW,
       },
@@ -81,10 +82,10 @@ export async function seedFixture(): Promise<void> {
         id: OTHER_ACCOUNT_ID,
         walletId: WALLET_ID,
         name: 'Bank',
-        type: 'BANK_ACCOUNT' as const,
+        type: AccountType.BANK_ACCOUNT,
         currency: 'VND',
         initialBalance: '0.0000',
-        status: 'ACTIVE' as const,
+        status: AccountStatus.ACTIVE,
         createdAt: NOW,
         updatedAt: NOW,
       },
@@ -95,10 +96,10 @@ export async function seedFixture(): Promise<void> {
         walletId: WALLET_ID,
         parentId: null,
         name: 'Food',
-        type: 'EXPENSE' as const,
+        type: CategoryType.EXPENSE,
         icon: null,
         color: null,
-        status: 'ACTIVE' as const,
+        status: CategoryStatus.ACTIVE,
         createdAt: NOW,
         updatedAt: NOW,
       },
@@ -107,10 +108,10 @@ export async function seedFixture(): Promise<void> {
         walletId: WALLET_ID,
         parentId: null,
         name: 'Salary',
-        type: 'INCOME' as const,
+        type: CategoryType.INCOME,
         icon: null,
         color: null,
-        status: 'ACTIVE' as const,
+        status: CategoryStatus.ACTIVE,
         createdAt: NOW,
         updatedAt: NOW,
       },

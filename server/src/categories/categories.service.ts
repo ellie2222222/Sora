@@ -10,8 +10,9 @@
 import { Injectable } from '@nestjs/common';
 
 import {
+  BudgetStatus,
+  CategoryStatus,
   type CategoryResponse,
-  type CategoryStatus,
   type CategoryType,
   type CreateCategoryRequest,
   type UpdateCategoryRequest,
@@ -185,13 +186,13 @@ export class CategoriesService {
     access: WalletAccess,
     ip: string | null,
   ): Promise<void> {
-    if (category.status === 'ARCHIVED') return;
+    if (category.status === CategoryStatus.ARCHIVED) return;
 
     const activeBudget = await this.database.db
       .selectFrom('budgets')
       .select('id')
       .where('category_id', '=', category.id)
-      .where('status', '=', 'ACTIVE')
+      .where('status', '=', BudgetStatus.ACTIVE)
       .executeTakeFirst();
     if (activeBudget) throw new AppError('CATEGORY_IN_USE');
 
@@ -199,7 +200,7 @@ export class CategoriesService {
 
     await this.database.db
       .updateTable('categories')
-      .set({ status: 'ARCHIVED', updated_at: new Date() })
+      .set({ status: CategoryStatus.ARCHIVED, updated_at: new Date() })
       .where('id', 'in', [category.id, ...descendantIds])
       .execute();
 

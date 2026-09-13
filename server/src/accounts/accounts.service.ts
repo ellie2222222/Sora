@@ -10,9 +10,9 @@ import { Injectable } from '@nestjs/common';
 
 import {
   formatMoney,
+  AccountStatus,
   type AccountDetailResponse,
   type AccountResponse,
-  type AccountStatus,
   type AccountType,
   type CreateAccountRequest,
   type UpdateAccountRequest,
@@ -132,7 +132,7 @@ export class AccountsService {
   ): Promise<AccountResponse> {
     const access = await this.access.requireAccount(user.id, accountId, 'EDITOR');
 
-    if (request.status === 'ARCHIVED' && access.accountStatus === 'ACTIVE') {
+    if (request.status === AccountStatus.ARCHIVED && access.accountStatus === AccountStatus.ACTIVE) {
       await this.assertNotLastActiveAccount(access.walletId, accountId);
     }
 
@@ -151,7 +151,7 @@ export class AccountsService {
 
     await this.audit.record({
       event:
-        request.status === 'ARCHIVED' ? AUDIT_EVENTS.ACCOUNT_ARCHIVED : AUDIT_EVENTS.ACCOUNT_UPDATED,
+        request.status === AccountStatus.ARCHIVED ? AUDIT_EVENTS.ACCOUNT_ARCHIVED : AUDIT_EVENTS.ACCOUNT_UPDATED,
       entityType: ENTITY_TYPES.ACCOUNT,
       entityId: accountId,
       actorId: user.id,
@@ -166,13 +166,13 @@ export class AccountsService {
   /** DELETE /accounts/{id} — archives; hard delete is not exposed (§9.5). */
   async archive(user: AuthenticatedUser, accountId: string, ip: string | null): Promise<void> {
     const access = await this.access.requireAccount(user.id, accountId, 'EDITOR');
-    if (access.accountStatus === 'ARCHIVED') return;
+    if (access.accountStatus === AccountStatus.ARCHIVED) return;
 
     await this.assertNotLastActiveAccount(access.walletId, accountId);
 
     await this.database.db
       .updateTable('accounts')
-      .set({ status: 'ARCHIVED', updated_at: new Date() })
+      .set({ status: AccountStatus.ARCHIVED, updated_at: new Date() })
       .where('id', '=', accountId)
       .execute();
 
@@ -200,7 +200,7 @@ export class AccountsService {
       .selectFrom('accounts')
       .select((eb) => eb.fn.countAll<string>().as('count'))
       .where('wallet_id', '=', walletId)
-      .where('status', '=', 'ACTIVE')
+      .where('status', '=', AccountStatus.ACTIVE)
       .where('id', '!=', excludingAccountId)
       .executeTakeFirstOrThrow();
 

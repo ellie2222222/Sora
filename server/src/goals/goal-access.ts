@@ -9,7 +9,7 @@
 
 import type { Kysely, Transaction } from 'kysely';
 
-import { roleSatisfies, type GoalStatus, type WalletRole } from '@sora/contracts';
+import { roleSatisfies, MemberStatus, type GoalStatus, type WalletRole } from '@sora/contracts';
 
 import { AppError } from '../common/app-error.ts';
 import type { DB } from '../database/types.ts';
@@ -46,7 +46,7 @@ export async function requireGoalAccess(
       join
         .onRef('wallet_members.wallet_id', '=', 'goals.wallet_id')
         .on('wallet_members.user_id', '=', userId)
-        .on('wallet_members.status', '=', 'ACTIVE'),
+        .on('wallet_members.status', '=', MemberStatus.ACTIVE),
     )
     .select([
       'goals.id as id',

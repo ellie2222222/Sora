@@ -11,7 +11,14 @@
 
 import { Injectable } from '@nestjs/common';
 
-import type { ContributionResponse, CreateContributionRequest } from '@sora/contracts';
+import {
+  CategoryType,
+  GoalStatus,
+  TransactionStatus,
+  TransactionType,
+  type ContributionResponse,
+  type CreateContributionRequest,
+} from '@sora/contracts';
 
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';
@@ -89,7 +96,7 @@ export class GoalContributionsService {
     ip: string | null,
   ): Promise<ContributionResponse> {
     const { goal } = await requireGoalAccess(this.database.db, user.id, goalId, 'EDITOR');
-    if (goal.status !== 'ACTIVE') throw new AppError('GOAL_NOT_ACTIVE');
+    if (goal.status !== GoalStatus.ACTIVE) throw new AppError('GOAL_NOT_ACTIVE');
 
     const account = await this.access.requireAccount(user.id, request.accountId, 'VIEWER');
     if (account.walletId !== goal.wallet_id) throw AppError.forbidden(account.role);
@@ -117,12 +124,12 @@ export class GoalContributionsService {
             from_account_id: request.accountId,
             to_account_id: null,
             category_id: request.categoryId!,
-            type: 'EXPENSE',
+            type: TransactionType.EXPENSE,
             amount: request.amount,
             currency: request.currency,
             description: `Contribution to ${goal.name}`,
             transaction_date: request.contributionDate,
-            status: 'COMPLETED',
+            status: TransactionStatus.COMPLETED,
           })
           .returning(['id'])
           .executeTakeFirstOrThrow();
@@ -185,7 +192,7 @@ export class GoalContributionsService {
       if (contribution.transaction_id) {
         await trx
           .updateTable('transactions')
-          .set({ status: 'CANCELLED', updated_at: new Date() })
+          .set({ status: TransactionStatus.CANCELLED, updated_at: new Date() })
           .where('id', '=', contribution.transaction_id)
           .execute();
       }
@@ -246,7 +253,7 @@ export class GoalContributionsService {
       .where('id', '=', categoryId)
       .executeTakeFirst();
 
-    if (!category || category.wallet_id !== walletId || category.type !== 'EXPENSE') {
+    if (!category || category.wallet_id !== walletId || category.type !== CategoryType.EXPENSE) {
       throw new AppError('VALIDATION_FAILED', undefined, {
         categoryId: ['Must be an EXPENSE category belonging to this wallet'],
       });

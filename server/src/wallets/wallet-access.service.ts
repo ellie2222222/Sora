@@ -15,7 +15,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Kysely, Transaction } from 'kysely';
 
-import { roleSatisfies, type WalletRole } from '@sora/contracts';
+import { roleSatisfies, WalletRole, WalletStatus, AccountStatus, MemberStatus } from '@sora/contracts';
 
 import { AppError } from '../common/app-error.ts';
 import { DatabaseService } from '../database/database.service.ts';
@@ -26,7 +26,7 @@ export interface WalletAccess {
   walletName: string;
   role: WalletRole;
   ownerUserId: string;
-  status: 'ACTIVE' | 'ARCHIVED';
+  status: WalletStatus;
   relationLabel: string | null;
   memberId: string;
 }
@@ -35,7 +35,7 @@ export interface AccountAccess extends WalletAccess {
   accountId: string;
   accountName: string;
   currency: string;
-  accountStatus: 'ACTIVE' | 'ARCHIVED';
+  accountStatus: AccountStatus;
   initialBalance: string;
 }
 
@@ -56,7 +56,7 @@ export class WalletAccessService {
       .select('role')
       .where('wallet_id', '=', walletId)
       .where('user_id', '=', userId)
-      .where('status', '=', 'ACTIVE')
+      .where('status', '=', MemberStatus.ACTIVE)
       .executeTakeFirst();
 
     return row?.role ?? null;
@@ -89,7 +89,7 @@ export class WalletAccessService {
       ])
       .where('wallet_members.wallet_id', '=', walletId)
       .where('wallet_members.user_id', '=', userId)
-      .where('wallet_members.status', '=', 'ACTIVE')
+      .where('wallet_members.status', '=', MemberStatus.ACTIVE)
       .executeTakeFirst();
 
     if (!row) throw new AppError('WALLET_NOT_FOUND');
@@ -121,7 +121,7 @@ export class WalletAccessService {
     executor?: Executor,
   ): Promise<WalletAccess> {
     const access = await this.require(userId, walletId, required, executor);
-    if (access.status === 'ARCHIVED') throw new AppError('WALLET_ARCHIVED');
+    if (access.status === WalletStatus.ARCHIVED) throw new AppError('WALLET_ARCHIVED');
     return access;
   }
 
@@ -131,7 +131,7 @@ export class WalletAccessService {
       .selectFrom('wallet_members')
       .select('wallet_id')
       .where('user_id', '=', userId)
-      .where('status', '=', 'ACTIVE')
+      .where('status', '=', MemberStatus.ACTIVE)
       .execute();
 
     return rows.map((row) => row.wallet_id);
@@ -157,7 +157,7 @@ export class WalletAccessService {
         join
           .onRef('wallet_members.wallet_id', '=', 'accounts.wallet_id')
           .on('wallet_members.user_id', '=', userId)
-          .on('wallet_members.status', '=', 'ACTIVE'),
+          .on('wallet_members.status', '=', MemberStatus.ACTIVE),
       )
       .select([
         'accounts.id as account_id',
@@ -214,8 +214,8 @@ export class WalletAccessService {
 
     for (const accountId of accountIds) {
       if (resolved.has(accountId)) continue;
-      const access = await this.requireAccount(userId, accountId, 'EDITOR', executor);
-      if (access.status === 'ARCHIVED') throw new AppError('WALLET_ARCHIVED');
+      const access = await this.requireAccount(userId, accountId, WalletRole.EDITOR, executor);
+      if (access.status === WalletStatus.ARCHIVED) throw new AppError('WALLET_ARCHIVED');
       resolved.set(accountId, access);
     }
 

@@ -18,6 +18,10 @@ import {
   percentageOf,
   subtract,
   ZERO,
+  BudgetStatus,
+  GoalStatus,
+  TransactionStatus,
+  TransactionType,
   type CategorySpendSlice,
   type CurrencyTotal,
   type DashboardQuery,
@@ -82,13 +86,13 @@ function periodActivity(transactions: readonly GuestTransaction[], dateFrom: str
   const expenseByCategory = new Map<string, Map<string, Scaled>>();
 
   for (const transaction of transactions) {
-    if (transaction.status !== 'COMPLETED') continue;
-    if (transaction.type !== 'INCOME' && transaction.type !== 'EXPENSE') continue;
+    if (transaction.status !== TransactionStatus.COMPLETED) continue;
+    if (transaction.type !== TransactionType.INCOME && transaction.type !== TransactionType.EXPENSE) continue;
     if (!isWithinPeriod(transaction.transactionDate, dateFrom, dateTo)) continue;
 
     const amount = parseMoney(transaction.amount);
 
-    if (transaction.type === 'INCOME') {
+    if (transaction.type === TransactionType.INCOME) {
       income.set(transaction.currency, add(income.get(transaction.currency) ?? ZERO, amount));
       continue;
     }
@@ -150,8 +154,8 @@ export const guestDashboardApi = {
     const [walletResponse, recent, activeBudgets, activeGoals] = await Promise.all([
       guestWalletsApi.detail(wallet.id),
       guestTransactionsApi.list({ sortBy: '-transactionDate', page: 1, pageSize: RECENT_TRANSACTIONS_LIMIT }),
-      guestBudgetsApi.list({ walletId: wallet.id, status: 'ACTIVE' }),
-      guestGoalsApi.list({ walletId: wallet.id, status: 'ACTIVE' }),
+      guestBudgetsApi.list({ walletId: wallet.id, status: BudgetStatus.ACTIVE }),
+      guestGoalsApi.list({ walletId: wallet.id, status: GoalStatus.ACTIVE }),
     ]);
 
     const activity = periodActivity(transactions, dateFrom, dateTo);

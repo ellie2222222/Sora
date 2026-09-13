@@ -25,6 +25,10 @@ import {
   isWithinPeriod,
   parseMoney,
   percentageOf,
+  BudgetStatus,
+  GoalStatus,
+  TransactionStatus,
+  TransactionType,
   type BudgetResponse,
   type CategorySpendSlice,
   type CurrencyTotal,
@@ -114,8 +118,8 @@ export class DashboardService {
     const rows = await this.database.db
       .selectFrom('transactions')
       .select(['type', 'amount', 'currency', 'category_id', 'transaction_date'])
-      .where('status', '=', 'COMPLETED')
-      .where('type', 'in', ['INCOME', 'EXPENSE'])
+      .where('status', '=', TransactionStatus.COMPLETED)
+      .where('type', 'in', [TransactionType.INCOME, TransactionType.EXPENSE])
       .where((eb) =>
         eb.or([
           eb('to_account_id', 'in', [...accountIds]),
@@ -130,7 +134,7 @@ export class DashboardService {
 
       const amount = parseMoney(row.amount);
 
-      if (row.type === 'INCOME') {
+      if (row.type === TransactionType.INCOME) {
         income.addTo(row.currency, amount);
         continue;
       }
@@ -320,7 +324,7 @@ export class DashboardService {
         'c.color as category_color',
       ])
       .where('b.wallet_id', '=', walletId)
-      .where('b.status', '=', 'ACTIVE')
+      .where('b.status', '=', BudgetStatus.ACTIVE)
       .execute();
 
     if (budgets.length === 0) return [];
@@ -329,7 +333,7 @@ export class DashboardService {
     const expenseRows = await this.database.db
       .selectFrom('transactions')
       .select(['status', 'amount', 'category_id', 'transaction_date'])
-      .where('type', '=', 'EXPENSE')
+      .where('type', '=', TransactionType.EXPENSE)
       .where('category_id', 'in', categoryIds)
       .execute();
 
@@ -337,7 +341,7 @@ export class DashboardService {
       const relevant = expenseRows
         .filter((row) => row.category_id === budget.category_id)
         .map((row) => ({
-          type: 'EXPENSE' as const,
+          type: TransactionType.EXPENSE,
           status: row.status,
           amount: parseMoney(row.amount),
           categoryId: row.category_id as string,
@@ -382,7 +386,7 @@ export class DashboardService {
       .selectFrom('goals')
       .selectAll()
       .where('wallet_id', '=', walletId)
-      .where('status', '=', 'ACTIVE')
+      .where('status', '=', GoalStatus.ACTIVE)
       .execute();
 
     if (goals.length === 0) return [];

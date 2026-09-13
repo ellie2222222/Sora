@@ -5,12 +5,14 @@ import {
   MoneyError,
   add,
   clampPercentage,
+  formatCurrencyInput,
   formatMoney,
   formatMoneyCompact,
   isNegative,
   maxOf,
   parseMoney,
   percentageOf,
+  stripCurrencyInput,
   subtract,
 } from '../src/money.ts';
 
@@ -142,5 +144,18 @@ describe('clampPercentage', () => {
 
   it('turns NaN into 0 so a progress bar never renders undefined width', () => {
     assert.equal(clampPercentage(Number.NaN), 0);
+  });
+});
+
+describe('formatCurrencyInput and stripCurrencyInput', () => {
+  it('formats integer and decimal parts with thousand separators', () => {
+    assert.equal(formatCurrencyInput('1500000'), '1,500,000');
+    assert.equal(formatCurrencyInput('1500000.5'), '1,500,000.5');
+    assert.equal(formatCurrencyInput('1500000.500'), '1,500,000.500');
+    assert.equal(formatCurrencyInput('abc1500abc'), '1,500');
+  });
+
+  it('strips commas via stripCurrencyInput', () => {
+    assert.equal(stripCurrencyInput('1,500,000.50'), '1500000.50');
   });
 });

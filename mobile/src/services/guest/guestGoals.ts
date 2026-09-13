@@ -18,11 +18,14 @@ import {
   formatMoney,
   parseMoney,
   updateGoalSchema,
+  GoalStatus,
+  CategoryType,
+  TransactionType,
+  TransactionStatus,
   type ContributionResponse,
   type CreateContributionRequest,
   type CreateGoalRequest,
   type GoalResponse,
-  type GoalStatus,
   type UpdateGoalRequest,
 } from '@sora/contracts';
 
@@ -124,7 +127,7 @@ export const guestGoalsApi = {
       targetAmount: request.targetAmount,
       currency: request.currency,
       targetDate: request.targetDate ?? null,
-      status: 'ACTIVE',
+      status: GoalStatus.ACTIVE,
       createdAt: now,
       updatedAt: now,
     };
@@ -166,13 +169,13 @@ export const guestGoalsApi = {
     requireWallet();
     const { goals } = guestStore.current();
     const existing = findGoal(goals, goalId);
-    if (existing.status === 'CANCELLED') return;
+    if (existing.status === GoalStatus.CANCELLED) return;
 
     await guestStore.mutate((current) => ({
       ...current,
       goals: current.goals.map((candidate) =>
         candidate.id === goalId
-          ? { ...candidate, status: 'CANCELLED' as const, updatedAt: new Date().toISOString() }
+          ? { ...candidate, status: GoalStatus.CANCELLED, updatedAt: new Date().toISOString() }
           : candidate,
       ),
     }));
@@ -200,7 +203,7 @@ export const guestGoalsApi = {
 
     const { goals, accounts, categories } = guestStore.current();
     const goal = findGoal(goals, goalId);
-    if (goal.status !== 'ACTIVE') throw guestError('GOAL_NOT_ACTIVE');
+    if (goal.status !== GoalStatus.ACTIVE) throw guestError('GOAL_NOT_ACTIVE');
 
     const account = accounts.find((candidate) => candidate.id === request.accountId);
     if (!account) throw guestError('ACCOUNT_NOT_FOUND');
@@ -213,7 +216,7 @@ export const guestGoalsApi = {
         throw guestError('VALIDATION_FAILED', { categoryId: ['Required when recording as a transaction'] });
       }
       const category = categories.find((candidate) => candidate.id === request.categoryId);
-      if (!category || category.walletId !== goal.walletId || category.type !== 'EXPENSE') {
+      if (!category || category.walletId !== goal.walletId || category.type !== CategoryType.EXPENSE) {
         throw guestError('VALIDATION_FAILED', {
           categoryId: ['Must be an EXPENSE category belonging to this wallet'],
         });
@@ -226,8 +229,8 @@ export const guestGoalsApi = {
     if (request.recordAsTransaction) {
       transaction = {
         id: newLocalId(),
-        type: 'EXPENSE',
-        status: 'COMPLETED',
+        type: TransactionType.EXPENSE,
+        status: TransactionStatus.COMPLETED,
         amount: request.amount,
         currency: request.currency,
         description: `Contribution to ${goal.name}`,
@@ -279,7 +282,7 @@ export const guestGoalsApi = {
       transactions: contribution.transactionId
         ? current.transactions.map((candidate) =>
             candidate.id === contribution.transactionId
-              ? { ...candidate, status: 'CANCELLED' as const, updatedAt: new Date().toISOString() }
+              ? { ...candidate, status: TransactionStatus.CANCELLED, updatedAt: new Date().toISOString() }
               : candidate,
           )
         : current.transactions,

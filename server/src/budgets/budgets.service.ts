@@ -18,9 +18,12 @@ import {
   isOverBudget,
   parseMoney,
   roleSatisfies,
+  BudgetStatus,
+  CategoryType,
+  MemberStatus,
+  TransactionType,
   type BudgetPeriodType,
   type BudgetResponse,
-  type BudgetStatus,
   type CreateBudgetRequest,
   type SpendRelevantTransaction,
   type UpdateBudgetRequest,
@@ -183,11 +186,11 @@ export class BudgetsService {
   /** Archives, which also releases its slot in the overlap exclusion constraint (§12.5). */
   async archive(user: AuthenticatedUser, budgetId: string, ip: string | null): Promise<void> {
     const { walletId, row } = await this.requireBudgetAccess(user.id, budgetId, 'EDITOR');
-    if (row.status === 'ARCHIVED') return;
+    if (row.status === BudgetStatus.ARCHIVED) return;
 
     await this.database.db
       .updateTable('budgets')
-      .set({ status: 'ARCHIVED', updated_at: new Date() })
+      .set({ status: BudgetStatus.ARCHIVED, updated_at: new Date() })
       .where('id', '=', budgetId)
       .execute();
 
@@ -218,7 +221,7 @@ export class BudgetsService {
         join
           .onRef('wallet_members.wallet_id', '=', 'budgets.wallet_id')
           .on('wallet_members.user_id', '=', userId)
-          .on('wallet_members.status', '=', 'ACTIVE'),
+          .on('wallet_members.status', '=', MemberStatus.ACTIVE),
       )
       .select([
         'budgets.id as id',
@@ -254,7 +257,7 @@ export class BudgetsService {
 
     if (!category) throw new AppError('CATEGORY_NOT_FOUND');
     if (category.wallet_id !== walletId) throw new AppError('CATEGORY_WRONG_WALLET');
-    if (category.type !== 'EXPENSE') throw new AppError('CATEGORY_WRONG_TYPE');
+    if (category.type !== CategoryType.EXPENSE) throw new AppError('CATEGORY_WRONG_TYPE');
   }
 
   /** Batched per category, so a wallet's budgets sharing one category cost a single query. */
@@ -318,7 +321,7 @@ export class BudgetsService {
       .selectFrom('transactions')
       .select(['type', 'status', 'amount', 'category_id', 'transaction_date'])
       .where('category_id', 'in', categoryIds)
-      .where('type', '=', 'EXPENSE')
+      .where('type', '=', TransactionType.EXPENSE)
       .execute();
 
     const byCategory = new Map<string, SpendRelevantTransaction[]>();

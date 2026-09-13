@@ -20,6 +20,8 @@ import {
   calculateAccountBalance,
   formatMoney,
   parseMoney,
+  TransactionStatus,
+  TransactionType,
   type BalanceRelevantTransaction,
   type CurrencyTotal,
   type MoneyString,
@@ -193,14 +195,14 @@ export class BalanceService {
     let transferredOut = ZERO;
 
     for (const row of rows) {
-      if (row.status !== 'COMPLETED') continue;
+      if (row.status !== TransactionStatus.COMPLETED) continue;
       const amount = parseMoney(row.amount);
 
-      if (row.type === 'INCOME' && row.to_account_id === accountId) {
+      if (row.type === TransactionType.INCOME && row.to_account_id === accountId) {
         totalIncome = add(totalIncome, amount);
-      } else if (row.type === 'EXPENSE' && row.from_account_id === accountId) {
+      } else if (row.type === TransactionType.EXPENSE && row.from_account_id === accountId) {
         totalExpense = add(totalExpense, amount);
-      } else if (row.type === 'TRANSFER') {
+      } else if (row.type === TransactionType.TRANSFER) {
         if (row.to_account_id === accountId) transferredIn = add(transferredIn, amount);
         if (row.from_account_id === accountId) transferredOut = add(transferredOut, amount);
       }

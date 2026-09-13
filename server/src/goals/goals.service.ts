@@ -15,9 +15,9 @@ import {
   calculateGoalRemaining,
   formatMoney,
   parseMoney,
+  GoalStatus,
   type CreateGoalRequest,
   type GoalResponse,
-  type GoalStatus,
   type Scaled,
   type UpdateGoalRequest,
 } from '@sora/contracts';
@@ -135,11 +135,11 @@ export class GoalsService {
   /** Sets status = CANCELLED. Contributions are retained (§13.5) — they record money that really was set aside. */
   async archive(user: AuthenticatedUser, goalId: string, ip: string | null): Promise<void> {
     const { goal } = await requireGoalAccess(this.database.db, user.id, goalId, 'EDITOR');
-    if (goal.status === 'CANCELLED') return;
+    if (goal.status === GoalStatus.CANCELLED) return;
 
     await this.database.db
       .updateTable('goals')
-      .set({ status: 'CANCELLED', updated_at: new Date() })
+      .set({ status: GoalStatus.CANCELLED, updated_at: new Date() })
       .where('id', '=', goalId)
       .execute();
 

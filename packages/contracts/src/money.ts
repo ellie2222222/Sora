@@ -86,6 +86,23 @@ export function formatMoneyCompact(value: Scaled, minDecimals = 0): MoneyString 
   return kept.length > 0 ? `${whole}.${kept}` : whole;
 }
 
+export function stripCurrencyInput(input: string): string {
+  return input.replace(/,/g, '');
+}
+
+export function formatCurrencyInput(input: string, allowDecimal = true): string {
+  if (allowDecimal) {
+    const cleaned = input.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
+    const parts = cleaned.split('.');
+    const whole = parts[0] ?? '';
+    const formattedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts.length > 1 ? `${formattedWhole}.${parts[1]}` : formattedWhole;
+  }
+
+  const cleaned = input.replace(/[^0-9]/g, '');
+  return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
 export const ZERO: Scaled = 0n;
 
 export function add(...values: Scaled[]): Scaled {

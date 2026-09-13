@@ -17,7 +17,15 @@
  * transaction separately as well would record the same money twice.
  */
 
-import type { CreateContributionRequest, CreateTransactionRequest } from '@sora/contracts';
+import {
+  CategoryStatus,
+  AccountStatus,
+  BudgetStatus,
+  GoalStatus,
+  TransactionType,
+  type CreateContributionRequest,
+  type CreateTransactionRequest,
+} from '@sora/contracts';
 
 // Type-only, so this module stays importable without React Native in the
 // graph: the real api modules reach axios, expo-secure-store and eventually
@@ -157,7 +165,7 @@ async function uploadCategories(walletId: string, apis: UploadApis): Promise<voi
           type: category.type,
           icon: category.icon,
           color: category.color,
-          status: 'ACTIVE',
+          status: CategoryStatus.ACTIVE,
           transactionCount: 0,
         });
       }
@@ -202,25 +210,25 @@ function buildTransactionRequest(
     reference: transaction.reference ?? undefined,
   };
 
-  if (transaction.type === 'INCOME') {
+  if (transaction.type === TransactionType.INCOME) {
     return {
       ...common,
-      type: 'INCOME',
+      type: TransactionType.INCOME,
       toAccountId: progress.accountMap[transaction.toAccountId!]!,
       categoryId: progress.categoryMap[transaction.categoryId!]!,
     };
   }
-  if (transaction.type === 'EXPENSE') {
+  if (transaction.type === TransactionType.EXPENSE) {
     return {
       ...common,
-      type: 'EXPENSE',
+      type: TransactionType.EXPENSE,
       fromAccountId: progress.accountMap[transaction.fromAccountId!]!,
       categoryId: progress.categoryMap[transaction.categoryId!]!,
     };
   }
   return {
     ...common,
-    type: 'TRANSFER',
+    type: TransactionType.TRANSFER,
     fromAccountId: progress.accountMap[transaction.fromAccountId!]!,
     toAccountId: progress.accountMap[transaction.toAccountId!]!,
   };
@@ -326,11 +334,11 @@ async function uploadGoals(walletId: string, apis: UploadApis): Promise<void> {
 
   // Phase 3: status transitions, now that every contribution has landed.
   for (const goal of goals) {
-    if (goal.status === 'ACTIVE') continue;
+    if (goal.status === GoalStatus.ACTIVE) continue;
     const mappedGoalId = progressOf(guestStore.current()).goalMap[goal.id]!;
 
-    if (goal.status === 'CANCELLED') await apis.goals.cancel(mappedGoalId);
-    else await apis.goals.update(mappedGoalId, { status: 'COMPLETED' });
+    if (goal.status === GoalStatus.CANCELLED) await apis.goals.cancel(mappedGoalId);
+    else await apis.goals.update(mappedGoalId, { status: GoalStatus.COMPLETED });
   }
 }
 
@@ -344,12 +352,12 @@ async function archiveLocallyArchived(apis: UploadApis): Promise<void> {
   const progress = uploadProgress!;
 
   for (const budget of budgets) {
-    if (budget.status !== 'ARCHIVED') continue;
+    if (budget.status !== BudgetStatus.ARCHIVED) continue;
     await apis.budgets.archive(progress.budgetMap[budget.id]!);
   }
 
   for (const category of categories) {
-    if (category.status !== 'ARCHIVED') continue;
+    if (category.status !== CategoryStatus.ARCHIVED) continue;
     try {
       await apis.categories.archive(progress.categoryMap[category.id]!);
     } catch (error) {
@@ -358,7 +366,7 @@ async function archiveLocallyArchived(apis: UploadApis): Promise<void> {
   }
 
   for (const account of accounts) {
-    if (account.status !== 'ARCHIVED') continue;
+    if (account.status !== AccountStatus.ARCHIVED) continue;
     try {
       await apis.accounts.archive(progress.accountMap[account.id]!);
     } catch (error) {
@@ -367,12 +375,19 @@ async function archiveLocallyArchived(apis: UploadApis): Promise<void> {
   }
 }
 
+export type UploadPhase = 'categories' | 'accounts' | 'transactions' | 'budgets' | 'goals' | 'contributions' | 'archives';
+export type UploadProgressCallback = (phase: UploadPhase, completed: boolean) => void;
+
 /**
  * Uploads every locally-tracked record into `walletId`. Safe to call again
  * after a partial failure or an app kill — each phase skips whatever its
  * `uploadProgress` map already covers.
  */
-export async function uploadGuestData(walletId: string, injectedApis?: UploadApis): Promise<void> {
+export async function uploadGuestData(
+  walletId: string,
+  injectedApis?: UploadApis,
+  onProgress?: UploadProgressCallback,
+): Promise<void> {
   const data = guestStore.current();
   if (!data.wallet) return;
 
@@ -382,10 +397,28 @@ export async function uploadGuestData(walletId: string, injectedApis?: UploadApi
     await guestStore.mutate((current) => ({ ...current, uploadProgress: emptyUploadProgress(walletId) }));
   }
 
+  onProgress?.('categories', false);
   await uploadCategories(walletId, apis);
+  onProgress?.('categories', true);
+
+  onProgress?.('accounts', false);
   await uploadAccounts(walletId, apis);
+  onProgress?.('accounts', true);
+
+  onProgress?.('transactions', false);
   await uploadTransactions(apis);
+  onProgress?.('transactions', true);
+
+  onProgress?.('budgets', false);
   await uploadBudgets(walletId, apis);
+  onProgress?.('budgets', true);
+
+  onProgress?.('goals', false);
   await uploadGoals(walletId, apis);
+  onProgress?.('goals', true);
+
+  onProgress?.('archives', false);
   await archiveLocallyArchived(apis);
+  onProgress?.('archives', true);
 }
+

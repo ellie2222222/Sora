@@ -15,11 +15,11 @@
 
 import {
   createTransactionSchema,
-  type CategoryType,
+  TransactionType,
+  CategoryType,
+  TransactionStatus,
   type CreateTransactionRequest,
   type TransactionResponse,
-  type TransactionStatus,
-  type TransactionType,
 } from '@sora/contracts';
 
 /** Every field the form can hold, regardless of which type is selected. */
@@ -52,7 +52,7 @@ export interface EmptyDraftOptions {
 
 export function emptyDraft(options: EmptyDraftOptions): TransactionDraft {
   return {
-    type: options.type ?? 'EXPENSE',
+    type: options.type ?? TransactionType.EXPENSE,
     amount: '',
     currency: options.currency,
     fromAccountId: options.fromAccountId ?? null,
@@ -61,26 +61,26 @@ export function emptyDraft(options: EmptyDraftOptions): TransactionDraft {
     description: '',
     reference: '',
     transactionDate: options.transactionDate,
-    status: 'COMPLETED',
+    status: TransactionStatus.COMPLETED,
   };
 }
 
 /** Which inputs a type actually owns (API spec §11's shape table). */
 export function fieldsForType(type: TransactionType): DraftFieldVisibility {
   switch (type) {
-    case 'INCOME':
+    case TransactionType.INCOME:
       return { fromAccount: false, toAccount: true, category: true };
-    case 'EXPENSE':
+    case TransactionType.EXPENSE:
       return { fromAccount: true, toAccount: false, category: true };
-    case 'TRANSFER':
+    case TransactionType.TRANSFER:
       return { fromAccount: true, toAccount: true, category: false };
   }
 }
 
 /** The category type a transaction type demands, or null when it takes none. */
 export function categoryTypeFor(type: TransactionType): CategoryType | null {
-  if (type === 'INCOME') return 'INCOME';
-  if (type === 'EXPENSE') return 'EXPENSE';
+  if (type === TransactionType.INCOME) return CategoryType.INCOME;
+  if (type === TransactionType.EXPENSE) return CategoryType.EXPENSE;
   return null;
 }
 
@@ -101,7 +101,7 @@ export function switchType(draft: TransactionDraft, next: TransactionType): Tran
   // retargets a switched transfer at the wrong account, and since either id is a
   // valid uuid, neither the schema nor the database objects.
   switch (next) {
-    case 'EXPENSE':
+    case TransactionType.EXPENSE:
       return {
         ...draft,
         type: next,
@@ -109,7 +109,7 @@ export function switchType(draft: TransactionDraft, next: TransactionType): Tran
         toAccountId: null,
         categoryId: null,
       };
-    case 'INCOME':
+    case TransactionType.INCOME:
       return {
         ...draft,
         type: next,
@@ -117,12 +117,12 @@ export function switchType(draft: TransactionDraft, next: TransactionType): Tran
         toAccountId: draft.toAccountId ?? draft.fromAccountId,
         categoryId: null,
       };
-    case 'TRANSFER':
+    case TransactionType.TRANSFER:
       return {
         ...draft,
         type: next,
         fromAccountId: draft.fromAccountId ?? draft.toAccountId,
-        toAccountId: draft.type === 'INCOME' ? null : draft.toAccountId,
+        toAccountId: draft.type === TransactionType.INCOME ? null : draft.toAccountId,
         categoryId: null,
       };
   }
@@ -133,12 +133,12 @@ export function setPrimaryAccount(
   draft: TransactionDraft,
   accountId: string | null,
 ): TransactionDraft {
-  if (draft.type === 'INCOME') return { ...draft, toAccountId: accountId };
+  if (draft.type === TransactionType.INCOME) return { ...draft, toAccountId: accountId };
   return { ...draft, fromAccountId: accountId };
 }
 
 export function primaryAccountOf(draft: TransactionDraft): string | null {
-  return draft.type === 'INCOME' ? draft.toAccountId : draft.fromAccountId;
+  return draft.type === TransactionType.INCOME ? draft.toAccountId : draft.fromAccountId;
 }
 
 function textOrNull(value: string): string | null {
@@ -162,13 +162,13 @@ export function buildCreatePayload(draft: TransactionDraft): unknown {
   };
 
   switch (draft.type) {
-    case 'INCOME':
-      return { type: 'INCOME', toAccountId: draft.toAccountId, categoryId: draft.categoryId, ...common };
-    case 'EXPENSE':
-      return { type: 'EXPENSE', fromAccountId: draft.fromAccountId, categoryId: draft.categoryId, ...common };
-    case 'TRANSFER':
+    case TransactionType.INCOME:
+      return { type: TransactionType.INCOME, toAccountId: draft.toAccountId, categoryId: draft.categoryId, ...common };
+    case TransactionType.EXPENSE:
+      return { type: TransactionType.EXPENSE, fromAccountId: draft.fromAccountId, categoryId: draft.categoryId, ...common };
+    case TransactionType.TRANSFER:
       return {
-        type: 'TRANSFER',
+        type: TransactionType.TRANSFER,
         fromAccountId: draft.fromAccountId,
         toAccountId: draft.toAccountId,
         ...common,
@@ -232,7 +232,7 @@ export function isCrossWalletDraft(
   draft: TransactionDraft,
   walletIdOfAccount: (accountId: string) => string | undefined,
 ): boolean {
-  if (draft.type !== 'TRANSFER') return false;
+  if (draft.type !== TransactionType.TRANSFER) return false;
   if (draft.fromAccountId === null || draft.toAccountId === null) return false;
   const from = walletIdOfAccount(draft.fromAccountId);
   const to = walletIdOfAccount(draft.toAccountId);

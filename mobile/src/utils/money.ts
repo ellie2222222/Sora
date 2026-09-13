@@ -14,9 +14,9 @@ import {
   formatMoneyCompact,
   parseMoney,
   ZERO,
+  TransactionType,
   type MoneyString,
   type Scaled,
-  type TransactionType,
 } from '@sora/contracts';
 
 /**
@@ -159,8 +159,8 @@ export function sumScaledByKey<T>(
 }
 
 export function directionOf(type: TransactionType): 'in' | 'out' | 'neutral' {
-  if (type === 'INCOME') return 'in';
-  if (type === 'EXPENSE') return 'out';
+  if (type === TransactionType.INCOME) return 'in';
+  if (type === TransactionType.EXPENSE) return 'out';
   return 'neutral';
 }
 

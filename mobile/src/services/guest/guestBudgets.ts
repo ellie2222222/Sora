@@ -22,8 +22,9 @@ import {
   isOverBudget,
   parseMoney,
   updateBudgetSchema,
+  BudgetStatus,
+  CategoryType,
   type BudgetResponse,
-  type BudgetStatus,
   type CreateBudgetRequest,
   type UpdateBudgetRequest,
 } from '@sora/contracts';
@@ -69,7 +70,7 @@ function assertNoOverlap(
     (budget) =>
       budget.id !== excludingBudgetId &&
       budget.categoryId === categoryId &&
-      budget.status === 'ACTIVE' &&
+      budget.status === BudgetStatus.ACTIVE &&
       rangesOverlap(budget.startDate, budget.endDate, startDate, endDate),
   );
   if (collides) throw guestError('BUDGET_PERIOD_OVERLAP');
@@ -80,7 +81,7 @@ function assertBudgetableCategory(walletId: string, categoryId: string): void {
   const category = categories.find((candidate) => candidate.id === categoryId);
   if (!category) throw guestError('CATEGORY_NOT_FOUND');
   if (category.walletId !== walletId) throw guestError('CATEGORY_WRONG_WALLET');
-  if (category.type !== 'EXPENSE') throw guestError('CATEGORY_WRONG_TYPE');
+  if (category.type !== CategoryType.EXPENSE) throw guestError('CATEGORY_WRONG_TYPE');
 }
 
 function toBudgetResponse(budget: GuestBudget): BudgetResponse {
@@ -153,7 +154,7 @@ export const guestBudgetsApi = {
       periodType: request.periodType,
       startDate: request.startDate,
       endDate: request.endDate,
-      status: 'ACTIVE',
+      status: BudgetStatus.ACTIVE,
       createdAt: now,
       updatedAt: now,
     };
@@ -192,13 +193,13 @@ export const guestBudgetsApi = {
     requireWallet();
     const { budgets } = guestStore.current();
     const existing = findBudget(budgets, budgetId);
-    if (existing.status === 'ARCHIVED') return;
+    if (existing.status === BudgetStatus.ARCHIVED) return;
 
     await guestStore.mutate((current) => ({
       ...current,
       budgets: current.budgets.map((candidate) =>
         candidate.id === budgetId
-          ? { ...candidate, status: 'ARCHIVED' as const, updatedAt: new Date().toISOString() }
+          ? { ...candidate, status: BudgetStatus.ARCHIVED, updatedAt: new Date().toISOString() }
           : candidate,
       ),
     }));

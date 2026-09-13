@@ -9,7 +9,7 @@
  * differs from what a registered user gets.
  */
 
-import { STARTER_CATEGORIES } from '@sora/contracts';
+import { STARTER_CATEGORIES, AccountStatus, AccountType, CategoryStatus } from '@sora/contracts';
 
 import { newLocalId } from './guestIds.ts';
 import { guestStore } from './guestStorage.ts';
@@ -40,7 +40,7 @@ export async function ensureSeeded(): Promise<GuestData> {
         type: category.type,
         icon: category.icon,
         color: category.color,
-        status: 'ACTIVE' as const,
+        status: CategoryStatus.ACTIVE,
         createdAt: now,
         updatedAt: now,
       })),
@@ -49,10 +49,10 @@ export async function ensureSeeded(): Promise<GuestData> {
           id: newLocalId(),
           walletId,
           name: 'Cash',
-          type: 'CASH' as const,
+          type: AccountType.CASH,
           currency: DEFAULT_GUEST_CURRENCY,
           initialBalance: '0.0000',
-          status: 'ACTIVE' as const,
+          status: AccountStatus.ACTIVE,
           createdAt: now,
           updatedAt: now,
         },

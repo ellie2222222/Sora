@@ -13,7 +13,9 @@ import {
 import { z } from 'zod';
 
 import {
+  DEFAULT_PAGE_SIZE,
   GOAL_STATUSES,
+  MAX_PAGE_SIZE,
   ROUTES,
   createContributionSchema,
   createGoalSchema,
@@ -37,7 +39,7 @@ const goalListQuerySchema = z.object({
 
 const contributionListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(200).default(25),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
 });
 
 @Controller()

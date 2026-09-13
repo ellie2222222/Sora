@@ -16,9 +16,13 @@
  */
 
 import {
+  DEFAULT_PAGE_SIZE,
   createTransactionSchema,
   parseMoney,
   updateTransactionSchema,
+  TransactionType,
+  TransactionStatus,
+  AccountStatus,
   type BalanceRelevantTransaction,
   type CreateTransactionRequest,
   type PaginationMeta,
@@ -83,8 +87,8 @@ function findCategory(categories: readonly GuestCategory[], categoryId: string):
 
 /** Mirrors `transactions.service.ts`'s free function of the same name. */
 function accountIdsOf(request: CreateTransactionRequest): string[] {
-  if (request.type === 'INCOME') return [request.toAccountId];
-  if (request.type === 'EXPENSE') return [request.fromAccountId];
+  if (request.type === TransactionType.INCOME) return [request.toAccountId];
+  if (request.type === TransactionType.EXPENSE) return [request.fromAccountId];
   return [request.fromAccountId, request.toAccountId];
 }
 
@@ -200,7 +204,7 @@ export const guestTransactionsApi = {
     const { accounts, categories, transactions } = guestStore.current();
 
     const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 25;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     const sortBy = query.sortBy ?? '-transactionDate';
 
     const filtered = applySort(
@@ -229,7 +233,7 @@ export const guestTransactionsApi = {
     if (!parsed.success) throw fromZodError(parsed.error);
     const request = parsed.data;
 
-    if (request.type === 'TRANSFER' && request.fromAccountId === request.toAccountId) {
+    if (request.type === TransactionType.TRANSFER && request.fromAccountId === request.toAccountId) {
       throw guestError('TRANSFER_SAME_ACCOUNT');
     }
 
@@ -237,18 +241,18 @@ export const guestTransactionsApi = {
     const touchedAccounts = accountIdsOf(request).map((accountId) => findAccount(accounts, accountId));
 
     for (const account of touchedAccounts) {
-      if (account.status === 'ARCHIVED') throw guestError('ACCOUNT_ARCHIVED');
+      if (account.status === AccountStatus.ARCHIVED) throw guestError('ACCOUNT_ARCHIVED');
       if (account.currency !== request.currency) throw guestError('ACCOUNT_CURRENCY_MISMATCH');
     }
 
-    const fromAccount = request.type !== 'INCOME' ? findAccount(accounts, request.fromAccountId) : undefined;
-    const toAccount = request.type !== 'EXPENSE' ? findAccount(accounts, request.toAccountId) : undefined;
+    const fromAccount = request.type !== TransactionType.INCOME ? findAccount(accounts, request.fromAccountId) : undefined;
+    const toAccount = request.type !== TransactionType.EXPENSE ? findAccount(accounts, request.toAccountId) : undefined;
 
-    if (request.type === 'TRANSFER' && fromAccount!.currency !== toAccount!.currency) {
+    if (request.type === TransactionType.TRANSFER && fromAccount!.currency !== toAccount!.currency) {
       throw guestError('TRANSFER_CURRENCY_MISMATCH');
     }
 
-    if (request.type === 'INCOME' || request.type === 'EXPENSE') {
+    if (request.type === TransactionType.INCOME || request.type === TransactionType.EXPENSE) {
       const category = findCategory(categories, request.categoryId);
       if (category.type !== request.type) throw guestError('CATEGORY_WRONG_TYPE');
       if (category.walletId !== wallet.id) throw guestError('CATEGORY_WRONG_WALLET');
@@ -264,9 +268,9 @@ export const guestTransactionsApi = {
       description: request.description ?? null,
       transactionDate: request.transactionDate,
       reference: request.reference ?? null,
-      fromAccountId: request.type === 'INCOME' ? null : request.fromAccountId,
-      toAccountId: request.type === 'EXPENSE' ? null : request.toAccountId,
-      categoryId: request.type === 'TRANSFER' ? null : request.categoryId,
+      fromAccountId: request.type === TransactionType.INCOME ? null : request.fromAccountId,
+      toAccountId: request.type === TransactionType.EXPENSE ? null : request.toAccountId,
+      categoryId: request.type === TransactionType.TRANSFER ? null : request.categoryId,
       createdAt: now,
       updatedAt: now,
     };
@@ -288,10 +292,10 @@ export const guestTransactionsApi = {
     const { categories, transactions } = guestStore.current();
     const existing = transactions.find((candidate) => candidate.id === transactionId);
     if (!existing) throw guestError('TRANSACTION_NOT_FOUND');
-    if (existing.status === 'CANCELLED') throw guestError('TRANSACTION_ALREADY_CANCELLED');
+    if (existing.status === TransactionStatus.CANCELLED) throw guestError('TRANSACTION_ALREADY_CANCELLED');
 
     if (patch.categoryId !== undefined) {
-      if (existing.type === 'TRANSFER') throw guestError('CATEGORY_WRONG_TYPE');
+      if (existing.type === TransactionType.TRANSFER) throw guestError('CATEGORY_WRONG_TYPE');
       const category = findCategory(categories, patch.categoryId);
       if (category.type !== existing.type) throw guestError('CATEGORY_WRONG_TYPE');
       if (category.walletId !== wallet.id) throw guestError('CATEGORY_WRONG_WALLET');
@@ -300,8 +304,8 @@ export const guestTransactionsApi = {
     const updated: GuestTransaction = {
       ...existing,
       description: patch.description !== undefined ? patch.description : existing.description,
-      transactionDate: patch.transactionDate ?? existing.transactionDate,
-      categoryId: patch.categoryId ?? existing.categoryId,
+      transactionDate: patch.transactionDate !== undefined ? patch.transactionDate : existing.transactionDate,
+      categoryId: patch.categoryId !== undefined ? patch.categoryId : existing.categoryId,
       reference: patch.reference !== undefined ? patch.reference : existing.reference,
       updatedAt: new Date().toISOString(),
     };
@@ -321,9 +325,9 @@ export const guestTransactionsApi = {
     const { transactions } = guestStore.current();
     const existing = transactions.find((candidate) => candidate.id === transactionId);
     if (!existing) throw guestError('TRANSACTION_NOT_FOUND');
-    if (existing.status === 'CANCELLED') throw guestError('TRANSACTION_ALREADY_CANCELLED');
+    if (existing.status === TransactionStatus.CANCELLED) throw guestError('TRANSACTION_ALREADY_CANCELLED');
 
-    const cancelled: GuestTransaction = { ...existing, status: 'CANCELLED', updatedAt: new Date().toISOString() };
+    const cancelled: GuestTransaction = { ...existing, status: TransactionStatus.CANCELLED, updatedAt: new Date().toISOString() };
 
     const data = await guestStore.mutate((current) => ({
       ...current,

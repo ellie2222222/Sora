@@ -18,7 +18,7 @@ import {
   subtract,
   ZERO,
 } from './money.ts';
-import type { TransactionStatus, TransactionType } from './enums.ts';
+import { TransactionStatus, TransactionType } from './enums.ts';
 
 /** The minimum a balance calculation needs to know about a transaction. */
 export interface BalanceRelevantTransaction {
@@ -35,7 +35,7 @@ export interface BalanceRelevantTransaction {
  * would make the app's balance disagree with the bank's.
  */
 export function affectsBalance(transaction: { status: TransactionStatus }): boolean {
-  return transaction.status === 'COMPLETED';
+  return transaction.status === TransactionStatus.COMPLETED;
 }
 
 /**
@@ -100,8 +100,8 @@ export function calculateBudgetSpent(
   let spent = ZERO;
 
   for (const transaction of transactions) {
-    if (transaction.type !== 'EXPENSE') continue;
-    if (transaction.status !== 'COMPLETED') continue;
+    if (transaction.type !== TransactionType.EXPENSE) continue;
+    if (transaction.status !== TransactionStatus.COMPLETED) continue;
     if (transaction.categoryId !== budget.categoryId) continue;
     if (!isWithinPeriod(transaction.transactionDate, budget.startDate, budget.endDate)) continue;
     spent = add(spent, transaction.amount);
