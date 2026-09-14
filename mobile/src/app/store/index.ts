@@ -2,13 +2,23 @@ import { configureStore } from '@reduxjs/toolkit';
 
 import { apiSlice } from './api/apiSlice.ts';
 import authReducer from './authSlice.ts';
+import offlineQueueReducer from './offlineQueueSlice.ts';
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
+    offlineQueue: offlineQueueReducer,
     [apiSlice.reducerPath]: apiSlice.reducer,
   },
-  middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(apiSlice.middleware),
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: {
+        warnAfter: 128,
+      },
+      immutableCheck: {
+        warnAfter: 128,
+      },
+    }).concat(apiSlice.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

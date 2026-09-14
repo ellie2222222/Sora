@@ -1,4 +1,3 @@
-import '../global.css';
 import { useCallback, useEffect } from 'react';
 
 import {
@@ -22,6 +21,9 @@ import { ThemeProvider } from './app/providers/ThemeProvider.tsx';
 import { NetworkStatusProvider } from './hooks/useNetworkStatus.ts';
 import { RootNavigator } from './app/navigation/RootNavigator.tsx';
 import { store } from './app/store/index.ts';
+import { requestSyncNow, startSyncEngine } from './services/sync/syncEngineRuntime.ts';
+
+startSyncEngine(store);
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -59,7 +61,7 @@ export default function App() {
     <ReduxProvider store={store}>
       <SafeAreaProvider>
         <QueryProvider>
-          <NetworkStatusProvider>
+          <NetworkStatusProvider onRetrySync={() => requestSyncNow(store)}>
             <AuthProvider>
               <ThemeProvider>
                 <LocaleProvider>

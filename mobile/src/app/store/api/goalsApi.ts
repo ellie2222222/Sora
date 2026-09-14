@@ -2,11 +2,17 @@ import type { ContributionResponse, CreateContributionRequest, CreateGoalRequest
 
 import { goalsApi as goalsHttp, type GoalListQuery } from '../../../services/api/goals.ts';
 import { guestGoalsApi } from '../../../services/guest/guestGoals.ts';
+import { forEachCachedQueryArgs } from '../../../services/sync/cacheLookup.ts';
+import { enqueueOffline, isStillQueued, newLocalId } from '../../../services/sync/offlineEnqueue.ts';
+import { isCurrentlyOnline } from '../../../services/sync/networkState.ts';
+import { buildOptimisticGoal } from '../../../services/sync/optimisticRecords.ts';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
 
 export type { GoalListQuery } from '../../../services/api/goals.ts';
+
+const GOAL_TAGS = ['Goal'] as const;
 
 /** A contribution moves goal progress and, when transaction-backed, real money. */
 const CONTRIBUTION_TAGS = ['Goal', 'GoalContribution', 'Transaction', 'Account', 'Dashboard', 'Budget', 'Wallet'] as const;
@@ -37,9 +43,34 @@ export const goalsApiSlice = apiSlice.injectEndpoints({
     createGoal: builder.mutation<GoalResponse, CreateGoalRequest>({
       queryFn: (body, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() => (isGuest ? guestGoalsApi.create(body) : goalsHttp.create(body)));
+        if (isGuest) return toQueryFnResult(() => guestGoalsApi.create(body));
+        if (!isCurrentlyOnline()) {
+          return toQueryFnResult(async () => {
+            const localId = newLocalId();
+            await enqueueOffline({ entity: 'goal', op: 'create', localId, serverId: null, payload: body });
+            return buildOptimisticGoal(body, localId);
+          });
+        }
+        return toQueryFnResult(() => goalsHttp.create(body));
       },
-      invalidatesTags: ['Goal'],
+      onQueryStarted: async (_body, { dispatch, queryFulfilled, getState }) => {
+        try {
+          const { data } = await queryFulfilled;
+          if (!isStillQueued(data.id)) return;
+
+          const rootState = getState();
+          forEachCachedQueryArgs(rootState, 'listGoals', (args) => {
+            dispatch(
+              goalsApiSlice.util.updateQueryData('listGoals', args as GoalListQuery, (draft) => {
+                draft.unshift(data);
+              }),
+            );
+          });
+        } catch {
+          // Nothing was applied to the cache yet — nothing to undo.
+        }
+      },
+      invalidatesTags: (result) => (result && isStillQueued(result.id) ? [] : GOAL_TAGS),
     }),
     addContribution: builder.mutation<ContributionResponse, { goalId: string; body: CreateContributionRequest }>({
       queryFn: ({ goalId, body }, { getState }) => {

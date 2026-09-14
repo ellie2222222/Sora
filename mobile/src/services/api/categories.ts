@@ -8,7 +8,7 @@ import {
   type UpdateCategoryRequest,
 } from '@sora/contracts';
 
-import { deleteVoid, getList, patchOne, postOne } from './client.ts';
+import { deleteVoid, getList, idempotencyHeaders, patchOne, postOne } from './client.ts';
 
 export interface CategoryListQuery {
   walletId: string;
@@ -22,14 +22,22 @@ export const categoriesApi = {
     const { items } = await getList<CategoryResponse>(apiUrl(ROUTES.categories.list()), query);
     return items;
   },
-  create(body: CreateCategoryRequest): Promise<CategoryResponse> {
-    return postOne<CategoryResponse>(apiUrl(ROUTES.categories.create()), body);
+  create(body: CreateCategoryRequest, idempotencyKey?: string): Promise<CategoryResponse> {
+    return postOne<CategoryResponse>(apiUrl(ROUTES.categories.create()), body, idempotencyHeaders(idempotencyKey));
   },
-  update(categoryId: string, body: UpdateCategoryRequest): Promise<CategoryResponse> {
-    return patchOne<CategoryResponse>(apiUrl(ROUTES.categories.update(categoryId)), body);
+  update(categoryId: string, body: UpdateCategoryRequest, idempotencyKey?: string): Promise<CategoryResponse> {
+    return patchOne<CategoryResponse>(
+      apiUrl(ROUTES.categories.update(categoryId)),
+      body,
+      idempotencyHeaders(idempotencyKey),
+    );
   },
-  archive(categoryId: string): Promise<void> {
-    return deleteVoid(apiUrl(ROUTES.categories.archive(categoryId)), { mode: 'archive' });
+  archive(categoryId: string, idempotencyKey?: string): Promise<void> {
+    return deleteVoid(
+      apiUrl(ROUTES.categories.archive(categoryId)),
+      { mode: 'archive' },
+      idempotencyHeaders(idempotencyKey),
+    );
   },
   deletePermanently(categoryId: string): Promise<void> {
     return deleteVoid(apiUrl(ROUTES.categories.archive(categoryId)), { mode: 'permanent' });

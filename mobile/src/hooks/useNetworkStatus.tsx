@@ -1,5 +1,9 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 
+import NetInfo from '@react-native-community/netinfo';
+
+import { setCurrentlyOnline } from '../services/sync/networkState.ts';
+
 export interface NetworkStatusContextValue {
   isOnline: boolean;
   hasSyncError: boolean;
@@ -27,23 +31,13 @@ export function NetworkStatusProvider({ children, onRetrySync }: NetworkStatusPr
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const online = state.isConnected === true && state.isInternetReachable !== false;
+      setIsOnline(online);
+      setCurrentlyOnline(online);
+    });
 
-    if (typeof window !== 'undefined' && 'addEventListener' in window) {
-      window.addEventListener('online', handleOnline);
-      window.addEventListener('offline', handleOffline);
-      if ('onLine' in navigator) {
-        setIsOnline(navigator.onLine);
-      }
-    }
-
-    return () => {
-      if (typeof window !== 'undefined' && 'removeEventListener' in window) {
-        window.removeEventListener('online', handleOnline);
-        window.removeEventListener('offline', handleOffline);
-      }
-    };
+    return unsubscribe;
   }, []);
 
   const retrySync = useCallback(async () => {

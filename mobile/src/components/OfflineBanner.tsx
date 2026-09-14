@@ -1,8 +1,10 @@
 import { View, Pressable } from 'react-native';
-import { WifiOff, RefreshCw, AlertCircle } from 'lucide-react-native';
+import { useSelector } from 'react-redux';
+import { WifiOff, RefreshCw, AlertCircle, RotateCw } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '../app/providers/ThemeProvider';
+import { selectPendingCount } from '../app/store/offlineQueueSlice.ts';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { Text } from './Text';
 import { AnimatedIcon } from './AnimatedIcon';
@@ -12,6 +14,8 @@ export interface OfflineBannerProps {
   testID?: string;
 }
 
+type BannerMode = 'offline' | 'syncError' | 'waiting';
+
 /**
  * Non-blocking connection/sync status banner.
  * Displays connection availability or background sync status without breaking shell navigation.
@@ -20,12 +24,44 @@ export function OfflineBanner({ testID = 'offline-banner' }: OfflineBannerProps)
   const theme = useTheme();
   const { t } = useTranslation();
   const { isOnline, hasSyncError, isSyncing, retrySync } = useNetworkStatus();
+  const pendingCount = useSelector(selectPendingCount);
 
-  if (isOnline && !hasSyncError) {
+  if (isOnline && !hasSyncError && pendingCount === 0) {
     return null;
   }
 
-  const isOfflineMode = !isOnline;
+  // Precedence: a genuinely offline device says so, rather than "waiting to
+  // sync" (which implies imminent connectivity); a sync error while online
+  // outranks a merely-pending queue.
+  const mode: BannerMode = !isOnline ? 'offline' : hasSyncError ? 'syncError' : 'waiting';
+
+  const palette = {
+    offline: {
+      background: theme.colors.warningMuted ?? '#FFFBEB',
+      border: theme.colors.warning ?? '#F59E0B',
+      text: theme.colors.warning ?? '#B45309',
+      icon: <WifiOff size={16} color={theme.colors.warning ?? '#D97706'} />,
+    },
+    syncError: {
+      background: theme.colors.dangerMuted ?? '#FEF2F2',
+      border: theme.colors.danger ?? '#EF4444',
+      text: theme.colors.danger ?? '#B91C1C',
+      icon: <AlertCircle size={16} color={theme.colors.danger ?? '#DC2626'} />,
+    },
+    waiting: {
+      background: theme.colors.primaryMuted,
+      border: theme.colors.primary,
+      text: theme.colors.primary,
+      icon: <RotateCw size={16} color={theme.colors.primary} />,
+    },
+  }[mode];
+
+  const message =
+    mode === 'offline'
+      ? t('errors.offlineMessage', 'No internet connection. Your local data is still available.')
+      : mode === 'syncError'
+        ? t('errors.syncFailed', "Couldn't sync your changes")
+        : t('errors.waitingToSync', { count: pendingCount, defaultValue: 'Waiting to sync ({{count}})' });
 
   return (
     <SlideUp distance={-12} duration={250}>
@@ -37,35 +73,23 @@ export function OfflineBanner({ testID = 'offline-banner' }: OfflineBannerProps)
           justifyContent: 'space-between',
           paddingHorizontal: theme.spacing.md,
           paddingVertical: theme.spacing.xs + 2,
-          backgroundColor: isOfflineMode
-            ? theme.colors.warningMuted ?? '#FFFBEB'
-            : theme.colors.dangerMuted ?? '#FEF2F2',
+          backgroundColor: palette.background,
           borderBottomWidth: 1,
-          borderBottomColor: isOfflineMode
-            ? theme.colors.warning ?? '#F59E0B'
-            : theme.colors.danger ?? '#EF4444',
+          borderBottomColor: palette.border,
         }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs + 2, flex: 1 }}>
-          {isOfflineMode ? (
-            <WifiOff size={16} color={theme.colors.warning ?? '#D97706'} />
-          ) : (
-            <AlertCircle size={16} color={theme.colors.danger ?? '#DC2626'} />
-          )}
+          {palette.icon}
           <Text
             variant="caption"
             style={{
-              color: isOfflineMode
-                ? theme.colors.warning ?? '#B45309'
-                : theme.colors.danger ?? '#B91C1C',
+              color: palette.text,
               fontWeight: '600',
               flex: 1,
             }}
             numberOfLines={2}
           >
-            {isOfflineMode
-              ? t('errors.offlineMessage', 'No internet connection. Your local data is still available.')
-              : t('errors.syncFailed', "Couldn't sync your changes")}
+            {message}
           </Text>
         </View>
 

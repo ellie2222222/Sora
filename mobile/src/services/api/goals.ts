@@ -26,17 +26,17 @@ export const goalsApi = {
     return getOne<GoalResponse>(apiUrl(ROUTES.goals.detail(goalId)));
   },
 
-  create(body: CreateGoalRequest): Promise<GoalResponse> {
-    return postOne<GoalResponse>(apiUrl(ROUTES.goals.create()), body);
+  create(body: CreateGoalRequest, idempotencyKey?: string): Promise<GoalResponse> {
+    return postOne<GoalResponse>(apiUrl(ROUTES.goals.create()), body, idempotencyHeaders(idempotencyKey));
   },
 
-  update(goalId: string, body: UpdateGoalRequest): Promise<GoalResponse> {
-    return patchOne<GoalResponse>(apiUrl(ROUTES.goals.update(goalId)), body);
+  update(goalId: string, body: UpdateGoalRequest, idempotencyKey?: string): Promise<GoalResponse> {
+    return patchOne<GoalResponse>(apiUrl(ROUTES.goals.update(goalId)), body, idempotencyHeaders(idempotencyKey));
   },
 
   /** Cancels the goal; contributions are retained, as they record real money. */
-  cancel(goalId: string): Promise<void> {
-    return deleteVoid(apiUrl(ROUTES.goals.archive(goalId)));
+  cancel(goalId: string, idempotencyKey?: string): Promise<void> {
+    return deleteVoid(apiUrl(ROUTES.goals.archive(goalId)), undefined, idempotencyHeaders(idempotencyKey));
   },
 
   async contributions(goalId: string): Promise<ContributionResponse[]> {

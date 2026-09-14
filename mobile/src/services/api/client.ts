@@ -95,8 +95,8 @@ export async function postOne<T>(
   return response.data.data;
 }
 
-export async function patchOne<T>(path: string, body?: unknown): Promise<T> {
-  const response = await http.patch<ApiEnvelope<T>>(path, body);
+export async function patchOne<T>(path: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  const response = await http.patch<ApiEnvelope<T>>(path, body, config);
   return response.data.data;
 }
 
@@ -105,8 +105,12 @@ export async function postVoid(path: string, body?: unknown): Promise<void> {
   await http.post(path, body);
 }
 
-export async function deleteVoid(path: string, params?: unknown): Promise<void> {
-  await http.delete(path, { params });
+export async function deleteVoid(
+  path: string,
+  params?: unknown,
+  config?: AxiosRequestConfig,
+): Promise<void> {
+  await http.delete(path, { ...config, params });
 }
 
 /**

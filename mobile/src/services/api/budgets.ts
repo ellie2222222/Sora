@@ -7,7 +7,7 @@ import {
   type UpdateBudgetRequest,
 } from '@sora/contracts';
 
-import { deleteVoid, getList, getOne, patchOne, postOne } from './client.ts';
+import { deleteVoid, getList, getOne, idempotencyHeaders, patchOne, postOne } from './client.ts';
 
 export interface BudgetListQuery {
   walletId: string;
@@ -26,8 +26,8 @@ export const budgetsApi = {
     return getOne<BudgetResponse>(apiUrl(ROUTES.budgets.detail(budgetId)));
   },
 
-  create(body: CreateBudgetRequest): Promise<BudgetResponse> {
-    return postOne<BudgetResponse>(apiUrl(ROUTES.budgets.create()), body);
+  create(body: CreateBudgetRequest, idempotencyKey?: string): Promise<BudgetResponse> {
+    return postOne<BudgetResponse>(apiUrl(ROUTES.budgets.create()), body, idempotencyHeaders(idempotencyKey));
   },
 
   /**
@@ -35,11 +35,15 @@ export const budgetsApi = {
    * window changes which transactions the budget ever covered, which makes it a
    * different budget. Archive and create instead.
    */
-  update(budgetId: string, body: UpdateBudgetRequest): Promise<BudgetResponse> {
-    return patchOne<BudgetResponse>(apiUrl(ROUTES.budgets.update(budgetId)), body);
+  update(budgetId: string, body: UpdateBudgetRequest, idempotencyKey?: string): Promise<BudgetResponse> {
+    return patchOne<BudgetResponse>(
+      apiUrl(ROUTES.budgets.update(budgetId)),
+      body,
+      idempotencyHeaders(idempotencyKey),
+    );
   },
 
-  archive(budgetId: string): Promise<void> {
-    return deleteVoid(apiUrl(ROUTES.budgets.archive(budgetId)));
+  archive(budgetId: string, idempotencyKey?: string): Promise<void> {
+    return deleteVoid(apiUrl(ROUTES.budgets.archive(budgetId)), undefined, idempotencyHeaders(idempotencyKey));
   },
 };

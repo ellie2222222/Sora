@@ -1,7 +1,11 @@
-import type { BudgetResponse, CreateBudgetRequest, UpdateBudgetRequest } from '@sora/contracts';
+import { BudgetStatus, type BudgetResponse, type CreateBudgetRequest, type UpdateBudgetRequest } from '@sora/contracts';
 
 import { budgetsApi as budgetsHttp, type BudgetListQuery } from '../../../services/api/budgets.ts';
 import { guestBudgetsApi } from '../../../services/guest/guestBudgets.ts';
+import { forEachCachedQueryArgs } from '../../../services/sync/cacheLookup.ts';
+import { enqueueOffline, isStillQueued, newLocalId } from '../../../services/sync/offlineEnqueue.ts';
+import { isCurrentlyOnline } from '../../../services/sync/networkState.ts';
+import { buildOptimisticBudget } from '../../../services/sync/optimisticRecords.ts';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
@@ -29,26 +33,99 @@ export const budgetsApiSlice = apiSlice.injectEndpoints({
     }),
     createBudget: builder.mutation<BudgetResponse, CreateBudgetRequest>({
       queryFn: (body, { getState }) => {
-        const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() => (isGuest ? guestBudgetsApi.create(body) : budgetsHttp.create(body)));
+        const state = getState() as RootState;
+        if (selectIsGuest(state)) return toQueryFnResult(() => guestBudgetsApi.create(body));
+        if (!isCurrentlyOnline()) {
+          return toQueryFnResult(async () => {
+            const localId = newLocalId();
+            await enqueueOffline({ entity: 'budget', op: 'create', localId, serverId: null, payload: body });
+            return buildOptimisticBudget(body, localId, (state as unknown as Record<string, unknown>)[apiSlice.reducerPath]);
+          });
+        }
+        return toQueryFnResult(() => budgetsHttp.create(body));
       },
-      invalidatesTags: BUDGET_TAGS,
+      onQueryStarted: async (_body, { dispatch, queryFulfilled, getState }) => {
+        try {
+          const { data } = await queryFulfilled;
+          if (!isStillQueued(data.id)) return;
+
+          const rootState = getState();
+          forEachCachedQueryArgs(rootState, 'listBudgets', (args) => {
+            dispatch(
+              budgetsApiSlice.util.updateQueryData('listBudgets', args as BudgetListQuery, (draft) => {
+                draft.unshift(data);
+              }),
+            );
+          });
+        } catch {
+          // Nothing was applied to the cache yet — nothing to undo.
+        }
+      },
+      invalidatesTags: (result) => (result && isStillQueued(result.id) ? [] : BUDGET_TAGS),
     }),
     updateBudget: builder.mutation<BudgetResponse, { budgetId: string; body: UpdateBudgetRequest }>({
       queryFn: ({ budgetId, body }, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() =>
-          isGuest ? guestBudgetsApi.update(budgetId, body) : budgetsHttp.update(budgetId, body),
-        );
+        if (isGuest) return toQueryFnResult(() => guestBudgetsApi.update(budgetId, body));
+        if (!isCurrentlyOnline()) {
+          return toQueryFnResult(async () => {
+            await enqueueOffline({ entity: 'budget', op: 'update', localId: budgetId, serverId: budgetId, payload: body });
+            return { ...body } as unknown as BudgetResponse; // Reconciled by onQueryStarted's cache patch below.
+          });
+        }
+        return toQueryFnResult(() => budgetsHttp.update(budgetId, body));
       },
-      invalidatesTags: BUDGET_TAGS,
+      onQueryStarted: async ({ budgetId, body }, { dispatch, queryFulfilled, getState }) => {
+        try {
+          await queryFulfilled;
+          if (!isStillQueued(budgetId)) return;
+
+          dispatch(budgetsApiSlice.util.updateQueryData('getBudget', budgetId, (draft) => Object.assign(draft, body)));
+          const rootState = getState();
+          forEachCachedQueryArgs(rootState, 'listBudgets', (args) => {
+            dispatch(
+              budgetsApiSlice.util.updateQueryData('listBudgets', args as BudgetListQuery, (draft) => {
+                const item = draft.find((candidate) => candidate.id === budgetId);
+                if (item) Object.assign(item, body);
+              }),
+            );
+          });
+        } catch {
+          // Nothing was applied to the cache yet — nothing to undo.
+        }
+      },
+      invalidatesTags: (_result, _error, { budgetId }) => (isStillQueued(budgetId) ? [] : BUDGET_TAGS),
     }),
     archiveBudget: builder.mutation<void, string>({
       queryFn: (budgetId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() => (isGuest ? guestBudgetsApi.archive(budgetId) : budgetsHttp.archive(budgetId)));
+        if (isGuest) return toQueryFnResult(() => guestBudgetsApi.archive(budgetId));
+        if (!isCurrentlyOnline()) {
+          return toQueryFnResult(async () => {
+            await enqueueOffline({ entity: 'budget', op: 'archive', localId: budgetId, serverId: budgetId, payload: {} });
+          });
+        }
+        return toQueryFnResult(() => budgetsHttp.archive(budgetId));
       },
-      invalidatesTags: BUDGET_TAGS,
+      onQueryStarted: async (budgetId, { dispatch, queryFulfilled, getState }) => {
+        try {
+          await queryFulfilled;
+          if (!isStillQueued(budgetId)) return;
+
+          const rootState = getState();
+          forEachCachedQueryArgs(rootState, 'listBudgets', (args) => {
+            dispatch(
+              budgetsApiSlice.util.updateQueryData('listBudgets', args as BudgetListQuery, (draft) => {
+                const item = draft.find((candidate) => candidate.id === budgetId);
+                if (item) item.status = BudgetStatus.ARCHIVED;
+              }),
+            );
+          });
+        } catch {
+          // Nothing was applied to the cache yet — nothing to undo.
+        }
+      },
+      invalidatesTags: (_result, _error, budgetId) => (isStillQueued(budgetId) ? [] : BUDGET_TAGS),
     }),
   }),
   overrideExisting: __DEV__,

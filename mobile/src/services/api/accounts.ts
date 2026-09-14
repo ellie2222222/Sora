@@ -9,7 +9,7 @@ import {
   type UpdateAccountRequest,
 } from '@sora/contracts';
 
-import { deleteVoid, getList, getOne, patchOne, postOne } from './client.ts';
+import { deleteVoid, getList, getOne, idempotencyHeaders, patchOne, postOne } from './client.ts';
 
 export interface AccountListQuery {
   walletId?: string | undefined;
@@ -25,13 +25,17 @@ export const accountsApi = {
   detail(accountId: string): Promise<AccountDetailResponse> {
     return getOne<AccountDetailResponse>(apiUrl(ROUTES.accounts.detail(accountId)));
   },
-  create(body: CreateAccountRequest): Promise<AccountResponse> {
-    return postOne<AccountResponse>(apiUrl(ROUTES.accounts.create()), body);
+  create(body: CreateAccountRequest, idempotencyKey?: string): Promise<AccountResponse> {
+    return postOne<AccountResponse>(apiUrl(ROUTES.accounts.create()), body, idempotencyHeaders(idempotencyKey));
   },
-  update(accountId: string, body: UpdateAccountRequest): Promise<AccountResponse> {
-    return patchOne<AccountResponse>(apiUrl(ROUTES.accounts.update(accountId)), body);
+  update(accountId: string, body: UpdateAccountRequest, idempotencyKey?: string): Promise<AccountResponse> {
+    return patchOne<AccountResponse>(
+      apiUrl(ROUTES.accounts.update(accountId)),
+      body,
+      idempotencyHeaders(idempotencyKey),
+    );
   },
-  archive(accountId: string): Promise<void> {
-    return deleteVoid(apiUrl(ROUTES.accounts.archive(accountId)));
+  archive(accountId: string, idempotencyKey?: string): Promise<void> {
+    return deleteVoid(apiUrl(ROUTES.accounts.archive(accountId)), undefined, idempotencyHeaders(idempotencyKey));
   },
 };
