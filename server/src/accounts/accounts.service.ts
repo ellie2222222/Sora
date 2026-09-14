@@ -136,10 +136,31 @@ export class AccountsService {
       await this.assertNotLastActiveAccount(access.walletId, accountId);
     }
 
+    if (request.currency !== undefined && request.currency !== access.currency) {
+      const txCount = await this.database.db
+        .selectFrom('transactions')
+        .select((eb) => eb.fn.countAll().as('count'))
+        .where((eb) =>
+          eb.or([
+            eb('from_account_id', '=', accountId),
+            eb('to_account_id', '=', accountId),
+          ]),
+        )
+        .executeTakeFirstOrThrow();
+
+      if (Number(txCount.count) > 0) {
+        throw new AppError(
+          'ACCOUNT_CURRENCY_MISMATCH',
+          'Cannot change currency for an account with existing transactions',
+        );
+      }
+    }
+
     const row = await this.database.db
       .updateTable('accounts')
       .set({
         ...(request.name !== undefined ? { name: request.name } : {}),
+        ...(request.currency !== undefined ? { currency: request.currency } : {}),
         ...(request.status !== undefined ? { status: request.status } : {}),
         updated_at: new Date(),
       })

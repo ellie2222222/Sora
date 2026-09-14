@@ -195,6 +195,16 @@ export interface AuditLogsTable {
   created_at: Timestamp;
 }
 
+export interface ExchangeRateSnapshotsTable {
+  id: Generated<string>;
+  snapshot_date: CalendarDate;
+  base_currency: string;
+  rates: ColumnType<Record<string, number>, string | Record<string, number>, string | Record<string, number>>;
+  source: string;
+  fetched_at: Timestamp;
+  created_at: Timestamp;
+}
+
 /** Bookkeeping for the SQL migration runner; not part of the domain schema. */
 export interface DB {
   users: UsersTable;
@@ -209,4 +219,5 @@ export interface DB {
   goals: GoalsTable;
   goal_contributions: GoalContributionsTable;
   audit_logs: AuditLogsTable;
+  exchange_rate_snapshots: ExchangeRateSnapshotsTable;
 }

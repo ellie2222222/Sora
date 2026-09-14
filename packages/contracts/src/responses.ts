@@ -18,6 +18,7 @@ import type {
   ThemeName,
   TransactionStatus,
   TransactionType,
+  ValuationStatus,
   WalletRole,
   WalletStatus,
 } from './enums.ts';
@@ -48,6 +49,8 @@ export interface ApiErrorBody {
     code: ErrorCode;
     /** Field-level detail, keyed by the request path that failed. */
     fields?: Record<string, string[]>;
+    /** Optional interpolation parameters for local client i18n translation. */
+    params?: Record<string, unknown>;
   };
   meta: { timestamp: string };
 }
@@ -98,6 +101,7 @@ export const ERROR_CODES = [
   'RATE_LIMITED',
   'INTERNAL_ERROR',
   'GOOGLE_TOKEN_INVALID',
+  'VALUATION_UNAVAILABLE',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -177,6 +181,7 @@ export const ERROR_STATUS: Record<ErrorCode, HttpStatusCode> = {
   RATE_LIMITED: HTTP_STATUS.TOO_MANY_REQUESTS,
   INTERNAL_ERROR: HTTP_STATUS.INTERNAL_SERVER_ERROR,
   GOOGLE_TOKEN_INVALID: HTTP_STATUS.UNAUTHORIZED,
+  VALUATION_UNAVAILABLE: HTTP_STATUS.SERVICE_UNAVAILABLE,
 };
 
 // ---------------------------------------------------------------------------
@@ -399,6 +404,15 @@ export interface CategorySpendSlice {
   percentage: number;
 }
 
+export interface ConvertedValuation {
+  currency: string;
+  amount: MoneyString | null;
+  isApproximate: boolean;
+  rateTimestamp?: string;
+  status: ValuationStatus;
+  missingCurrencies?: string[];
+}
+
 export interface DashboardResponse {
   walletId: string;
   period: { dateFrom: string; dateTo: string };
@@ -411,6 +425,8 @@ export interface DashboardResponse {
   recentTransactions: TransactionResponse[];
   activeBudgets: BudgetResponse[];
   activeGoals: GoalResponse[];
+  /** Optional converted valuation estimate for total balance across currencies. */
+  valuation?: ConvertedValuation | null;
 }
 
 export interface AuditLogResponse {

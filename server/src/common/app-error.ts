@@ -11,6 +11,7 @@ import { ERROR_STATUS, type ErrorCode, type WalletRole } from '@sora/contracts';
 export class AppError extends Error {
   readonly code: ErrorCode;
   readonly fields?: Record<string, string[]>;
+  readonly params?: Record<string, unknown>;
   /**
    * The role the caller actually holds, on a denial that resolved one. LA-03
    * requires the WARN line to name it, and it is known only at the throw site —
@@ -23,12 +24,14 @@ export class AppError extends Error {
     message?: string,
     fields?: Record<string, string[]>,
     resolvedRole?: WalletRole,
+    params?: Record<string, unknown>,
   ) {
     super(message ?? defaultMessage(code));
     this.name = 'AppError';
     this.code = code;
     if (fields) this.fields = fields;
     if (resolvedRole) this.resolvedRole = resolvedRole;
+    if (params) this.params = params;
   }
 
   /**
@@ -87,6 +90,7 @@ const MESSAGES: Record<ErrorCode, string> = {
   RATE_LIMITED: 'Too many requests — try again shortly',
   INTERNAL_ERROR: 'Something went wrong on our side',
   GOOGLE_TOKEN_INVALID: 'Google sign-in could not be verified',
+  VALUATION_UNAVAILABLE: 'Converted valuation is unavailable right now',
 };
 
 function defaultMessage(code: ErrorCode): string {

@@ -31,6 +31,7 @@ import {
   TransactionType,
   type BudgetResponse,
   type CategorySpendSlice,
+  type ConvertedValuation,
   type CurrencyTotal,
   type DashboardQuery,
   type DashboardResponse,
@@ -44,6 +45,7 @@ import type { AuthenticatedUser } from '../common/decorators.ts';
 import { BalanceService } from '../accounts/balance.service.ts';
 import { CurrencyLedger, netOf } from '../common/currency-totals.ts';
 import { DatabaseService } from '../database/database.service.ts';
+import { ExchangeRateService } from '../exchange-rate/exchange-rate.service.ts';
 import { WalletAccessService } from '../wallets/wallet-access.service.ts';
 
 const RECENT_TRANSACTIONS_LIMIT = 10;
@@ -54,6 +56,7 @@ export class DashboardService {
     private readonly database: DatabaseService,
     private readonly access: WalletAccessService,
     private readonly balances: BalanceService,
+    private readonly exchangeRate: ExchangeRateService,
   ) {}
 
   async summary(user: AuthenticatedUser, query: DashboardQuery): Promise<DashboardResponse> {
@@ -77,10 +80,16 @@ export class DashboardService {
         this.activeGoals(walletId),
       ]);
 
+    const totalBalance = totalBalanceByWallet.get(walletId) ?? [];
+    let valuation: ConvertedValuation | null | undefined = undefined;
+    if (query.displayCurrency) {
+      valuation = await this.exchangeRate.calculateValuation(totalBalance, query.displayCurrency);
+    }
+
     return {
       walletId,
       period: { dateFrom, dateTo },
-      totalBalance: totalBalanceByWallet.get(walletId) ?? [],
+      totalBalance,
       income: activity.income.toArray(),
       expense: activity.expense.toArray(),
       net: netOf(activity.income, activity.expense),
@@ -88,6 +97,7 @@ export class DashboardService {
       recentTransactions,
       activeBudgets,
       activeGoals,
+      ...(valuation !== undefined ? { valuation } : {}),
     };
   }
 

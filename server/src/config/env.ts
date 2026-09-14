@@ -43,6 +43,10 @@ const envSchema = z.object({
    * be replayed against this API.
    */
   GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID is required'),
+
+  EXCHANGE_RATE_API_URL: z.string().url().default('https://open.er-api.com/v6/latest'),
+  EXCHANGE_RATE_TIMEOUT_SECONDS: z.coerce.number().int().min(1).default(5),
+  EXCHANGE_RATE_CACHE_TTL_MINUTES: z.coerce.number().int().min(1).default(720),
 });
 
 export type AppConfig = Readonly<z.infer<typeof envSchema>>;

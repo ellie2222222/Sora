@@ -22,7 +22,9 @@ import {
   GoalStatus,
   TransactionStatus,
   TransactionType,
+  ValuationStatus,
   type CategorySpendSlice,
+  type ConvertedValuation,
   type CurrencyTotal,
   type DashboardQuery,
   type DashboardResponse,
@@ -159,11 +161,36 @@ export const guestDashboardApi = {
     ]);
 
     const activity = periodActivity(transactions, dateFrom, dateTo);
+    const totalBalance = walletResponse.balances;
+
+    let valuation: ConvertedValuation | null | undefined = undefined;
+    if (query.displayCurrency) {
+      const isAllTarget = totalBalance.every((t) => t.currency === query.displayCurrency);
+      if (isAllTarget) {
+        const sum = totalBalance.reduce((acc, t) => add(acc, parseMoney(t.amount)), ZERO);
+        valuation = {
+          currency: query.displayCurrency,
+          amount: formatMoney(sum),
+          isApproximate: false,
+          status: ValuationStatus.FRESH,
+        };
+      } else {
+        valuation = {
+          currency: query.displayCurrency,
+          amount: null,
+          isApproximate: true,
+          status: ValuationStatus.UNAVAILABLE,
+          missingCurrencies: totalBalance
+            .filter((t) => t.currency !== query.displayCurrency)
+            .map((t) => t.currency),
+        };
+      }
+    }
 
     return {
       walletId: wallet.id,
       period: { dateFrom, dateTo },
-      totalBalance: walletResponse.balances,
+      totalBalance,
       income: toCurrencyTotals(activity.income),
       expense: toCurrencyTotals(activity.expense),
       net: netOf(activity.income, activity.expense),
@@ -171,6 +198,7 @@ export const guestDashboardApi = {
       recentTransactions: recent.items,
       activeBudgets,
       activeGoals,
+      ...(valuation !== undefined ? { valuation } : {}),
     };
   },
 };

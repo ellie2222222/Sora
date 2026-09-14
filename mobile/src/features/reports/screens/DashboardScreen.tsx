@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, PieChart as PieChartIcon } from 'lucide-react-native';
-import { ScrollView, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowDownLeft, ArrowUpRight, ChevronDown, PieChart as PieChartIcon } from 'lucide-react-native';
+import { Pressable, View } from 'react-native';
+import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { add, isNegative, maxOf, negate, percentageOf, parseMoney, ZERO } from '@sora/contracts';
+import { add, isNegative, maxOf, negate, percentageOf, parseMoney, ValuationStatus, ZERO } from '@sora/contracts';
 import type { CategorySpendSlice, CurrencyTotal, DashboardResponse } from '@sora/contracts';
 
-import { Button, Card, DonutChart, Money, MonthSelector, ProgressBar, StateView, Text, TrendBarChart } from '../../../components/index.ts';
+import { ActionSheet, Button, Card, DonutChart, Money, MonthSelector, ProgressBar, RefreshableScrollView, StateView, Text, TrendBarChart } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useWallets } from '../../../app/providers/WalletProvider.tsx';
 import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx';
+import { apiSlice } from '../../../app/store/api/apiSlice.ts';
 import { useGetDashboardSummaryQuery } from '../../../app/store/api/dashboardApi.ts';
 import { useListBudgetsQuery } from '../../../app/store/api/budgetsApi.ts';
 import { formatMoneyString } from '../../../utils/money.ts';
@@ -22,19 +24,55 @@ type Period = 'monthly' | 'yearly';
 export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { activeWalletId } = useWallets();
+  const dispatch = useDispatch();
+  const { activeWallet, activeWalletId } = useWallets();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const onManage = () => navigation.getParent()?.navigate('WalletList');
   const onViewAllBudgets = () => navigation.getParent()?.navigate('Budgets');
 
   const [period, setPeriod] = useState<Period>('monthly');
   const [selectedMonth, setSelectedMonth] = useState(() => startOfMonth(today()));
   const [selectedYear, setSelectedYear] = useState(() => parseDay(today()).year);
+  const [displayCurrency, setDisplayCurrency] = useState<string | null>(null);
+  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
+
   const isCurrentMonth = selectedMonth === startOfMonth(today());
   const isCurrentYear = selectedYear === parseDay(today()).year;
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      dispatch(apiSlice.util.invalidateTags(['Dashboard', 'Budget']));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const availableCurrencies = useMemo(() => {
+    const set = new Set<string>();
+    if (activeWallet?.balances) {
+      for (const b of activeWallet.balances) {
+        if (b.currency) set.add(b.currency);
+      }
+    }
+    set.add('VND');
+    set.add('USD');
+    set.add('EUR');
+    return Array.from(set);
+  }, [activeWallet]);
+
+  const defaultCurrency = activeWallet?.balances[0]?.currency ?? 'VND';
+  const effectiveCurrency = displayCurrency ?? defaultCurrency;
+
   return (
     <WalletContextBar onManage={onManage}>
-      <ScrollView testID="dashboard-screen" contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.lg }}>
+      <RefreshableScrollView
+        testID="dashboard-screen"
+        contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.lg }}
+        refreshing={isRefreshing}
+        onRefresh={handleRefresh}
+      >
         <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
           <Button
             testID="dashboard-period-monthly"
@@ -63,7 +101,13 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
               onNext={() => setSelectedMonth((month) => addMonths(month, 1))}
               disableNext={isCurrentMonth}
             />
-            <MonthlyReport walletId={activeWalletId} month={selectedMonth} onViewAllBudgets={onViewAllBudgets} />
+            <MonthlyReport
+              walletId={activeWalletId}
+              month={selectedMonth}
+              displayCurrency={effectiveCurrency}
+              onOpenCurrencyPicker={() => setCurrencyPickerVisible(true)}
+              onViewAllBudgets={onViewAllBudgets}
+            />
           </>
         ) : (
           <>
@@ -74,21 +118,56 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
               onNext={() => setSelectedYear((year) => year + 1)}
               disableNext={isCurrentYear}
             />
-            <YearlyReport walletId={activeWalletId} year={selectedYear} />
+            <YearlyReport walletId={activeWalletId} year={selectedYear} displayCurrency={effectiveCurrency} />
           </>
         )}
-      </ScrollView>
+      </RefreshableScrollView>
+
+      <ActionSheet
+        visible={currencyPickerVisible}
+        title={t('dashboard.valuationCurrency')}
+        actions={availableCurrencies.map((c) => ({
+          label: c === effectiveCurrency ? `${c} ✓` : c,
+          onPress: () => {
+            setDisplayCurrency(c);
+            setCurrencyPickerVisible(false);
+          },
+        }))}
+        onCancel={() => setCurrencyPickerVisible(false)}
+      />
     </WalletContextBar>
   );
 }
 
-function MonthlyReport({ walletId, month, onViewAllBudgets }: { walletId: string; month: CalendarDay; onViewAllBudgets: () => void }) {
+function MonthlyReport({
+  walletId,
+  month,
+  displayCurrency,
+  onOpenCurrencyPicker,
+  onViewAllBudgets,
+}: {
+  walletId: string;
+  month: CalendarDay;
+  displayCurrency: string;
+  onOpenCurrencyPicker: () => void;
+  onViewAllBudgets: () => void;
+}) {
   const theme = useTheme();
   const { t } = useTranslation();
   const previousMonth = addMonths(month, -1);
 
-  const current = useGetDashboardSummaryQuery({ walletId, dateFrom: startOfMonth(month), dateTo: endOfMonth(month) });
-  const previous = useGetDashboardSummaryQuery({ walletId, dateFrom: startOfMonth(previousMonth), dateTo: endOfMonth(previousMonth) });
+  const current = useGetDashboardSummaryQuery({
+    walletId,
+    dateFrom: startOfMonth(month),
+    dateTo: endOfMonth(month),
+    displayCurrency,
+  });
+  const previous = useGetDashboardSummaryQuery({
+    walletId,
+    dateFrom: startOfMonth(previousMonth),
+    dateTo: endOfMonth(previousMonth),
+    displayCurrency,
+  });
   const budgets = useListBudgetsQuery({ walletId, status: 'ACTIVE', activeOn: today() });
 
   if (current.isLoading) return <SkeletonList rows={5} />;
@@ -105,13 +184,146 @@ function MonthlyReport({ walletId, month, onViewAllBudgets }: { walletId: string
   const insights = buildMonthlyInsights(t, data, previous.data, topCategory, savingsRate);
   const topBudgets = [...(budgets.data ?? [])].sort((a, b) => b.usagePercentage - a.usagePercentage).slice(0, 3);
 
+  const hasMultipleCurrencies = data.totalBalance.length > 1;
+  const valuation = data.valuation;
+
   return (
     <View style={{ gap: theme.spacing.lg }}>
-      <Card elevated>
-        <Text variant="label" tone="muted">
-          {t('dashboard.totalBalance')}
-        </Text>
-        <BalanceTotals totals={data.totalBalance} />
+      <Card elevated testID="dashboard-total-balance-card">
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.xs }}>
+          <Text variant="label" tone="muted">
+            {t('dashboard.totalBalance')}
+          </Text>
+          <Pressable
+            testID="dashboard-currency-selector"
+            onPress={onOpenCurrencyPicker}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              backgroundColor: theme.colors.surfaceElevated,
+              paddingHorizontal: theme.spacing.sm,
+              paddingVertical: 4,
+              borderRadius: theme.radius.sm,
+              borderWidth: 1,
+              borderColor: theme.colors.border,
+            }}
+          >
+            <Text variant="caption" weight="semibold">
+              {displayCurrency}
+            </Text>
+            <ChevronDown size={14} color={theme.colors.textMuted} />
+          </Pressable>
+        </View>
+
+        {valuation && valuation.status === ValuationStatus.FRESH && valuation.amount !== null ? (
+          <View style={{ gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
+              {valuation.isApproximate ? (
+                <Text variant="heading" weight="bold">
+                  ≈
+                </Text>
+              ) : null}
+              <Money amount={valuation.amount} currency={valuation.currency} variant="heading" />
+            </View>
+            {valuation.isApproximate ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
+                <Text variant="caption" tone="muted">
+                  {t('dashboard.convertedEstimateNotice')}
+                </Text>
+                {hasMultipleCurrencies ? (
+                  <Text variant="caption" tone="faint">
+                    • {t('dashboard.acrossCurrencies', { count: data.totalBalance.length })}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        ) : valuation && valuation.status === ValuationStatus.STALE && valuation.amount !== null ? (
+          <View style={{ gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
+              <Text variant="heading" weight="bold">
+                ≈
+              </Text>
+              <Money amount={valuation.amount} currency={valuation.currency} variant="heading" />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.xs, marginTop: 2 }}>
+              <View
+                style={{
+                  backgroundColor: theme.colors.warningMuted,
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: theme.radius.sm,
+                  borderWidth: 1,
+                  borderColor: theme.colors.warning,
+                }}
+              >
+                <Text variant="caption" style={{ color: theme.colors.warning, fontSize: 11 }}>
+                  {t('valuation.usingStaleRate', { defaultValue: 'Using previous exchange rate' })}
+                </Text>
+              </View>
+              <Pressable onPress={() => void current.refetch()} style={{ paddingVertical: 2, paddingHorizontal: 4 }}>
+                <Text variant="caption" weight="medium" style={{ color: theme.colors.primary }}>
+                  {t('common.tryAgain', { defaultValue: 'Try again' })}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : valuation && valuation.status === ValuationStatus.UNAVAILABLE ? (
+          <View style={{ gap: theme.spacing.xs, marginVertical: theme.spacing.xs }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
+              <Text variant="heading" weight="bold" tone="muted">
+                ≈ —
+              </Text>
+            </View>
+            <Text variant="body" tone="danger">
+              {t('valuation.rateUnavailable', { defaultValue: 'Conversion unavailable' })}
+            </Text>
+            {valuation.missingCurrencies && valuation.missingCurrencies.length > 0 ? (
+              <Text variant="caption" tone="muted">
+                {t('valuation.missingCurrencies', {
+                  currencies: valuation.missingCurrencies.join(', '),
+                  defaultValue: `Couldn't get a rate for ${valuation.missingCurrencies.join(', ')}.`,
+                })}
+              </Text>
+            ) : null}
+            <Pressable onPress={() => void current.refetch()} style={{ alignSelf: 'flex-start', marginTop: 4 }}>
+              <Text variant="caption" weight="medium" style={{ color: theme.colors.primary }}>
+                {t('common.tryAgain', { defaultValue: 'Try again' })}
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <BalanceTotals totals={data.totalBalance} />
+        )}
+
+        {/* Native balances breakdown when multi-currency or when viewing a converted currency */}
+        {hasMultipleCurrencies || (valuation?.isApproximate && data.totalBalance.length > 0) ? (
+          <View
+            style={{
+              marginTop: theme.spacing.md,
+              paddingTop: theme.spacing.sm,
+              borderTopWidth: 1,
+              borderTopColor: theme.colors.border,
+              gap: theme.spacing.xs,
+            }}
+          >
+            <Text variant="caption" tone="muted">
+              {t('wallets.accounts')}
+            </Text>
+            {data.totalBalance.map((total) => (
+              <View
+                key={total.currency}
+                style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <Text variant="body" weight="medium">
+                  {total.currency}
+                </Text>
+                <Money amount={total.amount} currency={total.currency} variant="body" />
+              </View>
+            ))}
+          </View>
+        ) : null}
       </Card>
 
       <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
@@ -199,7 +411,7 @@ function MonthlyReport({ walletId, month, onViewAllBudgets }: { walletId: string
   );
 }
 
-function YearlyReport({ walletId, year }: { walletId: string; year: number }) {
+function YearlyReport({ walletId, year, displayCurrency }: { walletId: string; year: number; displayCurrency: string }) {
   const theme = useTheme();
   const { t } = useTranslation();
   const months = monthsOfYear(year);
@@ -216,7 +428,7 @@ function YearlyReport({ walletId, year }: { walletId: string; year: number }) {
     return (
       <>
         {months.map((month) => (
-          <MonthDataPoint key={month} walletId={walletId} month={month} onSettled={handleMonthSettled} />
+          <MonthDataPoint key={month} walletId={walletId} month={month} displayCurrency={displayCurrency} onSettled={handleMonthSettled} />
         ))}
         <SkeletonList rows={5} />
       </>
@@ -257,7 +469,7 @@ function YearlyReport({ walletId, year }: { walletId: string; year: number }) {
   return (
     <>
       {months.map((month) => (
-        <MonthDataPoint key={month} walletId={walletId} month={month} onSettled={handleMonthSettled} />
+        <MonthDataPoint key={month} walletId={walletId} month={month} displayCurrency={displayCurrency} onSettled={handleMonthSettled} />
       ))}
       <View style={{ gap: theme.spacing.lg }}>
         <View>
@@ -291,13 +503,20 @@ function YearlyReport({ walletId, year }: { walletId: string; year: number }) {
 function MonthDataPoint({
   walletId,
   month,
+  displayCurrency,
   onSettled,
 }: {
   walletId: string;
   month: CalendarDay;
+  displayCurrency: string;
   onSettled: (month: CalendarDay, data: DashboardResponse | undefined) => void;
 }) {
-  const query = useGetDashboardSummaryQuery({ walletId, dateFrom: startOfMonth(month), dateTo: endOfMonth(month) });
+  const query = useGetDashboardSummaryQuery({
+    walletId,
+    dateFrom: startOfMonth(month),
+    dateTo: endOfMonth(month),
+    displayCurrency,
+  });
   // A month whose query errors still settles (as `undefined`, folded into the
   // chart as a zero point) — waiting on `data` alone would spin forever.
   useEffect(() => {

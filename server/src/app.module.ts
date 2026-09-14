@@ -14,6 +14,7 @@ import { IdempotencyInterceptor } from './common/idempotency.interceptor.ts';
 import { ConfigModule } from './config/config.module.ts';
 import { DashboardModule } from './dashboard/dashboard.module.ts';
 import { DatabaseModule } from './database/database.module.ts';
+import { ExchangeRateModule } from './exchange-rate/exchange-rate.module.ts';
 import { GoalsModule } from './goals/goals.module.ts';
 import { HealthModule } from './health/health.module.ts';
 import { TransactionsModule } from './transactions/transactions.module.ts';
@@ -47,6 +48,7 @@ import { WalletsModule } from './wallets/wallets.module.ts';
     BudgetsModule,
     GoalsModule,
     DashboardModule,
+    ExchangeRateModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

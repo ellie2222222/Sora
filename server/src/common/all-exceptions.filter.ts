@@ -43,7 +43,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = http.getResponse<Response>();
     const request = http.getRequest<Request & { user?: { id: string } }>();
 
-    const { code, message, status, fields, internal } = classify(exception);
+    const { code, message, status, fields, params, internal } = classify(exception);
 
     // §16.1: every 401 and 403 is logged at WARN with actor, role and target.
     // Tokens and passwords are never part of the logged line. `role` is `none`
@@ -64,7 +64,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const body: ApiErrorBody = {
       success: false,
       message,
-      error: { code, ...(fields ? { fields } : {}) },
+      error: { code, ...(fields ? { fields } : {}), ...(params ? { params } : {}) },
       meta: { timestamp: new Date().toISOString() },
     };
 
@@ -77,6 +77,7 @@ interface Classified {
   status: number;
   message: string;
   fields?: Record<string, string[]>;
+  params?: Record<string, unknown>;
   /** Logged instead of `message` when the real text is unsafe to return. */
   internal?: string;
 }
@@ -88,6 +89,7 @@ function classify(exception: unknown): Classified {
       status: exception.status,
       message: exception.message,
       ...(exception.fields ? { fields: exception.fields } : {}),
+      ...(exception.params ? { params: exception.params } : {}),
     };
   }
 
