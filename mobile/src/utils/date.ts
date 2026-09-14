@@ -135,13 +135,27 @@ export function formatDayHeading(
   locale: string = i18next.language || 'en',
 ): string {
   if (!day || typeof day !== 'string') return '';
-  if (day === reference) return i18next.t('common.today', { defaultValue: 'Today' });
-  if (day === addDays(reference, -1)) return i18next.t('common.yesterday', { defaultValue: 'Yesterday' });
 
   const { year, month, date } = parseDay(day);
   const d = new Date(Date.UTC(year, month - 1, date));
   if (Number.isNaN(d.getTime())) return day;
   const sameYear = parseDay(reference).year === year;
+
+  const formattedDate = d.toLocaleDateString(
+    locale,
+    sameYear
+      ? { day: 'numeric', month: 'short', timeZone: 'UTC' }
+      : { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' },
+  );
+
+  if (day === reference) {
+    const todayLabel = i18next.t('common.today', { defaultValue: 'Today' });
+    return `${todayLabel} · ${formattedDate}`;
+  }
+  if (day === addDays(reference, -1)) {
+    const yesterdayLabel = i18next.t('common.yesterday', { defaultValue: 'Yesterday' });
+    return `${yesterdayLabel} · ${formattedDate}`;
+  }
 
   return d.toLocaleDateString(
     locale,
