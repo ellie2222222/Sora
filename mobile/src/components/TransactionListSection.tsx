@@ -1,8 +1,10 @@
 import { View } from 'react-native';
+import { useSelector } from 'react-redux';
 import { formatMoney } from '@sora/contracts';
 import type { CurrencyTotal, TransactionResponse } from '@sora/contracts';
 
 import { useTheme } from '../app/providers/ThemeProvider.tsx';
+import { selectQueueEntryFor } from '../app/store/offlineQueueSlice.ts';
 import type { DayGroup } from '../utils/groupByDate.ts';
 import { formatDayHeading } from '../utils/date.ts';
 import { sumScaledByKey } from '../utils/money.ts';
@@ -15,17 +17,22 @@ export interface TransactionListSectionProps {
   groups: DayGroup[];
   /** Shows a per-currency income/expense total next to each day's heading. */
   showDayTotals?: boolean;
+  onPressTransaction?: (transaction: TransactionResponse) => void;
 }
 
 /** Renders `groupTransactionsByDay`'s output as flat, divider-separated sections rather than one Card per transaction. */
-export function TransactionListSection({ groups, showDayTotals = false }: TransactionListSectionProps) {
+export function TransactionListSection({
+  groups,
+  showDayTotals = false,
+  onPressTransaction,
+}: TransactionListSectionProps) {
   const theme = useTheme();
 
   return (
-    <View>
+    <View style={{ width: '100%' }}>
       {groups.map((group, index) => (
-        <View key={group.day} style={{ marginTop: index === 0 ? 0 : theme.spacing.md }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <View key={group.day} style={{ width: '100%', marginTop: index === 0 ? 0 : theme.spacing.md }}>
+          <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <Text variant="label" tone="muted">
               {formatDayHeading(group.day)}
             </Text>
@@ -33,6 +40,7 @@ export function TransactionListSection({ groups, showDayTotals = false }: Transa
           </View>
           <View
             style={{
+              width: '100%',
               marginTop: theme.spacing.xs,
               borderTopWidth: 1,
               borderTopColor: theme.colors.border,
@@ -41,14 +49,15 @@ export function TransactionListSection({ groups, showDayTotals = false }: Transa
             {group.transactions.map((transaction, rowIndex) => (
               <View
                 key={transaction.id}
-                style={
+                style={[
+                  { width: '100%' },
                   rowIndex === 0
                     ? undefined
-                    : { borderTopWidth: 1, borderTopColor: theme.colors.border }
-                }
+                    : { borderTopWidth: 1, borderTopColor: theme.colors.border },
+                ]}
               >
-                <ListItemEnter>
-                  <TransactionRow transaction={transaction} testID={`transaction-row-${transaction.id}`} />
+                <ListItemEnter style={{ width: '100%' }}>
+                  <TransactionListRow transaction={transaction} onPress={onPressTransaction} />
                 </ListItemEnter>
               </View>
             ))}
@@ -56,6 +65,24 @@ export function TransactionListSection({ groups, showDayTotals = false }: Transa
         </View>
       ))}
     </View>
+  );
+}
+
+function TransactionListRow({
+  transaction,
+  onPress,
+}: {
+  transaction: TransactionResponse;
+  onPress?: (transaction: TransactionResponse) => void;
+}) {
+  const syncStatus = useSelector(selectQueueEntryFor('transaction', transaction.id))?.status;
+  return (
+    <TransactionRow
+      transaction={transaction}
+      onPress={onPress}
+      testID={`transaction-row-${transaction.id}`}
+      syncStatus={syncStatus}
+    />
   );
 }
 

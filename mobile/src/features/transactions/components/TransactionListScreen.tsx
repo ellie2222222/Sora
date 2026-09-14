@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Calendar, Plus, Receipt } from 'lucide-react-native';
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import type { TransactionResponse } from '@sora/contracts';
 
 import {
   AnimatedScreen,
   DatePickerModal,
   Fab,
   MonthSelector,
+  RefreshableScrollView,
   StateView,
   Text,
   TransactionListSection,
@@ -16,6 +18,7 @@ import { SkeletonList } from '../../../components/Skeleton';
 import { useAuth, useTheme, useWallets } from '../../../app/providers';
 import { useListTransactionsQuery } from '../../../app/store/api';
 import { WalletContextBar } from '../../wallets/components/WalletContextBar';
+import { TransactionDetailModal } from './TransactionDetailModal';
 import { addMonths, endOfMonth, formatDay, groupTransactionsByDay, startOfMonth, today } from '../../../utils';
 
 /**
@@ -45,6 +48,8 @@ export function TransactionListScreen({
 
   const [selectedDay, setSelectedDay] = useState<string>(today());
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<TransactionResponse | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const walletId = activeWalletId ?? undefined;
   const dateFrom = startOfMonth(selectedDay);
@@ -56,6 +61,18 @@ export function TransactionListScreen({
     // wallet switcher, so gating on one would leave the list permanently idle.
     { skip: !isGuest && walletId === undefined && accountId === undefined },
   );
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await transactions.refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const items = transactions.data?.items ?? [];
+  const showFab = !transactions.isLoading && !transactions.isError && items.length > 0;
 
   const renderContent = () => {
     if (transactions.isLoading) {
@@ -72,7 +89,6 @@ export function TransactionListScreen({
       );
     }
 
-    const items = transactions.data?.items ?? [];
     if (items.length === 0) {
       return (
         <StateView
@@ -92,13 +108,19 @@ export function TransactionListScreen({
 
     const groups = groupTransactionsByDay(items);
     return (
-      <ScrollView
+      <RefreshableScrollView
         testID={`${testIDPrefix}-list`}
-        contentContainerStyle={{ padding: theme.spacing.md, paddingBottom: theme.spacing.xxl }}
-        refreshControl={<RefreshControl refreshing={transactions.isFetching} onRefresh={() => void transactions.refetch()} />}
+        // 96 clears the Fab's own footprint (56 size + spacing.md margin) plus breathing room.
+        contentContainerStyle={{ padding: theme.spacing.md, paddingBottom: fabBottomOffset + 96 }}
+        refreshing={isRefreshing}
+        onRefresh={handleRefresh}
       >
-        <TransactionListSection groups={groups} showDayTotals />
-      </ScrollView>
+        <TransactionListSection
+          groups={groups}
+          showDayTotals
+          onPressTransaction={(tx) => setSelectedTransaction(tx)}
+        />
+      </RefreshableScrollView>
     );
   };
 
@@ -128,11 +150,25 @@ export function TransactionListScreen({
 
         {renderContent()}
 
+        {showFab ? (
+          <Fab
+            testID={`${testIDPrefix}-fab`}
+            bottomOffset={fabBottomOffset}
+            onPress={onAddTransaction}
+          />
+        ) : null}
+
         <DatePickerModal
           visible={showDatePicker}
           selectedDay={selectedDay}
           onSelectDay={(day) => setSelectedDay(day)}
           onClose={() => setShowDatePicker(false)}
+        />
+
+        <TransactionDetailModal
+          visible={Boolean(selectedTransaction)}
+          transaction={selectedTransaction}
+          onClose={() => setSelectedTransaction(null)}
         />
       </WalletContextBar>
     </AnimatedScreen>
