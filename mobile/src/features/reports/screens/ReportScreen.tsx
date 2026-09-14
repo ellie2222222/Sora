@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
+import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { add, isNegative, maxOf, negate, percentageOf, parseMoney, ZERO } from '@sora/contracts';
 import type { CategorySpendSlice, CurrencyTotal, DashboardResponse } from '@sora/contracts';
 
-import { AnimatedScreen, Button, DonutChart, Money, MonthSelector, StateView, Text, TrendBarChart } from '../../../components';
+import { AnimatedScreen, Button, DonutChart, Money, MonthSelector, RefreshableScrollView, StateView, Text, TrendBarChart } from '../../../components';
 import { SkeletonList } from '../../../components/Skeleton';
 import { PieChart as PieChartIcon } from 'lucide-react-native';
 import { useTheme } from '../../../app/providers/ThemeProvider';
 import { useWallets } from '../../../app/providers/WalletProvider';
 import { WalletContextBar } from '../../wallets/components/WalletContextBar';
-import { useGetDashboardSummaryQuery } from '../../../app/store/api/dashboardApi';
+import { dashboardApiSlice, useGetDashboardSummaryQuery } from '../../../app/store/api/dashboardApi';
 import { formatMoneyString } from '../../../utils/money';
 import { addMonths, endOfMonth, formatMonthYear, monthName, parseDay, startOfMonth, today } from '../../../utils/date';
 import type { CalendarDay } from '../../../utils/date';
@@ -21,7 +22,9 @@ type Period = 'monthly' | 'yearly';
 export function ReportScreen({ navigation }: MainTabScreenProps<'Report'>) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const { activeWalletId } = useWallets();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const onManage = () => navigation.getParent()?.navigate('WalletList');
 
   const [period, setPeriod] = useState<Period>('monthly');
@@ -30,10 +33,25 @@ export function ReportScreen({ navigation }: MainTabScreenProps<'Report'>) {
   const isCurrentMonth = selectedMonth === startOfMonth(today());
   const isCurrentYear = selectedYear === parseDay(today()).year;
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      dispatch(dashboardApiSlice.util.invalidateTags(['Dashboard']));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <AnimatedScreen>
       <WalletContextBar onManage={onManage}>
-        <ScrollView testID="report-screen" contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.lg }}>
+        <RefreshableScrollView
+          testID="report-screen"
+          contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.lg }}
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+        >
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
             <Button
               testID="report-period-monthly"
@@ -76,7 +94,7 @@ export function ReportScreen({ navigation }: MainTabScreenProps<'Report'>) {
               <YearlyReport walletId={activeWalletId} year={selectedYear} />
             </>
           )}
-        </ScrollView>
+        </RefreshableScrollView>
       </WalletContextBar>
     </AnimatedScreen>
   );

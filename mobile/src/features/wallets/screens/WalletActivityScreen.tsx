@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { History } from 'lucide-react-native';
-import { SectionList, View } from 'react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AuditLogResponse } from '@sora/contracts';
 
-import { Card, StateView, Text } from '../../../components/index.ts';
+import { Card, RefreshableSectionList, StateView, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
 import { useListAuditLogsQuery } from '../../../app/store/api/auditApi.ts';
@@ -16,8 +17,18 @@ export function WalletActivityScreen({ route }: AppStackScreenProps<'WalletActiv
   const theme = useTheme();
   const { t } = useTranslation();
   const { walletId } = route.params;
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const activity = useListAuditLogsQuery({ walletId, query: { pageSize: 50 } });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await activity.refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const renderContent = () => {
     if (activity.isLoading) {
@@ -54,11 +65,13 @@ export function WalletActivityScreen({ route }: AppStackScreenProps<'WalletActiv
     const sections = groupByDay(items);
 
     return (
-      <SectionList
+      <RefreshableSectionList
         testID="wallet-activity-list"
         sections={sections}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.sm }}
+        refreshing={isRefreshing}
+        onRefresh={handleRefresh}
         renderSectionHeader={({ section }) => (
           <View style={{ backgroundColor: theme.colors.background, paddingBottom: theme.spacing.xs }}>
             <Text variant="label" tone="muted">

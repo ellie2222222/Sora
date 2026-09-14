@@ -1,14 +1,17 @@
+import { useState } from 'react';
 import { Landmark, Plus, Wallet as WalletIcon } from 'lucide-react-native';
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { add, formatMoney, isNegative, negate, parseMoney, ZERO, type AccountResponse } from '@sora/contracts';
 
-import { AnimatedScreen, Card, ListItemEnter, Money, StateView, Text } from '../../../components';
+import { AnimatedScreen, Card, ListItemEnter, Money, RefreshableScrollView, StateView, SyncStatusDot, Text } from '../../../components';
 import { SkeletonList } from '../../../components/Skeleton';
 import { useModal } from '../../../app/providers/ModalProvider';
 import { useTheme } from '../../../app/providers/ThemeProvider';
 import { useWallets } from '../../../app/providers/WalletProvider';
 import { useListAccountsQuery } from '../../../app/store/api/accountsApi';
+import { selectQueueEntryFor } from '../../../app/store/offlineQueueSlice';
 import { WalletContextBar } from '../../wallets/components/WalletContextBar';
 import { sumScaledByKey } from '../../../utils/money';
 import { ACCOUNT_ICON } from '../components/AccountPicker';
@@ -19,12 +22,22 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
   const { t } = useTranslation();
   const { openModal } = useModal();
   const { activeWalletId, isLoading: walletsLoading, isError: walletsError, refetch: refetchWallets, permissions } = useWallets();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const onManage = () => navigation.getParent()?.navigate('WalletList');
 
   const accounts = useListAccountsQuery(
     { walletId: activeWalletId ?? undefined, status: 'ACTIVE' },
     { skip: activeWalletId === null },
   );
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([accounts.refetch(), refetchWallets?.()]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Determine what to render in the content area
   const renderContent = () => {
@@ -54,10 +67,11 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
     const { assets, liabilities, netWorth } = netWorthByCurrency(items);
 
     return (
-      <ScrollView
+      <RefreshableScrollView
         testID="accounts-screen"
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.lg }}
-        refreshControl={<RefreshControl refreshing={accounts.isFetching} onRefresh={() => void accounts.refetch()} />}
+        refreshing={isRefreshing}
+        onRefresh={handleRefresh}
       >
         <View>
           <Text variant="label" tone="muted">
@@ -138,7 +152,7 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
             </View>
           )}
         </View>
-      </ScrollView>
+      </RefreshableScrollView>
     );
   };
 
@@ -154,6 +168,7 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
 function AccountRow({ account, onPress }: { account: AccountResponse; onPress: () => void }) {
   const theme = useTheme();
   const Icon = ACCOUNT_ICON[account.type];
+  const syncStatus = useSelector(selectQueueEntryFor('account', account.id))?.status;
 
   return (
     <Pressable
@@ -164,6 +179,7 @@ function AccountRow({ account, onPress }: { account: AccountResponse; onPress: (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
         <Icon size={18} color={theme.colors.textMuted} />
         <Text>{account.name}</Text>
+        <SyncStatusDot status={syncStatus} />
       </View>
       <Money amount={account.balance} currency={account.currency} weight="semibold" />
     </Pressable>

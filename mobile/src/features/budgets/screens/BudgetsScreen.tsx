@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { PiggyBank, Plus } from 'lucide-react-native';
-import { FlatList, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import type { BudgetResponse } from '@sora/contracts';
 
-import { AnimatedScreen, Card, Money, ProgressBar, StateView, Text } from '../../../components/index.ts';
+import { AnimatedScreen, Card, Money, ProgressBar, RefreshableFlatList, StateView, SyncStatusDot, Text } from '../../../components/index.ts';
 import { SkeletonList } from '../../../components/Skeleton.tsx';
 import { useModal } from '../../../app/providers/ModalProvider.tsx';
 import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
@@ -12,6 +14,7 @@ import { WalletContextBar } from '../../wallets/components/WalletContextBar.tsx'
 import { today } from '../../../utils/date.ts';
 import { formatMoneyString } from '../../../utils/money.ts';
 import { useListBudgetsQuery } from '../../../app/store/api/budgetsApi.ts';
+import { selectQueueEntryFor } from '../../../app/store/offlineQueueSlice.ts';
 import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
 
 export function BudgetsScreen({ navigation }: AppStackScreenProps<'Budgets'>) {
@@ -19,12 +22,22 @@ export function BudgetsScreen({ navigation }: AppStackScreenProps<'Budgets'>) {
   const { t } = useTranslation();
   const { activeWalletId, permissions } = useWallets();
   const { openModal } = useModal();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const onManage = () => navigation.navigate('WalletList');
 
   const budgets = useListBudgetsQuery(
     { walletId: activeWalletId ?? '', status: 'ACTIVE', activeOn: today() },
     { skip: activeWalletId === null },
   );
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await budgets.refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const renderContent = () => {
     if (activeWalletId === null || budgets.isLoading) {
@@ -51,11 +64,22 @@ export function BudgetsScreen({ navigation }: AppStackScreenProps<'Budgets'>) {
     }
 
     return (
-      <FlatList
+      <RefreshableFlatList
         testID="budgets-list"
         data={items}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
+        refreshing={isRefreshing}
+        onRefresh={handleRefresh}
+        ListHeaderComponent={
+          permissions.canWrite ? (
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: theme.spacing.sm }}>
+              <Pressable testID="budgets-add" onPress={() => openModal('AddBudget')}>
+                <Plus size={20} color={theme.colors.primary} />
+              </Pressable>
+            </View>
+          ) : null
+        }
         renderItem={({ item }) => <BudgetCard budget={item} onPress={() => navigation.navigate('BudgetDetail', { budgetId: item.id })} />}
       />
     );
@@ -73,11 +97,15 @@ export function BudgetsScreen({ navigation }: AppStackScreenProps<'Budgets'>) {
 function BudgetCard({ budget, onPress }: { budget: BudgetResponse; onPress: () => void }) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const syncStatus = useSelector(selectQueueEntryFor('budget', budget.id))?.status;
 
   return (
     <Card testID={`budget-card-${budget.id}`} onTouchEnd={onPress}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: theme.spacing.xs }}>
-        <Text weight="semibold">{budget.name}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.xs }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
+          <Text weight="semibold">{budget.name}</Text>
+          <SyncStatusDot status={syncStatus} />
+        </View>
         {budget.isOverBudget ? (
           <Text variant="caption" tone="danger">
             {t('budgets.overBudget')}
