@@ -16,16 +16,18 @@ import { initReactI18next } from 'react-i18next';
 import { LOCALE_STORAGE_KEY, preferencesStore } from '../../services/storage/preferencesStore.ts';
 import en from './locales/en.ts';
 import vi from './locales/vi.ts';
-import ko from './locales/ko.ts';
-import ja from './locales/ja.ts';
-import fr from './locales/fr.ts';
-import de from './locales/de.ts';
-import zh from './locales/zh.ts';
-import ru from './locales/ru.ts';
-import es from './locales/es.ts';
-import hi from './locales/hi.ts';
 
-export const SUPPORTED_LOCALES = ['en', 'vi', 'ko', 'ja', 'fr', 'de', 'zh', 'ru', 'es', 'hi'] as const;
+// Other locales temporarily disabled per user request:
+// import ko from './locales/ko.ts';
+// import ja from './locales/ja.ts';
+// import fr from './locales/fr.ts';
+// import de from './locales/de.ts';
+// import zh from './locales/zh.ts';
+// import ru from './locales/ru.ts';
+// import es from './locales/es.ts';
+// import hi from './locales/hi.ts';
+
+export const SUPPORTED_LOCALES = ['en', 'vi'] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
 const DEFAULT_LOCALE: SupportedLocale = 'en';
@@ -46,14 +48,6 @@ void i18next.use(initReactI18next).init({
   resources: {
     en: { translation: en },
     vi: { translation: vi },
-    ko: { translation: ko },
-    ja: { translation: ja },
-    fr: { translation: fr },
-    de: { translation: de },
-    zh: { translation: zh },
-    ru: { translation: ru },
-    es: { translation: es },
-    hi: { translation: hi },
   },
   interpolation: { escapeValue: false },
   react: { useSuspense: false },
@@ -61,14 +55,6 @@ void i18next.use(initReactI18next).init({
 
 if (__DEV__) {
   warnOnKeyMismatch(en, vi, 'vi.ts');
-  warnOnKeyMismatch(en, ko, 'ko.ts');
-  warnOnKeyMismatch(en, ja, 'ja.ts');
-  warnOnKeyMismatch(en, fr, 'fr.ts');
-  warnOnKeyMismatch(en, de, 'de.ts');
-  warnOnKeyMismatch(en, zh, 'zh.ts');
-  warnOnKeyMismatch(en, ru, 'ru.ts');
-  warnOnKeyMismatch(en, es, 'es.ts');
-  warnOnKeyMismatch(en, hi, 'hi.ts');
 }
 
 /**

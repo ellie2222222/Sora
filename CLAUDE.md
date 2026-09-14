@@ -244,7 +244,7 @@ Read only the section a change actually touches; these documents are large.
 | Writing or reviewing a user story | `SRS.md` §9, the relevant feature only |
 | Role or permission change | `docs/API_SPECIFICATION.md` §2.5, `SRS.md` §7 |
 | New route, DTO, or validation rule | `docs/API_SPECIFICATION.md` (the endpoint's own §), then `packages/contracts/src/` |
-| Schema change | the migration, then `finance_tracker_domain_database_design.md` |
+| Schema change | the migration, then `plans/architecture/domain-database-design.md` |
 | Architecture or sequence-flow question | `SDS.md` §4 |
 
 `SRS.md` and `SDS.md` still describe the removed sharing layer in places; they are being
@@ -294,8 +294,9 @@ finance/
 ├── .github/workflows/ci.yml   # contracts → database → server + mobile
 ├── docs/API_SPECIFICATION.md
 ├── SRS.md  SDS.md
-├── finance_tracker_domain_database_design.md   # domain + schema rationale
-├── finance_tracker_react_native_full_plan.md   # build plan and phase status
+├── plans/
+│   ├── architecture/domain-database-design.md   # domain + schema rationale
+│   └── mobile/mobile-development-plan.md        # build plan and phase status
 └── aif-sdlc-checklist.md                       # per-feature pre-merge gate
 ```
 
@@ -568,6 +569,11 @@ an incomplete screen.
 **MB-08** — Money is rendered through `formatMoney`/`formatMoneyCompact`. Never
 `Number(amount)`, never `toLocaleString` on a raw string.
 
+**MB-09** — Active locales are English and Vietnamese only (`['en', 'vi'] as const`). Never spend time
+translating new keys into disabled languages (`fr`, `de`, `es`, etc.). Only `en.ts` and `vi.ts` are
+maintained with full key parity.
+
+
 ### Validation
 
 **VL-01** — The API is the source of truth. The app validates for feedback only, using the same
@@ -799,3 +805,12 @@ rewriting it.
 12. **No AI-authorship lines anywhere.** See Git above. No "Generated with", no
     `Co-Authored-By: Claude`, no model names — not in commit messages, PR bodies, code comments,
     or docs.
+
+13. **Active locales are English and Vietnamese only (`en`, `vi`).** All other locales (`de`, `es`,
+    `fr`, `hi`, `ja`, `ko`, `ru`, `zh`) are disabled. When adding or updating translation keys,
+    **do not translate or touch inactive locales** — only `en.ts` and `vi.ts` are maintained, and
+    `vi.ts` must maintain 100% key parity with `en.ts` (`TranslationResource`). Inactive locale files
+    are typed as `InactiveTranslationResource` (`DeepPartial<TranslationResource>`) so missing keys
+    never fail typechecks. `LOCALES` in `@sora/contracts` and `SUPPORTED_LOCALES` in
+    `mobile/src/app/i18n/index.ts` are both `['en', 'vi'] as const`.
+
