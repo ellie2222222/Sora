@@ -80,7 +80,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
       }).unwrap();
       onClose();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 

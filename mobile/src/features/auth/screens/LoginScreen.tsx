@@ -36,7 +36,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
     try {
       await login(values);
     } catch (error) {
-      setSubmitError(messageOf(error));
+      setSubmitError(messageOf(error, t));
     }
   });
 
@@ -51,7 +51,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
       }
       await loginWithGoogle({ idToken });
     } catch (error) {
-      setSubmitError(messageOf(error));
+      setSubmitError(messageOf(error, t));
     } finally {
       setGooglePending(false);
     }
@@ -64,7 +64,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
     try {
       await enterGuestMode();
     } catch (error) {
-      setSubmitError(messageOf(error));
+      setSubmitError(messageOf(error, t));
     } finally {
       setGuestPending(false);
     }

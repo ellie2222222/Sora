@@ -43,7 +43,7 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
         },
       }).unwrap();
     } catch (error) {
-      setActionError(messageOf(error));
+      setActionError(messageOf(error, t));
     }
   }
 
@@ -54,7 +54,7 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
       setArchiving(false);
       navigation.goBack();
     } catch (error) {
-      setActionError(messageOf(error));
+      setActionError(messageOf(error, t));
     }
   }
 

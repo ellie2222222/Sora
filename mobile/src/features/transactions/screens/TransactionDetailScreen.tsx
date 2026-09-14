@@ -37,7 +37,7 @@ export function TransactionDetailScreen({ route, navigation }: AppStackScreenPro
       await cancelTransaction({ transactionId }).unwrap();
       navigation.goBack();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 

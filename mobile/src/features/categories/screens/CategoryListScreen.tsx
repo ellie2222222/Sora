@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
+import { useSelector } from 'react-redux';
 import { Archive, Pencil, Trash2 } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { CategoryType, CategoryStatus, type CategoryResponse } from '@sora/contracts';
 
-import { BottomSheetModal, Button, Input, ListItemEnter, StateView, Text } from '../../../components';
+import { BottomSheetModal, Button, Input, ListItemEnter, StateView, SyncStatusDot, Text } from '../../../components';
 import { SkeletonList } from '../../../components/Skeleton';
 import { useTheme } from '../../../app/providers/ThemeProvider';
 import { useWallets } from '../../../app/providers/WalletProvider';
@@ -15,6 +16,7 @@ import {
   useListCategoriesQuery,
   useUpdateCategoryMutation,
 } from '../../../app/store/api/categoriesApi';
+import { selectQueueEntryFor } from '../../../app/store/offlineQueueSlice';
 import { messageOf } from '../../../utils/errors';
 import type { AppStackScreenProps } from '../../../app/navigation/types';
 
@@ -101,10 +103,12 @@ function CategoryRow({
   onDelete: () => void;
 }) {
   const theme = useTheme();
+  const syncStatus = useSelector(selectQueueEntryFor('category', category.id))?.status;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingVertical: theme.spacing.xs }}>
       <View style={{ width: 10, height: 10, borderRadius: theme.radius.pill, backgroundColor: category.color ?? theme.colors.textFaint }} />
       <Text style={{ flex: 1 }}>{category.name}</Text>
+      <SyncStatusDot status={syncStatus} />
       {canDelete ? (
         <Pressable testID={`category-delete-${category.id}`} onPress={onDelete} hitSlop={8}>
           <Trash2 size={16} color={theme.colors.textFaint} />
@@ -137,7 +141,7 @@ function CreateCategoryModal({
       setName('');
       onClose();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 
@@ -190,7 +194,7 @@ function CategoryDeleteDialog({
       await updateCategory({ categoryId: category.id, body: { name } }).unwrap();
       onClose();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 
@@ -201,7 +205,7 @@ function CategoryDeleteDialog({
       await archiveCategory(category.id).unwrap();
       onClose();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 
@@ -212,7 +216,7 @@ function CategoryDeleteDialog({
       await deleteCategory(category.id).unwrap();
       onClose();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 

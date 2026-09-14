@@ -121,7 +121,7 @@ function CreateWalletModal({ visible, onClose }: { visible: boolean; onClose: ()
       setName('');
       onClose();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 

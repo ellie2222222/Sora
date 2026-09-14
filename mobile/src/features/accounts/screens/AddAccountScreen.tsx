@@ -53,7 +53,7 @@ export function AddAccountScreen({ route, navigation }: AppStackScreenProps<'Add
       }).unwrap();
       navigation.goBack();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 

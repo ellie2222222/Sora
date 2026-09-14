@@ -39,7 +39,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
       // pre-default input shape carries.
       await register({ ...values, baseCurrency: values.baseCurrency ?? 'VND' });
     } catch (error) {
-      setSubmitError(messageOf(error));
+      setSubmitError(messageOf(error, t));
     }
   });
 

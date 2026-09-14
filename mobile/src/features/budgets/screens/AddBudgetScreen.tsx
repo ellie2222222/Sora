@@ -57,7 +57,7 @@ export function AddBudgetScreen({ navigation }: AppStackScreenProps<'AddBudget'>
       }).unwrap();
       navigation.goBack();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 

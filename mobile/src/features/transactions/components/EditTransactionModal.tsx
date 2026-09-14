@@ -121,7 +121,7 @@ export function EditTransactionModal({ visible, transactionId, onClose }: EditTr
       await updateTransaction({ transactionId: transactionId as string, body }).unwrap();
       onClose();
     } catch (error) {
-      setSubmitError(messageOf(error));
+      setSubmitError(messageOf(error, t));
     }
   }
 

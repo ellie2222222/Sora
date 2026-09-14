@@ -49,7 +49,7 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
       await transferOwnership({ walletId, body: { toUserId: transferTarget.userId } }).unwrap();
       setTransferTarget(null);
     } catch (error) {
-      setTransferError(messageOf(error));
+      setTransferError(messageOf(error, t));
     }
   }
 
@@ -58,7 +58,7 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
     try {
       await updateMemberRole({ walletId, memberId: member.id, body: { role } }).unwrap();
     } catch (error) {
-      setActionError(messageOf(error));
+      setActionError(messageOf(error, t));
     }
   }
 

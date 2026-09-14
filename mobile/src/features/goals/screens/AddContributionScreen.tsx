@@ -54,7 +54,7 @@ export function AddContributionScreen({ route, navigation }: AppStackScreenProps
       }).unwrap();
       navigation.goBack();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 

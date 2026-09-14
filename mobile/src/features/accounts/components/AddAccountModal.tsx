@@ -69,7 +69,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, onClose }: Ad
       }).unwrap();
       onClose();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 

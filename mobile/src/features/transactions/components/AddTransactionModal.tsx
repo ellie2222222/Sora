@@ -91,7 +91,7 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
       await createTransaction(result.payload).unwrap();
       onClose();
     } catch (error) {
-      setSubmitError(messageOf(error));
+      setSubmitError(messageOf(error, t));
     }
   }
 

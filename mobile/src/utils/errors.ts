@@ -15,13 +15,21 @@ export class ApiError extends Error {
   readonly code: ErrorCode;
   readonly status: number;
   readonly fields: FieldErrors;
+  readonly params?: Record<string, unknown>;
 
-  constructor(code: ErrorCode, message: string, status?: number, fields: FieldErrors = {}) {
+  constructor(
+    code: ErrorCode,
+    message: string,
+    status?: number,
+    fields: FieldErrors = {},
+    params?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
     this.status = status ?? ERROR_STATUS[code];
     this.fields = fields;
+    if (params) this.params = params;
   }
 }
 
@@ -52,7 +60,13 @@ export function isNetworkError(error: unknown): boolean {
 /** Turn whatever the transport produced into an ApiError, never throwing itself. */
 export function toApiError(status: number | undefined, body: unknown, transportMessage?: string): ApiError {
   if (isErrorBody(body)) {
-    return new ApiError(body.error.code, body.message, status, body.error.fields ?? {});
+    return new ApiError(
+      body.error.code,
+      body.message,
+      status,
+      body.error.fields ?? {},
+      body.error.params,
+    );
   }
   if (status === undefined) {
     return new ApiError('INTERNAL_ERROR', transportMessage ?? NETWORK_ERROR_MESSAGE, 0);
@@ -66,6 +80,7 @@ export interface ApiErrorLike {
   readonly message: string;
   readonly status: number;
   readonly fields: FieldErrors;
+  readonly params?: Record<string, unknown>;
 }
 
 /** Structural rather than `instanceof`, so it also matches a serialized (plain-object) `ApiErrorLike`. */
@@ -83,10 +98,85 @@ export function isApiError(error: unknown): error is ApiErrorLike {
 
 /** Strips the `Error` prototype chain so the result is safe to put in Redux state/actions. */
 export function serializeApiError(error: ApiErrorLike): ApiErrorLike {
-  return { code: error.code, message: error.message, status: error.status, fields: error.fields };
+  return { code: error.code, message: error.message, status: error.status, fields: error.fields, params: error.params };
 }
 
-export function messageOf(error: unknown, fallback: string = UNKNOWN_ERROR_MESSAGE): string {
+export type TranslationFunction = (key: string, options?: Record<string, unknown>) => string;
+
+/**
+ * Type-safe map from every contracts ErrorCode to its local i18n translation key.
+ * Adding a new ErrorCode to @sora/contracts causes a compile error here until mapped.
+ */
+export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
+  VALIDATION_FAILED: 'errors.validationFailed',
+  UNAUTHENTICATED: 'errors.unauthenticated',
+  TOKEN_EXPIRED: 'errors.tokenExpired',
+  TOKEN_INVALID: 'errors.tokenInvalid',
+  CREDENTIALS_INVALID: 'errors.credentialsInvalid',
+  EMAIL_ALREADY_REGISTERED: 'errors.emailAlreadyRegistered',
+  FORBIDDEN: 'errors.forbidden',
+  WALLET_NOT_FOUND: 'errors.walletNotFound',
+  WALLET_ARCHIVED: 'errors.walletArchived',
+  WALLET_LAST_OWNER: 'errors.walletLastOwner',
+  MEMBER_NOT_FOUND: 'errors.memberNotFound',
+  MEMBER_ALREADY_EXISTS: 'errors.memberAlreadyExists',
+  INVITATION_NOT_FOUND: 'errors.invitationNotFound',
+  INVITATION_EXPIRED: 'errors.invitationExpired',
+  INVITATION_ALREADY_USED: 'errors.invitationAlreadyUsed',
+  INVITATION_EMAIL_MISMATCH: 'errors.invitationEmailMismatch',
+  INVITATION_ALREADY_OPEN: 'errors.invitationAlreadyOpen',
+  ACCOUNT_NOT_FOUND: 'errors.accountNotFound',
+  ACCOUNT_ARCHIVED: 'errors.accountArchived',
+  ACCOUNT_CURRENCY_MISMATCH: 'errors.accountCurrencyMismatch',
+  ACCOUNT_LAST_ACTIVE: 'errors.accountLastActive',
+  CATEGORY_NOT_FOUND: 'errors.categoryNotFound',
+  CATEGORY_WRONG_TYPE: 'errors.categoryWrongType',
+  CATEGORY_WRONG_WALLET: 'errors.categoryWrongWallet',
+  CATEGORY_DUPLICATE_NAME: 'errors.categoryDuplicateName',
+  CATEGORY_CYCLE: 'errors.categoryCycle',
+  CATEGORY_IN_USE: 'errors.categoryInUse',
+  CATEGORY_HAS_TRANSACTIONS: 'errors.categoryHasTransactions',
+  TRANSACTION_NOT_FOUND: 'errors.transactionNotFound',
+  TRANSACTION_IMMUTABLE: 'errors.transactionImmutable',
+  TRANSACTION_ALREADY_CANCELLED: 'errors.transactionAlreadyCancelled',
+  TRANSFER_SAME_ACCOUNT: 'errors.transferSameAccount',
+  TRANSFER_CURRENCY_MISMATCH: 'errors.transferCurrencyMismatch',
+  BUDGET_NOT_FOUND: 'errors.budgetNotFound',
+  BUDGET_PERIOD_OVERLAP: 'errors.budgetPeriodOverlap',
+  GOAL_NOT_FOUND: 'errors.goalNotFound',
+  GOAL_NOT_ACTIVE: 'errors.goalNotActive',
+  CONTRIBUTION_NOT_FOUND: 'errors.contributionNotFound',
+  RATE_LIMITED: 'errors.rateLimited',
+  INTERNAL_ERROR: 'errors.internalError',
+  GOOGLE_TOKEN_INVALID: 'errors.googleTokenInvalid',
+  VALUATION_UNAVAILABLE: 'errors.valuationUnavailable',
+};
+
+/**
+ * Returns a localized user-facing message for any API or network error.
+ * Uses `error.code` -> local i18n translation key, falling back safely.
+ */
+export function getServerErrorMessage(error: unknown, t: TranslationFunction): string {
+  if (isNetworkError(error)) {
+    return t('errors.offlineMessage');
+  }
+  if (isApiError(error)) {
+    const key = ERROR_CODE_TO_I18N_KEY[error.code];
+    if (key) {
+      return t(key, error.params);
+    }
+  }
+  return t('errors.somethingWentWrong');
+}
+
+export function messageOf(
+  error: unknown,
+  t?: TranslationFunction,
+  fallback: string = UNKNOWN_ERROR_MESSAGE,
+): string {
+  if (t) {
+    return getServerErrorMessage(error, t);
+  }
   if (isApiError(error)) return error.message || fallback;
   if (error instanceof Error && error.message) return error.message;
   return fallback;

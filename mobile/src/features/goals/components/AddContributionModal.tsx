@@ -89,7 +89,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
       }).unwrap();
       onClose();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 

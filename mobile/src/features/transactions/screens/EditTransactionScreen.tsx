@@ -70,7 +70,7 @@ export function EditTransactionScreen({ route, navigation }: AppStackScreenProps
       await updateTransaction({ transactionId, body }).unwrap();
       navigation.goBack();
     } catch (error) {
-      setSubmitError(messageOf(error));
+      setSubmitError(messageOf(error, t));
     }
   }
 

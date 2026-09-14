@@ -41,7 +41,7 @@ export function WalletDetailScreen({ route, navigation }: AppStackScreenProps<'W
       setPendingAction(null);
       navigation.navigate('WalletList');
     } catch (error) {
-      setActionError(messageOf(error));
+      setActionError(messageOf(error, t));
     }
   }
 

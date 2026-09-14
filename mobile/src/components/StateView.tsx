@@ -3,7 +3,7 @@ import { Inbox, Info, Search, TriangleAlert } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '../app/providers/ThemeProvider';
-import { isNetworkError, messageOf } from '../utils/errors';
+import { getServerErrorMessage, isNetworkError, messageOf } from '../utils/errors';
 import { AnimatedIcon, type IconAnimationType } from './AnimatedIcon';
 import { Button } from './Button';
 import { SlideUp } from './SlideUp';
@@ -21,6 +21,7 @@ export interface StateViewAction {
 export interface StateViewProps {
   variant: StateViewVariant;
   icon?: LucideIcon;
+  iconColor?: string;
   title?: string;
   message?: string;
   error?: unknown;
@@ -50,6 +51,7 @@ const VARIANT_ANIMATION: Record<StateViewVariant, IconAnimationType> = {
 export function StateView({
   variant,
   icon,
+  iconColor,
   title,
   message,
   error,
@@ -72,7 +74,7 @@ export function StateView({
   };
 
   const errorMessage = variant === 'error' && error !== undefined
-    ? (isNetworkError(error) ? t('errors.offlineMessage', 'Your local data is still available.') : messageOf(error))
+    ? (isNetworkError(error) ? t('errors.offlineMessage', 'Your local data is still available.') : getServerErrorMessage(error, t))
     : undefined;
 
   const resolvedTitle = title ?? errorMessage ?? defaultTitles[variant];
@@ -83,6 +85,9 @@ export function StateView({
     (retryAction !== undefined
       ? { label: t('common.tryAgain', 'Try again'), onPress: retryAction }
       : undefined);
+
+  const resolvedIconColor =
+    iconColor ?? (variant === 'error' ? theme.colors.danger : theme.colors.primary);
 
   return (
     <SlideUp
@@ -98,7 +103,7 @@ export function StateView({
       <AnimatedIcon
         icon={Icon}
         size={42}
-        color={variant === 'error' ? theme.colors.danger : theme.colors.textFaint}
+        color={resolvedIconColor}
         strokeWidth={1.5}
         animation={VARIANT_ANIMATION[variant]}
       />

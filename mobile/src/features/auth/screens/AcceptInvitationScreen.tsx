@@ -30,7 +30,7 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
       await acceptInvitation({ token: token as string }).unwrap();
       navigation.popToTop();
     } catch (error) {
-      setAcceptError(messageOf(error));
+      setAcceptError(messageOf(error, t));
     } finally {
       setAccepting(false);
     }

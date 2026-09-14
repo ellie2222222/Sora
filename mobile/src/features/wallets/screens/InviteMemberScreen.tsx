@@ -39,7 +39,7 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
       }).unwrap();
       navigation.goBack();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 

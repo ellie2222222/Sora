@@ -57,7 +57,7 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
       }).unwrap();
       onClose();
     } catch (submitError) {
-      setError(messageOf(submitError));
+      setError(messageOf(submitError, t));
     }
   }
 

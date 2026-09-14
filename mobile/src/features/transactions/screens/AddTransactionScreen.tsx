@@ -86,7 +86,7 @@ export function AddTransactionScreen({ navigation }: AppStackScreenProps<'AddTra
       await createTransaction(result.payload).unwrap();
       navigation.goBack();
     } catch (error) {
-      setSubmitError(messageOf(error));
+      setSubmitError(messageOf(error, t));
     }
   }
 
