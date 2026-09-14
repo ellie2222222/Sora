@@ -3,15 +3,16 @@
 Honest record of what is stubbed, deferred, or unverified — check here before
 assuming a surface is finished.
 
+## Resolved since this file was last updated
+
+- **i18n coverage outside nav/auth/settings/home** — done. Every screen now
+  calls `t(`; the 10-locale expansion (2026-09-13) covers the whole app, not
+  just nav/auth/settings/home.
+- **Category edit/archive UI** — done. `CategoryListScreen` now uses
+  `useUpdateCategoryMutation`/`useArchiveCategoryMutation`.
+
 ## Not built
 
-- **i18n coverage outside nav/auth/settings/home.** The i18next architecture
-  (`app/i18n/`, `en.ts`/`vi.ts`, `LocaleProvider`) is real and wired end to
-  end, and the navigation tab bar, both auth screens, `SettingsScreen`, and
-  `HomeScreen` are fully translated. The other ~14 screens (transactions,
-  accounts, categories, budgets, goals, wallets) still have English string
-  literals — the same `t('namespace.key')` pattern extends to them
-  mechanically, it just hasn't been done yet for every screen.
 - **Google sign-in is unverified.** `useGoogleSignIn` (implicit `id_token`
   flow via `expo-auth-session`) and `POST /auth/google` (verified server-side
   against Google's signing keys via `google-auth-library`) both exist and
@@ -19,8 +20,6 @@ assuming a surface is finished.
   (`env.googleClientIdWeb/Ios/Android`, all unset by default). Exercising it
   needs a real Google Cloud OAuth client, which does not exist in this
   environment — nothing about the actual OAuth round-trip has been run.
-- **Category edit/archive UI.** Create-only; `categoriesApi.update()` and
-  `.archive()` have no screen.
 - **Editing a member's `relationLabel` after invitation.** `updateMemberSchema`
   (`@sora/contracts`) only carries `role`; there is no endpoint to change the
   label once a member is active. Would need a contract/API change, not just a
