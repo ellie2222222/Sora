@@ -40,7 +40,7 @@ export function Button({
     primary: theme.colors.primary,
     secondary: theme.colors.surfaceMuted,
     danger: theme.colors.danger,
-    'danger-outline': 'transparent',
+    'danger-outline': theme.colors.dangerMuted,
     ghost: 'transparent',
   }[variant];
 
@@ -49,7 +49,9 @@ export function Button({
   const iconColor = isDisabled ? theme.colors.textMuted : variant === 'primary' || variant === 'danger' ? theme.colors.onPrimary : variant === 'danger-outline' ? theme.colors.danger : theme.colors.text;
   const iconSize = size === 'sm' ? 14 : size === 'lg' ? 18 : 16;
   const borderWidth = variant === 'ghost' || variant === 'danger-outline' || variant === 'secondary' ? 1 : 0;
-  const borderColor = isDisabled ? theme.colors.border : variant === 'danger-outline' ? theme.colors.danger : theme.colors.border;
+  // `border` barely differs from `surface` in dark mode; `borderStrong` keeps
+  // buttons visible on an already-`surface`-coloured card.
+  const borderColor = isDisabled ? theme.colors.border : variant === 'danger-outline' ? theme.colors.danger : theme.colors.borderStrong;
 
   return (
     <Pressable

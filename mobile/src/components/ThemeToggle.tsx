@@ -33,23 +33,16 @@ export function ThemeToggle({
   const travelDistance = dim.trackWidth - dim.thumbSize - dim.padding * 2;
 
   const slideProgress = useSharedValue(value ? 1 : 0);
-
-  // Delayed 60ms below so the color transition trails the slide instead of firing with it.
   const colorProgress = useSharedValue(value ? 1 : 0);
 
   useEffect(() => {
     const target = value ? 1 : 0;
-    slideProgress.value = withTiming(target, {
+    const timingConfig = {
       duration: 380,
       easing: Easing.inOut(Easing.ease),
-    });
-    colorProgress.value = withDelay(
-      60,
-      withTiming(target, {
-        duration: 320,
-        easing: Easing.inOut(Easing.ease),
-      })
-    );
+    };
+    slideProgress.value = withTiming(target, timingConfig);
+    colorProgress.value = withTiming(target, timingConfig);
   }, [value, slideProgress, colorProgress]);
 
   const trackAnimatedStyle = useAnimatedStyle(() => {
