@@ -4,7 +4,7 @@
 
 This document defines the domain model, ERD, database schema, constraints, indexes, and core business rules for a personal finance tracker where a wallet can be shared across real users — tracking your own money and a friend's/family's/lover's money side by side, with per-user roles.
 
-> **Authority:** [`db/migrations/001_initial_wallet_schema.sql`](db/migrations/001_initial_wallet_schema.sql) is the schema. This document explains *why* it is shaped that way; where the two ever disagree, the migration is right and this file is stale. The SQL quoted below is reproduced from it, not authored here.
+> **Authority:** [`db/migrations/001_initial_wallet_schema.sql`](../../db/migrations/001_initial_wallet_schema.sql) is the schema. This document explains *why* it is shaped that way; where the two ever disagree, the migration is right and this file is stale. The SQL quoted below is reproduced from it, not authored here.
 
 Core entities:
 

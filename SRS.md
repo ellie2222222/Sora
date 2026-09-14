@@ -131,7 +131,7 @@ Deferred, with the reason, so a later reader can tell "not yet" from "no":
 | --- | --- |
 | [SDS.md](SDS.md) | How this is designed: schema, architecture, authorization, security, derivation |
 | [docs/API_SPECIFICATION.md](docs/API_SPECIFICATION.md) | The authoritative interface contract, per operation |
-| [finance_tracker_react_native_full_plan.md](finance_tracker_react_native_full_plan.md) | Product and delivery phases |
+| [plans/mobile/mobile-development-plan.md](plans/mobile/mobile-development-plan.md) | Product and delivery phases |
 
 ---
 

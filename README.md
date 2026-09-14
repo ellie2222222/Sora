@@ -74,8 +74,8 @@ scripts/check-contract-parity.mjs   Proves contract ↔ schema ↔ spec agreemen
 ```
 
 Design and requirements: [`SRS.md`](SRS.md), [`SDS.md`](SDS.md),
-[`finance_tracker_domain_database_design.md`](finance_tracker_domain_database_design.md) (domain
-and schema rationale), [`finance_tracker_react_native_full_plan.md`](finance_tracker_react_native_full_plan.md)
+[`plans/architecture/domain-database-design.md`](plans/architecture/domain-database-design.md) (domain
+and schema rationale), [`plans/mobile/mobile-development-plan.md`](plans/mobile/mobile-development-plan.md)
 (build plan and honest phase status). Conventions and rules:
 [`CLAUDE.md`](CLAUDE.md).
 
@@ -239,7 +239,7 @@ start at all, and the API had no Dockerfile at the time.
 
 Phase 0 — schema, shared contract, API specification, CI — is complete and machine-checked. The
 API and the app are scaffolded and their feature phases are in progress.
-`finance_tracker_react_native_full_plan.md` carries the per-phase checkboxes and is kept honest
+`plans/mobile/mobile-development-plan.md` carries the per-phase checkboxes and is kept honest
 about what has actually been built rather than what was planned.
 
 ## Security
