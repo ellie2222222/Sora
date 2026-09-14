@@ -2,6 +2,7 @@ import { Check, Moon, Sun, User } from 'lucide-react-native';
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedScreen, Button, ConfirmDialog, Text, ThemeToggle } from '../../../components';
 import { useAuth } from '../../../app/providers/AuthProvider';
@@ -16,12 +17,18 @@ export function SettingsScreen(_props: MainTabScreenProps<'Settings'>) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { isGuest } = useAuth();
+  const insets = useSafeAreaInsets();
 
   return (
     <AnimatedScreen>
       <ScrollView
         testID="settings-screen"
-        contentContainerStyle={{ padding: theme.spacing.md, paddingBottom: theme.spacing.xxl }}
+        // Unlike Home/Account/Goals/Report, this screen has no WalletContextBar to clear the status bar.
+        contentContainerStyle={{
+          padding: theme.spacing.md,
+          paddingTop: insets.top + theme.spacing.md,
+          paddingBottom: theme.spacing.xxl,
+        }}
       >
         <SettingSection title={t('settings.profile')}>
           <ProfileHeader />

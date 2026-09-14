@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '../../../app/providers/ThemeProvider';
 import { WalletSwitcher } from './WalletSwitcher';
@@ -22,6 +23,7 @@ export function WalletContextBar({
   children?: ReactNode;
 }) {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const bar = (
     <View style={{ backgroundColor: theme.colors.background }}>
@@ -31,7 +33,8 @@ export function WalletContextBar({
           justifyContent: 'space-between',
           alignItems: 'center',
           paddingHorizontal: theme.spacing.md,
-          paddingTop: theme.spacing.sm,
+          // MainTabNavigator has `headerShown: false`, so this bar must clear the status bar itself.
+          paddingTop: insets.top + theme.spacing.sm,
           paddingBottom: theme.spacing.sm,
         }}
       >
