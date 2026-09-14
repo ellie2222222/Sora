@@ -95,11 +95,18 @@ export class AuthService {
             password_hash: passwordHash,
             display_name: request.displayName,
             base_currency: request.baseCurrency,
+            ...(request.locale ? { locale: request.locale } : {}),
           })
           .returning(USER_COLUMNS)
           .executeTakeFirstOrThrow();
 
-        const { walletId } = await this.seedWallet(trx, user.id, user.display_name, user.base_currency);
+        const { walletId } = await this.seedWallet(
+          trx,
+          user.id,
+          user.display_name,
+          user.base_currency,
+          user.locale,
+        );
         const refresh = await this.tokens.issueRefreshToken(user.id, trx);
 
         await this.audit.record(
@@ -235,11 +242,18 @@ export class AuthService {
             password_hash: null,
             display_name: payload.displayName,
             base_currency: DEFAULT_CURRENCY,
+            ...(request.locale ? { locale: request.locale } : {}),
           })
           .returning(USER_COLUMNS)
           .executeTakeFirstOrThrow();
 
-        await this.seedWallet(trx, created.id, created.display_name, created.base_currency);
+        await this.seedWallet(
+          trx,
+          created.id,
+          created.display_name,
+          created.base_currency,
+          created.locale,
+        );
         return { user: created, event: AUDIT_EVENTS.USER_REGISTERED, isNew: true };
       }),
     );
@@ -386,10 +400,15 @@ export class AuthService {
     userId: string,
     displayName: string,
     currency: string,
+    locale?: string,
   ): Promise<{ walletId: string }> {
+    const isVi = locale === 'vi';
+    const walletName = isVi ? `Ví của ${displayName}` : `${displayName}'s Wallet`;
+    const accountName = isVi ? 'Tiền mặt' : 'Cash';
+
     const wallet = await trx
       .insertInto('wallets')
-      .values({ owner_user_id: userId, name: `${displayName}'s Wallet` })
+      .values({ owner_user_id: userId, name: walletName })
       .returning(['id'])
       .executeTakeFirstOrThrow();
 
@@ -415,7 +434,7 @@ export class AuthService {
       .insertInto('accounts')
       .values({
         wallet_id: wallet.id,
-        name: 'Cash',
+        name: accountName,
         type: 'CASH',
         currency,
         initial_balance: '0',
