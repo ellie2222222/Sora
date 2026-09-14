@@ -9,7 +9,6 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { buildTheme, THEME_MODES, THEME_NAMES, type Theme, type ThemeMode, type ThemeName } from '../../design-system/index';
-import { useColorScheme } from 'nativewind';
 import { authApi } from '../../services/api/auth';
 import { THEME_MODE_STORAGE_KEY, THEME_STORAGE_KEY, preferencesStore } from '../../services/storage/preferencesStore';
 import { useAuth } from './AuthProvider';
@@ -34,9 +33,9 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     styleEl.id = STYLE_ID;
     styleEl.innerHTML = `
       * {
-        transition: background-color 350ms cubic-bezier(0.4, 0, 0.2, 1),
-                    border-color 350ms cubic-bezier(0.4, 0, 0.2, 1),
-                    color 350ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+        transition: background-color 380ms cubic-bezier(0.4, 0, 0.2, 1),
+                    border-color 380ms cubic-bezier(0.4, 0, 0.2, 1),
+                    color 380ms cubic-bezier(0.4, 0, 0.2, 1) !important;
       }
     `;
     document.head.appendChild(styleEl);
@@ -87,19 +86,10 @@ function AnimatedThemeRoot({ children, theme }: { children: ReactNode; theme: Th
 
 export function ThemeProvider({ children }: { children: ReactNode }): ReactNode {
   const { user } = useAuth();
-  const { setColorScheme } = useColorScheme();
   const [themeName, setThemeNameState] = useState<ThemeName>(DEFAULT_THEME);
   const [themeMode, setThemeModeState] = useState<ThemeMode>(DEFAULT_MODE);
   const hydratedFromServer = useRef(false);
   const hydratedFromCache = useRef(false);
-
-  useEffect(() => {
-    try {
-      setColorScheme(themeMode);
-    } catch {
-      // Ignore if nativewind colorScheme configuration is not yet initialized
-    }
-  }, [themeMode, setColorScheme]);
 
   useEffect(() => {
     void Promise.all([
