@@ -14,17 +14,22 @@
 
 import { z } from 'zod';
 import {
+  ACCOUNT_STATUSES,
   ACCOUNT_TYPES,
   BUDGET_PERIOD_TYPES,
+  BUDGET_STATUSES,
+  CATEGORY_STATUSES,
   CATEGORY_TYPES,
   DEFAULT_PAGE_SIZE,
-  MAX_PAGE_SIZE,
+  GOAL_STATUSES,
   INVITABLE_ROLES,
   LOCALES,
+  MAX_PAGE_SIZE,
   THEME_NAMES,
   TRANSACTION_STATUSES,
   TRANSACTION_TYPES,
   WALLET_ROLES,
+  WALLET_STATUSES,
   TransactionType,
 } from './enums.ts';
 import { MONEY_SCALE, parseMoney, stripCurrencyInput } from './money.ts';
@@ -113,6 +118,7 @@ export const registerSchema = z.object({
   password: passwordSchema,
   displayName: nameSchema(100),
   baseCurrency: currencySchema.default('VND'),
+  locale: z.enum(LOCALES).optional(),
 });
 
 export const loginSchema = z.object({
@@ -127,6 +133,7 @@ export const refreshSchema = z.object({
 /** The mobile app never parses the token — the API verifies it against Google's own keys. */
 export const googleAuthSchema = z.object({
   idToken: z.string().min(1),
+  locale: z.enum(LOCALES).optional(),
 });
 
 export const updatePreferencesSchema = z
@@ -147,7 +154,7 @@ export const createWalletSchema = z.object({
 export const updateWalletSchema = z
   .object({
     name: nameSchema(100).optional(),
-    status: z.enum(['ACTIVE', 'ARCHIVED']).optional(),
+    status: z.enum(WALLET_STATUSES).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
 
@@ -190,7 +197,8 @@ export const createAccountSchema = z.object({
 export const updateAccountSchema = z
   .object({
     name: nameSchema(100).optional(),
-    status: z.enum(['ACTIVE', 'ARCHIVED']).optional(),
+    currency: currencySchema.optional(),
+    status: z.enum(ACCOUNT_STATUSES).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
 
@@ -212,7 +220,7 @@ export const updateCategorySchema = z
     name: nameSchema(100).optional(),
     icon: z.string().trim().max(50).nullish(),
     color: z.string().trim().max(20).nullish(),
-    status: z.enum(['ACTIVE', 'ARCHIVED']).optional(),
+    status: z.enum(CATEGORY_STATUSES).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
 
@@ -334,7 +342,7 @@ export const updateBudgetSchema = z
   .object({
     name: nameSchema(100).optional(),
     amount: positiveAmountSchema.optional(),
-    status: z.enum(['ACTIVE', 'ARCHIVED']).optional(),
+    status: z.enum(BUDGET_STATUSES).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
 
@@ -357,7 +365,7 @@ export const updateGoalSchema = z
     description: z.string().trim().max(500).nullish(),
     targetAmount: positiveAmountSchema.optional(),
     targetDate: isoDateSchema.nullish(),
-    status: z.enum(['ACTIVE', 'COMPLETED', 'CANCELLED']).optional(),
+    status: z.enum(GOAL_STATUSES).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
 
@@ -384,6 +392,7 @@ export const dashboardQuerySchema = z.object({
   walletId: uuidSchema,
   dateFrom: isoDateSchema.optional(),
   dateTo: isoDateSchema.optional(),
+  displayCurrency: currencySchema.optional(),
 });
 
 // ---------------------------------------------------------------------------

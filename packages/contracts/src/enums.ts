@@ -102,6 +102,14 @@ export const GoalStatus = {
   CANCELLED: 'CANCELLED',
 } as const;
 
+export const VALUATION_STATUSES = ['FRESH', 'STALE', 'UNAVAILABLE'] as const;
+export type ValuationStatus = (typeof VALUATION_STATUSES)[number];
+export const ValuationStatus = {
+  FRESH: 'FRESH',
+  STALE: 'STALE',
+  UNAVAILABLE: 'UNAVAILABLE',
+} as const;
+
 /**
  * User-preference enums. Lowercase (unlike every domain enum above) because
  * these are display slugs, not a CHECK constraint's value list authored in
@@ -112,7 +120,7 @@ export const GoalStatus = {
 export const THEME_NAMES = ['obsidian', 'quartz', 'sage', 'terracotta', 'violet'] as const;
 export type ThemeName = (typeof THEME_NAMES)[number];
 
-export const LOCALES = ['en', 'vi', 'ko', 'ja', 'fr', 'de', 'zh', 'ru', 'es', 'hi'] as const;
+export const LOCALES = ['en', 'vi'] as const;
 export type Locale = (typeof LOCALES)[number];
 
 /**
