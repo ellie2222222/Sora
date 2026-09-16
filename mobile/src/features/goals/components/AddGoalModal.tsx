@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { BottomSheetModal, Button, Input, StateView, Text } from '@/components';
+import { BottomSheetModal, Button, DateField, Input, MoneyInput, StateView, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { useCreateGoalMutation } from '@/app/store';
 import { messageOf } from '../../../utils/errors';
@@ -20,14 +20,14 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
 
   const [name, setName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
-  const [targetDate, setTargetDate] = useState('');
+  const [targetDate, setTargetDate] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible) {
       setName('');
       setTargetAmount('');
-      setTargetDate('');
+      setTargetDate(null);
       setError(null);
     }
   }, [visible]);
@@ -52,7 +52,7 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
         name,
         targetAmount,
         currency: activeWallet.balances[0]?.currency ?? 'VND',
-        targetDate: targetDate.trim().length > 0 ? targetDate.trim() : null,
+        targetDate,
       }).unwrap();
       onClose();
     } catch (submitError) {
@@ -68,19 +68,19 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
         contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.xl }}
       >
         <Input testID="add-goal-name" label={t('categories.name', { defaultValue: 'Name' })} placeholder={t('goals.namePlaceholder', 'e.g. New Laptop')} value={name} onChangeText={setName} />
-        <Input
+        <MoneyInput
           testID="add-goal-target"
           label={t('goals.targetAmount', { defaultValue: 'Target amount' })}
-          keyboardType="decimal-pad"
           value={targetAmount}
-          onChangeText={setTargetAmount}
+          onChangeValue={setTargetAmount}
         />
-        <Input
+        <DateField
           testID="add-goal-date"
           label={t('goals.targetDateOptional', { defaultValue: 'Target date (optional)' })}
-          placeholder="YYYY-MM-DD"
+          placeholder={t('goals.noTargetDate', { defaultValue: 'Not set' })}
           value={targetDate}
-          onChangeText={setTargetDate}
+          onChange={setTargetDate}
+          onClear={() => setTargetDate(null)}
         />
 
         {error !== null ? <Text tone="danger">{error}</Text> : null}

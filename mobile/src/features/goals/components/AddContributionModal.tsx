@@ -2,14 +2,15 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
+import { isPositive, MoneyError, parseMoney } from '@sora/contracts';
 
-import { BottomSheetModal, Button, Input, SkeletonList, StateView, Text } from '@/components';
+import { BottomSheetModal, Button, DateField, Input, MoneyInput, SkeletonList, StateView, Text } from '@/components';
 import { useTheme } from '@/app/providers';
 import { AccountPicker } from '../../accounts/components/AccountPicker.tsx';
 import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
 import { useAddContributionMutation, useGetGoalQuery } from '@/app/store';
 import { isNetworkError, messageOf } from '../../../utils/errors';
-import { nowInstant } from '../../../utils/date';
+import { instantOfDay, today } from '../../../utils/date';
 
 export interface AddContributionModalProps {
   visible: boolean;
@@ -26,6 +27,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
   const [accountId, setAccountId] = useState<string | null>(null);
   const [walletId, setWalletId] = useState<string | undefined>(undefined);
   const [amount, setAmount] = useState('');
+  const [contributionDay, setContributionDay] = useState(today());
   const [note, setNote] = useState('');
   const [recordAsTransaction, setRecordAsTransaction] = useState(true);
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -36,6 +38,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
       setAccountId(null);
       setWalletId(undefined);
       setAmount('');
+      setContributionDay(today());
       setNote('');
       setRecordAsTransaction(true);
       setCategoryId(null);
@@ -71,10 +74,17 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
       setError(t('goals.chooseAccountError', { defaultValue: 'Choose which account this comes from.' }));
       return;
     }
-    const parsed = parseFloat(amount);
-    if (isNaN(parsed) || parsed <= 0) {
-      setError(t('goals.validAmountError', { defaultValue: 'Enter a valid amount greater than zero.' }));
-      return;
+    try {
+      if (!isPositive(parseMoney(amount))) {
+        setError(t('goals.validAmountError', { defaultValue: 'Enter a valid amount greater than zero.' }));
+        return;
+      }
+    } catch (parseError) {
+      if (parseError instanceof MoneyError) {
+        setError(t('goals.validAmountError', { defaultValue: 'Enter a valid amount greater than zero.' }));
+        return;
+      }
+      throw parseError;
     }
     try {
       await addContribution({
@@ -83,7 +93,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
           accountId,
           amount,
           currency: goalData.currency,
-          contributionDate: nowInstant(),
+          contributionDate: instantOfDay(contributionDay),
           note: note.trim() || undefined,
           recordAsTransaction,
           categoryId: recordAsTransaction ? (categoryId ?? undefined) : undefined,
@@ -108,13 +118,18 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
           }}
         />
 
-        <Input
+        <MoneyInput
           testID="add-contribution-amount"
           label={t('transactions.amount')}
-          keyboardType="decimal-pad"
           value={amount}
-          onChangeText={setAmount}
-          placeholder="0.00"
+          onChangeValue={setAmount}
+        />
+
+        <DateField
+          testID="add-contribution-date"
+          label={t('transactions.date', { defaultValue: 'Date' })}
+          value={contributionDay}
+          onChange={setContributionDay}
         />
 
         <Pressable

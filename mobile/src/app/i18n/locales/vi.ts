@@ -247,6 +247,9 @@ const vi: TranslationResource = {
     namePlaceholder: 'vd: Ăn uống Tháng 8',
     planned: 'Dự kiến:',
     detailTitle: 'Ngân sách',
+    startDate: 'Ngày bắt đầu',
+    endDate: 'Ngày kết thúc',
+    endBeforeStartError: 'Ngày kết thúc không được trước ngày bắt đầu.',
   },
   reports: {
     monthly: 'Hàng tháng',
@@ -297,6 +300,7 @@ const vi: TranslationResource = {
     cancelGoal: 'Hủy mục tiêu',
     targetAmount: 'Số tiền mục tiêu',
     targetDateOptional: 'Ngày hoàn thành (không bắt buộc)',
+    noTargetDate: 'Chưa đặt',
     fromAccount: 'Từ tài khoản',
     chooseAccountError: 'Vui lòng chọn tài khoản trích tiền.',
     chooseCategoryError: 'Vui lòng chọn danh mục cho khoản chi tiêu này.',

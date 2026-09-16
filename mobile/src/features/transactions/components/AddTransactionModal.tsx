@@ -3,7 +3,7 @@ import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { TransactionType, CategoryType } from '@sora/contracts';
 
-import { BottomSheetModal, Button, DateField, Input, Text } from '@/components';
+import { BottomSheetModal, Button, DateField, Input, MoneyInput, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { AccountPicker } from '../../accounts/components/AccountPicker.tsx';
 import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
@@ -114,12 +114,11 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
           ))}
         </View>
 
-        <Input
+        <MoneyInput
           testID="transaction-amount"
           label={t('transactions.amount', { defaultValue: 'Amount' })}
-          keyboardType="decimal-pad"
           value={amountText}
-          onChangeText={setAmountText}
+          onChangeValue={setAmountText}
           error={fieldErrors.amount}
         />
 
@@ -130,25 +129,14 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
           onChange={(day) => setDraft((current) => ({ ...current, transactionDate: replaceDay(current.transactionDate, day) }))}
         />
 
-        {fields.fromAccount && draft.type !== TransactionType.TRANSFER ? (
+        {(fields.fromAccount || fields.toAccount) && draft.type !== TransactionType.TRANSFER ? (
           <AccountPicker
-            testID="transaction-from-account"
+            testID="transaction-account"
             label={t('accounts.accountLabel', { defaultValue: 'Account' })}
             walletId={walletId}
             value={primaryAccount}
             onChange={(accountId) => setDraft((current) => setPrimaryAccount(current, accountId))}
-            error={fieldErrors.fromAccountId}
-          />
-        ) : null}
-
-        {fields.toAccount && draft.type !== TransactionType.TRANSFER ? (
-          <AccountPicker
-            testID="transaction-to-account"
-            label={t('accounts.accountLabel', { defaultValue: 'Account' })}
-            walletId={walletId}
-            value={primaryAccount}
-            onChange={(accountId) => setDraft((current) => setPrimaryAccount(current, accountId))}
-            error={fieldErrors.toAccountId}
+            error={fieldErrors.fromAccountId ?? fieldErrors.toAccountId}
           />
         ) : null}
 

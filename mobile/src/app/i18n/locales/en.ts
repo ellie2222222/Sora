@@ -249,6 +249,9 @@ const en = {
     namePlaceholder: 'e.g. Food August',
     planned: 'Planned:',
     detailTitle: 'Budget',
+    startDate: 'Start date',
+    endDate: 'End date',
+    endBeforeStartError: 'End date cannot be before start date.',
   },
   goals: {
     title: 'Goals',
@@ -263,6 +266,7 @@ const en = {
     cancelGoal: 'Cancel goal',
     targetAmount: 'Target amount',
     targetDateOptional: 'Target date (optional)',
+    noTargetDate: 'Not set',
     fromAccount: 'From account',
     chooseAccountError: 'Choose which account this comes from.',
     chooseCategoryError: 'Choose a category for the expense this creates.',

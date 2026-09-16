@@ -1,16 +1,21 @@
-import { Calendar } from 'lucide-react-native';
+import { Calendar, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { useTheme } from '@/app/providers';
-import { formatDay } from '../utils/date';
+import { formatDay, today } from '../utils/date';
 import { DatePickerModal } from './DatePickerModal';
 import { Text } from './Text';
 
 export interface DateFieldProps {
   label: string;
-  value: string; // YYYY-MM-DD
+  /** YYYY-MM-DD, or `null` for an optional date left unset — only meaningful together with `onClear`. */
+  value: string | null;
   onChange: (day: string) => void;
+  /** Present only on optional date fields — renders a clear affordance once a date is set. */
+  onClear?: () => void;
+  /** Shown in place of a formatted date while `value` is `null`. */
+  placeholder?: string;
   error?: string;
   testID?: string;
 }
@@ -20,7 +25,7 @@ export interface DateFieldProps {
  * `CategoryPicker`) rather than a free-text `Input` — the value can only ever
  * be a real calendar day, so there's nothing left to validate.
  */
-export function DateField({ label, value, onChange, error, testID }: DateFieldProps) {
+export function DateField({ label, value, onChange, onClear, placeholder, error, testID }: DateFieldProps) {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
 
@@ -29,9 +34,7 @@ export function DateField({ label, value, onChange, error, testID }: DateFieldPr
       <Text variant="label" tone="muted">
         {label}
       </Text>
-      <Pressable
-        testID={testID}
-        onPress={() => setOpen(true)}
+      <View
         className="h-[48px] flex-row items-center justify-between border"
         style={{
           borderRadius: theme.radius.md,
@@ -40,16 +43,36 @@ export function DateField({ label, value, onChange, error, testID }: DateFieldPr
           paddingHorizontal: theme.spacing.md,
         }}
       >
-        <Text>{formatDay(value)}</Text>
-        <Calendar size={18} color={theme.colors.textMuted} />
-      </Pressable>
+        <Pressable testID={testID} onPress={() => setOpen(true)} className="flex-1 flex-row items-center">
+          {value !== null ? <Text>{formatDay(value)}</Text> : <Text tone="muted">{placeholder ?? ''}</Text>}
+        </Pressable>
+        <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
+          {onClear !== undefined && value !== null ? (
+            <Pressable
+              testID={testID !== undefined ? `${testID}-clear` : undefined}
+              onPress={onClear}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear date"
+            >
+              <X size={16} color={theme.colors.textMuted} />
+            </Pressable>
+          ) : null}
+          <Calendar size={18} color={theme.colors.textMuted} />
+        </View>
+      </View>
       {error !== undefined ? (
         <Text variant="caption" tone="danger">
           {error}
         </Text>
       ) : null}
 
-      <DatePickerModal visible={open} selectedDay={value} onSelectDay={onChange} onClose={() => setOpen(false)} />
+      <DatePickerModal
+        visible={open}
+        selectedDay={value ?? today()}
+        onSelectDay={onChange}
+        onClose={() => setOpen(false)}
+      />
     </View>
   );
 }

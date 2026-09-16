@@ -1,6 +1,13 @@
 # Mobile Modal UI & Form State Audit
 
 > **Comprehensive UI/UX Audit** of every Create and Update modal in the Sora mobile application. Covers styling architecture, field types, select mechanisms, input behaviors, existing good UX patterns, and actionable recommendations for date pickers and multiselect controls.
+>
+> **2026-09-16 update:** the four date-handling/duplication findings this audit flagged as open
+> (`AddBudgetModal` Weekly/Custom window, `AddContributionModal` hardcoded date, `AddGoalModal` raw
+> text date, `AddTransactionModal` duplicate `AccountPicker`) have since been fixed, per a
+> from-source-of-truth review — see `verifications/2026-09-16-modal-form-consistency-review.md`. The
+> currency-picker and multi-category-budget suggestions were reviewed and deliberately **not**
+> implemented (no domain/schema support). Left as historical record below rather than rewritten.
 
 ---
 
@@ -10,12 +17,12 @@ The Sora mobile app uses a unified modal paradigm anchored by [`BottomSheetModal
 
 | Modal | Type | Trigger / Context | Input Fields | Select Mechanisms | Date Handling | Multiselect Capable? |
 |---|---|---|---|---|---|---|
-| **AddTransactionModal** | Create | Global `ModalProvider`, Home FAB, Transactions Screen | Amount (`decimal-pad`), Note (`text`) | Type (Pill Buttons: Expense, Income, Transfer), Account (`AccountPicker`), Category (`CategoryPicker`) | ⚠️ **Hardcoded** (`nowInstant()`); no date picker exposed | No (single account/category) |
-| **EditTransactionModal** | Update | Global `ModalProvider`, Transaction Detail Screen | Note (`text`), Reference (`text`), Date (`text` / regex) | Category (`CategoryPicker`) | ❌ **Raw Text Input** (`YYYY-MM-DD`) with regex validation | No |
-| **AddAccountModal** | Create | Global `ModalProvider`, Wallet Detail, Accounts Screen | Name (`text`), Currency (`text`, 3 chars uppercase), Opening Balance (`numbers-and-punctuation`) | Account Type (Pill Buttons: 4 types) | N/A (implicit creation date) | No |
-| **AddBudgetModal** | Create | Global `ModalProvider`, Budgets Screen | Name (`text`), Amount (`decimal-pad`) | Category (`CategoryPicker` - expense only), Period Type (Pill Buttons: Weekly, Monthly, Custom) | ❌ **Hardcoded**; Custom period lacks start/end pickers | 💡 **High Value**: Multi-category budgets |
-| **AddGoalModal** | Create | Global `ModalProvider`, Goals Screen | Name (`text`), Target Amount (`decimal-pad`), Target Date (`text`) | None (uses active wallet currency) | ❌ **Raw Text Input** (`YYYY-MM-DD`); no calendar | No |
-| **AddContributionModal** | Create | Global `ModalProvider`, Goal Detail Screen | Amount (`decimal-pad`), Note (`text`, optional) | Account (`AccountPicker`), Category (`CategoryPicker`, conditional) | ⚠️ **Hardcoded** (`nowInstant()`); cannot backdate | No |
+| **AddTransactionModal** | Create | Global `ModalProvider`, Home FAB, Transactions Screen | Amount (`MoneyInput` — calculator keypad), Note (`text`) | Type (Pill Buttons: Expense, Income, Transfer), Account (`AccountPicker`), Category (`CategoryPicker`) | ✅ **`DateField`** → `DatePickerModal`; backdating already works | No (single account/category) |
+| **EditTransactionModal** | Update | Global `ModalProvider`, Transaction Detail Screen | Note (`text`), Reference (`text`) | Category (`CategoryPicker`) | ✅ **`DateField`** → `DatePickerModal`; no longer raw regex text | No |
+| **AddAccountModal** | Create | Global `ModalProvider`, Wallet Detail, Accounts Screen | Name (`text`), Currency (`text`, 3 chars uppercase), Opening Balance (`MoneyInput` — calculator keypad, signed) | Account Type (Pill Buttons: 4 types) | N/A (implicit creation date) | No |
+| **AddBudgetModal** | Create | Global `ModalProvider`, Budgets Screen | Name (`text`), Amount (`MoneyInput` — calculator keypad) | Category (`CategoryPicker` - expense only), Period Type (Pill Buttons: Weekly, Monthly, Custom) | ❌ **Hardcoded**; Custom *and* Weekly both silently get a 1-month range (see §5.4) | 💡 **High Value**: Multi-category budgets |
+| **AddGoalModal** | Create | Global `ModalProvider`, Goals Screen | Name (`text`), Target Amount (`MoneyInput` — calculator keypad), Target Date (`text`) | None (uses active wallet currency) | ❌ **Raw Text Input** (`YYYY-MM-DD`); no calendar | No |
+| **AddContributionModal** | Create | Global `ModalProvider`, Goal Detail Screen | Amount (`MoneyInput` — calculator keypad), Note (`text`, optional) | Account (`AccountPicker`), Category (`CategoryPicker`, conditional) | ⚠️ **Hardcoded** (`nowInstant()`); cannot backdate | No |
 | **CreateCategoryModal** | Create | `CategoryListScreen` Header Action | Name (`text`) | Type (Pill Buttons: Expense, Income) | N/A | No |
 | **CategoryRenameDialog** | Update | `CategoryListScreen` (inside `CategoryDeleteDialog`) | Name (`text`) | None | N/A | No |
 | **CreateWalletModal** | Create | `WalletListScreen` Header Action | Name (`text`) | None | N/A | No |
@@ -62,26 +69,22 @@ All text-based form inputs utilize the unified [`Input`](file:///d:/Code/sora/mo
 
 ### Input Field Configurations
 
-1. **Monetary Amounts (`keyboardType="decimal-pad"` / `inputMode="decimal"`)**:
-   - **Used in**: `AddTransactionModal`, `AddBudgetModal`, `AddGoalModal`, `AddContributionModal`.
-   - **Formatting**: Automatically intercepted by `formatCurrencyInput(text, true)` in `Input.tsx`. Strips letters and invalid symbols, allows only valid decimal numbers.
-   - **Border & Focus**: Transitions from `1px theme.colors.border` to `1.5px theme.colors.primary` on focus, or `1.5px theme.colors.danger` when invalid.
+1. **Monetary Amounts (`MoneyInput` — calculator-keypad field, not the native keyboard)**:
+   - **Used in**: `AddTransactionModal`, `AddBudgetModal`, `AddGoalModal`, `AddContributionModal`, `AddAccountModal` (Opening balance, signed), `BudgetDetailScreen`.
+   - **Architecture**: [`MoneyInput.tsx`](file:///d:/Code/sora/mobile/src/components/MoneyInput.tsx) is a real `TextInput` with `showSoftInputOnFocus={false}` — the OS keyboard never appears. On focus it docks a [`CalculatorKeypad`](file:///d:/Code/sora/mobile/src/components/CalculatorKeypad.tsx) (`+ − × ÷ ^`, parentheses, live per-keystroke evaluation) at the bottom of the nearest [`KeyboardDockProvider`](file:///d:/Code/sora/mobile/src/components/KeyboardDockProvider.tsx) (a `BottomSheetModal` or a plain screen), mimicking the slot a native keyboard would occupy.
+   - **Formatting**: `formatCurrencyInput`/`formatMoneyCompact` from `@sora/contracts`; math runs on bigint-scaled values (`calculatorEngine.ts`), never a JS number.
+   - **Border & Focus**: Same visual language as before — `1px theme.colors.border` → `1.5px theme.colors.primary` on focus, `1.5px theme.colors.danger` when invalid.
 
-2. **Signed Numeric Balance (`keyboardType="numbers-and-punctuation"`)**:
-   - **Used in**: `AddAccountModal` (Opening balance).
-   - **Purpose**: Allows entering negative balances (`-`) for credit card liabilities.
-
-3. **Restricted Text / Codes (`maxLength={3}`, `autoCapitalize="characters"`)**:
+2. **Restricted Text / Codes (`maxLength={3}`, `autoCapitalize="characters"`)**:
    - **Used in**: `AddAccountModal` (Currency code: VND, USD, EUR).
 
-4. **Standard Text (`keyboardType="default"`)**:
+3. **Standard Text (`keyboardType="default"`)**:
    - **Used in**: Notes, names, descriptions, references.
    - **Attributes**: `placeholderTextColor={theme.colors.textFaint}`, `color={theme.colors.text}`, `fontSize: 15px`.
 
-5. **Date String Inputs (Current State: ❌ Raw Text Input)**:
-   - **Used in**: `EditTransactionModal` (`dayValue`), `AddGoalModal` (`targetDate`).
-   - **Format**: Plain text with `placeholder="YYYY-MM-DD"`.
-   - **Validation**: Regex matching `DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/`.
+4. **Date String Inputs (Current State: ⚠️ Mixed)**:
+   - **Fixed**: `EditTransactionModal` and `AddTransactionModal` now use [`DateField`](file:///d:/Code/sora/mobile/src/components/DateField.tsx), a tap-to-open trigger backed by `DatePickerModal` — no more regex.
+   - **Still raw text**: `AddGoalModal` (`targetDate`) — plain text with `placeholder="YYYY-MM-DD"`, no validation shown until submit.
 
 ---
 
@@ -118,7 +121,7 @@ Form choices are handled through three standardized patterns:
   - 7x6 month grid: Null cells padded; past/future days handled; current day highlighted with outline; selected day highlighted with solid `theme.colors.primary` circle.
   - Year grid: Scrollable multi-column year selector covering 90 years (current year - 60 to + 30).
   - Quick action footer: "Today" button resets instantly to current date; "Cancel" dismisses without mutating.
-- **Current Deficit**: While fully implemented in `mobile/src/components/DatePickerModal.tsx`, it is **not wired into the create/update modals**!
+- **Current State**: Wired in via `DateField` for `AddTransactionModal` and `EditTransactionModal`. Still **not wired in** for `AddGoalModal` (target date) or `AddContributionModal` (contribution date, currently hardcoded to today).
 
 ---
 
@@ -129,22 +132,24 @@ Form choices are handled through three standardized patterns:
 - **Primary Purpose**: Record new financial entries (Expense, Income, or Account Transfer).
 - **Component Breakdown**:
   1. *Type Selector*: 3 pill buttons (Expense, Income, Transfer).
-  2. *Amount*: Decimal-pad `Input`.
-  3. *Account Field(s)*:
+  2. *Amount*: `MoneyInput` (calculator keypad).
+  3. *Date*: `DateField` → `DatePickerModal`.
+  4. *Account Field(s)*:
      - For Expense/Income: Single `AccountPicker` labeled "Account".
      - For Transfer: Dual `AccountPicker` components ("From" and "To").
-  4. *Cross-Wallet Banner*: Conditionally displayed if `draft.type === TRANSFER` and destination wallet differs from source wallet.
-  5. *Category Field*: Single `CategoryPicker`, reactive to type (filtered to Income or Expense categories). Hidden on Transfer.
-  6. *Note*: Text `Input`.
-  7. *Submit*: Primary `Button` ("Save").
+  5. *Cross-Wallet Banner*: Conditionally displayed if `draft.type === TRANSFER` and destination wallet differs from source wallet.
+  6. *Category Field*: Single `CategoryPicker`, reactive to type (filtered to Income or Expense categories). Hidden on Transfer.
+  7. *Note*: Text `Input`.
+  8. *Submit*: Primary `Button` ("Save").
 - **UX Strengths**:
   - **Account Auto-Defaulting**: Automatically selects the first account if none is picked, saving user interaction.
   - **Stateful Type Switching**: `switchType()` preserves accounts and amounts intelligently when swapping between Expense and Income.
   - **Cross-Wallet Warning**: Prominent warning callout prevents accidental transfers across distinct ledgers.
   - **Permission Gate**: Non-writers receive an explanatory view-only message instead of non-functional controls.
+  - **Backdating already works**: date picker means logging an earlier receipt no longer requires save-then-edit.
 - **UX Opportunities**:
-  - ⚠️ **Missing Date Picker**: Hardcodes `transactionDate: nowInstant()`. Users who want to log an expense from earlier today, yesterday, or a weekend receipt cannot adjust the date without saving and finding the edit screen.
   - ⚠️ **Currency Selector**: Defaults to `'VND'` with no override option for foreign currency accounts.
+- **Code-quality note (not user-facing, but relevant to "tedious to adjust")**: the Expense/Income single-account block ([AddTransactionModal.tsx:132-152](file:///d:/Code/sora/mobile/src/features/transactions/components/AddTransactionModal.tsx#L132-L152)) renders two near-identical `AccountPicker` JSX blocks gated on `fields.fromAccount`/`fields.toAccount`, but `fieldsForType` never sets both true at once for these two types — only one ever renders. Both are bound to the same `primaryAccount` value and `setPrimaryAccount` handler. Collapsing to one `{(fields.fromAccount || fields.toAccount) ? <AccountPicker .../> : null}` block would remove ~10 duplicate lines and one place to accidentally edit only one copy of.
 
 ---
 
@@ -154,7 +159,7 @@ Form choices are handled through three standardized patterns:
 - **Component Breakdown**:
   1. *Notice Banner*: Explains ledger immutability (amount, type, and accounts are locked per rule BR-03).
   2. *Note*: Text `Input`.
-  3. *Date*: Plain text `Input` (`placeholder="YYYY-MM-DD"`).
+  3. *Date*: `DateField` → `DatePickerModal`.
   4. *Category*: Single `CategoryPicker` (hidden for transfers).
   5. *Reference*: Text `Input`.
   6. *Submit*: Primary `Button` ("Save").
@@ -162,9 +167,7 @@ Form choices are handled through three standardized patterns:
   - **Clear Immutability Communication**: Tells the user why certain fields are locked rather than disabling them silently.
   - **Clean Diffing**: Only changed fields are dispatched in `UpdateTransactionRequest`.
   - **Cancelled State Guard**: Immediately disables editing if the transaction has been cancelled.
-- **UX Flaws & Fixes**:
-  - ❌ **High-Friction Date Input**: Users must manually tap into a text field, switch to numeric keyboard, type 4 digits, type a dash, 2 digits, a dash, and 2 digits. A single typo triggers regex failure `t('transactions.dayPatternError')`.
-  - 💡 **Solution**: Replace the text input with a touchable date trigger button (displaying formatted date e.g. "Sep 14, 2026") that launches [`DatePickerModal`](file:///d:/Code/sora/mobile/src/components/DatePickerModal.tsx).
+  - **Fixed since the last pass**: date entry is now a tap-to-open calendar (`DateField`), not a regex-validated text field — no more mistyped `YYYY-MM-DD`.
 
 ---
 
@@ -175,7 +178,7 @@ Form choices are handled through three standardized patterns:
   1. *Name*: Text `Input`, placeholder `"e.g. Vietcombank VND"`.
   2. *Type*: Pill button wrap (Bank account, Cash, E-wallet, Credit card).
   3. *Currency*: Uppercase 3-letter text `Input`.
-  4. *Opening Balance*: Signed numeric `Input`.
+  4. *Opening Balance*: `MoneyInput` (calculator keypad, negative sign supported for credit-card liabilities).
   5. *Submit*: Primary `Button` ("Add Account").
 - **UX Strengths**:
   - **Context-Sensitive Balance Label**: Changes label to `"Opening balance (negative if you owe)"` when `type === CREDIT_CARD`.
@@ -191,14 +194,14 @@ Form choices are handled through three standardized patterns:
 - **Component Breakdown**:
   1. *Name*: Text `Input` (optional, auto-generated if omitted).
   2. *Category*: Single `CategoryPicker` (Expense categories only).
-  3. *Amount*: Decimal-pad `Input`.
+  3. *Amount*: `MoneyInput` (calculator keypad).
   4. *Period*: Pill buttons (Weekly, Monthly, Custom).
   5. *Submit*: Primary `Button` ("New Budget").
 - **UX Strengths**:
   - **Smart Name Default**: If user leaves name empty, it automatically defaults to `"{Period} budget"`.
   - **Context Filter**: Pre-filters category list to `type="EXPENSE"`.
 - **UX Flaws & Multiselect/Date Opportunities**:
-  - ❌ **Critical Custom Date Deficit**: When user taps "Custom" period, **no date inputs appear**! The code hardcodes `startDate = startOfMonth(today())` and `endDate = addMonths(startDate, 1)`. Users have zero way to define their custom budget window!
+  - ❌ **Critical Custom Date Deficit — confirmed still present, and broader than it looks**: [AddBudgetModal.tsx:66-67](file:///d:/Code/sora/mobile/src/features/budgets/components/AddBudgetModal.tsx#L66-L67) computes `startDate = startOfMonth(today())` and `endDate = periodType === 'MONTHLY' ? endOfMonth(today()) : addMonths(startDate, 1)` — the `else` branch fires for **both** `WEEKLY` and `CUSTOM`, so picking "Weekly" silently creates a one-*month* budget window, and "Custom" has no date inputs at all to override it. No date inputs appear for either.
   - 💡 **Multiselect Opportunity**: Budgets are currently locked to a single category (`categoryId: string`). Users routinely budget across category groups (e.g. "Food" combining Groceries + Dining Out + Coffee). A multiselect category picker would provide massive utility.
 
 ---
@@ -208,8 +211,8 @@ Form choices are handled through three standardized patterns:
 - **Primary Purpose**: Create target-based savings milestones.
 - **Component Breakdown**:
   1. *Name*: Text `Input`.
-  2. *Target Amount*: Decimal-pad `Input`.
-  3. *Target Date*: Text `Input` (`placeholder="YYYY-MM-DD"`).
+  2. *Target Amount*: `MoneyInput` (calculator keypad).
+  3. *Target Date*: Text `Input` (`placeholder="YYYY-MM-DD"`) — **confirmed still raw text, not yet migrated to `DateField`**.
   4. *Submit*: Primary `Button` ("New Goal").
 - **UX Strengths**:
   - Clean, concise layout; defaults target currency to wallet base currency.
@@ -223,7 +226,7 @@ Form choices are handled through three standardized patterns:
 - **Location**: [`mobile/src/features/goals/components/AddContributionModal.tsx`](file:///d:/Code/sora/mobile/src/features/goals/components/AddContributionModal.tsx)
 - **Primary Purpose**: Deposit funds toward a savings goal, either purely virtually or linked to an actual account transaction.
 - **Component Breakdown**:
-  1. *Amount*: Decimal-pad `Input`.
+  1. *Amount*: `MoneyInput` (calculator keypad).
   2. *From Account*: `AccountPicker`.
   3. *Record As Expense Checkbox*: Custom Pressable toggle box with Lucide `Check` icon and detailed explanatory helper text.
   4. *Category*: Conditionally rendered `CategoryPicker` (only visible when "Record as expense" is checked).
@@ -263,16 +266,10 @@ The mobile app already contains a polished, theme-compliant calendar in [`DatePi
 └─────────────────────────────────────────────────────────────┘
 ```
 
-1. **`EditTransactionModal` & `AddGoalModal`**:
-   - Replace raw `<Input placeholder="YYYY-MM-DD" />` with an interactive pressable card.
-   - Display localized human-readable date (`formatDay(date)`).
-   - Tapping displays `DatePickerModal`.
-2. **`AddTransactionModal` & `AddContributionModal`**:
-   - Expose an optional "Date" selector row (defaults to "Today").
-   - Allows backdating transactions and historical contributions effortlessly.
-3. **`AddBudgetModal` (Custom Period)**:
-   - When period type is `CUSTOM`, render dual date selectors: **Start Date** and **End Date**.
-   - Validate that `endDate > startDate`.
+1. ✅ **`EditTransactionModal` & `AddTransactionModal`** — done, both use `DateField` → `DatePickerModal` already.
+2. **`AddGoalModal`** — still open. Replace raw `<Input placeholder="YYYY-MM-DD" />` with `DateField` directly (it already exists and both transaction modals prove the pattern out — this should be close to a drop-in swap, not new work).
+3. **`AddContributionModal`** — still open. Add a `DateField` row (defaults to "Today") so past contributions can be backdated.
+4. **`AddBudgetModal` (Weekly & Custom)** — still open, and worse than originally scoped: the `WEEKLY` branch shares the same `addMonths(startDate, 1)` fallback as `CUSTOM` (confirmed at [AddBudgetModal.tsx:66-67](file:///d:/Code/sora/mobile/src/features/budgets/components/AddBudgetModal.tsx#L66-L67)), so "Weekly" doesn't actually create a week-long window either. Needs: a real weekly calculation (`addDays(startDate, 7)`, not `addMonths`), plus dual `DateField`s (Start/End) for `CUSTOM`, with `endDate > startDate` validation.
 
 ### B. Multiselect Integration Roadmap
 Multiselect is currently absent across all modals (everything is strictly single-select). The following high-value areas will significantly elevate UX:
@@ -299,14 +296,17 @@ Multiselect is currently absent across all modals (everything is strictly single
 
 ### Key UX Strengths
 - Consistent slide-up presentation via `BottomSheetModal`.
-- Automatic input formatting for currency and decimal inputs.
+- Calculator-keypad money entry (`MoneyInput`) on every amount field, native keyboard fully suppressed.
+- Tap-to-open calendar (`DateField`) already wired into `AddTransactionModal` and `EditTransactionModal`.
 - First-item auto-selection in account and category pickers.
 - Clear upfront notices on immutable fields and cross-wallet interactions.
 - Accessible touch targets (48px minimum height).
 
-### Immediate Action Items
-1. **Connect `DatePickerModal`**: Eliminate all raw `YYYY-MM-DD` text inputs in `EditTransactionModal` and `AddGoalModal`.
-2. **Support Custom Budget Ranges**: Add start and end date pickers to `AddBudgetModal` when "Custom" period is selected.
-3. **Allow Backdating**: Expose date picker in `AddTransactionModal` and `AddContributionModal`.
-4. **Currency Select Dropdown**: Replace raw 3-letter currency text input in `AddAccountModal` with a standardized currency picker.
-5. **Multi-Category Selection**: Support selecting multiple categories for budget creation.
+### Immediate Action Items — status as of 2026-09-16
+1. ✅ **Connect `DatePickerModal`** in `EditTransactionModal` and `AddTransactionModal` — done.
+   ⬜ Still open for `AddGoalModal` (target date).
+2. ⬜ **Support Custom *and* Weekly Budget Ranges**: `AddBudgetModal` needs a real weekly calc (not `addMonths`) plus start/end date pickers for `CUSTOM`.
+3. ⬜ **Allow Backdating in `AddContributionModal`** — `AddTransactionModal` already has this via its `DateField`.
+4. ⬜ **Currency Select Dropdown**: Replace raw 3-letter currency text input in `AddAccountModal` with a standardized currency picker.
+5. ⬜ **Multi-Category Selection**: Support selecting multiple categories for budget creation.
+6. ⬜ **Collapse duplicate `AccountPicker` blocks** in `AddTransactionModal` (§5.1) — both bound to the same `primaryAccount`/`setPrimaryAccount`, only one ever renders; one conditional block instead of two.

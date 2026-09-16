@@ -3,12 +3,29 @@ import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { BUDGET_PERIOD_TYPES, type BudgetPeriodType } from '@sora/contracts';
 
-import { BottomSheetModal, Button, Input, StateView, Text } from '@/components';
+import { BottomSheetModal, Button, DateField, Input, MoneyInput, StateView, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
 import { useCreateBudgetMutation } from '@/app/store';
 import { messageOf } from '../../../utils/errors';
-import { addMonths, endOfMonth, startOfMonth, today } from '../../../utils/date';
+import { addDays, endOfMonth, startOfMonth, today, type CalendarDay } from '../../../utils/date';
+
+/**
+ * A starting window for a newly-picked period type — a convenience default, not a constraint:
+ * FR-38 treats period type as a descriptive label only, the actual window is whatever start/end
+ * dates the user leaves in place or edits (BUD-US-01).
+ */
+function defaultWindowFor(period: BudgetPeriodType): { startDate: CalendarDay; endDate: CalendarDay } {
+  switch (period) {
+    case 'MONTHLY':
+      return { startDate: startOfMonth(today()), endDate: endOfMonth(today()) };
+    case 'WEEKLY':
+      return { startDate: today(), endDate: addDays(today(), 6) };
+    case 'CUSTOM':
+    default:
+      return { startDate: today(), endDate: today() };
+  }
+}
 
 export interface AddBudgetModalProps {
   visible: boolean;
@@ -25,19 +42,37 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
   const [periodType, setPeriodType] = useState<BudgetPeriodType>('MONTHLY');
+  const [startDate, setStartDate] = useState<CalendarDay>(() => defaultWindowFor('MONTHLY').startDate);
+  const [endDate, setEndDate] = useState<CalendarDay>(() => defaultWindowFor('MONTHLY').endDate);
+  // Once the user edits either date directly, switching the period-type pill stops overwriting
+  // their choice — the pill only pre-fills a sensible starting window, per FR-38.
+  const [datesTouched, setDatesTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const walletId = activeWallet?.id;
 
   useEffect(() => {
     if (visible) {
+      const initialWindow = defaultWindowFor('MONTHLY');
       setName('');
       setCategoryId(null);
       setAmount('');
       setPeriodType('MONTHLY');
+      setStartDate(initialWindow.startDate);
+      setEndDate(initialWindow.endDate);
+      setDatesTouched(false);
       setError(null);
     }
   }, [visible]);
+
+  function handlePeriodTypeChange(next: BudgetPeriodType) {
+    setPeriodType(next);
+    if (!datesTouched) {
+      const window = defaultWindowFor(next);
+      setStartDate(window.startDate);
+      setEndDate(window.endDate);
+    }
+  }
 
   const PERIOD_LABEL: Record<BudgetPeriodType, string> = {
     WEEKLY: t('budgets.weekly', { defaultValue: 'Weekly' }),
@@ -62,9 +97,10 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
       return;
     }
     if (walletId === undefined) return;
-
-    const startDate = startOfMonth(today());
-    const endDate = periodType === 'MONTHLY' ? endOfMonth(today()) : addMonths(startDate, 1);
+    if (endDate < startDate) {
+      setError(t('budgets.endBeforeStartError', { defaultValue: 'End date cannot be before start date.' }));
+      return;
+    }
 
     try {
       await createBudget({
@@ -100,7 +136,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
           onChange={setCategoryId}
         />
 
-        <Input testID="add-budget-amount" label={t('transactions.amount', { defaultValue: 'Amount' })} keyboardType="decimal-pad" value={amount} onChangeText={setAmount} />
+        <MoneyInput testID="add-budget-amount" label={t('transactions.amount', { defaultValue: 'Amount' })} value={amount} onChangeValue={setAmount} />
 
         <View style={{ gap: theme.spacing.sm }}>
           <Text variant="label" tone="muted">
@@ -113,9 +149,34 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
                 label={PERIOD_LABEL[candidate]}
                 size="sm"
                 variant={periodType === candidate ? 'primary' : 'secondary'}
-                onPress={() => setPeriodType(candidate)}
+                onPress={() => handlePeriodTypeChange(candidate)}
               />
             ))}
+          </View>
+        </View>
+
+        <View className="flex-row" style={{ gap: theme.spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <DateField
+              testID="add-budget-start-date"
+              label={t('budgets.startDate', { defaultValue: 'Start date' })}
+              value={startDate}
+              onChange={(day) => {
+                setStartDate(day);
+                setDatesTouched(true);
+              }}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <DateField
+              testID="add-budget-end-date"
+              label={t('budgets.endDate', { defaultValue: 'End date' })}
+              value={endDate}
+              onChange={(day) => {
+                setEndDate(day);
+                setDatesTouched(true);
+              }}
+            />
           </View>
         </View>
 
