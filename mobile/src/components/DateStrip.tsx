@@ -5,9 +5,9 @@ import { useTheme } from '@/app/providers';
 import { addDays, monthName, parseDay, today, type CalendarDay } from '../utils/date.ts';
 import { Text } from './Text.tsx';
 
-const CELL_LAYOUT = LinearTransition.springify().damping(18).stiffness(220);
-const CELL_ENTERING = FadeIn.duration(180);
-const CELL_EXITING = FadeOut.duration(120);
+const CELL_LAYOUT = LinearTransition.springify().damping(26).stiffness(220);
+const CELL_ENTERING = FadeIn.duration(200);
+const CELL_EXITING = FadeOut.duration(150);
 
 export interface DateStripProps {
   selectedDay: CalendarDay;

@@ -100,6 +100,7 @@ export function TransactionListScreen({
           error={transactions.error}
           retryAction={() => void transactions.refetch()}
           testID={`${testIDPrefix}-error`}
+          entrance="none"
         />
       );
     }
@@ -117,6 +118,7 @@ export function TransactionListScreen({
             icon: Plus,
           }}
           testID={`${testIDPrefix}-empty`}
+          entrance="none"
         />
       );
     }
@@ -170,7 +172,12 @@ export function TransactionListScreen({
         <Animated.View
           key={selectedDay}
           style={{ flex: 1 }}
-          entering={(slideDirectionRef.current === 'forward' ? SlideInRight : SlideInLeft).duration(240)}
+          // Same spring as DateStrip's own cell transition (damping/stiffness, not a fixed
+          // duration), so the content underneath moves with the same physics as the strip above it.
+          entering={(slideDirectionRef.current === 'forward' ? SlideInRight : SlideInLeft)
+            .springify()
+            .damping(26)
+            .stiffness(220)}
           exiting={FadeOut.duration(150)}
         >
           {renderContent()}

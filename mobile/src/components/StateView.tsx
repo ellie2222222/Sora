@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react-native';
 import { Inbox, Info, Search, TriangleAlert } from 'lucide-react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
@@ -29,6 +30,13 @@ export interface StateViewProps {
   secondaryAction?: StateViewAction;
   retryAction?: () => void;
   testID?: string;
+  /**
+   * 'bounce' (default) fades and springs up from below — a screen's first appearance.
+   * 'none' renders with no entrance animation of its own, for a state view sitting inside content
+   * that already has its own transition (e.g. a container that slides per date navigation) —
+   * animating here too would double up on top of that transition.
+   */
+  entrance?: 'bounce' | 'none';
 }
 
 const VARIANT_ICON: Record<StateViewVariant, LucideIcon> = {
@@ -59,6 +67,7 @@ export function StateView({
   secondaryAction,
   retryAction,
   testID,
+  entrance = 'bounce',
 }: StateViewProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -114,17 +123,16 @@ export function StateView({
   const resolvedIconColor =
     iconColor ?? (variant === 'error' ? theme.colors.danger : theme.colors.primary);
 
-  return (
-    <SlideUp
-      testID={testID}
-      style={{
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: theme.spacing.xxl,
-        gap: theme.spacing.sm,
-      }}
-    >
+  const containerStyle = {
+    flex: 1,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    padding: theme.spacing.xxl,
+    gap: theme.spacing.sm,
+  };
+
+  const content = (
+    <>
       <AnimatedIcon
         icon={Icon}
         size={42}
@@ -166,6 +174,20 @@ export function StateView({
           testID={testID !== undefined ? `${testID}-secondary-action` : undefined}
         />
       ) : null}
+    </>
+  );
+
+  if (entrance === 'none') {
+    return (
+      <View testID={testID} style={containerStyle}>
+        {content}
+      </View>
+    );
+  }
+
+  return (
+    <SlideUp testID={testID} style={containerStyle}>
+      {content}
     </SlideUp>
   );
 }
