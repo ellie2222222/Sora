@@ -2,11 +2,20 @@
 
 **Sora — wallet-model finance tracker**
 
-**Last reconciled against code: 2026-08-25.** This revision replaces one written for the
+**Last reconciled against code: 2026-09-16.** This revision replaces one written for the
 superseded *workspace* model (FastAPI + SQLAlchemy + React, two roles, multi-currency
 conversion, budget approval, bills, tag-based goal tracking). None of that exists in this
 codebase. See [SRS.md §10](SRS.md#10-migration-note-v1--v2) for the full v1→v2 change list this
 document now follows.
+
+**2026-09-16 reconciliation note:** four areas had drifted from the code since the previous
+reconciliation and are corrected in this revision — the dashboard's optional currency-conversion
+feature ([§4.5](#45-exchange-rate--dashboard-valuation), landed without a spec update; see
+[SRS.md BR-16](SRS.md#4-business-rules)), the mobile navigation and state-management architecture
+([§3.2](#32-screens), [§4.1](#41-high-level-architecture-diagram)), a previously-undocumented
+guest/offline-first mode and offline mutation queue ([§4.3](#43-guest--anonymous-mode),
+[§4.4](#44-offline-mutation-queue)), and the invitation preview/accept routes, which are
+implemented and no longer a gap ([§5.2](#52-endpoints-by-feature)).
 
 ---
 
@@ -58,9 +67,13 @@ contract, or the API specification, **those three win** (see [§1.5](#15-related
 - Detailed implementation code (read the source)
 - Deployment and operational procedures (`RUNBOOK.md`)
 - Infrastructure as code
-- Multi-currency conversion, budget approval workflows, bills/reminders, and report
-  export — all withdrawn or retired in the v1→v2 pivot ([SRS.md §10](SRS.md#10-migration-note-v1--v2));
-  do not reintroduce them here without a corresponding SRS change first
+- Budget approval workflows, bills/reminders, and report export — all withdrawn or retired in
+  the v1→v2 pivot ([SRS.md §10](SRS.md#10-migration-note-v1--v2)); do not reintroduce them here
+  without a corresponding SRS change first
+- Cross-currency **transfer**, and currency conversion as a stored or authoritative figure, remain
+  out of scope — a transaction is always recorded in its own account's currency, full stop. The
+  dashboard's own optional, read-only, approximate converted total ([§4.5](#45-exchange-rate--dashboard-valuation))
+  is a narrow, explicitly-scoped exception, not a reopening of general multi-currency conversion
 
 ### 1.3 Assumptions and Constraints
 
@@ -79,8 +92,12 @@ contract, or the API specification, **those three win** (see [§1.5](#15-related
 
 **Constraints:**
 
-- Single currency per account/transaction/budget/goal; **no cross-currency conversion** in v1
-  ([BR-13](SRS.md#4-business-rules)) — a wallet holding two currencies reports two totals, never one
+- Single currency per account/transaction/budget/goal; **no cross-currency conversion of any
+  stored or authoritative figure** ([BR-13](SRS.md#4-business-rules)) — a wallet holding two
+  currencies reports two totals, never one. The one exception is a dashboard's own optional,
+  read-only, approximate converted total ([BR-16](SRS.md#4-business-rules),
+  [§4.5](#45-exchange-rate--dashboard-valuation)), which is never stored and never feeds back into
+  a balance, budget, or goal calculation
 - Wallet isolation is enforced at the service layer (role checks) **and** partially at the
   database layer (`uq_wallet_single_owner`, the budget-overlap exclusion constraint) — not by
   Postgres row-level security
@@ -126,8 +143,8 @@ Flyway or Alembic — neither is used here).
 
 ## 2. Technical Domain Model (TDM)
 
-**Last synced with the schema: 2026-08-25** (`db/migrations/001_initial_wallet_schema.sql`,
-`002_google_auth_and_preferences.sql`).
+**Last synced with the schema: 2026-09-16** (`db/migrations/001_initial_wallet_schema.sql`,
+`002_google_auth_and_preferences.sql`, `003_exchange_rate_snapshots.sql`).
 
 ### 2.0 Domain Model Diagram
 
@@ -257,7 +274,19 @@ erDiagram
         string token_hash UK
         timestamptz revoked_at "nullable"
     }
+    EXCHANGE_RATE_SNAPSHOT {
+        uuid id PK
+        date snapshot_date
+        string base_currency
+        jsonb rates
+        string source
+        timestamptz fetched_at
+    }
 ```
+
+`EXCHANGE_RATE_SNAPSHOT` has no FK to any other table and no entry in SRS's CDM deliberately — it
+is infrastructure supporting one derived, read-only figure ([§4.5](#45-exchange-rate--dashboard-valuation)),
+not a business entity anyone creates, edits, or is scoped to a wallet by.
 
 There is deliberately no entity above WALLET. A transaction's own wallet is **derived**, not
 stored — `TRANSACTION` has no `wallet_id` column, because a cross-wallet transfer belongs to two
@@ -279,6 +308,7 @@ wallets at once and a single FK could only name one of them ([BR-03](SRS.md#4-bu
 | GoalContribution | `goal_contributions` | `transaction_id` is nullable **and** unique — nullable because an earmark backs nothing, unique because one payment cannot fund two goals |
 | AuditLog | `audit_logs` | Append-only by convention: no update/delete path exists in the API |
 | — | `refresh_tokens` | Hash-only; `revoked_at` implements single-use-and-rotated, not a separate blacklist table |
+| — | `exchange_rate_snapshots` | No SRS entity — a daily rate cache/fallback for the dashboard's optional converted total ([BR-16](SRS.md#4-business-rules), [§4.5](#45-exchange-rate--dashboard-valuation)); `uq_exchange_rate_snapshot_date_currency` keeps at most one row per date+currency |
 
 ### 2.2 Layer Composition
 
@@ -322,10 +352,12 @@ work only (`webpage/PARKED.md`) and is not part of this UI.
 
 ### 3.1 UI/UX Principles
 
-**Recording is the primary path** ([SRS §6.1](SRS.md#61-recording-is-the-primary-path)) — the
-bottom tab bar's center action is "Add," not a fifth destination among equals; the amount field
-is focused first and takes a numeric keypad; the form never asks for a currency (the account
-determines it) or an exchange rate (v1 has none).
+**Recording is the primary path** ([SRS §6.1](SRS.md#61-recording-is-the-primary-path)) — adding a
+transaction/budget/goal is a `ModalProvider` modal reachable from the screen the user is already
+on (the dashboard, the transaction list, Planning), not a separate destination to navigate to
+first; the amount field is focused first and takes the app's calculator-style money keypad
+(`MoneyInput`); the form never asks for a currency (the account determines it) or an exchange rate
+(recording is never converted — [§4.5](#45-exchange-rate--dashboard-valuation) is dashboard-only).
 
 **Roles are visible, not discovered by failure** ([SRS §6.3](SRS.md#63-roles-are-visible-not-discovered-by-failure))
 — a VIEWER's screens render with no editing affordances at all, rather than buttons that produce
@@ -354,18 +386,36 @@ Real screens under `mobile/src/features/*/screens/`, grouped by feature:
 | Feature | Screens |
 | --- | --- |
 | Dashboard | `HomeScreen` |
-| Transactions | `TransactionsScreen`, `AddTransactionScreen`, `TransactionDetailScreen` |
-| Budgets | `BudgetsScreen`, `AddBudgetScreen`, `BudgetDetailScreen` |
-| Goals | `GoalsScreen`, `AddGoalScreen`, `GoalDetailScreen`, `AddContributionScreen` |
-| Accounts | `AddAccountScreen`, `AccountDetailScreen` |
+| Planning | `PlanningScreen` (a segmented Budgets/Goals list; there is no separate `BudgetsScreen`/`GoalsScreen`) |
+| Reports | `ReportScreen` (a read-only monthly/yearly view over the dashboard's own derived figures — see the note below; not report generation/export, which stays out of scope per [SRS.md §1.6](SRS.md#16-out-of-scope)) |
+| Transactions | `TransactionsScreen` (list; add/detail are `ModalProvider` modals, not screens — see below) |
+| Accounts | `AccountsScreen` (list + net worth), `AccountDetailScreen` |
 | Categories | `CategoryListScreen` |
-| Wallets | `WalletListScreen`, `WalletDetailScreen`, `WalletMembersScreen`, `InviteMemberScreen` |
+| Wallets | `WalletListScreen`, `WalletDetailScreen`, `WalletMembersScreen`, `WalletActivityScreen` (the audit trail, `WAL-US-13`, owner-only), `InviteMemberScreen` |
 | Auth | `LoginScreen`, `RegisterScreen`, `AcceptInvitationScreen` |
+| Guest | `GuestUploadScreen` — the wallet-choice/upload-progress screen for [GST-US-02](SRS.md#gst-us-02-bring-my-guest-data-into-a-real-wallet); rendered in place of the normal app by `RootNavigator` whenever local guest data is pending upload |
 | Settings | `SettingsScreen` |
 
-**Bottom tab bar** (`MainTabNavigator`) — five tabs, center one an action rather than a
-destination: **Home | Transactions | + (Add) | Budgets | Goals**. Accounts, categories, wallet
-management and settings are reached from within these, not from the tab bar itself.
+Creating a transaction, budget, goal, contribution, or account is a `BottomSheetModal` opened via
+`ModalProvider.openModal(...)`, not a navigator screen — `AddTransactionScreen`,
+`AddBudgetScreen`, `AddGoalScreen`, `AddContributionScreen`, `BudgetsScreen` and `GoalsScreen`
+(named in an earlier revision of this document) do not exist; that navigation shape was replaced
+by the modal pattern plus `PlanningScreen`.
+
+**Bottom tab bar** (`MainTabNavigator`, a fully custom `CustomTabBar` with an animated sliding
+indicator, not the default React Navigation tab bar) — five destinations, none of them an "Add"
+action: **Home | Account | Planning | Report | Settings**. There is no center "+" tab; recording a
+transaction/budget/goal is reached from within a screen via `ModalProvider`. Wallet management,
+categories, and invitations are reached from within Account/Settings, not from the tab bar
+itself.
+
+**`ReportScreen` is a dashboard view, not a report generator.** It renders two periods (monthly,
+yearly) purely from `useGetDashboardSummaryQuery` — the same derived, computed-on-read figures
+[DASH-US-01](SRS.md#dash-us-01-read-a-wallets-dashboard) describes — plus a short, fixed list of
+plain-language observations computed client-side from that same response (e.g. "biggest expense
+category changed by X%"). There is no export, no file generation, and nothing here is stored; it
+does not reopen the "report generation" item [SRS.md §1.6](SRS.md#16-out-of-scope) still lists as
+out of scope.
 
 **Form patterns** — a destructive-looking action (archiving a wallet, revoking a member,
 cancelling a transaction) confirms first and states the consequence rather than asking "are you
@@ -382,7 +432,11 @@ currency, a transaction's amount) renders disabled with the reason shown, never 
 ┌─────────────────────────────────────────────────────────┐
 │              Mobile client (Expo / React Native)         │
 │  features/, navigation/, providers/ (auth, theme, locale, │
-│  wallet), TanStack Query + Zustand                        │
+│  wallet). Server state: Redux Toolkit + RTK Query          │
+│  (apiSlice). Local-only state: a Redux offlineQueueSlice   │
+│  (§4.4) and a local-first guest data layer (§4.3).         │
+│  TanStack Query is present but has no active query/        │
+│  mutation call site — see §4.1 note below.                 │
 └────────────────────┬───────────────────────────────────── ┘
                      │ HTTP/REST, JWT Bearer, envelope {success,data,meta}
                      ▼
@@ -390,20 +444,32 @@ currency, a transaction's amount) renders disabled with the reason shown, never 
 │                  API (NestJS 11, ESM)                     │
 │  Routes: /api/v1/auth, /api/v1/wallets, /api/v1/accounts,  │
 │  /api/v1/categories, /api/v1/transactions, /api/v1/budgets,│
-│  /api/v1/goals, /api/v1/dashboard, /api/v1/wallets/{id}/…  │
-└────────────────────┬───────────────────────────────────── ┘
-                     │ Kysely (typed SQL, no ORM)
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│                    PostgreSQL 17                          │
-│  wallets, wallet_members, wallet_invitations, accounts,    │
-│  categories, transactions, budgets, goals,                 │
-│  goal_contributions, audit_logs, refresh_tokens, users     │
-└─────────────────────────────────────────────────────────┘
+│  /api/v1/goals, /api/v1/dashboard, /api/v1/invitations,    │
+│  /api/v1/wallets/{id}/…                                    │
+└────────────────────┬──────────────────────┬───────────── ┘
+                     │ Kysely (typed SQL)     │ HTTPS
+                     ▼                        ▼
+┌─────────────────────────────────┐ ┌─────────────────────┐
+│           PostgreSQL 17          │ │ open.er-api.com      │
+│  wallets, wallet_members, ...,    │ │ (exchange rates,     │
+│  exchange_rate_snapshots (§4.5)   │ │ §4.5, dashboard-only)│
+└─────────────────────────────────┘ └─────────────────────┘
 ```
 
 No cache layer, no message queue, no separate token-blacklist store — revocation is the
-`refresh_tokens.revoked_at` column.
+`refresh_tokens.revoked_at` column. The one outbound call the API makes to another service is the
+exchange-rate provider in §4.5, and only when a dashboard request asks for a converted total.
+
+**State-management note:** `mobile/package.json` does not depend on `zustand` — all real
+server-state fetching/mutation goes through Redux Toolkit's RTK Query (`apiSlice`, 9 resource
+slices, ~37 generated hooks: `useListTransactionsQuery`, `useCreateTransactionMutation`, etc.),
+wired through a custom `axiosBaseQuery` so the existing bearer-attach/refresh-on-401 axios
+interceptors stay the one implementation. `@tanstack/react-query` is a real dependency and one
+`QueryClient` is provided app-wide (`QueryProvider`), but no screen calls its `useQuery`/
+`useMutation` — its only live use today is `.clear()`, called on logout and on guest-mode
+transitions, which is presently a no-op on an always-empty cache. Treat TanStack Query as
+reserved/vestigial in this codebase, not as the server-state layer, until something actually
+populates it.
 
 **Auth flow:**
 
@@ -466,6 +532,102 @@ TransactionsController.create:
 A cross-wallet transfer (`TXN-US-04`) follows the same shape with `type: "TRANSFER"`, no
 `categoryId`, and the guard requiring EDITOR on **both** accounts' wallets rather than one.
 
+### 4.3 Guest / anonymous mode
+
+Realizes [SRS.md GST-US](SRS.md#feature-gst-us--guest-mode) / [Flow §8.10](SRS.md#810-trying-the-app-as-a-guest-then-keeping-the-data).
+Entirely client-side — no server route is involved until a guest chooses to upload.
+
+- **Entry:** `LoginScreen`'s "continue as guest" calls `AuthProvider.enterGuestMode()`, which seeds
+  a local starter dataset (`services/guest/guestSeed.ts`) and persists a `GUEST_MODE_STORAGE_KEY`
+  flag. `isGuest` is mirrored into Redux so RTK Query's `queryFn` endpoints can branch guest vs.
+  real state the same way React consumers do.
+- **Local data layer:** `services/guest/guest{Accounts,Budgets,Categories,Dashboard,Goals,
+  Transactions,Wallets}.ts` reimplement each resource's read/write shape against local storage
+  instead of the API — including `guestDashboard.ts`'s own same-currency-only valuation branch
+  (see [§4.5](#45-exchange-rate--dashboard-valuation)'s note on this being one of three places that
+  construct a `ConvertedValuation`-shaped result). Local ids come from `expo-crypto`'s
+  `randomUUID()`, registered as a side effect at app startup (`guestRuntime.ts`).
+- **Upload on real sign-in:** `AuthProvider`'s `pendingGuestUpload` becomes true whenever local
+  guest data exists and the user is not (or no longer) a guest. `RootNavigator` renders
+  `GuestUploadScreen` in place of the normal app until it resolves. `services/guest/
+  guestUpload.ts` sequences the upload in FK order — categories → accounts → transactions →
+  budgets → goals/contributions → archived-item cleanup — persisting a local-id→server-id map in
+  guest storage after each phase so an interrupted upload resumes rather than repeats
+  ([GST-US-02](SRS.md#gst-us-02-bring-my-guest-data-into-a-real-wallet)'s idempotency requirement).
+  A contribution recorded with a backing transaction uploads through exactly one call
+  (`goalsApi.addContribution({recordAsTransaction: true, ...})`), never duplicated through the
+  plain transactions phase.
+- **Exit without uploading:** `exitGuestModeToAuth()` drops back to the auth stack without
+  discarding local data, so declining to upload immediately still offers the same choice later.
+
+### 4.4 Offline mutation queue
+
+Backs the reliability requirement in [SRS.md §5](SRS.md#5-non-functional-considerations)
+("An entry made while the device has no connectivity is held locally..."). Distinct from guest
+mode (§4.3): this queues a **signed-in** user's mutations made while offline, for replay against
+the real API — it is not a second local dataset.
+
+- **State mirror:** `offlineQueueSlice` (Redux) is a read-only reactive mirror of the queue's
+  SQLite rows, not a second source of truth — the rows themselves live in `offlineQueueDb.ts`
+  (`expo-sqlite`). Selectors include `selectPendingCount` and `selectQueueEntryFor(entity,
+  localId)`, which drives the per-row sync-status indicator shown on list screens (`PlanningScreen`,
+  `AccountsScreen`).
+- **Lifecycle:** an `OfflineQueue` class (`services/sync/offlineQueue.ts`) enqueues a mutation as
+  `pending`, transitions it through `syncing` → `synced`/`failed`/`conflict` as it's replayed.
+  `startSyncEngine(store)` runs from app startup and is re-triggered on reconnect
+  (`NetworkStatusProvider`'s retry callback).
+- **Aggregate status** (`selectSyncStatus`) prioritizes a live sync pass over a stale failure, and
+  a failure over a merely-queued row — the ordering a user actually needs to see first.
+
+### 4.5 Exchange-rate & dashboard valuation
+
+Realizes [SRS.md BR-16](SRS.md#4-business-rules) / [DASH-US-03](SRS.md#dash-us-03-see-an-approximate-total-in-one-currency).
+**Dashboard-only** — `GET /dashboard?displayCurrency=XXX` (`dashboardQuerySchema`) is the sole
+trigger; no other endpoint calls this module, and omitting `displayCurrency` omits the `valuation`
+field entirely rather than sending `null`.
+
+- **Module:** `ExchangeRateService` (`server/src/exchange-rate/`), a plain NestJS provider,
+  `@Optional()`-injected with the database so it degrades (no stale-fallback, no historical lookup)
+  when no database is available, e.g. in most unit tests.
+- **Rate source:** a live fetch to `open.er-api.com` (no API key required), one base currency per
+  request; the response gives `rates[C]` as the price of 1 base-currency unit in currency `C`.
+  Configured by `EXCHANGE_RATE_API_URL`, `EXCHANGE_RATE_TIMEOUT_SECONDS` (default 5s),
+  `EXCHANGE_RATE_CACHE_TTL_MINUTES` (default 720 = 12h) — all three validated/defaulted in
+  `server/src/config/env.ts` at boot, per this repo's env.ts-is-truth convention.
+- **Freshness model** (`ValuationStatus`: `FRESH` / `STALE` / `UNAVAILABLE`, `packages/contracts/
+  src/enums.ts`) — an in-memory cache serves `FRESH` within the TTL; a failed live fetch falls back
+  first to an expired cache entry, then to the most recent row in `exchange_rate_snapshots`
+  (§2.0), marking the result `STALE` either way; no cache and no snapshot is `UNAVAILABLE`.
+  Requesting all currencies already matching the target currency short-circuits to an exact sum
+  with no fetch at all (`isApproximate: false`).
+- **All-or-nothing conversion:** if any currency actually contributing a non-zero balance has no
+  usable rate, the whole valuation is `UNAVAILABLE` with `missingCurrencies` listed — never a
+  partial sum that silently dropped a currency it couldn't convert.
+- **Arithmetic:** the rate itself passes through one `Math.round` on a JS float (rates arrive as
+  JSON numbers), but the amount conversion after that is bigint-scaled (`RATE_PRECISION_SCALE =
+  10^8`), matching this codebase's money rule everywhere else money is computed.
+- **Daily snapshots:** every successful live fetch fires-and-forgets an idempotent upsert into
+  `exchange_rate_snapshots` (§7), keyed by `(snapshot_date, base_currency)` and derived from the
+  provider's own `time_last_update_utc`, not wall-clock request time — enabling the stale-fallback
+  above and a historical-rate lookup path (`getHistoricalRates`) that is implemented and tested but
+  **not currently reachable from any request** (no schema field passes a historical date through).
+- **Known inconsistency, not yet reconciled:** two other code paths independently construct a
+  `ConvertedValuation`-shaped result without calling this service — an inline same-currency-only
+  branch in the wallet-detail response path, and `mobile/src/services/guest/guestDashboard.ts`'s
+  offline mirror (§4.3). Both can only ever report `FRESH` (all one currency) or `UNAVAILABLE`
+  (mixed currencies); neither can produce a real converted `FRESH` amount or a `STALE` one, since
+  neither talks to `ExchangeRateService`. Worth consolidating if a second real conversion consumer
+  is ever added.
+- **`VALUATION_UNAVAILABLE` (503)** is a defined `ErrorCode`/status mapping ([§6.2](#62-error-response-catalog))
+  that **no server code path currently throws** — today, an unavailable valuation is signaled
+  in-band via `ConvertedValuation.status === 'UNAVAILABLE'` inside an ordinary `200` response, not
+  via this error. Treat the error code as reserved until something actually raises it, not as
+  evidence of a second failure path to handle.
+- **Mobile UI:** none yet. Full i18n coverage exists for valuation copy (`valuation.*`,
+  `dashboard.convertedTotal`, etc. in `en.ts`/`vi.ts`) but no screen currently renders a converted
+  total, a currency selector, or a stale/unavailable indicator — this is API-and-contract-complete,
+  UI-pending.
+
 ---
 
 ## 5. API Specification
@@ -492,7 +654,8 @@ Method/path/minimum-role only — see [§6.1](#61-api-index) for the complete li
 | Feature | Controller | Base path |
 | --- | --- | --- |
 | Auth & session | `AuthController` | `/auth/*` |
-| Wallets, members, invitations, audit | `WalletsController` | `/wallets/*` |
+| Wallets, members, invitations (create/revoke), audit | `WalletsController` | `/wallets/*` |
+| Invitation preview & accept | `InvitationsController` | `/invitations/*` |
 | Accounts | `AccountsController` | `/accounts` |
 | Categories | `CategoriesController` | `/categories` |
 | Transactions | `TransactionsController` | `/transactions` |
@@ -501,14 +664,12 @@ Method/path/minimum-role only — see [§6.1](#61-api-index) for the complete li
 | Dashboard | `DashboardController` | `/dashboard` |
 | Health | `HealthController` | `/health` |
 
-**Known gap:** `POST /invitations/preview` and `POST /invitations/accept` are defined in
-`ROUTES.invitations` (`@sora/contracts`) and specified in detail in
-`docs/API_SPECIFICATION.md` §8.4–8.5, corresponding to
+`POST /invitations/preview` (public) and `POST /invitations/accept` (authed) are implemented by
+`InvitationsController` (`server/src/wallets/invitations.controller.ts`), realizing
 [WAL-US-04](SRS.md#wal-us-04-preview-an-invitation-before-committing) and
-[WAL-US-05](SRS.md#wal-us-05-accept-an-invitation) — but **no controller implements either route**
-(verified: neither path appears in any `@Get`/`@Post`/`@Patch`/`@Delete` decorator under
-`server/src`). An invitation can currently be created and revoked (`WalletsController`), but not
-previewed or accepted through the API. See [§8](#8-feature-implementation-mapping).
+[WAL-US-05](SRS.md#wal-us-05-accept-an-invitation) — both routes live at the top-level
+`/invitations/*` path (`ROUTES.invitations`), not nested under `/wallets/{id}/...` like the rest
+of this feature's routes. See [§8](#8-feature-implementation-mapping).
 
 ---
 
@@ -516,11 +677,8 @@ previewed or accepted through the API. See [§8](#8-feature-implementation-mappi
 
 ### 6.1 API Index
 
-The actually-implemented endpoints (verified against every `@Controller` in `server/src`, 2026-08-25)
-— 50 routes. This supersedes `docs/API_SPECIFICATION.md` §3's index table, which still lists the
-two unimplemented invitation routes ([§5.2](#52-endpoints-by-feature)) and predates the Google-auth
-and preferences endpoints added in migration 002; that table is a documentation-maintenance gap
-in that file, not a code issue, and is out of this document's authority to fix.
+The actually-implemented endpoints (verified against every `@Controller` in `server/src`, 2026-09-16)
+— 52 routes.
 
 | Method | Path | Min role | Controller |
 | --- | --- | --- | --- |
@@ -532,6 +690,8 @@ in that file, not a code issue, and is out of this document's authority to fix.
 | POST | `/auth/logout` | authed | `AuthController` |
 | GET | `/auth/me` | authed | `AuthController` |
 | PATCH | `/auth/me/preferences` | authed | `AuthController` |
+| POST | `/invitations/preview` | public | `InvitationsController` |
+| POST | `/invitations/accept` | authed | `InvitationsController` |
 | GET | `/wallets` | authed | `WalletsController` |
 | POST | `/wallets` | authed | `WalletsController` |
 | GET | `/wallets/{id}` | VIEWER | `WalletsController` |
@@ -625,6 +785,7 @@ grouped here for readability only.
 | `RATE_LIMITED` | 429 | Auth rate limit or per-email lockout |
 | `INTERNAL_ERROR` | 500 | Unexpected |
 | `GOOGLE_TOKEN_INVALID` | 401 | Google ID token failed verification |
+| `VALUATION_UNAVAILABLE` | 503 | Reserved for the dashboard's converted-total feature ([§4.5](#45-exchange-rate--dashboard-valuation)) — defined and status-mapped, but not currently thrown by any code path; an unavailable conversion is reported in-band today (`valuation.status === 'UNAVAILABLE'` in a normal `200`), not as this error |
 
 ---
 
@@ -632,9 +793,10 @@ grouped here for readability only.
 
 **The migration files are the schema.** This section is a readable summary; it is not copied
 DDL, so it cannot itself drift from what `node scripts/migrate.mjs` actually applies — read
-[`001_initial_wallet_schema.sql`](db/migrations/001_initial_wallet_schema.sql) and
-[`002_google_auth_and_preferences.sql`](db/migrations/002_google_auth_and_preferences.sql) for
-exact column types, defaults and constraint definitions.
+[`001_initial_wallet_schema.sql`](db/migrations/001_initial_wallet_schema.sql),
+[`002_google_auth_and_preferences.sql`](db/migrations/002_google_auth_and_preferences.sql), and
+[`003_exchange_rate_snapshots.sql`](db/migrations/003_exchange_rate_snapshots.sql) for exact
+column types, defaults and constraint definitions.
 
 **Tables (001):** `users`, `refresh_tokens`, `wallets`, `wallet_members`, `wallet_invitations`,
 `accounts`, `categories`, `transactions`, `budgets`, `goals`, `goal_contributions`, `audit_logs`.
@@ -642,6 +804,12 @@ exact column types, defaults and constraint definitions.
 **Migration 002** makes `users.password_hash` nullable, adds `google_id` (unique where not null),
 `theme` and `locale`, and adds `chk_user_has_credential` — a row must have a password **or** a
 Google id, never neither.
+
+**Migration 003** adds `exchange_rate_snapshots` (§2.0) — one row per `(snapshot_date,
+base_currency)`, storing the provider's full `rates` object as `jsonb`, `source` and `fetched_at`.
+Supports the dashboard's optional converted total ([§4.5](#45-exchange-rate--dashboard-valuation));
+not referenced by `check-contract-parity.mjs`, since it backs a computed response field
+(`ValuationStatus`) rather than a `CHECK`-constrained enum column.
 
 **Constraints load-bearing enough that a service-layer check alone would not be safe to rely on:**
 
@@ -652,6 +820,7 @@ Google id, never neither.
 | `chk_transaction_shape` | `transactions` | A row whose account/category combination doesn't match its `type` (e.g. a `TRANSFER` with a `category_id`, or an `INCOME` with a `from_account_id`) |
 | `uq_wallet_invitation_open` | `wallet_invitations` | Two live (unaccepted, unrevoked) invitations for the same wallet+email |
 | `chk_user_has_credential` | `users` | A row with neither a password nor a Google identity — unable to authenticate through any path |
+| `uq_exchange_rate_snapshot_date_currency` | `exchange_rate_snapshots` | Two snapshot rows for the same date and base currency — the invariant the daily-upsert relies on |
 
 **No `deleted_at` column exists anywhere.** Archival is a `status` value; the one true row-level
 deletion in the schema is `goal_contributions`, where `SAV-US-05` removes the row outright
@@ -661,7 +830,7 @@ deletion in the schema is `goal_contributions`, where `SAV-US-05` removes the ro
 
 ## 8. Feature Implementation Mapping
 
-Full traceability, all 46 stories from [SRS.md §9](SRS.md#9-features--user-stories). "Controller"
+Full traceability, all 49 stories from [SRS.md §9](SRS.md#9-features--user-stories). "Controller"
 names the file whose HTTP surface realizes the story; this table is checked against the real
 `@Controller`/`@Get`/`@Post`/etc. decorators listed in [§6.1](#61-api-index), not against prose —
 regenerate it from the controllers, not from memory, the next time either drifts.
@@ -686,8 +855,8 @@ ahead of an SRS update for them.
 | WAL-US-01 | Create a wallet | `POST /wallets` |
 | WAL-US-02 | See every wallet I can reach | `GET /wallets` |
 | WAL-US-03 | Invite someone by email | `POST /wallets/{id}/invitations` |
-| WAL-US-04 | Preview an invitation before committing | **Not implemented** — spec'd (`docs/API_SPECIFICATION.md` §8.4, `ROUTES.invitations.preview`), no controller route exists ([§5.2](#52-endpoints-by-feature)) |
-| WAL-US-05 | Accept an invitation | **Not implemented** — same gap (`ROUTES.invitations.accept`, API spec §8.5) |
+| WAL-US-04 | Preview an invitation before committing | `POST /invitations/preview` (public) — `InvitationsController` |
+| WAL-US-05 | Accept an invitation | `POST /invitations/accept` (authed) — `InvitationsController` |
 | WAL-US-06 | Revoke an open invitation | `DELETE /wallets/{id}/invitations/{invitationId}` |
 | WAL-US-07 | See who can see this money | `GET /wallets/{id}/members` |
 | WAL-US-08 | Change a member's role | `PATCH /wallets/{id}/members/{memberId}` |
@@ -755,8 +924,17 @@ ahead of an SRS update for them.
 | --- | --- | --- |
 | DASH-US-01 | Read a wallet's dashboard | `GET /dashboard` |
 | DASH-US-02 | Compare the wallets I follow | `GET /wallets` (per-wallet balances) + client-side composition — there is no dedicated multi-wallet-comparison endpoint |
+| DASH-US-03 | See an approximate total in one currency | `GET /dashboard?displayCurrency=XXX` — `DashboardController`, `ExchangeRateService` ([§4.5](#45-exchange-rate--dashboard-valuation)); mobile UI not yet built (API/contract-complete only) |
 
-**Total: 46 stories, 44 realized, 2 not yet implemented** (WAL-US-04, WAL-US-05 — see above).
+### GST-US — Guest Mode
+
+| Story | Title | Realized by |
+| --- | --- | --- |
+| GST-US-01 | Try the app without an account | Client-only — `AuthProvider.enterGuestMode()`, `services/guest/*` ([§4.3](#43-guest--anonymous-mode)); no server route |
+| GST-US-02 | Bring my guest data into a real wallet | Client-only — `GuestUploadScreen`, `services/guest/guestUpload.ts` ([§4.3](#43-guest--anonymous-mode)), sequenced through the ordinary create endpoints for each resource |
+
+**Total: 49 stories, all realized** — DASH-US-03's mobile UI is the one open item, tracked in
+[§4.5](#45-exchange-rate--dashboard-valuation)'s "Mobile UI" note.
 
 ---
 

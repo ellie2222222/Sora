@@ -247,8 +247,7 @@ Read only the section a change actually touches; these documents are large.
 | Schema change | the migration, then `plans/architecture/domain-database-design.md` |
 | Architecture or sequence-flow question | `SDS.md` §4 |
 
-`SRS.md` and `SDS.md` still describe the removed sharing layer in places; they are being
-reconciled separately. **Where they disagree with the migration, the contract, or the API
+**Where SRS.md or SDS.md disagree with the migration, the contract, or the API
 specification, the latter three win** — and fix the narrative document rather than coding to it.
 
 There is deliberately **no** `constitution.md`. An earlier version of this file pointed at one
@@ -286,7 +285,14 @@ finance/
 │   │   └── main.ts
 │   └── test/                  # node --test; boots the DI graph, no database
 ├── mobile/                    # @sora/mobile — Expo + React Native
-│   └── src/                   # App.tsx, navigation, features, design tokens
+│   └── src/
+│       ├── App.tsx
+│       ├── app/                # config/, i18n/, navigation/, providers/, store/ (Redux Toolkit + RTK Query)
+│       ├── features/           # one directory per domain feature, each with its own barrel
+│       ├── components/         # shared UI primitives, barrel-exported
+│       ├── design-system/      # colors, spacing, radius, shadows, theme tokens
+│       ├── services/           # api/, auth/, guest/ (local-first guest mode), storage/, sync/ (offline queue)
+│       ├── stores/  hooks/  utils/  types/
 ├── db/
 │   ├── migrations/            # raw SQL, forward-only, immutable once applied
 │   └── tests/                 # psql constraint probes against a real Postgres
@@ -295,8 +301,8 @@ finance/
 ├── docs/API_SPECIFICATION.md
 ├── SRS.md  SDS.md
 ├── plans/
-│   ├── architecture/domain-database-design.md   # domain + schema rationale
-│   └── mobile/mobile-development-plan.md        # build plan and phase status
+│   ├── architecture/          # domain-database-design.md, multi-currency-plan.md, exchange-rate-resilience-plan.md
+│   └── mobile/offline-sync-plan.md              # offline mutation queue design
 └── aif-sdlc-checklist.md                       # per-feature pre-merge gate
 ```
 
@@ -436,7 +442,12 @@ consequential rule in the product: get it wrong and every other number becomes u
 An account has one currency; a transaction must match every account it names; a transfer
 requires both accounts to share one. Wallet, account and dashboard totals are reported **per
 currency and never summed across currencies** — adding a VND figure to a USD one produces a
-number that is silently meaningless. Conversion is out of scope for v1.
+number that is silently meaningless. Conversion of a stored or authoritative figure — recording,
+correcting, or retrying a transaction in a currency other than its own — is out of scope for v1.
+The one exception is the dashboard's own optional, read-only, approximate total converted into a
+display currency (`GET /dashboard?displayCurrency=`, `ExchangeRateService`,
+`server/src/exchange-rate/`) — never stored, never summed into a balance/budget/goal figure, and
+always marked with a freshness status (fresh/stale/unavailable). See SRS.md BR-16 and SDS.md §4.5.
 
 **BR-08 — Invitations.**
 Addressed to an **email**, so you can invite someone who has not signed up. Single-use,
@@ -549,8 +560,14 @@ which breaks on any copy change or translation.
 
 **MB-01** — TypeScript only, `strict`, no `any` without a comment saying why.
 
-**MB-02** — Server state is TanStack Query; UI state is Zustand. Do not mirror API data into
-Zustand — two caches of the same money is BR-05 repeated in the client.
+**MB-02** — Server state is Redux Toolkit's RTK Query (`mobile/src/app/store/api/*`, one
+`apiSlice` per resource, wired through a custom `axiosBaseQuery` so the bearer-attach/refresh-on-401
+axios interceptors stay the one implementation); UI-only state is plain Redux (`authSlice`,
+`offlineQueueSlice`). Do not mirror API data into a plain Redux slice — two caches of the same
+money is BR-05 repeated in the client. `zustand` is not a dependency of this app; do not add it or
+write code assuming it. `@tanstack/react-query` is present as a dependency and one `QueryClient`
+is provided app-wide, but nothing calls its `useQuery`/`useMutation` — treat it as reserved, not as
+the server-state layer, unless something actually starts populating it.
 
 **MB-03** — Forms are React Hook Form + the Zod schema from `@sora/contracts`. The app does
 not author its own validation rules.
@@ -647,7 +664,7 @@ refresh tokens (7 days, hashes only stored), PostgreSQL 17.
 No ORM and no query builder beyond Kysely: every aggregate the dashboard and balance
 derivations need is SQL, and an ORM's abstraction over `GROUP BY` costs more than it saves here.
 
-**Mobile** — Expo, React Native, TypeScript, React Navigation, TanStack Query, Zustand, React
+**Mobile** — Expo, React Native, TypeScript, React Navigation, Redux Toolkit + RTK Query, React
 Hook Form + Zod, `expo-secure-store`, `lucide-react-native`, dark mode default.
 
 **Local environment** — PostgreSQL 17 installed on the host, npm; no container runtime in the

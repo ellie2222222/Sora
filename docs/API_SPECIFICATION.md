@@ -1029,15 +1029,17 @@ One request answering the four questions the dashboard exists to answer: how muc
 |---|---|
 | **Auth** | Bearer · **Min role** `VIEWER` |
 
-**Query** — `dashboardQuerySchema`: `walletId` (required), `dateFrom`, `dateTo` (default: the current calendar month)
+**Query** — `dashboardQuerySchema`: `walletId` (required), `dateFrom`, `dateTo` (default: the current calendar month), `displayCurrency` (optional, three-letter code)
 
-**Response `200`** — `DashboardResponse`: `totalBalance`, `income`, `expense`, `net` (each **per currency**), `spendingByCategory` (descending, with percentages), `recentTransactions` (10), `activeBudgets`, `activeGoals`.
+**Response `200`** — `DashboardResponse`: `totalBalance`, `income`, `expense`, `net` (each **per currency**), `spendingByCategory` (descending, with percentages), `recentTransactions` (10), `activeBudgets`, `activeGoals`, `valuation` (optional — present only when `displayCurrency` was supplied).
 
 > `income` and `expense` **exclude transfers entirely**. This is the single most consequential rule in the product: a wallet that moved 2,000,000 from bank to cash has not earned or spent anything, and a dashboard that says otherwise makes every other number untrustworthy.
 
-**Errors** — `404 WALLET_NOT_FOUND` · `422 VALIDATION_FAILED`
+**`valuation`** (`ConvertedValuation`, present only when `displayCurrency` is requested): `{currency, amount, isApproximate, status, rateTimestamp?, missingCurrencies?}`. `amount` is `totalBalance` converted into `currency` — an estimate, never authoritative, never stored, never summed into any other figure. `status` is one of `FRESH` (converted just now, or every account already in `currency` so no conversion was needed), `STALE` (converted using the best available cached/snapshotted rate, older than preferred), or `UNAVAILABLE` (`amount: null`, `missingCurrencies` lists what couldn't be converted — the whole total is withheld rather than silently excluding a currency). Rates come from an external provider (`ExchangeRateService`, 12h cache by default) with a daily-snapshot fallback for staleness; a request with no `displayCurrency` omits this field entirely rather than sending `null`.
 
-**Side effects** — none. Served by two aggregate queries rather than one per tile.
+**Errors** — `404 WALLET_NOT_FOUND` · `422 VALIDATION_FAILED`. `503 VALUATION_UNAVAILABLE` is defined in the error catalog for this feature but not currently returned by any code path — an unavailable conversion is reported in-band via `valuation.status`, not as a request failure.
+
+**Side effects** — none. Served by two aggregate queries rather than one per tile, plus (only when `displayCurrency` is requested) a possible external rate lookup, cached for 12h by default.
 
 ---
 

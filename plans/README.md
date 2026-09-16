@@ -16,7 +16,6 @@ plans/
 │   ├── multi-currency-plan.md                # Multi-currency ledger architecture & converted totals
 │   └── exchange-rate-resilience-plan.md      # FX caching, stale rate fallback, daily snapshots
 └── mobile/                                   # Client application roadmap and offline capabilities
-    ├── mobile-development-plan.md            # React Native full plan, screen inventory, delivery checklist
     └── offline-sync-plan.md                  # Offline-first data entry & background sync engine
 ```
 
@@ -36,8 +35,17 @@ plans/
 
 | Document | Status | Summary |
 |---|---|---|
-| [`mobile-development-plan.md`](mobile/mobile-development-plan.md) | **In Progress / Living** | Master blueprint for the React Native mobile client. Outlines tech stack, navigation hierarchy, screen state management, and delivery phase checklists. |
 | [`offline-sync-plan.md`](mobile/offline-sync-plan.md) | **Draft** | Architecture specification for local-first optimistic mutations, mutation queue serialization via AsyncStorage, and background network reconciliation. |
+
+`modal-ui-form-plan.md`, a one-off review brief for tracing modal/form UI fields to their real
+domain/schema representation, was removed once fully executed — its findings and fixes are recorded in
+`verifications/2026-09-16-modal-form-consistency-review.md`, not kept as a live plan.
+
+The mobile client's own tech stack, navigation, screens, and state management are documented in
+[`SDS.md`](../SDS.md) (§3 UI Design, §4 System Architecture) and kept reconciled against the real
+code — `mobile-development-plan.md`, an early full-app plan that had drifted from what was
+actually built, was removed rather than kept in sync with a document that already covers the same
+ground.
 
 ---
 

@@ -105,6 +105,7 @@ The product answers one question repeatedly, for one person at a time: *where di
 | **Invited viewer** | A user granted VIEWER | Reads that wallet: balances, history, budgets, goals, and who else has access |
 | **Invitee** | Someone holding an invitation, possibly not yet registered | Previews what they are being offered, registers if needed, accepts |
 | **Non-member** | Any signed-in user with no membership on a wallet | Cannot distinguish that wallet from one that does not exist ([BR-05](#4-business-rules)) |
+| **Guest** | Someone trying the product before creating an account | Records against a private, local-only starter wallet with no server presence; on registering or signing in, chooses a real wallet to receive everything they entered, or keeps trying it locally a while longer |
 
 A single user is normally several of these at once: owner of their own wallet, editor on their partner's, viewer on a parent's.
 
@@ -114,7 +115,7 @@ Deferred, with the reason, so a later reader can tell "not yet" from "no":
 
 | Deferred | Reason |
 | --- | --- |
-| **Currency conversion, rate snapshots, cross-currency transfer** | A converted total is only as trustworthy as the rate behind it, and a stored rate is a second source of truth for every historical figure. v1 reports per currency instead and refuses a transfer between accounts of different currencies. *This was a v1 feature in the previous revision and has been withdrawn to future scope, not silently retained.* |
+| **Cross-currency transfer, and conversion as a stored/authoritative figure** | A transfer still requires both accounts to share one currency, refused otherwise. A converted total used as a *record* would only be as trustworthy as the rate behind it, and a stored rate is a second source of truth for every historical figure — so no amount, balance, or transaction is ever recorded, retried, or corrected in a currency other than its own. *The dashboard's own read-only, approximate, currency-converted total is a narrow, explicitly-marked exception — see [BR-16](#4-business-rules) and [DASH-US-03](#dash-us-03-see-an-approximate-total-in-one-currency) — not a reversal of this line.* |
 | **Bills and recurring-payment reminders** | Nothing in v1 generates or reminds. The previous revision specified a bill entity; no part of it is built, so it is future scope rather than an unimplemented requirement. |
 | **Offline entry and sync** | Requires conflict resolution over a ledger, which is a larger design problem than the ledger itself. |
 | **Bank connections / automatic import** | Every transaction is entered by a person in v1. |
@@ -131,13 +132,12 @@ Deferred, with the reason, so a later reader can tell "not yet" from "no":
 | --- | --- |
 | [SDS.md](SDS.md) | How this is designed: schema, architecture, authorization, security, derivation |
 | [docs/API_SPECIFICATION.md](docs/API_SPECIFICATION.md) | The authoritative interface contract, per operation |
-| [plans/mobile/mobile-development-plan.md](plans/mobile/mobile-development-plan.md) | Product and delivery phases |
 
 ---
 
 ## 2. Conceptual Domain Model (CDM)
 
-**Last synced with SDS §2 and the applied schema: 2026-08-22**
+**Last synced with SDS §2 and the applied schema: 2026-09-16**
 
 ### 2.1 Domain Diagram
 
@@ -361,6 +361,9 @@ Financial mutations and every membership or role change are recorded with actor,
 **BR-15: A member's history outlives their membership.**
 Revoking a member, or their leaving, never removes what they recorded, and never makes it anonymous. A shared wallet's history has to remain answerable to "who entered this" long after the person stopped having access.
 
+**BR-16: A dashboard's converted total is an approximate estimate, never a source of truth.**
+Reading a dashboard may optionally ask for its total balance converted into one display currency, on top of (not instead of) the normal per-currency figures BR-13 requires. That converted figure is always marked as an estimate, is never stored, never feeds a balance/budget/goal calculation, and never overrides a native amount anywhere in the product — it exists only to answer "roughly how much, all together" for a wallet holding several currencies. It carries its own freshness: fresh (converted just now), stale (the best available rate is older than the system would like, and the figure says so), or unavailable (no usable rate exists, in which case the system says so rather than guessing or showing a partial sum across only the currencies it could convert). Recording, correcting, or retrying a transaction is never affected by this figure or by whether a rate is available at all.
+
 ---
 
 ## 5. Non-Functional Considerations
@@ -390,6 +393,7 @@ Revoking a member, or their leaving, never removes what they recorded, and never
 **Reliability & retention:**
 
 - A repeated submission of the same financial entry — the ordinary consequence of a mobile client retrying over a poor connection — must be recognisable as a repeat and must not create a second transaction. A duplicated payment is a real financial error, not a cosmetic one.
+- An entry made while the device has no connectivity is held locally and submitted once connectivity returns, under the same one-submission guarantee as an ordinary retry — a user who records an expense on the subway must not lose it, and must not have it recorded twice when the app comes back online.
 - Audit entries are retained indefinitely.
 - Archived and cancelled records are retained indefinitely; there is no purge.
 
@@ -725,9 +729,33 @@ Ranks are cumulative: a required role is satisfied by any role of at least that 
 
 ---
 
+### 8.10 Trying the app as a guest, then keeping the data
+
+**Actors:** guest, registering or signing-in user
+**Preconditions:** the visitor has not registered
+**Postconditions:** either the guest's local entries exist nowhere but the device, or they have been recorded into a real wallet exactly once each
+
+1. A visitor declines to register and continues as a guest instead. The app seeds a private starter wallet that exists only on the device — categories, accounts, transactions, budgets and goals all work exactly as they do for a registered user, with no server request involved.
+2. The guest uses the app as long as they like. Nothing they enter is visible to, or recoverable by, anyone else, because nothing has left the device.
+3. The guest decides to keep what they entered, and registers or signs in.
+4. The system asks which of the user's real wallets should receive the guest data — the wallet they just registered with if there is only one, or a choice among several, including creating a new one.
+5. Every guest entry is recorded into the chosen wallet through the ordinary paths in this document — a guest category becomes a real category, a guest transaction a real transaction, and so on — in an order that respects what each depends on (a transaction cannot be recorded before its account and category exist). A guest goal contribution that recorded money leaving an account becomes exactly one real contribution and one real transaction, never two.
+6. Each entry is recorded **at most once**, even if the process is interrupted and resumed — closing the app mid-upload and reopening it continues rather than repeating what already succeeded, the same guarantee an ordinary retried submission gets.
+7. Once every entry has a real counterpart, the local guest data is discarded. The user proceeds into the app on the wallet they chose, seeing everything they entered as a guest, now indistinguishable from anything they would have entered signed in.
+
+**Alternative flows**
+
+- The guest signs in or registers, then backs out of choosing a wallet without completing the upload: the local guest data is kept, untouched, and the same choice is offered again next time.
+
+**Negative flows**
+
+- The device has no connectivity partway through the upload: whatever already succeeded is not repeated when it resumes; nothing already recorded is duplicated.
+
+---
+
 ## 9. Features & User Stories
 
-Story-ID prefixes: **AUTH-US**, **WAL-US** (wallets & sharing), **ACC-US**, **TXN-US**, **BUD-US**, **SAV-US**, **CAT-US**, **DASH-US**. See [§10](#10-migration-note-v1--v2) for what **WAL-US** supersedes and which prefix was retired.
+Story-ID prefixes: **AUTH-US**, **WAL-US** (wallets & sharing), **ACC-US**, **TXN-US**, **BUD-US**, **SAV-US**, **CAT-US**, **DASH-US**, **GST-US** (guest mode). See [§10](#10-migration-note-v1--v2) for what **WAL-US** supersedes and which prefix was retired.
 
 ### Feature: AUTH-US — Authentication & Session
 
@@ -1500,6 +1528,58 @@ The most rule-dense feature in the product, because a transaction is the only th
 
 ---
 
+#### DASH-US-03: See an approximate total in one currency
+
+**As a** member of a wallet holding accounts in more than one currency, **I want to** optionally see everything added up into one currency, **so that** I have a rough sense of the whole without doing the arithmetic myself.
+
+**Acceptance criteria**
+
+- Asking for a dashboard in one display currency is optional; without it, the dashboard behaves exactly as DASH-US-01 describes, with no converted figure at all.
+- When asked for, the converted total sits **alongside**, never instead of, the per-currency figures — BR-13 still applies to those.
+- The figure is always marked **approximate**, never treated as, or reused as, an authoritative balance.
+- If every account is already in the requested currency, the figure is exact, since no conversion happened — this is not a contradiction of "approximate," it is the one case where no rate was needed at all.
+- The figure carries a freshness state: **fresh**, **stale** (a rate older than the system would prefer, shown anyway with that noted), or **unavailable**. An unavailable rate for even one contributing currency means the whole figure is unavailable — the system never publishes a total that silently excluded a currency it couldn't convert.
+- Nothing about recording, correcting, retrying or reading any other figure depends on this succeeding.
+
+**Error cases:** none — a conversion that cannot be performed is reported as an unavailable estimate, not as a request failure.
+
+---
+
+### Feature: GST-US — Guest Mode
+
+**Traceability:** Flow §8.10
+**Roles:** guest (unauthenticated, local-only)
+
+#### GST-US-01: Try the app without an account
+
+**As** someone evaluating the product, **I want to** use it fully before creating an account, **so that** I can decide whether it's worth the commitment of signing up.
+
+**Acceptance criteria**
+
+- Continuing as a guest requires no email, password, or network request.
+- A guest can create accounts, categories, transactions, budgets and goals, and read a dashboard, exactly as a registered user would, all held locally on the device.
+- Nothing a guest enters is visible to, retrievable by, or attributable to anyone else — there is no server-side record of it at all.
+- Closing and reopening the app preserves the guest's local data.
+
+---
+
+#### GST-US-02: Bring my guest data into a real wallet
+
+**As a** guest who has decided to keep using the product, **I want to** register or sign in and keep everything I already entered, **so that** trying it first costs me nothing if I stay.
+
+**Acceptance criteria**
+
+- Registering or signing in while local guest data exists offers a choice of which real wallet should receive it, defaulting automatically when there is exactly one candidate.
+- Every guest entry becomes a real one of the same kind, recorded in the dependency order that recording it directly would have required (categories and accounts before the transactions that reference them, and so on).
+- A guest goal contribution that recorded money leaving an account becomes one real contribution and one real transaction, never two, and never just one when it should have been both.
+- The process is safe to interrupt and resume: an entry already recorded is never recorded a second time if the app is closed and reopened mid-upload.
+- Local guest data is discarded only once every entry has a real counterpart.
+- Declining to complete the upload immediately leaves the local data intact and offers the same choice again later.
+
+**Error cases:** none — an interruption resumes rather than fails; nothing about this flow is user-facing-error-shaped by design.
+
+---
+
 ## 10. Migration note (v1 → v2)
 
 **History — the concept this revision removed.** v1 of this SRS was built on a *workspace*: a named container that held members, accounts, categories, transactions, budgets, goals and bills, typed Personal / Family / Custom, with a single preferred currency and a snapshot-rate conversion feature. That container has been removed from the product. Its sharing role is taken by the **Wallet**, which is not a renamed container: a wallet is **one person's finances**, it has no type, and membership on it is a grant to another individual rather than a seat in a group. Nothing above the wallet exists, and nothing below it overrides its role. The word above appears in this document only in this paragraph, as the record of what changed.
@@ -1544,8 +1624,9 @@ The most rule-dense feature in the product, because a transaction is the only th
 | Categories | `CAT-US` | 4 | Flows §8.4, §8.6; FR-30 |
 | Budgets | `BUD-US` | 4 | Flows §8.6; BR-10, FR-35–FR-42 |
 | Saving Goals | `SAV-US` | 6 | Flows §8.7; FR-43–FR-50 |
-| Dashboard | `DASH-US` | 2 | Flows §8.8; BR-04, BR-13 |
-| **Total** | — | **46** | — |
+| Dashboard | `DASH-US` | 3 | Flows §8.8; BR-04, BR-13, BR-16 |
+| Guest Mode | `GST-US` | 2 | Flow §8.10 |
+| **Total** | — | **49** | — |
 
 **Rule coverage** — the rules that most often get lost in implementation, and where their acceptance criteria live:
 
@@ -1559,6 +1640,7 @@ The most rule-dense feature in the product, because a transaction is the only th
 | Transactions are effectively immutable | BR-08 | TXN-US-07, TXN-US-08 |
 | Nothing financial is hard-deleted | BR-09 | ACC-US-05, CAT-US-04, BUD-US-04, SAV-US-05, SAV-US-06, WAL-US-12, TXN-US-08 |
 | Totals are per currency, never summed across | BR-13 | WAL-US-02, DASH-US-01, DASH-US-02 |
+| A converted dashboard total is approximate, optional, and never authoritative | BR-16 | DASH-US-03 |
 | Budget windows may not overlap while active | BR-10 | BUD-US-01, BUD-US-04 |
 | Invitations are single-use, expiring, person-addressed | BR-11 | WAL-US-03, WAL-US-04, WAL-US-05, WAL-US-06 |
 </content>

@@ -65,19 +65,18 @@ packages/contracts/   @sora/contracts — enums, Zod schemas, response types,
                       error codes, route paths, and all money/derivation math.
                       Imported by both sides; redefined by neither.
 server/               NestJS 11 + Kysely + pg. TypeScript ESM.
-mobile/               Expo + React Native, React Navigation, TanStack Query, Zustand.
+mobile/               Expo + React Native, React Navigation, Redux Toolkit + RTK Query.
 db/migrations/        Raw SQL, forward-only, immutable once applied.
 db/tests/             psql probes proving the constraints reject what they should.
-docs/API_SPECIFICATION.md   The authoritative 50-endpoint contract.
+docs/API_SPECIFICATION.md   The authoritative 52-endpoint contract.
 scripts/check-contract-parity.mjs   Proves contract ↔ schema ↔ spec agreement.
 .github/workflows/ci.yml    Contracts → database → server + mobile.
 ```
 
-Design and requirements: [`SRS.md`](SRS.md), [`SDS.md`](SDS.md),
+Design and requirements: [`SRS.md`](SRS.md) (what the system does and why), [`SDS.md`](SDS.md)
+(how it's designed — stack, architecture, screens, feature-to-implementation mapping),
 [`plans/architecture/domain-database-design.md`](plans/architecture/domain-database-design.md) (domain
-and schema rationale), [`plans/mobile/mobile-development-plan.md`](plans/mobile/mobile-development-plan.md)
-(build plan and honest phase status). Conventions and rules:
-[`CLAUDE.md`](CLAUDE.md).
+and schema rationale). Conventions and rules: [`CLAUDE.md`](CLAUDE.md).
 
 ## Setup
 
@@ -237,10 +236,10 @@ start at all, and the API had no Dockerfile at the time.
 
 ## Status
 
-Phase 0 — schema, shared contract, API specification, CI — is complete and machine-checked. The
-API and the app are scaffolded and their feature phases are in progress.
-`plans/mobile/mobile-development-plan.md` carries the per-phase checkboxes and is kept honest
-about what has actually been built rather than what was planned.
+Schema, shared contract, API specification, and CI are complete and machine-checked. All 49 user
+stories in [`SRS.md` §9](SRS.md#9-features--user-stories) are realized end-to-end on the API side;
+[`SDS.md` §8](SDS.md#8-feature-implementation-mapping) tracks the one open item (a mobile UI for
+the dashboard's optional currency-converted total — the API and contract are already complete).
 
 ## Security
 
