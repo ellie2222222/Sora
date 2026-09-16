@@ -1,6 +1,6 @@
 import { Text as RNText, type TextProps as RNTextProps } from 'react-native';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
+import { useTheme } from '@/app/providers';
 import type { FontSize, FontWeight } from '../design-system/index.ts';
 
 type TextVariant = 'body' | 'label' | 'caption' | 'title' | 'heading';

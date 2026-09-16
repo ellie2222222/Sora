@@ -3,17 +3,15 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { BudgetStatus } from '@sora/contracts';
-import { Button, Card, ConfirmDialog, Input, Money, ProgressBar, StateView, Text } from '../../../components/index.ts';
-import { SkeletonList } from '../../../components/Skeleton.tsx';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useWallets } from '../../../app/providers/WalletProvider.tsx';
+import { Button, Card, ConfirmDialog, Input, Money, ProgressBar, SkeletonList, StateView, Text } from '@/components';
+import { useTheme, useWallets } from '@/app/providers';
 import {
   useArchiveBudgetMutation,
   useGetBudgetQuery,
   useUpdateBudgetMutation,
-} from '../../../app/store/api/budgetsApi.ts';
-import { messageOf } from '../../../utils/errors.ts';
-import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
+} from '@/app/store';
+import { isNetworkError, messageOf } from '../../../utils/errors.ts';
+import type { AppStackScreenProps } from '@/app/navigation';
 
 export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'BudgetDetail'>) {
   const theme = useTheme();
@@ -60,7 +58,7 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
 
   const renderContent = () => {
     if (budget.isLoading) return <SkeletonList rows={3} />;
-    if (budget.isError) {
+    if (budget.isError && !isNetworkError(budget.error)) {
       return <StateView variant="error" error={budget.error} retryAction={() => void budget.refetch()} />;
     }
 
@@ -84,14 +82,14 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
 
           <ProgressBar percentage={data.usagePercentage} danger={data.isOverBudget} height={12} />
 
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: theme.spacing.md }}>
+          <View className="flex-row justify-between" style={{ marginTop: theme.spacing.md }}>
             <View>
               <Text variant="label" tone="muted">
                 {t('budgets.spent', 'Spent')}
               </Text>
               <Money amount={data.spent} currency={data.currency} variant="title" />
             </View>
-            <View style={{ alignItems: 'flex-end' }}>
+            <View className="items-end">
               <Text variant="label" tone="muted">
                 {data.isOverBudget ? t('budgets.overBy', 'Over by') : t('budgets.remaining', 'Remaining')}
               </Text>
@@ -99,7 +97,7 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
             </View>
           </View>
 
-          <View style={{ flexDirection: 'row', gap: theme.spacing.xs, marginTop: theme.spacing.sm }}>
+          <View className="flex-row" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.sm }}>
             <Text variant="caption" tone="muted">
               {t('budgets.planned', 'Planned:')}
             </Text>

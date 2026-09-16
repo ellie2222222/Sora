@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import type { GestureResponderEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import {
   cancelAnimation,
   Easing,
@@ -17,12 +17,8 @@ import {
   calculatePullDistanceWithResistance,
   calculatePullProgress,
   calculatePullRotation,
-  clamp,
   DEFAULT_PULL_THRESHOLD,
 } from './pullMath.ts';
-
-export const RESTING_DISTANCE = DEFAULT_PULL_THRESHOLD; // px distance where indicator rests while spinning
-
 
 export interface UsePullToRefreshOptions {
   refreshing: boolean;
@@ -52,14 +48,13 @@ export function usePullToRefresh({
     try {
       void onRefresh();
     } catch {
-      // Refresh error handled gracefully without breaking screen
+      // The caller's own query/loading state already surfaces the failure;
+      // swallowed here so a synchronous throw can't crash the gesture handler.
     }
   }, [disabled, onRefresh]);
 
-  // Handle continuous rotation and settle-away based on refreshing prop
   useEffect(() => {
     if (refreshing && !wasRefreshing.current) {
-      // Started refreshing — spring into resting position and start continuous fluid spin
       isSpinning.value = true;
       pullDistance.value = withSpring(threshold, { damping: 14, stiffness: 160, mass: 0.8 });
       spinRotation.value = 0;
@@ -69,7 +64,6 @@ export function usePullToRefresh({
         false
       );
     } else if (!refreshing && wasRefreshing.current) {
-      // Finished refreshing — settle away smoothly with fluid cubic ease-out
       isSpinning.value = false;
       pullDistance.value = withTiming(0, { duration: 240, easing: Easing.out(Easing.cubic) });
       cancelAnimation(spinRotation);
@@ -109,7 +103,7 @@ export function usePullToRefresh({
 
   // Touch handlers for Android and non-overscrolling environments
   const handleTouchStart = useCallback(
-    (e: { nativeEvent: { pageY: number; pageX: number } }) => {
+    (e: GestureResponderEvent) => {
       if (disabled || refreshing) return;
       touchStartY.current = e.nativeEvent.pageY;
       touchStartX.current = e.nativeEvent.pageX;
@@ -119,7 +113,7 @@ export function usePullToRefresh({
   );
 
   const handleTouchMove = useCallback(
-    (e: { nativeEvent: { pageY: number; pageX: number } }) => {
+    (e: GestureResponderEvent) => {
       if (disabled || refreshing || touchStartY.current === null) return;
       if (!isAtTop.current) return;
 
@@ -178,9 +172,6 @@ export function usePullToRefresh({
       transform: [{ rotate: `${rotation}deg` }],
     };
   });
-
-
-
 
   return {
     pullDistance,

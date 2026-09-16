@@ -3,7 +3,7 @@ import { RotateCw } from 'lucide-react-native';
 import Animated, { type AnimatedStyle } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 
-import { useTheme } from '../../app/providers/ThemeProvider.tsx';
+import { useTheme } from '@/app/providers';
 
 export interface PullToRefreshIndicatorProps {
   refreshing: boolean;
@@ -43,7 +43,7 @@ export function PullToRefreshIndicator({
         accessibilityHint={t('common.pullToRefreshHint', 'Double tap to refresh')}
         accessibilityState={{ busy: refreshing }}
         onPress={onRefresh}
-        style={styles.pressable}
+        className="w-full h-full items-center justify-center"
       >
         <Animated.View style={iconAnimatedStyle}>
           <RotateCw size={17} color={theme.colors.primary} strokeWidth={2.2} />
@@ -63,12 +63,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     zIndex: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressable: {
-    width: '100%',
-    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -10,15 +10,12 @@ import {
 } from 'react';
 import type { GoogleAuthRequest, LoginRequest, RegisterRequest, UserResponse } from '@sora/contracts';
 
-import { authApi } from '../../services/api/auth.ts';
-import { session, type StoredSession } from '../../services/auth/index.ts';
-import { ensureSeeded } from '../../services/guest/guestSeed.ts';
-import { guestStore } from '../../services/guest/guestStorage.ts';
-import { uploadGuestData } from '../../services/guest/guestUpload.ts';
-import { GUEST_MODE_STORAGE_KEY, preferencesStore } from '../../services/storage/preferencesStore.ts';
+import { authApi } from '@/services/api';
+import { session, type StoredSession } from '@/services/auth';
+import { ensureSeeded, guestStore, uploadGuestData } from '@/services/guest';
+import { GUEST_MODE_STORAGE_KEY, preferencesStore } from '@/services/storage';
 import { isNetworkError, isUnauthenticated } from '../../utils/errors.ts';
-import { setIsGuest as setIsGuestInStore } from '../store/authSlice.ts';
-import { useAppDispatch } from '../store/hooks.ts';
+import { setIsGuest as setIsGuestInStore, useAppDispatch } from '@/app/store';
 
 /**
  * `restoring` exists so the root navigator can render nothing until the stored
@@ -50,7 +47,6 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
 
 export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   const queryClient = useQueryClient();
@@ -138,7 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     },
     [queryClient],
   );
-
 
   const login = useCallback(
     async (credentials: LoginRequest) => {

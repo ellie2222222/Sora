@@ -5,17 +5,16 @@ import { useTranslation } from 'react-i18next';
 import { add, isNegative, maxOf, negate, percentageOf, parseMoney, ZERO } from '@sora/contracts';
 import type { CategorySpendSlice, CurrencyTotal, DashboardResponse } from '@sora/contracts';
 
-import { AnimatedScreen, Button, DonutChart, Money, MonthSelector, RefreshableScrollView, StateView, Text, TrendBarChart } from '../../../components';
-import { SkeletonList } from '../../../components/Skeleton';
+import { AnimatedScreen, Button, DonutChart, Money, MonthSelector, RefreshableScrollView, SkeletonList, StateView, Text, TrendBarChart } from '@/components';
 import { PieChart as PieChartIcon } from 'lucide-react-native';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
-import { WalletContextBar } from '../../wallets/components/WalletContextBar';
-import { dashboardApiSlice, useGetDashboardSummaryQuery } from '../../../app/store/api/dashboardApi';
+import { useTheme, useWallets } from '@/app/providers';
+import { WalletContextBar } from '@/features/wallets';
+import { dashboardApiSlice, useGetDashboardSummaryQuery } from '@/app/store';
 import { formatMoneyString } from '../../../utils/money';
 import { addMonths, endOfMonth, formatMonthYear, monthName, parseDay, startOfMonth, today } from '../../../utils/date';
+import { isNetworkError } from '../../../utils/errors';
 import type { CalendarDay } from '../../../utils/date';
-import type { MainTabScreenProps } from '../../../app/navigation/types';
+import type { MainTabScreenProps } from '@/app/navigation';
 
 type Period = 'monthly' | 'yearly';
 
@@ -52,7 +51,7 @@ export function ReportScreen({ navigation }: MainTabScreenProps<'Report'>) {
           refreshing={isRefreshing}
           onRefresh={handleRefresh}
         >
-          <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+          <View className="flex-row gap-sm">
             <Button
               testID="report-period-monthly"
               label={t('reports.monthly')}
@@ -101,7 +100,6 @@ export function ReportScreen({ navigation }: MainTabScreenProps<'Report'>) {
 }
 
 function MonthlyReport({ walletId, month }: { walletId: string; month: CalendarDay }) {
-  const theme = useTheme();
   const { t } = useTranslation();
   const previousMonth = addMonths(month, -1);
 
@@ -109,7 +107,7 @@ function MonthlyReport({ walletId, month }: { walletId: string; month: CalendarD
   const previous = useGetDashboardSummaryQuery({ walletId, dateFrom: startOfMonth(previousMonth), dateTo: endOfMonth(previousMonth) });
 
   if (current.isLoading) return <SkeletonList rows={5} />;
-  if (current.isError) return <StateView variant="error" error={current.error} retryAction={() => void current.refetch()} testID="report-monthly-error" />;
+  if (current.isError && !isNetworkError(current.error)) return <StateView variant="error" error={current.error} retryAction={() => void current.refetch()} testID="report-monthly-error" />;
 
   const data = current.data;
   if (data === undefined) return <StateView variant="error" error={new Error(t('reports.noData', 'No report data available.'))} />;
@@ -122,8 +120,8 @@ function MonthlyReport({ walletId, month }: { walletId: string; month: CalendarD
   const insights = buildMonthlyInsights(t, data, previous.data, topCategory, savingsRate);
 
   return (
-    <View style={{ gap: theme.spacing.lg }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+    <View className="gap-lg">
+      <View className="flex-row justify-between">
         <SummaryFigure label={t('reports.income')} total={income} />
         <SummaryFigure label={t('reports.expenses')} total={expense} />
         <SummaryFigure label={t('reports.net')} total={net} />
@@ -132,13 +130,13 @@ function MonthlyReport({ walletId, month }: { walletId: string; month: CalendarD
       {data.spendingByCategory.length === 0 ? (
         <Text tone="faint">{t('reports.noSpendingThisMonth')}</Text>
       ) : (
-        <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
+        <View className="items-center gap-md">
           <DonutChart
             slices={data.spendingByCategory}
             centerLabel={expense !== undefined ? formatCompact(expense) : undefined}
             centerSublabel={t('reports.spent')}
           />
-          <View style={{ width: '100%', gap: theme.spacing.xs }}>
+          <View className="w-full gap-xs">
             {data.spendingByCategory.map((slice) => (
               <CategoryLegendRow key={slice.categoryId} slice={slice} />
             ))}
@@ -147,7 +145,7 @@ function MonthlyReport({ walletId, month }: { walletId: string; month: CalendarD
       )}
 
       {insights.length > 0 ? (
-        <View style={{ gap: theme.spacing.xs }}>
+        <View className="gap-xs">
           <Text variant="label" tone="muted">
             {t('reports.insights')}
           </Text>
@@ -220,7 +218,7 @@ function YearlyReport({ walletId, year }: { walletId: string; year: number }) {
       {months.map((month) => (
         <MonthDataPoint key={month} walletId={walletId} month={month} onSettled={handleMonthSettled} />
       ))}
-      <View style={{ gap: theme.spacing.lg }}>
+      <View className="gap-lg">
         <View>
           <Text variant="label" tone="muted" style={{ marginBottom: theme.spacing.sm }}>
             {t('reports.incomeVsExpenses')}
@@ -229,14 +227,14 @@ function YearlyReport({ walletId, year }: { walletId: string; year: number }) {
         </View>
 
         {topCategories.length > 0 ? (
-          <View style={{ gap: theme.spacing.xs }}>
+          <View className="gap-xs">
             <Text variant="label" tone="muted">
               {t('reports.topCategoriesThisYear')}
             </Text>
             {topCategories.slice(0, 6).map((category) => (
-              <View key={category.name} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: theme.spacing.xs }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-                  <View style={{ width: 8, height: 8, borderRadius: theme.radius.pill, backgroundColor: category.color ?? theme.colors.primary }} />
+              <View key={category.name} className="flex-row justify-between py-xs">
+                <View className="flex-row items-center gap-sm">
+                  <View className="w-[8px] h-[8px] rounded-pill" style={{ backgroundColor: category.color ?? theme.colors.primary }} />
                   <Text>{category.name}</Text>
                 </View>
               </View>
@@ -281,9 +279,9 @@ function SummaryFigure({ label, total }: { label: string; total: CurrencyTotal |
 function CategoryLegendRow({ slice }: { slice: CategorySpendSlice }) {
   const theme = useTheme();
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-        <View style={{ width: 8, height: 8, borderRadius: theme.radius.pill, backgroundColor: slice.color ?? theme.colors.primary }} />
+    <View className="flex-row items-center justify-between">
+      <View className="flex-row items-center gap-sm">
+        <View className="w-[8px] h-[8px] rounded-pill" style={{ backgroundColor: slice.color ?? theme.colors.primary }} />
         <Text>{slice.categoryName}</Text>
       </View>
       <Text tone="muted">{slice.percentage.toFixed(0)}%</Text>

@@ -4,7 +4,7 @@ import { AlertCircle, Info, TriangleAlert } from 'lucide-react-native';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { useTheme } from '../app/providers/ThemeProvider';
+import { useTheme } from '@/app/providers';
 import { BottomSheetModal } from './BottomSheetModal';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -32,7 +32,7 @@ export interface ConfirmDialogProps {
   matchTextLabel?: string;
   /** Optional placeholder for the match input field. Defaults to `matchText`. */
   matchTextPlaceholder?: string;
-  /** Whether matching is case-insensitive. Default: true. */
+  /** Whether matching is case-insensitive. Default: false (case-sensitive). */
   matchTextIgnoreCase?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -103,15 +103,12 @@ export function ConfirmDialog({
   return (
     <BottomSheetModal visible={visible} onClose={onCancel}>
       <View style={{ gap: theme.spacing.lg }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
+        <View className="flex-row items-center" style={{ gap: theme.spacing.md }}>
           <View
+            className="w-[40px] h-[40px] items-center justify-center"
             style={{
-              width: 40,
-              height: 40,
               borderRadius: theme.radius.pill,
               backgroundColor: iconBgColor,
-              alignItems: 'center',
-              justifyContent: 'center',
             }}
           >
             <IconComponent size={22} color={iconColor} strokeWidth={2} />
@@ -143,7 +140,7 @@ export function ConfirmDialog({
           </View>
         ) : null}
 
-        <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.xs }}>
+        <View className="flex-row" style={{ gap: theme.spacing.md, marginTop: theme.spacing.xs }}>
           <Button label={resolvedCancelLabel} variant="secondary" onPress={onCancel} style={{ flex: 1 }} />
           <Button
             testID="confirm-dialog-confirm-button"

@@ -3,12 +3,12 @@ import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { WalletRole, type InvitableRole } from '@sora/contracts';
 
-import { Button, Input, Text } from '../../../components/index.ts';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useCreateInvitationMutation } from '../../../app/store/api/invitationsApi.ts';
+import { Button, Input, Text } from '@/components';
+import { useTheme } from '@/app/providers';
+import { useCreateInvitationMutation } from '@/app/store';
 import { messageOf } from '../../../utils/errors.ts';
 import { getRoleDescription, getRoleLabel } from '../../../utils/roles.ts';
-import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
+import type { AppStackScreenProps } from '@/app/navigation';
 
 const INVITABLE: InvitableRole[] = [WalletRole.EDITOR, WalletRole.VIEWER];
 
@@ -45,7 +45,8 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.colors.background }}
+      className="flex-1"
+      style={{ backgroundColor: theme.colors.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
@@ -72,7 +73,7 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
             value={relationLabel}
             onChangeText={setRelationLabel}
           />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
+          <View className="flex-row flex-wrap" style={{ gap: theme.spacing.xs }}>
             {SUGGESTED_LABELS.map((label) => (
               <Button
                 key={label}

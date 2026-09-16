@@ -3,14 +3,8 @@ import { type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 
 /**
- * Default entering animation: fade in + slight slide-down.
- *
- * The new item appears to physically enter the list, while existing items
- * smoothly reposition via the `Layout` transition.
- *
- * Uses Reanimated's declarative `entering` / `layout` props so the
- * animation fires exactly once — on initial mount — with zero manual
- * shared-value bookkeeping.
+ * Reanimated's declarative `entering`/`layout` props fire this exactly once,
+ * on initial mount, with no manual shared-value bookkeeping.
  */
 const DEFAULT_ENTERING = FadeInDown.duration(280)
   .springify()
@@ -28,9 +22,6 @@ export interface ListItemEnterProps {
 }
 
 /**
- * Wraps a list-row so newly-inserted items fade + scale + slide in while
- * existing siblings smoothly make room via a layout transition.
- *
  * ```tsx
  * {items.map((item) => (
  *   <ListItemEnter key={item.id}>

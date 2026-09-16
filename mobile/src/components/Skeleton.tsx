@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, View, type DimensionValue } from 'react-native';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
+import { useTheme } from '@/app/providers';
 
 export interface SkeletonProps {
   width?: DimensionValue;

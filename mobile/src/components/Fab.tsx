@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react-native';
 import { type PressableProps } from 'react-native';
 
-import { useTheme } from '../app/providers/ThemeProvider';
+import { useTheme } from '@/app/providers';
 import { AnimatedPressable } from './AnimatedPressable';
 
 export interface FabProps extends Omit<PressableProps, 'children' | 'style'> {
@@ -9,8 +9,7 @@ export interface FabProps extends Omit<PressableProps, 'children' | 'style'> {
   bottomOffset?: number;
 }
 
-/** The floating add-transaction button with smooth tactile micro-animations. */
-export function Fab({ size = 56, bottomOffset = 0, testID = 'fab-add-transaction', ...pressableProps }: FabProps) {
+export function Fab({ size = 48, bottomOffset = 0, testID = 'fab-add-transaction', ...pressableProps }: FabProps) {
   const theme = useTheme();
 
   return (
@@ -30,10 +29,10 @@ export function Fab({ size = 56, bottomOffset = 0, testID = 'fab-add-transaction
         backgroundColor: theme.colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
-        ...theme.shadows.lg,
+        ...theme.shadows.md,
       }}
     >
-      <Plus size={size * 0.46} color={theme.colors.onPrimary} strokeWidth={2.5} />
+      <Plus size={size * 0.44} color={theme.colors.onPrimary} strokeWidth={2.5} />
     </AnimatedPressable>
   );
 }

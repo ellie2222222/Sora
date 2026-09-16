@@ -3,13 +3,12 @@ import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { TransactionType, CategoryType } from '@sora/contracts';
 
-import { BottomSheetModal, Button, Input, Text } from '../../../components';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
-import { AccountPicker } from '../../accounts/components/AccountPicker';
-import { CategoryPicker } from '../../categories/components/CategoryPicker';
+import { BottomSheetModal, Button, DateField, Input, Text } from '@/components';
+import { useTheme, useWallets } from '@/app/providers';
+import { AccountPicker } from '../../accounts/components/AccountPicker.tsx';
+import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
 import { messageOf } from '../../../utils/errors';
-import { nowInstant } from '../../../utils/date';
+import { dayOfInstant, nowInstant, replaceDay } from '../../../utils/date';
 import {
   emptyDraft,
   fieldsForType,
@@ -18,7 +17,7 @@ import {
   switchType,
   validateDraft,
 } from '../../../utils/transactionForm';
-import { useCreateTransactionMutation } from '../../../app/store/api/transactionsApi';
+import { useCreateTransactionMutation } from '@/app/store';
 
 export interface AddTransactionModalProps {
   visible: boolean;
@@ -63,7 +62,7 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
   if (!permissions.canWrite) {
     return (
       <BottomSheetModal visible={visible} onClose={onClose} title={t('home.addTransaction')}>
-        <View style={{ padding: theme.spacing.lg, alignItems: 'center', justifyContent: 'center' }}>
+        <View className="items-center justify-center" style={{ padding: theme.spacing.lg }}>
           <Text tone="muted" style={{ textAlign: 'center' }}>
             {t('transactions.viewOnlyNotice', {
               defaultValue: 'You have view-only access to this wallet and cannot record transactions.',
@@ -102,7 +101,7 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.xl }}
       >
-        <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+        <View className="flex-row" style={{ gap: theme.spacing.sm }}>
           {TYPES.map(({ type, label }) => (
             <Button
               key={type}
@@ -122,6 +121,13 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
           value={amountText}
           onChangeText={setAmountText}
           error={fieldErrors.amount}
+        />
+
+        <DateField
+          testID="transaction-date"
+          label={t('transactions.date', { defaultValue: 'Date' })}
+          value={dayOfInstant(draft.transactionDate)}
+          onChange={(day) => setDraft((current) => ({ ...current, transactionDate: replaceDay(current.transactionDate, day) }))}
         />
 
         {fields.fromAccount && draft.type !== TransactionType.TRANSFER ? (

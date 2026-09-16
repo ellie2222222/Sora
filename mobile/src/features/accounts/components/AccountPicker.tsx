@@ -4,10 +4,9 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AccountResponse, AccountType } from '@sora/contracts';
 
-import { BottomSheetModal, Money, Text } from '../../../components';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
-import { useListAccountsQuery } from '../../../app/store/api/accountsApi';
+import { BottomSheetModal, Money, Text } from '@/components';
+import { useTheme, useWallets } from '@/app/providers';
+import { useListAccountsQuery } from '@/app/store';
 
 export const ACCOUNT_ICON: Record<AccountType, typeof Landmark> = {
   BANK_ACCOUNT: Landmark,
@@ -25,11 +24,6 @@ export interface AccountPickerProps {
   testID?: string;
 }
 
-/**
- * Account picker component.
- * Opens a slide-up bottom sheet modal to select an account.
- * Automatically defaults to the first available account for enhanced UX.
- */
 export function AccountPicker({ label, value, onChange, walletId, error, testID }: AccountPickerProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -37,6 +31,9 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID 
   const [open, setOpen] = useState(false);
   const accounts = useListAccountsQuery({ walletId, status: 'ACTIVE' });
 
+  // Deliberate default-to-first-account UX shortcut, not just an init step:
+  // clearing `value` back to empty while the list is already loaded will
+  // immediately re-populate it with the first account, not leave it blank.
   useEffect(() => {
     const list = accounts.data;
     if ((value === null || value === undefined || value === '') && list !== undefined && list.length > 0) {
@@ -68,7 +65,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID 
           justifyContent: 'center',
         }}
       >
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View className="flex-row justify-between items-center">
           <Text tone={selected === undefined ? 'faint' : 'default'}>
             {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Select an account' }) : selected.name}
           </Text>
@@ -89,7 +86,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID 
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          style={{ maxHeight: 360 }}
+          className="max-h-[360px]"
           contentContainerStyle={{ gap: 4, paddingBottom: theme.spacing.md }}
         >
           {(accounts.data ?? []).map((account) => (
@@ -143,7 +140,7 @@ function AccountRow({
         backgroundColor: selected ? theme.colors.primaryMuted : 'transparent',
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+      <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
         <Icon size={18} color={theme.colors.textMuted} />
         <View>
           <Text weight={selected ? 'semibold' : 'regular'}>{account.name}</Text>
@@ -154,7 +151,7 @@ function AccountRow({
           ) : null}
         </View>
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
+      <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
         <Money amount={account.balance} currency={account.currency} variant="label" />
         {selected ? <Check size={16} color={theme.colors.primary} /> : null}
       </View>

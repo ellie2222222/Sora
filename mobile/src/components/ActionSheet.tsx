@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { useTheme } from '../app/providers/ThemeProvider';
+import { useTheme } from '@/app/providers';
 import { BottomSheetModal } from './BottomSheetModal';
 import { Text } from './Text';
 
@@ -21,10 +21,7 @@ export interface ActionSheetProps {
   onCancel: () => void;
 }
 
-/**
- * Shared bottom-sheet action list.
- * Uses the primary `BottomSheetModal` component as its foundation.
- */
+/** Shared bottom-sheet action list. */
 export function ActionSheet({ visible, title, actions, cancelLabel, onCancel }: ActionSheetProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -55,9 +52,9 @@ export function ActionSheet({ visible, title, actions, cancelLabel, onCancel }: 
         <Pressable
           testID="action-sheet-cancel"
           onPress={onCancel}
+          className="border-t"
           style={{
             paddingVertical: theme.spacing.md,
-            borderTopWidth: 1,
             borderTopColor: theme.colors.border,
             marginTop: theme.spacing.xs,
           }}

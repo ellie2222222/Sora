@@ -3,25 +3,36 @@ import { Landmark, Plus, Wallet as WalletIcon } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { add, formatMoney, isNegative, negate, parseMoney, ZERO, type AccountResponse } from '@sora/contracts';
-
-import { AnimatedScreen, Card, ListItemEnter, Money, RefreshableScrollView, StateView, SyncStatusDot, Text } from '../../../components';
-import { SkeletonList } from '../../../components/Skeleton';
-import { useModal } from '../../../app/providers/ModalProvider';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
-import { useListAccountsQuery } from '../../../app/store/api/accountsApi';
-import { selectQueueEntryFor } from '../../../app/store/offlineQueueSlice';
-import { WalletContextBar } from '../../wallets/components/WalletContextBar';
+import {
+  add,
+  formatMoney,
+  isNegative,
+  negate,
+  parseMoney,
+  ZERO,
+  type AccountResponse,
+} from '@sora/contracts';
+import { AnimatedScreen, ListItemEnter, Money, RefreshableScrollView, SkeletonList, StateView, SyncStatusDot, Text } from '@/components';
+import { useTheme, useWallets } from '@/app/providers';
+import { useModal } from '../../../app/providers/ModalProvider.tsx';
+import { selectQueueEntryFor, useListAccountsQuery } from '@/app/store';
+import { WalletContextBar } from '@/features/wallets';
+import { isNetworkError } from '../../../utils/errors';
 import { sumScaledByKey } from '../../../utils/money';
 import { ACCOUNT_ICON } from '../components/AccountPicker';
-import type { MainTabScreenProps } from '../../../app/navigation/types';
+import type { MainTabScreenProps } from '@/app/navigation';
 
 export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { openModal } = useModal();
-  const { activeWalletId, isLoading: walletsLoading, isError: walletsError, refetch: refetchWallets, permissions } = useWallets();
+  const {
+    activeWalletId,
+    isLoading: walletsLoading,
+    isError: walletsError,
+    refetch: refetchWallets,
+    permissions,
+  } = useWallets();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const onManage = () => navigation.getParent()?.navigate('WalletList');
 
@@ -39,11 +50,16 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
     }
   };
 
-  // Determine what to render in the content area
   const renderContent = () => {
     if (walletsLoading) return <SkeletonList rows={5} />;
-    if (walletsError) {
-      return <StateView variant="error" error={new Error(t('errors.loadWalletsFailed'))} retryAction={refetchWallets} />;
+    if (walletsError && !isNetworkError(walletsError)) {
+      return (
+        <StateView
+          variant="error"
+          error={new Error(t('errors.loadWalletsFailed'))}
+          retryAction={refetchWallets}
+        />
+      );
     }
 
     if (activeWalletId === null) {
@@ -59,8 +75,15 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
     }
 
     if (accounts.isLoading) return <SkeletonList rows={5} />;
-    if (accounts.isError) {
-      return <StateView variant="error" error={accounts.error} retryAction={() => void accounts.refetch()} testID="accounts-error" />;
+    if (accounts.isError && !isNetworkError(accounts.error)) {
+      return (
+        <StateView
+          variant="error"
+          error={accounts.error}
+          retryAction={() => void accounts.refetch()}
+          testID="accounts-error"
+        />
+      );
     }
 
     const items = accounts.data ?? [];
@@ -78,44 +101,88 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
             {t('accounts.netWorth')}
           </Text>
           {netWorth.length === 0 ? (
-            <Text tone="faint">—</Text>
+            <Text tone="muted" style={{ marginTop: theme.spacing.xs }}>
+              —
+            </Text>
           ) : (
-            netWorth.map((total) => <Money key={total.currency} amount={total.amount} currency={total.currency} variant="heading" />)
+            netWorth.map((item) => (
+              <Money
+                key={item.currency}
+                amount={item.amount}
+                currency={item.currency}
+                variant="heading"
+                style={{ marginTop: theme.spacing.xs }}
+              />
+            ))
           )}
-          <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.sm }}>
-            <View style={{ flex: 1 }}>
-              <Text variant="caption" tone="muted">
-                {t('accounts.assets')}
+        </View>
+
+        <View className="flex-row" style={{ gap: theme.spacing.md }}>
+          <View className="flex-1">
+            <Text variant="label" tone="muted">
+              {t('accounts.assets')}
+            </Text>
+            {assets.length === 0 ? (
+              <Text tone="muted" style={{ marginTop: theme.spacing.xs }}>
+                —
               </Text>
-              {assets.map((total) => (
-                <Money key={total.currency} amount={total.amount} currency={total.currency} variant="body" />
-              ))}
-              {assets.length === 0 ? <Text tone="faint">—</Text> : null}
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text variant="caption" tone="muted">
-                {t('accounts.liabilities')}
+            ) : (
+              assets.map((item) => (
+                <Money
+                  key={item.currency}
+                  amount={item.amount}
+                  currency={item.currency}
+                  type="INCOME"
+                  variant="title"
+                  style={{ marginTop: theme.spacing.xs }}
+                />
+              ))
+            )}
+          </View>
+          <View className="flex-1">
+            <Text variant="label" tone="muted">
+              {t('accounts.liabilities')}
+            </Text>
+            {liabilities.length === 0 ? (
+              <Text tone="muted" style={{ marginTop: theme.spacing.xs }}>
+                —
               </Text>
-              {liabilities.length === 0 ? (
-                <Text tone="faint">—</Text>
-              ) : (
-                liabilities.map((total) => <Money key={total.currency} amount={total.amount} currency={total.currency} variant="body" />)
-              )}
-            </View>
+            ) : (
+              liabilities.map((item) => (
+                <Money
+                  key={item.currency}
+                  amount={item.amount}
+                  currency={item.currency}
+                  type="EXPENSE"
+                  variant="title"
+                  style={{ marginTop: theme.spacing.xs }}
+                />
+              ))
+            )}
           </View>
         </View>
 
         <View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.xs }}>
-            <Text variant="label" tone="muted">
-              {t('accounts.accountsLabel')}
-            </Text>
+          <View
+            className="flex-row justify-between items-center"
+            style={{ marginBottom: theme.spacing.sm }}
+          >
+            <Text variant="title">{t('accounts.accounts')}</Text>
             {permissions.canWrite ? (
               <Pressable
-                testID="accounts-add"
+                testID="accounts-add-button"
                 onPress={() => openModal('AddAccount', { walletId: activeWalletId ?? undefined })}
+                className="flex-row items-center gap-xs"
+                style={{
+                  paddingVertical: theme.spacing.xs,
+                  paddingHorizontal: theme.spacing.sm,
+                  borderRadius: theme.radius.sm,
+                }}
               >
-                <Plus size={20} color={theme.colors.primary} />
+                <Plus size={16} color={theme.colors.primary} />
+                <Text variant="caption" weight="medium" style={{ color: theme.colors.primary }}>
+                  {t('accounts.addAccount')}
+                </Text>
               </Pressable>
             ) : null}
           </View>
@@ -138,13 +205,24 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
               testID="accounts-empty"
             />
           ) : (
-            <View style={{ borderTopWidth: 1, borderTopColor: theme.colors.border }}>
+            <View className="border-t" style={{ borderTopColor: theme.colors.border }}>
               {items.map((account, index) => (
-                <View key={account.id} style={index === 0 ? undefined : { borderTopWidth: 1, borderTopColor: theme.colors.border }}>
+                <View
+                  key={account.id}
+                  style={
+                    index === 0
+                      ? undefined
+                      : { borderTopWidth: 1, borderTopColor: theme.colors.border }
+                  }
+                >
                   <ListItemEnter>
                     <AccountRow
                       account={account}
-                      onPress={() => navigation.getParent()?.navigate('AccountDetail', { accountId: account.id })}
+                      onPress={() =>
+                        navigation
+                          .getParent()
+                          ?.navigate('AccountDetail', { accountId: account.id })
+                      }
                     />
                   </ListItemEnter>
                 </View>
@@ -174,9 +252,10 @@ function AccountRow({ account, onPress }: { account: AccountResponse; onPress: (
     <Pressable
       testID={`account-row-${account.id}`}
       onPress={onPress}
-      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: theme.spacing.sm }}
+      className="flex-row items-center justify-between"
+      style={{ paddingVertical: theme.spacing.sm }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+      <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
         <Icon size={18} color={theme.colors.textMuted} />
         <Text>{account.name}</Text>
         <SyncStatusDot status={syncStatus} />
@@ -193,16 +272,23 @@ function AccountRow({ account, onPress }: { account: AccountResponse; onPress: (
  */
 function netWorthByCurrency(accounts: AccountResponse[]) {
   const isAsset = (account: AccountResponse) => !isNegative(parseMoney(account.balance));
-  const assetsByCurrency = sumScaledByKey(accounts.filter(isAsset), (a) => a.currency, (a) => a.balance);
+  const assetsByCurrency = sumScaledByKey(
+    accounts.filter(isAsset),
+    (account) => account.currency,
+    (account) => account.balance,
+  );
   const liabilitiesByCurrency = sumScaledByKey(
     accounts.filter((account) => !isAsset(account)),
-    (a) => a.currency,
-    (a) => a.balance,
+    (account) => account.currency,
+    (account) => account.balance,
   );
 
   const currencies = new Set([...assetsByCurrency.keys(), ...liabilitiesByCurrency.keys()]);
 
-  const assets = Array.from(assetsByCurrency.entries()).map(([currency, amount]) => ({ currency, amount: formatMoney(amount) }));
+  const assets = Array.from(assetsByCurrency.entries()).map(([currency, amount]) => ({
+    currency,
+    amount: formatMoney(amount),
+  }));
   const liabilities = Array.from(liabilitiesByCurrency.entries()).map(([currency, amount]) => ({
     currency,
     amount: formatMoney(negate(amount)),
@@ -210,7 +296,10 @@ function netWorthByCurrency(accounts: AccountResponse[]) {
   const netWorth = Array.from(currencies).map((currency) => {
     const assetAmount = assetsByCurrency.get(currency) ?? ZERO;
     const liabilityAmount = liabilitiesByCurrency.get(currency) ?? ZERO;
-    return { currency, amount: formatMoney(add(assetAmount, liabilityAmount)) };
+    return {
+      currency,
+      amount: formatMoney(add(assetAmount, liabilityAmount)),
+    };
   });
 
   return { assets, liabilities, netWorth };

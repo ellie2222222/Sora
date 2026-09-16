@@ -1,11 +1,10 @@
 import { useEffect } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable } from 'react-native';
 import Animated, {
   Easing,
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withTiming,
 } from 'react-native-reanimated';
 import { Moon, Sun } from 'lucide-react-native';
@@ -23,6 +22,11 @@ const DIMENSIONS = {
   lg: { trackWidth: 70, trackHeight: 36, thumbSize: 30, padding: 3, iconSize: 18 },
 };
 
+const TIMING_CONFIG = {
+  duration: 380,
+  easing: Easing.bezier(0.4, 0, 0.2, 1),
+};
+
 export function ThemeToggle({
   testID,
   value,
@@ -33,28 +37,31 @@ export function ThemeToggle({
   const travelDistance = dim.trackWidth - dim.thumbSize - dim.padding * 2;
 
   const slideProgress = useSharedValue(value ? 1 : 0);
-  const colorProgress = useSharedValue(value ? 1 : 0);
 
   useEffect(() => {
     const target = value ? 1 : 0;
-    const timingConfig = {
-      duration: 380,
-      easing: Easing.inOut(Easing.ease),
-    };
-    slideProgress.value = withTiming(target, timingConfig);
-    colorProgress.value = withTiming(target, timingConfig);
-  }, [value, slideProgress, colorProgress]);
+    slideProgress.value = withTiming(target, {
+      duration: 200,
+      easing: Easing.out(Easing.quad),
+    });
+    slideProgress.value = withTiming(value ? 1 : 0, TIMING_CONFIG);
+  }, [value, slideProgress]);
 
+  // Track colors update synchronously with the app's theme change
+  const trackStyle = {
+    backgroundColor: value ? '#1E293B' : '#E2E8F0',
+    borderColor: value ? '#334155' : '#CBD5E1',
+  };
   const trackAnimatedStyle = useAnimatedStyle(() => {
     const backgroundColor = interpolateColor(
-      colorProgress.value,
+      slideProgress.value,
       [0, 1],
-      ['#E2E8F0', '#1E293B']
+      ['#E2E8F0', '#1E293B'],
     );
     const borderColor = interpolateColor(
-      colorProgress.value,
+      slideProgress.value,
       [0, 1],
-      ['#CBD5E1', '#334155']
+      ['#CBD5E1', '#334155'],
     );
     return {
       backgroundColor,
@@ -65,11 +72,10 @@ export function ThemeToggle({
   const thumbAnimatedStyle = useAnimatedStyle(() => {
     const translateX = slideProgress.value * travelDistance;
     const backgroundColor = interpolateColor(
-      colorProgress.value,
+      slideProgress.value,
       [0, 1],
-      ['#FFFFFF', '#312E81']
+      ['#FFFFFF', '#312E81'],
     );
-
     return {
       transform: [{ translateX }],
       backgroundColor,
@@ -117,6 +123,7 @@ export function ThemeToggle({
             padding: dim.padding,
             justifyContent: 'center',
           },
+          trackStyle,
           trackAnimatedStyle,
         ]}
       >
@@ -126,6 +133,7 @@ export function ThemeToggle({
               width: dim.thumbSize,
               height: dim.thumbSize,
               borderRadius: dim.thumbSize / 2,
+              backgroundColor: value ? '#312E81' : '#FFFFFF',
               alignItems: 'center',
               justifyContent: 'center',
               shadowColor: '#000',

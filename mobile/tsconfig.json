@@ -12,7 +12,9 @@
     "declaration": false,
     "declarationMap": false,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     },
     "allowJs": true,
     "checkJs": false
@@ -20,7 +22,9 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
-    "*.js"
+    "*.js",
+    "*.d.ts",
+    "nativewind-env.d.ts"
   ],
   "exclude": [
     "node_modules",

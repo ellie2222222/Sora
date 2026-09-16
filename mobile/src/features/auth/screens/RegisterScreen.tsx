@@ -7,11 +7,10 @@ import { useTranslation } from 'react-i18next';
 import { registerSchema } from '@sora/contracts';
 import type { z } from 'zod';
 
-import { AnimatedScreen, Button, Input, Text } from '../../../components/index.ts';
-import { useAuth } from '../../../app/providers/AuthProvider.tsx';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
+import { AnimatedScreen, Button, Input, Text } from '@/components';
+import { useAuth, useTheme } from '@/app/providers';
 import { messageOf } from '../../../utils/errors.ts';
-import type { AuthStackScreenProps } from '../../../app/navigation/types.ts';
+import type { AuthStackScreenProps } from '@/app/navigation';
 
 export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>) {
   const theme = useTheme();
@@ -46,13 +45,12 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
   return (
     <AnimatedScreen style={{ backgroundColor: theme.colors.background }}>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
+          contentContainerClassName="flex-grow justify-center"
           contentContainerStyle={{
-            flexGrow: 1,
-            justifyContent: 'center',
             padding: theme.spacing.xl,
             gap: theme.spacing.md,
           }}
@@ -126,7 +124,10 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
             style={{ marginTop: theme.spacing.sm }}
           />
 
-          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
+          <View
+            className="flex-row justify-center items-center"
+            style={{ gap: theme.spacing.xs, marginTop: theme.spacing.md }}
+          >
             <Text tone="muted">{t('auth.hasAccountPrompt')}</Text>
             <Pressable testID="register-go-login" onPress={() => navigation.navigate('Login')} hitSlop={8}>
               <Text weight="semibold" style={{ color: theme.colors.primary }}>

@@ -4,10 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { Calendar, Clock, CreditCard, Tag, User, UsersRound, X } from 'lucide-react-native';
 import { TransactionStatus, type TransactionResponse } from '@sora/contracts';
 
-import { BottomSheetModal, Button, Money, Text } from '../../../components';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
-import { useCancelTransactionMutation } from '../../../app/store/api/transactionsApi';
+import { BottomSheetModal, Button, CategoryAvatar, Money, Text } from '@/components';
+import { useTheme, useWallets } from '@/app/providers';
+import { useCancelTransactionMutation } from '@/app/store';
 import { formatDay, formatTimeOfDay } from '../../../utils/date';
 import { messageOf } from '../../../utils/errors';
 
@@ -40,8 +39,6 @@ export function TransactionDetailModal({
 
   const title = transaction.description || category?.name || transaction.type;
   const tint = category?.color ?? theme.colors.primary;
-  const initialSource = category?.icon ?? category?.name ?? transaction.type;
-  const initial = initialSource.slice(0, 1).toUpperCase();
 
   async function handleCancel() {
     if (!transaction) return;
@@ -60,24 +57,15 @@ export function TransactionDetailModal({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.xl }}
       >
-        {/* Hero Section */}
-        <View style={{ alignItems: 'center', gap: theme.spacing.xs, paddingTop: theme.spacing.xs }}>
-          <View
-            style={{
-              width: 54,
-              height: 54,
-              borderRadius: theme.radius.pill,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: theme.colors.surfaceMuted,
-              borderWidth: 2,
-              borderColor: tint,
-              marginBottom: theme.spacing.xs,
-            }}
-          >
-            <Text weight="bold" style={{ color: tint, fontSize: 22 }}>
-              {initial}
-            </Text>
+        <View className="items-center" style={{ gap: theme.spacing.xs, paddingTop: theme.spacing.xs }}>
+          <View style={{ marginBottom: theme.spacing.xs }}>
+            <CategoryAvatar
+              categoryIcon={category?.icon}
+              categoryName={category?.name}
+              transactionType={transaction.type}
+              tint={tint}
+              size={48}
+            />
           </View>
 
           <Text variant="heading" style={{ fontSize: 20, textAlign: 'center' }}>
@@ -108,7 +96,6 @@ export function TransactionDetailModal({
           ) : null}
         </View>
 
-        {/* Info Rows */}
         <View
           style={{
             backgroundColor: theme.colors.surfaceMuted,
@@ -117,7 +104,6 @@ export function TransactionDetailModal({
             gap: theme.spacing.md,
           }}
         >
-          {/* Category */}
           {category !== null ? (
             <DetailRow
               icon={<Tag size={18} color={theme.colors.textMuted} />}
@@ -126,7 +112,6 @@ export function TransactionDetailModal({
             />
           ) : null}
 
-          {/* Accounts Involved */}
           {fromAcc !== null ? (
             <DetailRow
               icon={<CreditCard size={18} color={theme.colors.textMuted} />}
@@ -143,28 +128,24 @@ export function TransactionDetailModal({
             />
           ) : null}
 
-          {/* Transaction Date */}
           <DetailRow
             icon={<Calendar size={18} color={theme.colors.textMuted} />}
             label={t('transactions.transactionDateLabel', { defaultValue: 'Transaction Date' })}
             value={`${formatDay(transaction.transactionDate.slice(0, 10))} ${formatTimeOfDay(transaction.transactionDate)}`}
           />
 
-          {/* Created Date */}
           <DetailRow
             icon={<Clock size={18} color={theme.colors.textMuted} />}
             label={t('transactions.createdDateLabel', { defaultValue: 'Created Date' })}
             value={`${formatDay(transaction.createdAt.slice(0, 10))} ${formatTimeOfDay(transaction.createdAt)}`}
           />
 
-          {/* Recorded By */}
           <DetailRow
             icon={<User size={18} color={theme.colors.textMuted} />}
             label={t('transactions.recordedByLabel', { defaultValue: 'Recorded By' })}
             value={transaction.createdBy.displayName}
           />
 
-          {/* Cross-wallet notice */}
           {transaction.isCrossWallet ? (
             <DetailRow
               icon={<UsersRound size={18} color={theme.colors.primary} />}
@@ -176,7 +157,6 @@ export function TransactionDetailModal({
 
         {cancelError !== null ? <Text tone="danger">{cancelError}</Text> : null}
 
-        {/* Actions */}
         {isEditable ? (
           <View style={{ gap: theme.spacing.sm }}>
             {onEdit ? (
@@ -216,9 +196,9 @@ function DetailRow({
   const theme = useTheme();
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+    <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
       {icon}
-      <View style={{ flex: 1 }}>
+      <View className="flex-1">
         <Text variant="caption" tone="muted">
           {label}
         </Text>

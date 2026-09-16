@@ -3,10 +3,9 @@ import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ACCOUNT_TYPES, AccountType } from '@sora/contracts';
 
-import { BottomSheetModal, Button, Input, Text } from '../../../components';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
-import { useCreateAccountMutation } from '../../../app/store/api/accountsApi';
+import { BottomSheetModal, Button, Input, Text } from '@/components';
+import { useTheme, useWallets } from '@/app/providers';
+import { useCreateAccountMutation } from '@/app/store';
 import { messageOf } from '../../../utils/errors';
 
 export interface AddAccountModalProps {
@@ -50,7 +49,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, onClose }: Ad
   if (walletId === undefined) {
     return (
       <BottomSheetModal visible={visible} onClose={onClose} title={t('accounts.addAccount')}>
-        <View style={{ padding: theme.spacing.lg, alignItems: 'center', justifyContent: 'center' }}>
+        <View className="items-center justify-center" style={{ padding: theme.spacing.lg }}>
           <Text tone="muted">{t('accounts.noWalletSelected', { defaultValue: 'No wallet selected.' })}</Text>
         </View>
       </BottomSheetModal>
@@ -86,7 +85,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, onClose }: Ad
           <Text variant="label" tone="muted">
             {t('transactions.type', { defaultValue: 'Type' })}
           </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
+          <View className="flex-row flex-wrap" style={{ gap: theme.spacing.xs }}>
             {ACCOUNT_TYPES.map((candidate) => (
               <Button
                 key={candidate}

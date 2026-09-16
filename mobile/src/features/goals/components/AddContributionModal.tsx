@@ -3,12 +3,12 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
-import { BottomSheetModal, Button, Input, SkeletonList, StateView, Text } from '../../../components';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { AccountPicker } from '../../accounts/components/AccountPicker';
-import { CategoryPicker } from '../../categories/components/CategoryPicker';
-import { useAddContributionMutation, useGetGoalQuery } from '../../../app/store/api/goalsApi';
-import { messageOf } from '../../../utils/errors';
+import { BottomSheetModal, Button, Input, SkeletonList, StateView, Text } from '@/components';
+import { useTheme } from '@/app/providers';
+import { AccountPicker } from '../../accounts/components/AccountPicker.tsx';
+import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
+import { useAddContributionMutation, useGetGoalQuery } from '@/app/store';
+import { isNetworkError, messageOf } from '../../../utils/errors';
 import { nowInstant } from '../../../utils/date';
 
 export interface AddContributionModalProps {
@@ -53,7 +53,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
     );
   }
 
-  if (goal.isError) {
+  if (goal.isError && !isNetworkError(goal.error)) {
     return (
       <BottomSheetModal visible={visible} onClose={onClose} title={t('goals.addContribution')}>
         <StateView variant="error" error={goal.error} retryAction={() => void goal.refetch()} testID="add-contribution-error" />
@@ -61,30 +61,32 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
     );
   }
 
-  if (goal.data === undefined) return null;
+  const goalData = goal.data;
+  if (goalData === undefined) return null;
 
   async function handleSubmit() {
+    if (!goalData) return;
     setError(null);
     if (accountId === null) {
       setError(t('goals.chooseAccountError', { defaultValue: 'Choose which account this comes from.' }));
       return;
     }
-    if (recordAsTransaction && categoryId === null) {
-      setError(t('goals.chooseCategoryError', { defaultValue: 'Choose a category for the expense this creates.' }));
+    const parsed = parseFloat(amount);
+    if (isNaN(parsed) || parsed <= 0) {
+      setError(t('goals.validAmountError', { defaultValue: 'Enter a valid amount greater than zero.' }));
       return;
     }
-
     try {
       await addContribution({
-        goalId: goalId as string,
+        goalId: goalId!,
         body: {
           accountId,
           amount,
-          currency: goal.data?.currency ?? 'VND',
+          currency: goalData.currency,
           contributionDate: nowInstant(),
-          note: note.trim().length > 0 ? note.trim() : undefined,
+          note: note.trim() || undefined,
           recordAsTransaction,
-          categoryId: recordAsTransaction && categoryId !== null ? categoryId : undefined,
+          categoryId: recordAsTransaction ? (categoryId ?? undefined) : undefined,
         },
       }).unwrap();
       onClose();
@@ -95,47 +97,51 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
 
   return (
     <BottomSheetModal visible={visible} onClose={onClose} title={t('goals.addContribution')}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.xl }}
-      >
-        <Input testID="add-contribution-amount" label={t('transactions.amount', { defaultValue: 'Amount' })} keyboardType="decimal-pad" value={amount} onChangeText={setAmount} />
-
+      <ScrollView contentContainerStyle={{ gap: theme.spacing.md }}>
         <AccountPicker
           testID="add-contribution-account"
-          label={t('goals.fromAccount', { defaultValue: 'From account' })}
-          walletId={goal.data.walletId}
+          label={t('goals.fromAccount', { defaultValue: 'From Account' })}
           value={accountId}
-          onChange={(id, pickedWalletId) => {
+          onChange={(id, selectedWalletId) => {
             setAccountId(id);
-            setWalletId(pickedWalletId);
+            setWalletId(selectedWalletId);
           }}
         />
 
+        <Input
+          testID="add-contribution-amount"
+          label={t('transactions.amount')}
+          keyboardType="decimal-pad"
+          value={amount}
+          onChangeText={setAmount}
+          placeholder="0.00"
+        />
+
         <Pressable
-          testID="add-contribution-record-toggle"
-          onPress={() => setRecordAsTransaction((current) => !current)}
-          style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm }}
+          testID="add-contribution-record-tx"
+          onPress={() => setRecordAsTransaction((prev) => !prev)}
+          className="flex-row items-center"
+          style={{ gap: theme.spacing.sm }}
         >
           <View
+            className="w-[20px] h-[20px] items-center justify-center border-[1.5px]"
             style={{
-              width: 22,
-              height: 22,
               borderRadius: theme.radius.sm,
-              borderWidth: 1,
-              borderColor: theme.colors.border,
+              borderColor: recordAsTransaction ? theme.colors.primary : theme.colors.border,
               backgroundColor: recordAsTransaction ? theme.colors.primary : 'transparent',
-              alignItems: 'center',
-              justifyContent: 'center',
             }}
           >
             {recordAsTransaction ? <Check size={14} color={theme.colors.onPrimary} /> : null}
           </View>
-          <View style={{ flex: 1 }}>
-            <Text weight="medium">{t('goals.recordAsExpense', { defaultValue: 'Record as an expense' })}</Text>
+          <View className="flex-1">
+            <Text weight="medium">
+              {t('goals.recordAsExpense', { defaultValue: 'Record as expense transaction' })}
+            </Text>
             <Text variant="caption" tone="muted">
-              {t('goals.recordAsExpenseHelp', { defaultValue: 'Moves the money out of the account now. Leave unchecked to just mark progress toward the goal without recording a transaction.' })}
+              {t('goals.recordAsExpenseHelp', {
+                defaultValue:
+                  'Moves the money out of the account now. Leave unchecked to just mark progress toward the goal without recording a transaction.',
+              })}
             </Text>
           </View>
         </Pressable>
@@ -143,14 +149,19 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
         {recordAsTransaction ? (
           <CategoryPicker
             testID="add-contribution-category"
-            walletId={walletId ?? goal.data.walletId}
+            walletId={walletId ?? goalData.walletId}
             type="EXPENSE"
             value={categoryId}
             onChange={setCategoryId}
           />
         ) : null}
 
-        <Input testID="add-contribution-note" label={t('goals.noteOptional', { defaultValue: 'Note (optional)' })} value={note} onChangeText={setNote} />
+        <Input
+          testID="add-contribution-note"
+          label={t('goals.noteOptional', { defaultValue: 'Note (optional)' })}
+          value={note}
+          onChangeText={setNote}
+        />
 
         {error !== null ? <Text tone="danger">{error}</Text> : null}
 

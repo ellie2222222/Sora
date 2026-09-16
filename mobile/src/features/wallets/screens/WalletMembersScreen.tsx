@@ -1,27 +1,25 @@
-import { MoreVertical, UsersRound, X } from 'lucide-react-native';
-import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
-import { useTranslation } from 'react-i18next';
-import { WalletRole, type WalletInvitationResponse, type WalletMemberResponse } from '@sora/contracts';
-
-import { ActionSheet, Button, Card, ConfirmDialog, ListItemEnter, StateView, Text } from '../../../components/index.ts';
-import type { ActionSheetAction } from '../../../components/ActionSheet.tsx';
-import { SkeletonList } from '../../../components/Skeleton.tsx';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useAuth } from '../../../app/providers/AuthProvider.tsx';
+import { MoreVertical, UsersRound, X } from "lucide-react-native";
+import { useState } from "react";
+import { Pressable, ScrollView, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import {
-  useListMembersQuery,
-  useRemoveMemberMutation,
-  useTransferOwnershipMutation,
-  useUpdateMemberRoleMutation,
-} from '../../../app/store/api/membersApi.ts';
-import { useListInvitationsQuery, useRevokeInvitationMutation } from '../../../app/store/api/invitationsApi.ts';
-import { useGetWalletQuery } from '../../../app/store/api/walletsApi.ts';
-import { messageOf } from '../../../utils/errors.ts';
-import { canAdminister, getRoleLabel } from '../../../utils/roles.ts';
-import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
+  WalletRole,
+  type WalletInvitationResponse,
+  type WalletMemberResponse,
+} from "@sora/contracts";
 
-export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'WalletMembers'>) {
+import { ActionSheet, Button, Card, ConfirmDialog, ListItemEnter, SkeletonList, StateView, Text } from '@/components';
+import type { ActionSheetAction } from "@/components";
+import { useAuth, useTheme } from '@/app/providers';
+import { useGetWalletQuery, useListInvitationsQuery, useListMembersQuery, useRemoveMemberMutation, useRevokeInvitationMutation, useTransferOwnershipMutation, useUpdateMemberRoleMutation } from '@/app/store';
+import { isNetworkError, messageOf } from "../../../utils/errors.ts";
+import { canAdminister, getRoleLabel } from "../../../utils/roles.ts";
+import type { AppStackScreenProps } from "@/app/navigation";
+
+export function WalletMembersScreen({
+  route,
+  navigation,
+}: AppStackScreenProps<"WalletMembers">) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { walletId } = route.params;
@@ -35,9 +33,12 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
   const [transferOwnership] = useTransferOwnershipMutation();
   const [updateMemberRole] = useUpdateMemberRoleMutation();
 
-  const [transferTarget, setTransferTarget] = useState<WalletMemberResponse | null>(null);
+  const [transferTarget, setTransferTarget] =
+    useState<WalletMemberResponse | null>(null);
   const [transferError, setTransferError] = useState<string | null>(null);
-  const [actionTarget, setActionTarget] = useState<WalletMemberResponse | null>(null);
+  const [actionTarget, setActionTarget] = useState<WalletMemberResponse | null>(
+    null,
+  );
   const [actionError, setActionError] = useState<string | null>(null);
 
   const isOwner = canAdminister(wallet.data?.role ?? null);
@@ -46,17 +47,27 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
     if (transferTarget === null) return;
     setTransferError(null);
     try {
-      await transferOwnership({ walletId, body: { toUserId: transferTarget.userId } }).unwrap();
+      await transferOwnership({
+        walletId,
+        body: { toUserId: transferTarget.userId },
+      }).unwrap();
       setTransferTarget(null);
     } catch (error) {
       setTransferError(messageOf(error, t));
     }
   }
 
-  async function handleRoleChange(member: WalletMemberResponse, role: WalletRole) {
+  async function handleRoleChange(
+    member: WalletMemberResponse,
+    role: WalletRole,
+  ) {
     setActionError(null);
     try {
-      await updateMemberRole({ walletId, memberId: member.id, body: { role } }).unwrap();
+      await updateMemberRole({
+        walletId,
+        memberId: member.id,
+        body: { role },
+      }).unwrap();
     } catch (error) {
       setActionError(messageOf(error, t));
     }
@@ -67,174 +78,229 @@ export function WalletMembersScreen({ route, navigation }: AppStackScreenProps<'
       ? []
       : [
           ...(actionTarget.role !== WalletRole.EDITOR
-            ? [{ label: t('members.setAsEditor'), onPress: () => void handleRoleChange(actionTarget, WalletRole.EDITOR) }]
+            ? [
+                {
+                  label: t("members.setAsEditor"),
+                  onPress: () =>
+                    void handleRoleChange(actionTarget, WalletRole.EDITOR),
+                },
+              ]
             : []),
           ...(actionTarget.role !== WalletRole.VIEWER
-            ? [{ label: t('members.setAsViewer'), onPress: () => void handleRoleChange(actionTarget, WalletRole.VIEWER) }]
+            ? [
+                {
+                  label: t("members.setAsViewer"),
+                  onPress: () =>
+                    void handleRoleChange(actionTarget, WalletRole.VIEWER),
+                },
+              ]
             : []),
           {
-            label: t('members.makeOwner'),
+            label: t("members.makeOwner"),
             onPress: () => {
               setTransferError(null);
               setTransferTarget(actionTarget);
             },
           },
           {
-            label: t('members.removeFromWallet'),
+            label: t("members.removeFromWallet"),
             destructive: true,
-            onPress: () => void removeMember({ walletId, memberId: actionTarget.id }),
+            onPress: () =>
+              void removeMember({ walletId, memberId: actionTarget.id }),
           },
         ];
 
   const renderContent = () => {
     if (wallet.isLoading || members.isLoading) return <SkeletonList rows={4} />;
-    if (members.isError) {
-      return <StateView variant="error" error={members.error} retryAction={() => void members.refetch()} />;
+    if (members.isError && !isNetworkError(members.error)) {
+      return (
+        <StateView
+          variant="error"
+          error={members.error}
+          retryAction={() => void members.refetch()}
+        />
+      );
     }
 
-    return (
-      <>
-        {transferError !== null ? <Text tone="danger">{transferError}</Text> : null}
-        {actionError !== null ? <Text tone="danger">{actionError}</Text> : null}
+      return (
+        <>
+          {transferError !== null ? (
+            <Text tone="danger">{transferError}</Text>
+          ) : null}
+          {actionError !== null ? (
+            <Text tone="danger">{actionError}</Text>
+          ) : null}
 
-        {(members.data ?? []).map((member) => (
-          <ListItemEnter key={member.id}>
-            <MemberRow
-              member={member}
-              isSelf={member.userId === user?.id}
-              canManage={isOwner}
-              onOpenActions={() => {
-                setActionError(null);
-                setActionTarget(member);
-              }}
-            />
-          </ListItemEnter>
-        ))}
+          {(members.data ?? []).map((member) => (
+            <ListItemEnter key={member.id}>
+              <MemberRow
+                member={member}
+                isSelf={member.userId === user?.id}
+                canManage={isOwner}
+                onOpenActions={() => {
+                  setActionError(null);
+                  setActionTarget(member);
+                }}
+              />
+            </ListItemEnter>
+          ))}
 
-        {isOwner && invitations.data !== undefined && invitations.data.length > 0 ? (
-          <View>
-            <Text variant="label" tone="muted" style={{ marginBottom: theme.spacing.sm }}>
-              {t('members.pendingInvitations')}
-            </Text>
-            {invitations.data.map((invitation) => (
-              <ListItemEnter key={invitation.id}>
-                <InvitationRow
-                  invitation={invitation}
-                  onRevoke={() => void revokeInvitation({ walletId, invitationId: invitation.id })}
-                />
-              </ListItemEnter>
-            ))}
-          </View>
-        ) : null}
-      </>
-    );
+          {isOwner &&
+          invitations.data !== undefined &&
+          invitations.data.length > 0 ? (
+            <View>
+              <Text
+                variant="label"
+                tone="muted"
+                style={{ marginBottom: theme.spacing.sm }}
+              >
+                {t("members.pendingInvitations")}
+              </Text>
+              {invitations.data.map((invitation) => (
+                <ListItemEnter key={invitation.id}>
+                  <InvitationRow
+                    invitation={invitation}
+                    onRevoke={() =>
+                      void revokeInvitation({
+                        walletId,
+                        invitationId: invitation.id,
+                      })
+                    }
+                  />
+                </ListItemEnter>
+              ))}
+            </View>
+          ) : null}
+        </>
+      );
   };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text variant="title">{t('wallets.members')}</Text>
-        {isOwner ? (
-          <Button
-            testID="wallet-members-invite"
-            label={t('members.invite')}
-            size="sm"
-            onPress={() => navigation.navigate('InviteMember', { walletId })}
-          />
-        ) : null}
-      </View>
+      <ScrollView
+        contentContainerStyle={{
+          padding: theme.spacing.md,
+          gap: theme.spacing.md,
+        }}
+      >
+        <View className="flex-row justify-between items-center">
+          <Text variant="title">{t("wallets.members")}</Text>
+          {isOwner ? (
+            <Button
+              testID="wallet-members-invite"
+              label={t("members.invite")}
+              size="sm"
+              onPress={() => navigation.navigate("InviteMember", { walletId })}
+            />
+          ) : null}
+        </View>
 
-      {renderContent()}
+        {renderContent()}
 
-      <ActionSheet
-        visible={actionTarget !== null}
-        title={actionTarget?.displayName}
-        actions={memberActions}
-        onCancel={() => setActionTarget(null)}
-      />
+        <ActionSheet
+          visible={actionTarget !== null}
+          title={actionTarget?.displayName}
+          actions={memberActions}
+          onCancel={() => setActionTarget(null)}
+        />
 
-      <ConfirmDialog
-        visible={transferTarget !== null}
-        title={t('members.transferTitle')}
-        message={
-          transferTarget !== null
-            ? t('members.transferMessage', { name: transferTarget.displayName })
-            : undefined
-        }
-        confirmLabel={t('members.transfer')}
-        destructive
-        onConfirm={() => void handleConfirmTransfer()}
-        onCancel={() => setTransferTarget(null)}
-      />
-    </ScrollView>
-  );
+        <ConfirmDialog
+          visible={transferTarget !== null}
+          title={t("members.transferTitle")}
+          message={
+            transferTarget !== null
+              ? t("members.transferMessage", {
+                  name: transferTarget.displayName,
+                })
+              : undefined
+          }
+          confirmLabel={t("members.transfer")}
+          destructive
+          onConfirm={() => void handleConfirmTransfer()}
+          onCancel={() => setTransferTarget(null)}
+        />
+      </ScrollView>
+    );
 }
 
-function MemberRow({
-  member,
-  isSelf,
-  canManage,
-  onOpenActions,
-}: {
-  member: WalletMemberResponse;
-  isSelf: boolean;
-  canManage: boolean;
-  onOpenActions: () => void;
-}) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-  const canAct = canManage && !isSelf && member.role !== WalletRole.OWNER;
+  function MemberRow({
+    member,
+    isSelf,
+    canManage,
+    onOpenActions,
+  }: {
+    member: WalletMemberResponse;
+    isSelf: boolean;
+    canManage: boolean;
+    onOpenActions: () => void;
+  }) {
+    const theme = useTheme();
+    const { t } = useTranslation();
+    const canAct = canManage && !isSelf && member.role !== WalletRole.OWNER;
 
-  return (
-    <Card testID={`wallet-member-${member.id}`}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-          <UsersRound size={18} color={theme.colors.textMuted} />
+    return (
+      <Card testID={`wallet-member-${member.id}`}>
+        <View className="flex-row justify-between items-center">
+          <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
+            <UsersRound size={18} color={theme.colors.textMuted} />
+            <View>
+              <Text weight="semibold">
+                {member.displayName}
+                {isSelf ? t("members.you") : ""}
+              </Text>
+              <Text variant="caption" tone="muted">
+                {member.relationLabel !== null
+                  ? `${member.relationLabel} · `
+                  : ""}
+                {getRoleLabel(member.role, t)}
+              </Text>
+            </View>
+          </View>
+          {canAct ? (
+            <Pressable
+              testID={`wallet-member-actions-${member.id}`}
+              onPress={onOpenActions}
+            >
+              <MoreVertical size={18} color={theme.colors.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
+      </Card>
+    );
+  }
+
+  function InvitationRow({
+    invitation,
+    onRevoke,
+  }: {
+    invitation: WalletInvitationResponse;
+    onRevoke: () => void;
+  }) {
+    const theme = useTheme();
+    const { t } = useTranslation();
+
+    return (
+      <Card testID={`wallet-invitation-${invitation.id}`}>
+        <View className="flex-row justify-between items-center">
           <View>
-            <Text weight="semibold">
-              {member.displayName}
-              {isSelf ? t('members.you') : ''}
-            </Text>
+            <Text>{invitation.invitedEmail}</Text>
             <Text variant="caption" tone="muted">
-              {member.relationLabel !== null ? `${member.relationLabel} · ` : ''}
-              {getRoleLabel(member.role, t)}
+              {invitation.relationLabel !== null
+                ? `${invitation.relationLabel} · `
+                : ""}
+              {getRoleLabel(invitation.role, t)} ·{" "}
+              {t("members.expires", {
+                date: invitation.expiresAt.slice(0, 10),
+              })}
             </Text>
           </View>
-        </View>
-        {canAct ? (
-          <Pressable testID={`wallet-member-actions-${member.id}`} onPress={onOpenActions}>
-            <MoreVertical size={18} color={theme.colors.textMuted} />
+          <Pressable
+            testID={`wallet-invitation-revoke-${invitation.id}`}
+            onPress={onRevoke}
+          >
+            <X size={18} color={theme.colors.danger} />
           </Pressable>
-        ) : null}
-      </View>
-    </Card>
-  );
-}
-
-function InvitationRow({
-  invitation,
-  onRevoke,
-}: {
-  invitation: WalletInvitationResponse;
-  onRevoke: () => void;
-}) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-
-  return (
-    <Card testID={`wallet-invitation-${invitation.id}`}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <View>
-          <Text>{invitation.invitedEmail}</Text>
-          <Text variant="caption" tone="muted">
-            {invitation.relationLabel !== null ? `${invitation.relationLabel} · ` : ''}
-            {getRoleLabel(invitation.role, t)} · {t('members.expires', { date: invitation.expiresAt.slice(0, 10) })}
-          </Text>
         </View>
-        <Pressable testID={`wallet-invitation-revoke-${invitation.id}`} onPress={onRevoke}>
-          <X size={18} color={theme.colors.danger} />
-        </Pressable>
-      </View>
-    </Card>
-  );
-}
+      </Card>
+    );
+  }
+

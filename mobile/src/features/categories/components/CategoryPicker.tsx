@@ -4,9 +4,9 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { CategoryResponse, CategoryType } from '@sora/contracts';
 
-import { BottomSheetModal, Text } from '../../../components';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useListCategoriesQuery } from '../../../app/store/api/categoriesApi';
+import { BottomSheetModal, Text } from '@/components';
+import { useTheme } from '@/app/providers';
+import { useListCategoriesQuery } from '@/app/store';
 
 export interface CategoryPickerProps {
   walletId: string;
@@ -17,17 +17,15 @@ export interface CategoryPickerProps {
   testID?: string;
 }
 
-/**
- * Category picker component.
- * Opens a slide-up bottom sheet modal to select a category.
- * Automatically defaults to the first available category for enhanced UX.
- */
 export function CategoryPicker({ walletId, type, value, onChange, error, testID }: CategoryPickerProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const categories = useListCategoriesQuery({ walletId, type, status: 'ACTIVE' });
 
+  // Deliberate default-to-first-category UX shortcut, not just an init step:
+  // clearing `value` back to empty while the list is already loaded will
+  // immediately re-populate it with the first category, not leave it blank.
   useEffect(() => {
     const list = categories.data;
     if ((value === null || value === undefined || value === '') && list !== undefined && list.length > 0) {
@@ -48,20 +46,18 @@ export function CategoryPicker({ walletId, type, value, onChange, error, testID 
       <Pressable
         testID={testID}
         onPress={() => setOpen(true)}
+        className="h-[48px] border justify-center"
         style={{
-          height: 48,
           borderRadius: theme.radius.md,
-          borderWidth: 1,
           borderColor: error !== undefined ? theme.colors.danger : theme.colors.border,
           backgroundColor: theme.colors.surface,
           paddingHorizontal: theme.spacing.md,
-          justifyContent: 'center',
         }}
       >
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+        <View className="flex-row justify-between items-center">
+          <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
             {selected?.color !== undefined && selected.color !== null ? (
-              <View style={{ width: 10, height: 10, borderRadius: theme.radius.pill, backgroundColor: selected.color }} />
+              <View className="w-[10px] h-[10px]" style={{ borderRadius: theme.radius.pill, backgroundColor: selected.color }} />
             ) : null}
             <Text tone={selected === undefined ? 'faint' : 'default'}>
               {selected === undefined ? t('categories.selectCategory', { defaultValue: 'Select a category' }) : selected.name}
@@ -84,8 +80,9 @@ export function CategoryPicker({ walletId, type, value, onChange, error, testID 
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          style={{ maxHeight: 360 }}
-          contentContainerStyle={{ gap: 4, paddingBottom: theme.spacing.md }}
+          className="max-h-[360px]"
+          contentContainerClassName="gap-xs"
+          contentContainerStyle={{ paddingBottom: theme.spacing.md }}
         >
           {(categories.data ?? []).map((category) => (
             <CategoryRow
@@ -124,21 +121,18 @@ function CategoryRow({
     <Pressable
       testID={`category-picker-item-${category.id}`}
       onPress={onPress}
+      className="flex-row items-center justify-between"
       style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
         paddingVertical: theme.spacing.sm,
         paddingHorizontal: theme.spacing.sm,
         borderRadius: theme.radius.md,
         backgroundColor: selected ? theme.colors.primaryMuted : 'transparent',
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+      <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
         <View
+          className="w-[10px] h-[10px]"
           style={{
-            width: 10,
-            height: 10,
             borderRadius: theme.radius.pill,
             backgroundColor: category.color ?? theme.colors.textFaint,
           }}

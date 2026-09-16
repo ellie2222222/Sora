@@ -4,32 +4,21 @@
  */
 
 export const DEFAULT_PULL_THRESHOLD = 110; // px (generous pull length to reach trigger & 360° rotation)
-export const RESISTANCE_FACTOR = 0.5; // damping ratio past threshold
-export const HIDDEN_TRANSLATE_Y = -52; // resting hidden offset above screen
-export const RESTING_TRANSLATE_Y = 37; // resting visible position while refreshing
+const RESISTANCE_FACTOR = 0.5; // damping ratio past threshold
+const HIDDEN_TRANSLATE_Y = -52; // resting hidden offset above screen
+const RESTING_TRANSLATE_Y = 37; // resting visible position while refreshing
 
-/**
- * Clamps a number between min and max bounds.
- */
 export function clamp(value: number, min: number, max: number): number {
   'worklet';
   return Math.min(Math.max(value, min), max);
 }
 
-/**
- * Calculates normalized pull progress [0, 1] based on drag distance and threshold.
- */
 export function calculatePullProgress(pullDistance: number, threshold = DEFAULT_PULL_THRESHOLD): number {
   'worklet';
   if (threshold <= 0) return 0;
   return clamp(pullDistance / threshold, 0, 1);
 }
 
-/**
- * Calculates icon rotation in degrees (0° to 360°).
- * - Rotates continuously as user pulls down from 0 to threshold.
- * - Stops spinning at max length (360° at threshold).
- */
 export function calculatePullRotation(pullDistance: number, threshold = DEFAULT_PULL_THRESHOLD): number {
   'worklet';
   const progress = calculatePullProgress(pullDistance, threshold);
@@ -54,11 +43,7 @@ export function calculatePullDistanceWithResistance(
   return threshold + (rawDistance - threshold) * resistance;
 }
 
-/**
- * Calculates vertical translation (translateY) for the indicator:
- * - Moves smoothly from HIDDEN_TRANSLATE_Y (-52px) to RESTING_TRANSLATE_Y (32px).
- * - Reaches RESTING_TRANSLATE_Y at max drag length (threshold).
- */
+/** Moves from `HIDDEN_TRANSLATE_Y` (-52px) to `RESTING_TRANSLATE_Y` (37px) as the pull reaches `threshold`. */
 export function calculateIndicatorTranslateY(
   distance: number,
   threshold = DEFAULT_PULL_THRESHOLD,

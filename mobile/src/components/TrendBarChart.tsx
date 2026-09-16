@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
+import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
 
 export interface TrendBarChartPoint {
@@ -21,21 +21,21 @@ export function TrendBarChart({ points, height = 140 }: TrendBarChartProps) {
   const max = Math.max(1, ...points.flatMap((point) => [point.income, point.expense]));
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', height, gap: theme.spacing.xs }}>
+    <View className="flex-row items-end" style={{ height, gap: theme.spacing.xs }}>
       {points.map((point) => (
-        <View key={point.label} style={{ flex: 1, alignItems: 'center', gap: theme.spacing.xs }}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: barAreaHeight }}>
+        <View key={point.label} className="flex-1 items-center" style={{ gap: theme.spacing.xs }}>
+          <View className="flex-row items-end gap-[3px]" style={{ height: barAreaHeight }}>
             <View
+              className="w-[6px]"
               style={{
-                width: 6,
                 borderRadius: theme.radius.pill,
                 backgroundColor: theme.colors.income,
                 height: Math.max(2, (point.income / max) * barAreaHeight),
               }}
             />
             <View
+              className="w-[6px]"
               style={{
-                width: 6,
                 borderRadius: theme.radius.pill,
                 backgroundColor: theme.colors.expense,
                 height: Math.max(2, (point.expense / max) * barAreaHeight),

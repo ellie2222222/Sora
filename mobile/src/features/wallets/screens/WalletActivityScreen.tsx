@@ -4,13 +4,13 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AuditLogResponse } from '@sora/contracts';
 
-import { Card, RefreshableSectionList, StateView, Text } from '../../../components/index.ts';
-import { SkeletonList } from '../../../components/Skeleton.tsx';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useListAuditLogsQuery } from '../../../app/store/api/auditApi.ts';
+import { Card, RefreshableSectionList, SkeletonList, StateView, Text } from '@/components';
+import { useTheme } from '@/app/providers';
+import { useListAuditLogsQuery } from '@/app/store';
 import { dayOfInstant, formatDayHeading, formatTimeOfDay } from '../../../utils/date.ts';
+import { isNetworkError } from '../../../utils/errors.ts';
 import { getRoleLabel } from '../../../utils/roles.ts';
-import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
+import type { AppStackScreenProps } from '@/app/navigation';
 
 /** WAL-US-13. OWNER-only (API spec §15.1) — this screen is only ever reached from a control already gated to the owner. */
 export function WalletActivityScreen({ route }: AppStackScreenProps<'WalletActivity'>) {
@@ -38,7 +38,7 @@ export function WalletActivityScreen({ route }: AppStackScreenProps<'WalletActiv
         </View>
       );
     }
-    if (activity.isError) {
+    if (activity.isError && !isNetworkError(activity.error)) {
       return (
         <View style={{ padding: theme.spacing.md }}>
           <StateView variant="error" error={activity.error} retryAction={() => void activity.refetch()} testID="wallet-activity-error" />
@@ -85,7 +85,7 @@ export function WalletActivityScreen({ route }: AppStackScreenProps<'WalletActiv
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+    <View className="flex-1" style={{ backgroundColor: theme.colors.background }}>
       {renderContent()}
     </View>
   );
@@ -117,8 +117,8 @@ function ActivityRow({ entry }: { entry: AuditLogResponse }) {
 
   return (
     <Card testID={`wallet-activity-${entry.id}`}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <View style={{ flex: 1, gap: 2 }}>
+      <View className="flex-row justify-between items-start">
+        <View className="flex-1 gap-xxs">
           <Text weight="semibold">{humanizeEvent(entry.event)}</Text>
           <Text variant="caption" tone="muted">
             {entry.actorRole !== null ? `${getRoleLabel(entry.actorRole, t)} · ` : ''}

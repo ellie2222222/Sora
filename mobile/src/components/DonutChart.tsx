@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import type { CategorySpendSlice } from '@sora/contracts';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
+import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
 
 export interface DonutChartProps {
@@ -21,7 +21,7 @@ export function DonutChart({ slices, size = 160, strokeWidth = 20, centerLabel, 
   let cumulativeLength = 0;
 
   return (
-    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+    <View className="items-center justify-center" style={{ width: size, height: size }}>
       <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
         <Circle cx={size / 2} cy={size / 2} r={radius} stroke={theme.colors.surfaceMuted} strokeWidth={strokeWidth} fill="none" />
         {slices.map((slice) => {
@@ -44,7 +44,7 @@ export function DonutChart({ slices, size = 160, strokeWidth = 20, centerLabel, 
         })}
       </Svg>
       {centerLabel !== undefined || centerSublabel !== undefined ? (
-        <View style={{ position: 'absolute', alignItems: 'center' }}>
+        <View className="absolute items-center">
           {centerLabel !== undefined ? (
             <Text variant="title" weight="bold">
               {centerLabel}

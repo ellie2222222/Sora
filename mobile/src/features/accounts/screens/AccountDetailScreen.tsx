@@ -1,11 +1,11 @@
 import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Card, Money, StateView, Text } from '../../../components/index.ts';
-import { SkeletonList } from '../../../components/Skeleton.tsx';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useGetAccountQuery } from '../../../app/store/api/accountsApi.ts';
-import type { AppStackScreenProps } from '../../../app/navigation/types.ts';
+import { Card, Money, SkeletonList, StateView, Text } from '@/components';
+import { useTheme } from '@/app/providers';
+import { useGetAccountQuery } from '@/app/store';
+import { isNetworkError } from '../../../utils/errors.ts';
+import type { AppStackScreenProps } from '@/app/navigation';
 
 export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'AccountDetail'>) {
   const theme = useTheme();
@@ -16,7 +16,7 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
 
   const renderContent = () => {
     if (account.isLoading) return <SkeletonList rows={3} />;
-    if (account.isError) {
+    if (account.isError && !isNetworkError(account.error)) {
       return <StateView variant="error" error={account.error} retryAction={() => void account.refetch()} />;
     }
 
@@ -32,7 +32,7 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
           <Money amount={data.balance} currency={data.currency} variant="heading" style={{ marginTop: theme.spacing.xs }} />
         </Card>
 
-        <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
+        <View className="flex-row" style={{ gap: theme.spacing.md }}>
           <Card style={{ flex: 1 }}>
             <Text variant="label" tone="muted">
               {t('home.income')}
@@ -47,7 +47,7 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
           </Card>
         </View>
 
-        <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
+        <View className="flex-row" style={{ gap: theme.spacing.md }}>
           <Card style={{ flex: 1 }}>
             <Text variant="label" tone="muted">
               {t('accounts.transferredIn')}

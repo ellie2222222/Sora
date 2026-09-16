@@ -9,7 +9,7 @@ import {
 
 import { formatCurrencyInput } from '@sora/contracts';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
+import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
 
 export interface InputProps extends TextInputProps {
@@ -74,9 +74,9 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
         onChangeText={handleTextChange}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        className="h-[48px]"
         style={[
           {
-            height: 48,
             borderRadius: theme.radius.md,
             borderWidth: isFocused || hasError ? 1.5 : 1,
             borderColor: hasError

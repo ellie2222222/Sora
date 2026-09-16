@@ -2,8 +2,8 @@ import type { LucideIcon } from 'lucide-react-native';
 import { Inbox, Info, Search, TriangleAlert } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
-import { useTheme } from '../app/providers/ThemeProvider';
-import { getServerErrorMessage, isNetworkError, messageOf } from '../utils/errors';
+import { useTheme } from '@/app/providers';
+import { getServerErrorMessage, isNetworkError } from '../utils/errors';
 import { AnimatedIcon, type IconAnimationType } from './AnimatedIcon';
 import { Button } from './Button';
 import { SlideUp } from './SlideUp';
@@ -62,6 +62,31 @@ export function StateView({
 }: StateViewProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+
+  // Never render error state view on network errors / offline — silently fallback to local data.
+  // The string checks below are a backstop for callers that pass a plain
+  // title/message instead of the original `error` (so `isNetworkError` alone
+  // can't see it) — fragile against copy changes and only checks English
+  // substrings, but there's no `error` object left to check by then.
+  if (
+    variant === 'error' &&
+    (isNetworkError(error) ||
+      title === t('errors.offlineTitle', 'No internet connection') ||
+      message === t('errors.offlineTitle', 'No internet connection') ||
+      (typeof title === 'string' &&
+        (title.toLowerCase().includes('internet') ||
+          title.toLowerCase().includes('offline') ||
+          title.toLowerCase().includes('network') ||
+          title.toLowerCase().includes('connection'))) ||
+      (typeof message === 'string' &&
+        (message.toLowerCase().includes('internet') ||
+          message.toLowerCase().includes('offline') ||
+          message.toLowerCase().includes('network') ||
+          message.toLowerCase().includes('connection'))))
+  ) {
+    return null;
+  }
+
   const Icon = icon ?? VARIANT_ICON[variant];
 
   const defaultTitles: Record<StateViewVariant, string> = {
@@ -74,7 +99,7 @@ export function StateView({
   };
 
   const errorMessage = variant === 'error' && error !== undefined
-    ? (isNetworkError(error) ? t('errors.offlineMessage', 'Your local data is still available.') : getServerErrorMessage(error, t))
+    ? (isNetworkError(error) ? t('errors.offlineTitle', 'No internet connection') : getServerErrorMessage(error, t))
     : undefined;
 
   const resolvedTitle = title ?? errorMessage ?? defaultTitles[variant];

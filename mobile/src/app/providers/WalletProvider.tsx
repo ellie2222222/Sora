@@ -8,8 +8,9 @@ import {
 } from 'react';
 import type { WalletResponse } from '@sora/contracts';
 
-import { useListWalletsQuery } from '../store/api/walletsApi.ts';
+import { useListWalletsQuery } from '@/app/store';
 import { permissionsFor, type WalletPermissions } from '../../utils/roles.ts';
+import { isNetworkError } from '../../utils/errors.ts';
 import { useAuth } from './AuthProvider.tsx';
 
 /**
@@ -65,10 +66,10 @@ export function WalletProvider({ children }: { children: ReactNode }): ReactNode
       permissions,
       setActiveWalletId,
       isLoading: query.isLoading,
-      isError: query.isError,
+      isError: query.isError && !isNetworkError(query.error),
       refetch: () => void query.refetch(),
     }),
-    [wallets, activeWallet, permissions, query.isLoading, query.isError, query.refetch],
+    [wallets, activeWallet, permissions, query.isLoading, query.isError, query.error, query.refetch],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

@@ -13,7 +13,7 @@ import * as AuthSession from 'expo-auth-session';
 import { useMemo } from 'react';
 import { Platform } from 'react-native';
 
-import { env } from '../../../app/config/env.ts';
+import { env } from '@/app/config';
 
 const GOOGLE_DISCOVERY = {
   authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',

@@ -3,14 +3,12 @@ import { View } from 'react-native';
 import { UsersRound } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Button, StateView, Text } from '../../../components/index.ts';
-import { SkeletonList } from '../../../components/Skeleton.tsx';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { useAcceptInvitationMutation, usePreviewInvitationQuery } from '../../../app/store/api/invitationsApi.ts';
-import { useAuth } from '../../../app/providers/AuthProvider.tsx';
+import { Button, SkeletonList, StateView, Text } from '@/components';
+import { useAuth, useTheme } from '@/app/providers';
+import { useAcceptInvitationMutation, usePreviewInvitationQuery } from '@/app/store';
 import { messageOf } from '../../../utils/errors.ts';
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '../../../utils/roles.ts';
-import type { AuthStackScreenProps } from '../../../app/navigation/types.ts';
+import type { AuthStackScreenProps } from '@/app/navigation';
 
 export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenProps<'AcceptInvitation'>) {
   const theme = useTheme();
@@ -96,7 +94,7 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
   };
 
   return (
-    <View style={{ flex: 1, padding: theme.spacing.xl, gap: theme.spacing.md, justifyContent: 'center' }}>
+    <View className="flex-1 justify-center" style={{ padding: theme.spacing.xl, gap: theme.spacing.md }}>
       {renderContent()}
     </View>
   );

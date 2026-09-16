@@ -1,6 +1,6 @@
-import { useModal } from '../../../app/providers/ModalProvider';
-import { TransactionListScreen } from '../../transactions/components/TransactionListScreen';
-import type { MainTabScreenProps } from '../../../app/navigation/types';
+import { useModal } from '../../../app/providers/ModalProvider.tsx';
+import { TransactionListScreen } from '@/features/transactions';
+import type { MainTabScreenProps } from '@/app/navigation';
 
 export function HomeScreen({ navigation }: MainTabScreenProps<'Home'>) {
   const { openModal } = useModal();

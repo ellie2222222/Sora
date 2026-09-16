@@ -3,6 +3,7 @@ import {
   SectionList,
   View,
   type DefaultSectionT,
+  type GestureResponderEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   type SectionListProps,
@@ -51,24 +52,25 @@ function RefreshableSectionListInner<ItemT, SectionT = DefaultSectionT>(
     onScrollEndDrag?.(event);
   };
 
-  const handleTouchStart = (e: any) => {
+  const handleTouchStart = (e: GestureResponderEvent) => {
     ptr.handleTouchStart(e);
     onTouchStart?.(e);
   };
 
-  const handleTouchMove = (e: any) => {
+  const handleTouchMove = (e: GestureResponderEvent) => {
     ptr.handleTouchMove(e);
     onTouchMove?.(e);
   };
 
-  const handleTouchEnd = (e: any) => {
+  const handleTouchEnd = (e: GestureResponderEvent) => {
     ptr.handleTouchEnd();
     onTouchEnd?.(e);
   };
 
   return (
     <View
-      style={[{ flex: 1, overflow: 'hidden' }, style]}
+      className="flex-1 overflow-hidden"
+      style={style}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { bootstrapLocale, setCachedLocale, type SupportedLocale } from '../i18n/index.ts';
-import { authApi } from '../../services/api/auth.ts';
+import { bootstrapLocale, setCachedLocale, type SupportedLocale } from '@/app/i18n';
+import { authApi } from '@/services/api';
 import { useAuth } from './AuthProvider.tsx';
 
 interface LocaleContextValue {

@@ -1,10 +1,8 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { ActivityIndicator, View } from 'react-native';
 
-import { GuestUploadScreen } from '../../features/guest/screens/GuestUploadScreen.tsx';
-import { useAuth } from '../providers/AuthProvider.tsx';
-import { useTheme } from '../providers/ThemeProvider.tsx';
-import { WalletProvider } from '../providers/WalletProvider.tsx';
+import { GuestUploadScreen } from '@/features/guest';
+import { WalletProvider, useAuth, useTheme } from '@/app/providers';
 import { AppNavigator } from './AppNavigator.tsx';
 import { AuthNavigator } from './AuthNavigator.tsx';
 
@@ -19,7 +17,7 @@ export function RootNavigator() {
 
   if (restoring) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.background, alignItems: 'center', justifyContent: 'center' }}>
+      <View className="flex-1 items-center justify-center" style={{ backgroundColor: theme.colors.background }}>
         <ActivityIndicator color={theme.colors.primary} />
       </View>
     );

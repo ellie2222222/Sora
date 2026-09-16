@@ -3,14 +3,13 @@ import { FlatList, Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { ContributionResponse } from '@sora/contracts';
 
-import { useModal } from '../../../app/providers/ModalProvider';
-import { Card, Money, ProgressBar, StateView, Text } from '../../../components/index';
-import { SkeletonList } from '../../../components/Skeleton';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
-import { useGetGoalQuery, useListGoalContributionsQuery } from '../../../app/store/api/goalsApi';
+import { useTheme, useWallets } from '@/app/providers';
+import { useModal } from '../../../app/providers/ModalProvider.tsx';
+import { Card, Money, ProgressBar, SkeletonList, StateView, Text } from '@/components';
+import { useGetGoalQuery, useListGoalContributionsQuery } from '@/app/store';
 import { formatDay } from '../../../utils/date';
-import type { AppStackScreenProps } from '../../../app/navigation/types';
+import { isNetworkError } from '../../../utils/errors';
+import type { AppStackScreenProps } from '@/app/navigation';
 
 export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScreenProps<'GoalDetail'>) {
   const theme = useTheme();
@@ -30,7 +29,7 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
         </View>
       );
     }
-    if (goal.isError) {
+    if (goal.isError && !isNetworkError(goal.error)) {
       return (
         <View style={{ padding: theme.spacing.md }}>
           <StateView variant="error" error={goal.error} retryAction={() => void goal.refetch()} />
@@ -62,7 +61,7 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
               </Text>
             ) : null}
 
-            <View style={{ flexDirection: 'row', gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
+            <View className="flex-row" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
               <Money amount={data.currentAmount} currency={data.currency} variant="heading" />
               <Text variant="heading" tone="muted">
                 /
@@ -72,7 +71,7 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
 
             <ProgressBar percentage={data.progressPercentage} tone="income" height={10} />
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: theme.spacing.sm }}>
+            <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
               <Money amount={data.remaining} currency={data.currency} variant="caption" />
               {data.targetDate !== null ? (
                 <Text variant="caption" tone="muted">
@@ -85,12 +84,10 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
               <Pressable
                 testID="goal-detail-add-contribution"
                 onPress={() => openModal('AddContribution', { goalId })}
+                className="flex-row items-center self-start"
                 style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
                   gap: theme.spacing.xs,
                   marginTop: theme.spacing.md,
-                  alignSelf: 'flex-start',
                 }}
               >
                 <Plus size={16} color={theme.colors.primary} />
@@ -112,7 +109,7 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+    <View className="flex-1" style={{ backgroundColor: theme.colors.background }}>
       {renderContent()}
     </View>
   );
@@ -123,9 +120,8 @@ function ContributionRow({ contribution }: { contribution: ContributionResponse 
 
   return (
     <View
+      className="flex-row justify-between"
       style={{
-        flexDirection: 'row',
-        justifyContent: 'space-between',
         paddingVertical: theme.spacing.xs,
       }}
     >

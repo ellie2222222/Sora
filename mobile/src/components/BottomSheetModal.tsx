@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '../app/providers/ThemeProvider';
+import { useTheme } from '@/app/providers';
 import { Text } from './Text';
 
 export interface BottomSheetModalProps {
@@ -24,16 +24,7 @@ export interface BottomSheetModalProps {
   testID?: string;
 }
 
-/**
- * Standardized slide-up bottom sheet modal component.
- * Features:
- * - 1:1 synchronized backdrop opacity fade
- * - Subtle spring bounce slide-up and settling (tension: 75, friction: 9)
- * - Flush bottom anchoring with zero gap via bottom extension skirt
- * - Safe area handling
- * - Drag handle bar & PanResponder pull-to-dismiss gesture
- * - Keyboard avoiding layout support
- */
+/** Standardized slide-up bottom sheet modal component. */
 export function BottomSheetModal({
   visible,
   onClose,
@@ -143,9 +134,9 @@ export function BottomSheetModal({
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1, justifyContent: 'flex-end' }}
+          className="flex-1 justify-end"
         >
-          <Pressable style={{ flex: 1 }} onPress={() => dismissModal()} />
+          <Pressable className="flex-1" onPress={() => dismissModal()} />
           <Pressable onPress={(e) => e.stopPropagation()}>
             <Animated.View
               style={{
@@ -155,37 +146,31 @@ export function BottomSheetModal({
               }}
             >
               <View
+                // Pulled offscreen below the screen's bottom edge, paired with the zero-gap paddingBottom skirt below
+                className="rounded-bl-none rounded-br-none border border-b-0 -mb-[30px]"
                 style={{
                   backgroundColor: theme.colors.surfaceElevated,
                   borderTopLeftRadius: theme.radius.xl,
                   borderTopRightRadius: theme.radius.xl,
-                  borderBottomLeftRadius: 0,
-                  borderBottomRightRadius: 0,
                   paddingTop: theme.spacing.sm,
                   paddingHorizontal: theme.spacing.lg,
                   paddingBottom: safeBottom + 30, // Zero-gap bottom extension skirt
-                  marginBottom: -30, // Pulled offscreen below screen bottom edge
-                  borderWidth: 1,
                   borderColor: theme.colors.border,
-                  borderBottomWidth: 0,
                   ...(theme.shadows.md as object),
                 }}
               >
                 <View
                   {...panResponder.panHandlers}
+                  className="items-center"
                   style={{
-                    alignItems: 'center',
                     paddingVertical: theme.spacing.xs,
                     marginBottom: theme.spacing.xs,
                   }}
                 >
                   <View
+                    className="w-[38px] h-[4px] rounded-[2px] opacity-80"
                     style={{
-                      width: 38,
-                      height: 4,
-                      borderRadius: 2,
                       backgroundColor: theme.colors.borderStrong,
-                      opacity: 0.8,
                     }}
                   />
                 </View>

@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
+import { useTheme } from '@/app/providers';
 
 export interface ProgressBarProps {
   /** 0-100+; values above 100 render as a full, danger-coloured bar. */
@@ -28,17 +28,17 @@ export function ProgressBar({ percentage, tone = 'primary', danger = false, heig
     <View
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(percentage) }}
+      className="overflow-hidden"
       style={{
         height,
         borderRadius: height / 2,
         backgroundColor: theme.colors.surfaceMuted,
-        overflow: 'hidden',
       }}
     >
       <View
+        className="h-full"
         style={{
           width: `${clamped}%`,
-          height: '100%',
           borderRadius: height / 2,
           backgroundColor: fillColor,
         }}

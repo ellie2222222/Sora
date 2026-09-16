@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react';
 import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { BottomSheetModal, Button, Input, StateView, Text } from '../../../components';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
-import { useCreateGoalMutation } from '../../../app/store/api/goalsApi';
+import { BottomSheetModal, Button, Input, StateView, Text } from '@/components';
+import { useTheme, useWallets } from '@/app/providers';
+import { useCreateGoalMutation } from '@/app/store';
 import { messageOf } from '../../../utils/errors';
 
 export interface AddGoalModalProps {

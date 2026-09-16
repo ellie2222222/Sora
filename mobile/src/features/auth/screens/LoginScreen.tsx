@@ -6,12 +6,11 @@ import { KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { loginSchema, type LoginRequest } from '@sora/contracts';
 
-import { AnimatedScreen, Button, Input, Text } from '../../../components/index.ts';
-import { useAuth } from '../../../app/providers/AuthProvider.tsx';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
+import { AnimatedScreen, Button, Input, Text } from '@/components';
+import { useAuth, useTheme } from '@/app/providers';
 import { messageOf } from '../../../utils/errors.ts';
 import { useGoogleSignIn } from '../hooks/useGoogleSignIn.ts';
-import type { AuthStackScreenProps } from '../../../app/navigation/types.ts';
+import type { AuthStackScreenProps } from '@/app/navigation';
 
 export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
   const theme = useTheme();
@@ -76,7 +75,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={{ flex: 1, justifyContent: 'center', padding: theme.spacing.xl, gap: theme.spacing.md }}>
+        <View className="flex-1 justify-center" style={{ padding: theme.spacing.xl, gap: theme.spacing.md }}>
           <Text variant="heading" style={{ marginBottom: theme.spacing.xs }}>
             {t('auth.loginTitle')}
           </Text>
@@ -135,12 +134,12 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
 
           {google.available ? (
             <>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-                <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+              <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
+                <View className="flex-1 h-[1px]" style={{ backgroundColor: theme.colors.border }} />
                 <Text variant="caption" tone="faint">
                   {t('auth.orDivider')}
                 </Text>
-                <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+                <View className="flex-1 h-[1px]" style={{ backgroundColor: theme.colors.border }} />
               </View>
 
               <Button
@@ -154,7 +153,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
             </>
           ) : null}
 
-          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
+          <View className="flex-row justify-center items-center" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
             <Text tone="muted">{t('auth.noAccountPrompt')}</Text>
             <Pressable testID="login-go-register" onPress={() => navigation.navigate('Register')} hitSlop={8}>
               <Text weight="semibold" style={{ color: theme.colors.primary }}>
@@ -163,7 +162,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
             </Pressable>
           </View>
 
-          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: theme.spacing.xs, marginTop: theme.spacing.xs }}>
+          <View className="flex-row justify-center items-center" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.xs }}>
             <Text tone="muted">{t('auth.guestPrompt')}</Text>
             <Pressable
               testID="login-continue-as-guest"

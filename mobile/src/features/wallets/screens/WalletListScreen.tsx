@@ -4,16 +4,12 @@ import { FlatList, Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { WalletResponse } from '@sora/contracts';
 
-import { BottomSheetModal, Button, Card, Input, Money, StateView, Text } from '../../../components';
-import { SkeletonList } from '../../../components/Skeleton';
-import { useAuth } from '../../../app/providers/AuthProvider';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
-import { useCreateWalletMutation } from '../../../app/store/api/walletsApi';
+import { BottomSheetModal, Button, Card, Input, Money, SkeletonList, StateView, Text } from '@/components';
+import { useAuth, useTheme, useWallets } from '@/app/providers';
+import { useCreateWalletMutation } from '@/app/store';
 import { ROLE_LABELS } from '../../../utils/roles';
 import { messageOf } from '../../../utils/errors';
-import type { AppStackScreenProps } from '../../../app/navigation/types';
-
+import type { AppStackScreenProps } from '@/app/navigation';
 
 /**
  * The full manage-wallets surface: your own wallets, everything shared with
@@ -40,7 +36,7 @@ export function WalletListScreen({ navigation }: AppStackScreenProps<'WalletList
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.sm }}
         ListHeaderComponent={
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: theme.spacing.sm }}>
+          <View className="flex-row justify-between" style={{ marginBottom: theme.spacing.sm }}>
             <Text variant="title">{t('wallets.title')}</Text>
             {!isGuest ? (
               <Button
@@ -80,10 +76,10 @@ function WalletRow({ wallet, onPress }: { wallet: WalletResponse; onPress: () =>
   return (
     <Pressable testID={`wallet-list-item-${wallet.id}`} onPress={onPress}>
       <Card>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={{ flexDirection: 'row', gap: theme.spacing.sm, flex: 1 }}>
+        <View className="flex-row justify-between items-start">
+          <View className="flex-row flex-1" style={{ gap: theme.spacing.sm }}>
             {!wallet.isOwn ? <UsersRound size={18} color={theme.colors.primary} /> : null}
-            <View style={{ flex: 1 }}>
+            <View className="flex-1">
               <Text weight="semibold">
                 {wallet.isOwn
                   ? (wallet.name === 'Guest Wallet' ? t('wallets.guestWallet') : wallet.name)
@@ -96,7 +92,7 @@ function WalletRow({ wallet, onPress }: { wallet: WalletResponse; onPress: () =>
               </Text>
             </View>
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
+          <View className="items-end">
             {wallet.balances.map((total) => (
               <Money key={total.currency} amount={total.amount} currency={total.currency} variant="label" />
             ))}

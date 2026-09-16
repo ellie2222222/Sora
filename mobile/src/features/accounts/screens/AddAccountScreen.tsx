@@ -1,15 +1,13 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ACCOUNT_TYPES, AccountType } from '@sora/contracts';
 
-import { BottomSheetModal, Button, Input, Text } from '../../../components';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
-import { useCreateAccountMutation } from '../../../app/store/api/accountsApi';
+import { BottomSheetModal, Button, Input, Text } from '@/components';
+import { useTheme, useWallets } from '@/app/providers';
+import { useCreateAccountMutation } from '@/app/store';
 import { messageOf } from '../../../utils/errors';
-import type { AppStackScreenProps } from '../../../app/navigation/types';
-
+import type { AppStackScreenProps } from '@/app/navigation';
 
 export function AddAccountScreen({ route, navigation }: AppStackScreenProps<'AddAccount'>) {
   const theme = useTheme();
@@ -34,7 +32,7 @@ export function AddAccountScreen({ route, navigation }: AppStackScreenProps<'Add
   if (walletId === undefined) {
     return (
       <BottomSheetModal visible={true} onClose={() => navigation.goBack()} title={t('accounts.addAccount')}>
-        <View style={{ padding: theme.spacing.lg, alignItems: 'center', justifyContent: 'center' }}>
+        <View className="items-center justify-center" style={{ padding: theme.spacing.lg }}>
           <Text tone="muted">{t('accounts.noWalletSelected', { defaultValue: 'No wallet selected.' })}</Text>
         </View>
       </BottomSheetModal>
@@ -70,7 +68,7 @@ export function AddAccountScreen({ route, navigation }: AppStackScreenProps<'Add
             <Text variant="label" tone="muted">
               {t('transactions.type', { defaultValue: 'Type' })}
             </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
+            <View className="flex-row flex-wrap" style={{ gap: theme.spacing.xs }}>
               {ACCOUNT_TYPES.map((candidate) => (
                 <Button
                   key={candidate}

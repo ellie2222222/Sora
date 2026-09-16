@@ -3,10 +3,9 @@ import { ActivityIndicator, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { WalletResponse } from '@sora/contracts';
 
-import { Button, Card, Input, StateView, Text } from '../../../components/index.ts';
-import { useAuth } from '../../../app/providers/AuthProvider.tsx';
-import { useTheme } from '../../../app/providers/ThemeProvider.tsx';
-import { walletsApi } from '../../../services/api/wallets.ts';
+import { Button, Card, Input, StateView, Text } from '@/components';
+import { useAuth, useTheme } from '@/app/providers';
+import { walletsApi } from '@/services/api';
 import { messageOf } from '../../../utils/errors.ts';
 
 /**
@@ -99,7 +98,8 @@ export function GuestUploadScreen() {
     return (
       <View
         testID="screen-guest-upload"
-        style={{ flex: 1, backgroundColor: theme.colors.background, padding: theme.spacing.xl, gap: theme.spacing.lg }}
+        className="flex-1"
+        style={{ backgroundColor: theme.colors.background, padding: theme.spacing.xl, gap: theme.spacing.lg }}
       >
         <Text variant="heading">{t('guest.upload.title')}</Text>
         <Text tone="muted">{t('guest.upload.subtitle')}</Text>
@@ -112,7 +112,8 @@ export function GuestUploadScreen() {
     return (
       <View
         testID="screen-guest-upload"
-        style={{ flex: 1, backgroundColor: theme.colors.background, padding: theme.spacing.xl, gap: theme.spacing.lg }}
+        className="flex-1"
+        style={{ backgroundColor: theme.colors.background, padding: theme.spacing.xl, gap: theme.spacing.lg }}
       >
         <Text variant="heading">{t('guest.upload.title')}</Text>
         <Text tone="muted">{t('guest.upload.subtitle')}</Text>
@@ -134,7 +135,10 @@ export function GuestUploadScreen() {
 
   if (wallets === null || targetWalletId !== null) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl, gap: theme.spacing.lg, backgroundColor: theme.colors.background }}>
+      <View
+        className="flex-1 items-center justify-center"
+        style={{ padding: theme.spacing.xl, gap: theme.spacing.lg, backgroundColor: theme.colors.background }}
+      >
         <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text variant="title">
           {targetWalletId !== null
@@ -147,14 +151,18 @@ export function GuestUploadScreen() {
               const isDone = completedPhases.has(step.key);
               const isCurrent = currentPhase === step.key;
               return (
-                <View key={step.key} style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, opacity: isDone || isCurrent ? 1 : 0.4 }}>
-                  <View style={{ width: 20, alignItems: 'center' }}>
+                <View
+                  key={step.key}
+                  className="flex-row items-center"
+                  style={{ gap: theme.spacing.sm, opacity: isDone || isCurrent ? 1 : 0.4 }}
+                >
+                  <View className="w-[20px] items-center">
                     {isDone ? (
                       <Check size={16} color={theme.colors.success} />
                     ) : isCurrent ? (
                       <ActivityIndicator size="small" color={theme.colors.primary} />
                     ) : (
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.textFaint }} />
+                      <View className="w-[8px] h-[8px] rounded-[4px]" style={{ backgroundColor: theme.colors.textFaint }} />
                     )}
                   </View>
                   <Text weight={isCurrent ? 'semibold' : 'regular'} tone={isDone ? 'success' : isCurrent ? 'default' : 'muted'}>
@@ -170,11 +178,11 @@ export function GuestUploadScreen() {
     );
   }
 
-
   return (
     <View
       testID="screen-guest-upload"
-      style={{ flex: 1, backgroundColor: theme.colors.background, padding: theme.spacing.xl, gap: theme.spacing.lg }}
+      className="flex-1"
+      style={{ backgroundColor: theme.colors.background, padding: theme.spacing.xl, gap: theme.spacing.lg }}
     >
       <Text variant="heading">{t('guest.upload.title')}</Text>
       <Text tone="muted">{t('guest.upload.subtitle')}</Text>
@@ -183,7 +191,7 @@ export function GuestUploadScreen() {
         <Text variant="title">{t('guest.upload.chooseWallet')}</Text>
         {wallets.map((wallet) => (
           <Card key={wallet.id}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View className="flex-row justify-between items-center">
               <Text weight="semibold">{wallet.name === 'Guest Wallet' ? t('wallets.guestWallet') : wallet.name}</Text>
               <Button
                 testID={`guest-upload-use-${wallet.id}`}

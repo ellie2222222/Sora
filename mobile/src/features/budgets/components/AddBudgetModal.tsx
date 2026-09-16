@@ -3,11 +3,10 @@ import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { BUDGET_PERIOD_TYPES, type BudgetPeriodType } from '@sora/contracts';
 
-import { BottomSheetModal, Button, Input, StateView, Text } from '../../../components';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
-import { CategoryPicker } from '../../categories/components/CategoryPicker';
-import { useCreateBudgetMutation } from '../../../app/store/api/budgetsApi';
+import { BottomSheetModal, Button, Input, StateView, Text } from '@/components';
+import { useTheme, useWallets } from '@/app/providers';
+import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
+import { useCreateBudgetMutation } from '@/app/store';
 import { messageOf } from '../../../utils/errors';
 import { addMonths, endOfMonth, startOfMonth, today } from '../../../utils/date';
 
@@ -107,7 +106,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
           <Text variant="label" tone="muted">
             {t('budgets.period', { defaultValue: 'Period' })}
           </Text>
-          <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
+          <View className="flex-row" style={{ gap: theme.spacing.xs }}>
             {BUDGET_PERIOD_TYPES.map((candidate) => (
               <Button
                 key={candidate}

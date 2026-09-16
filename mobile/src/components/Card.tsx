@@ -1,6 +1,6 @@
 import { View, type ViewProps } from 'react-native';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
+import { useTheme } from '@/app/providers';
 
 export interface CardProps extends ViewProps {
   elevated?: boolean;
