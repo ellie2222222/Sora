@@ -15,9 +15,9 @@ import axios, {
 } from 'axios';
 import { HTTP_STATUS, type ApiEnvelope, type PaginationMeta } from '@sora/contracts';
 
-import { env } from '../../app/config/env.ts';
+import { env } from '@/app/config';
 import { toApiError } from '../../utils/errors.ts';
-import { AUTH_PATHS_WITHOUT_RETRY, session } from '../auth/index.ts';
+import { AUTH_PATHS_WITHOUT_RETRY, session } from '@/services/auth';
 
 interface RetryableConfig extends InternalAxiosRequestConfig {
   /** Set once a request has already been replayed after a refresh. */

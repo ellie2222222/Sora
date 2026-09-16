@@ -7,10 +7,10 @@ import type {
   WalletResponse,
 } from '@sora/contracts';
 
-import { invitationsApi as invitationsHttp, type InvitationState } from '../../../services/api/invitations.ts';
+import { invitationsApi as invitationsHttp, type InvitationState } from '@/services/api';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
 
-export type { InvitationState } from '../../../services/api/invitations.ts';
+export type { InvitationState } from '@/services/api';
 
 /** No guest implementation — invitations always involve a real other user. */
 export const invitationsApiSlice = apiSlice.injectEndpoints({

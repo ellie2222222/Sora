@@ -243,18 +243,35 @@ Mirrors the spec's own §19 checklist, scoped to the transactions pilot:
 ## 12. Rollout order
 
 1. Add `@react-native-community/netinfo`, fix `useNetworkStatus.tsx` (§6). Independently valuable
-   and low-risk even before the rest lands.
-2. `offlineQueueSlice` + AsyncStorage persistence (§3).
-3. Transaction create wired through the queue + optimistic cache update (§4).
-4. `syncEngine.ts` (§5), wired to the fixed network hook + `AppState`.
-5. Sync status UI (§7).
-6. Transaction edit/cancel through the same path.
-7. Verification pass (§11) before calling the pilot done.
+   and low-risk even before the rest lands. **Done, as planned.**
+2. `offlineQueueSlice` + AsyncStorage persistence (§3). **Done, differently:** the queue itself is
+   persisted to `expo-sqlite` (a real table), not AsyncStorage — see the status line above.
+   `offlineQueueSlice` still exists, but as a thin in-memory Redux mirror of the SQLite queue for
+   `useSelector` reactivity, not the persistence layer itself.
+3. Transaction create wired through the queue + optimistic cache update (§4). **Done.**
+4. `syncEngine.ts` (§5), wired to the fixed network hook + `AppState`. **Done**, plus cross-entity
+   local-id → server-id FK resolution not in this draft's original single-entity design — required
+   once accounts/budgets/goals/categories were in scope alongside transactions.
+5. Sync status UI (§7). **Done.**
+6. Transaction edit/cancel through the same path. **Done.**
+7. Verification pass (§11) before calling the pilot done. **Done** —
+   [verifications/2026-09-15-offline-sync-sqlite-queue.md](../../verifications/2026-09-15-offline-sync-sqlite-queue.md),
+   followed by a double-check pass:
+   [verifications/2026-09-15-double-check-offline-sync.md](../../verifications/2026-09-15-double-check-offline-sync.md).
 8. Only then: extend to accounts → budgets → goals → categories, repeating steps 2-6 per entity.
+   **Done, differently:** built in the same pass as transactions rather than as a follow-on after a
+   separate pilot gate, per the phasing override below. On-device verification (SQLite survives an
+   app restart, NetInfo reconnect firing sync, a live 403→conflict→retry) is still outstanding — no
+   device/emulator was available in this environment.
 
 ---
 
-**Open questions before implementation starts:**
-1. Confirm or reject the section-1 recommendation (no SQLite).
-2. Confirm the transactions-first phasing (§2) rather than a wider first slice.
-3. `@react-native-community/netinfo` as a new dependency (§6) — confirm.
+**Open questions before implementation starts — all resolved by explicit user decision:**
+1. Confirm or reject the section-1 recommendation (no SQLite). **Resolved: rejected.** SQLite
+   (`expo-sqlite`) was adopted, scoped to the write queue only — RTK Query's cache remains the sole
+   read path, so this draft's "don't introduce a second local read store" concern still holds.
+2. Confirm the transactions-first phasing (§2) rather than a wider first slice. **Resolved:
+   rejected.** All five entities (transactions, accounts, budgets, goals, categories) were built
+   and shipped in one pass.
+3. `@react-native-community/netinfo` as a new dependency (§6) — confirm. **Resolved: confirmed,
+   added** (`mobile/package.json`).

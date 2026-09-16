@@ -70,6 +70,9 @@ function resolveOwnId(queue: OfflineQueue, row: QueuedMutation): string | null {
   return row.localId; // Assume localId already is a real id (record predates offline mode).
 }
 
+// FORBIDDEN already maps to status 403 in ERROR_STATUS; checked by code too
+// as a backstop in case a hand-built ApiErrorLike ever carries a status that
+// doesn't match its own code.
 const ERROR_CODES_ARE_CONFLICTS = new Set(['FORBIDDEN']);
 
 function classifyFailure(error: unknown): 'conflict' | 'failed' | 'network' {

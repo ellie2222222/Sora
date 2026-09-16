@@ -1,16 +1,14 @@
 import { TransactionStatus, type CreateTransactionRequest, type TransactionQuery, type TransactionResponse, type UpdateTransactionRequest } from '@sora/contracts';
 
-import { transactionsApi as transactionsHttp, type TransactionPage } from '../../../services/api/transactions.ts';
-import { guestTransactionsApi } from '../../../services/guest/guestTransactions.ts';
-import { forEachCachedQueryArgs } from '../../../services/sync/cacheLookup.ts';
-import { enqueueOffline, isStillQueued, newLocalId } from '../../../services/sync/offlineEnqueue.ts';
-import { isCurrentlyOnline } from '../../../services/sync/networkState.ts';
-import { buildOptimisticTransaction } from '../../../services/sync/optimisticRecords.ts';
+import { transactionsApi as transactionsHttp, type TransactionPage } from '@/services/api';
+import { ensureSeeded, guestTransactionsApi } from '@/services/guest';
+import { buildOptimisticTransaction, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId, setCurrentlyOnline } from '@/services/sync';
+import { isNetworkError } from '../../../utils/errors.ts';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
 
-export type { TransactionPage } from '../../../services/api/transactions.ts';
+export type { TransactionPage } from '@/services/api';
 
 /** A transaction moves money and, when it is a transfer, sometimes across a wallet — all six can change. */
 const TRANSACTION_TAGS = ['Transaction', 'Account', 'Dashboard', 'Budget', 'Wallet', 'Goal'] as const;
@@ -20,16 +18,44 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
     listTransactions: builder.query<TransactionPage, Partial<TransactionQuery>>({
       queryFn: (query, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() => (isGuest ? guestTransactionsApi.list(query) : transactionsHttp.list(query)));
+        return toQueryFnResult(async () => {
+          if (isGuest || !isCurrentlyOnline()) {
+            await ensureSeeded();
+            return guestTransactionsApi.list(query);
+          }
+          try {
+            return await transactionsHttp.list(query);
+          } catch (err) {
+            if (isNetworkError(err)) {
+              setCurrentlyOnline(false);
+              await ensureSeeded();
+              return guestTransactionsApi.list(query);
+            }
+            throw err;
+          }
+        });
       },
       providesTags: ['Transaction'],
     }),
     getTransaction: builder.query<TransactionResponse, string>({
       queryFn: (transactionId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() =>
-          isGuest ? guestTransactionsApi.detail(transactionId) : transactionsHttp.detail(transactionId),
-        );
+        return toQueryFnResult(async () => {
+          if (isGuest || !isCurrentlyOnline()) {
+            await ensureSeeded();
+            return guestTransactionsApi.detail(transactionId);
+          }
+          try {
+            return await transactionsHttp.detail(transactionId);
+          } catch (err) {
+            if (isNetworkError(err)) {
+              setCurrentlyOnline(false);
+              await ensureSeeded();
+              return guestTransactionsApi.detail(transactionId);
+            }
+            throw err;
+          }
+        });
       },
       providesTags: ['Transaction'],
     }),

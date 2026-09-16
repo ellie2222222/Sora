@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
-import type { QueueStatus } from '../services/sync/offlineQueueTypes.ts';
+import { useTheme } from '@/app/providers';
+import { isOpenStatus, type QueueStatus } from '@/services/sync';
 
 export interface SyncStatusDotProps {
   status: QueueStatus | undefined;
@@ -16,7 +16,7 @@ export interface SyncStatusDotProps {
  */
 export function SyncStatusDot({ status, testID }: SyncStatusDotProps) {
   const theme = useTheme();
-  if (!status || status === 'synced') return null;
+  if (!status || !isOpenStatus(status)) return null;
 
   const color =
     status === 'failed' || status === 'conflict'
@@ -26,12 +26,8 @@ export function SyncStatusDot({ status, testID }: SyncStatusDotProps) {
   return (
     <View
       testID={testID}
-      style={{
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: color,
-      }}
+      className="w-[6px] h-[6px] rounded-[3px]"
+      style={{ backgroundColor: color }}
     />
   );
 }

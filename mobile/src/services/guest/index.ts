@@ -12,3 +12,4 @@ export * from './guestStore.ts';
 export * from './guestTransactions.ts';
 export * from './guestUpload.ts';
 export * from './guestWallets.ts';
+export * from './testSupport.ts';

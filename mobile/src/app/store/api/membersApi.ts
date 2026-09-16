@@ -1,9 +1,11 @@
 import type { MemberStatus, UpdateMemberRequest, WalletMemberResponse } from '@sora/contracts';
 
-import { membersApi as membersHttp, type TransferOwnershipRequest } from '../../../services/api/members.ts';
+import { membersApi as membersHttp, type TransferOwnershipRequest } from '@/services/api';
+import { isCurrentlyOnline, setCurrentlyOnline } from '@/services/sync';
+import { isNetworkError } from '../../../utils/errors.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
 
-export type { TransferOwnershipRequest } from '../../../services/api/members.ts';
+export type { TransferOwnershipRequest } from '@/services/api';
 
 // Membership has no guest implementation by scope decision — it needs real
 // other users — so every endpoint here calls the real API unconditionally.
@@ -14,7 +16,19 @@ const MEMBERSHIP_TAGS = ['Wallet', 'Account', 'Transaction', 'Dashboard'] as con
 export const membersApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     listMembers: builder.query<WalletMemberResponse[], { walletId: string; status?: MemberStatus }>({
-      queryFn: ({ walletId, status }) => toQueryFnResult(() => membersHttp.list(walletId, status)),
+      queryFn: ({ walletId, status }) =>
+        toQueryFnResult(async () => {
+          if (!isCurrentlyOnline()) return [];
+          try {
+            return await membersHttp.list(walletId, status);
+          } catch (err) {
+            if (isNetworkError(err)) {
+              setCurrentlyOnline(false);
+              return [];
+            }
+            throw err;
+          }
+        }),
       providesTags: ['WalletMember'],
     }),
     updateMemberRole: builder.mutation<

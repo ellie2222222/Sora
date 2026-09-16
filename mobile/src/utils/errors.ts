@@ -45,14 +45,69 @@ function isErrorBody(value: unknown): value is ApiErrorBody {
 
 /** Check if an error represents a network/connectivity failure. */
 export function isNetworkError(error: unknown): boolean {
+  if (!error) return false;
   if (isApiError(error)) {
     if (error.status === 0) return true;
     const msg = error.message.toLowerCase();
-    return msg.includes('network') || msg.includes('cannot reach') || msg.includes('fetch') || msg.includes('failed to fetch');
+    return (
+      msg.includes('network') ||
+      msg.includes('cannot reach') ||
+      msg.includes('fetch') ||
+      msg.includes('failed to fetch') ||
+      msg.includes('offline') ||
+      msg.includes('internet') ||
+      msg.includes('connection') ||
+      msg.includes('timeout')
+    );
   }
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
-    return msg.includes('network') || msg.includes('cannot reach') || msg.includes('fetch') || msg.includes('failed to fetch');
+    return (
+      msg.includes('network') ||
+      msg.includes('cannot reach') ||
+      msg.includes('fetch') ||
+      msg.includes('failed to fetch') ||
+      msg.includes('offline') ||
+      msg.includes('internet') ||
+      msg.includes('connection') ||
+      msg.includes('timeout')
+    );
+  }
+  if (typeof error === 'object') {
+    const err = error as Record<string, unknown>;
+    if (err.status === 0 || err.status === 'FETCH_ERROR' || err.status === 'TIMEOUT_ERROR') return true;
+    if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED') return true;
+    const msg =
+      typeof err.message === 'string'
+        ? err.message.toLowerCase()
+        : typeof err.error === 'string'
+          ? err.error.toLowerCase()
+          : '';
+    if (
+      msg.includes('network') ||
+      msg.includes('cannot reach') ||
+      msg.includes('fetch') ||
+      msg.includes('failed to fetch') ||
+      msg.includes('offline') ||
+      msg.includes('internet') ||
+      msg.includes('connection') ||
+      msg.includes('timeout')
+    ) {
+      return true;
+    }
+  }
+  if (typeof error === 'string') {
+    const msg = error.toLowerCase();
+    return (
+      msg.includes('network') ||
+      msg.includes('cannot reach') ||
+      msg.includes('fetch') ||
+      msg.includes('failed to fetch') ||
+      msg.includes('offline') ||
+      msg.includes('internet') ||
+      msg.includes('connection') ||
+      msg.includes('timeout')
+    );
   }
   return false;
 }
@@ -158,7 +213,7 @@ export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
  */
 export function getServerErrorMessage(error: unknown, t: TranslationFunction): string {
   if (isNetworkError(error)) {
-    return t('errors.offlineMessage');
+    return t('errors.offlineTitle');
   }
   if (isApiError(error)) {
     const key = ERROR_CODE_TO_I18N_KEY[error.code];
@@ -180,10 +235,6 @@ export function messageOf(
   if (isApiError(error)) return error.message || fallback;
   if (error instanceof Error && error.message) return error.message;
   return fallback;
-}
-
-export function fieldErrorsOf(error: unknown): FieldErrors {
-  return isApiError(error) ? error.fields : {};
 }
 
 /** A 401 the interceptor could not repair — the session is genuinely over. */

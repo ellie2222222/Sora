@@ -9,6 +9,7 @@
  * here mirrors account/transaction/etc. data.
  */
 
+import { Platform } from 'react-native';
 import { openDatabaseSync, type SQLiteDatabase } from 'expo-sqlite';
 
 import type { QueueEntity, QueuedMutation, QueueStatus } from './offlineQueueTypes.ts';
@@ -199,4 +200,47 @@ class SqliteQueueDb implements QueueDb {
   }
 }
 
-export const offlineQueueDb: QueueDb = new SqliteQueueDb();
+/** Web fallback when SQLite/SharedArrayBuffer is unavailable in browser workers. */
+class MemoryQueueDb implements QueueDb {
+  private rows = new Map<string, QueuedMutation>();
+
+  async ensureSchema(): Promise<void> {}
+
+  async insert(row: QueuedMutation): Promise<void> {
+    this.rows.set(row.queueId, { ...row });
+  }
+
+  async updateStatus(queueId: string, patch: QueueStatusPatch): Promise<void> {
+    const existing = this.rows.get(queueId);
+    if (!existing) return;
+    this.rows.set(queueId, {
+      ...existing,
+      status: patch.status,
+      serverId: patch.serverId ?? existing.serverId,
+      errorCode: patch.errorCode ?? null,
+      attempts: patch.attempts ?? existing.attempts,
+      updatedAt: patch.updatedAt,
+    });
+  }
+
+  async listByStatus(statuses: QueueStatus[]): Promise<QueuedMutation[]> {
+    return [...this.rows.values()]
+      .filter((row) => statuses.includes(row.status))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async listAll(): Promise<QueuedMutation[]> {
+    return [...this.rows.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async findByLocalId(entity: QueueEntity, localId: string): Promise<QueuedMutation | null> {
+    return [...this.rows.values()].find((row) => row.entity === entity && row.localId === localId) ?? null;
+  }
+
+  async remove(queueId: string): Promise<void> {
+    this.rows.delete(queueId);
+  }
+}
+
+export const offlineQueueDb: QueueDb =
+  Platform.OS === 'web' ? new MemoryQueueDb() : new SqliteQueueDb();

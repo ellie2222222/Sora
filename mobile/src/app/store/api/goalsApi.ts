@@ -1,16 +1,14 @@
 import type { ContributionResponse, CreateContributionRequest, CreateGoalRequest, GoalResponse } from '@sora/contracts';
 
-import { goalsApi as goalsHttp, type GoalListQuery } from '../../../services/api/goals.ts';
-import { guestGoalsApi } from '../../../services/guest/guestGoals.ts';
-import { forEachCachedQueryArgs } from '../../../services/sync/cacheLookup.ts';
-import { enqueueOffline, isStillQueued, newLocalId } from '../../../services/sync/offlineEnqueue.ts';
-import { isCurrentlyOnline } from '../../../services/sync/networkState.ts';
-import { buildOptimisticGoal } from '../../../services/sync/optimisticRecords.ts';
+import { goalsApi as goalsHttp, type GoalListQuery } from '@/services/api';
+import { ensureSeeded, guestGoalsApi } from '@/services/guest';
+import { buildOptimisticGoal, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId, setCurrentlyOnline } from '@/services/sync';
+import { isNetworkError } from '../../../utils/errors.ts';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
 
-export type { GoalListQuery } from '../../../services/api/goals.ts';
+export type { GoalListQuery } from '@/services/api';
 
 const GOAL_TAGS = ['Goal'] as const;
 
@@ -22,21 +20,66 @@ export const goalsApiSlice = apiSlice.injectEndpoints({
     listGoals: builder.query<GoalResponse[], GoalListQuery>({
       queryFn: (query, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() => (isGuest ? guestGoalsApi.list(query) : goalsHttp.list(query)));
+        return toQueryFnResult(async () => {
+          if (isGuest || !isCurrentlyOnline()) {
+            await ensureSeeded();
+            return guestGoalsApi.list(query);
+          }
+          try {
+            return await goalsHttp.list(query);
+          } catch (err) {
+            if (isNetworkError(err)) {
+              setCurrentlyOnline(false);
+              await ensureSeeded();
+              return guestGoalsApi.list(query);
+            }
+            throw err;
+          }
+        });
       },
       providesTags: ['Goal'],
     }),
     getGoal: builder.query<GoalResponse, string>({
       queryFn: (goalId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() => (isGuest ? guestGoalsApi.detail(goalId) : goalsHttp.detail(goalId)));
+        return toQueryFnResult(async () => {
+          if (isGuest || !isCurrentlyOnline()) {
+            await ensureSeeded();
+            return guestGoalsApi.detail(goalId);
+          }
+          try {
+            return await goalsHttp.detail(goalId);
+          } catch (err) {
+            if (isNetworkError(err)) {
+              setCurrentlyOnline(false);
+              await ensureSeeded();
+              return guestGoalsApi.detail(goalId);
+            }
+            throw err;
+          }
+        });
       },
       providesTags: ['Goal'],
     }),
     listGoalContributions: builder.query<ContributionResponse[], string>({
       queryFn: (goalId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() => (isGuest ? guestGoalsApi.contributions(goalId) : goalsHttp.contributions(goalId)));
+        return toQueryFnResult(async () => {
+          if (isGuest || !isCurrentlyOnline()) {
+            await ensureSeeded();
+            return guestGoalsApi.contributions(goalId);
+          }
+          try {
+            return await goalsHttp.contributions(goalId);
+          } catch (err) {
+            if (isNetworkError(err)) {
+              setCurrentlyOnline(false);
+              await ensureSeeded();
+              return guestGoalsApi.contributions(goalId);
+            }
+            throw err;
+          }
+        });
       },
       providesTags: ['GoalContribution'],
     }),

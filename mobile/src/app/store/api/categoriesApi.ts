@@ -1,16 +1,14 @@
 import { CategoryStatus, type CategoryResponse, type CreateCategoryRequest, type UpdateCategoryRequest } from '@sora/contracts';
 
-import { categoriesApi as categoriesHttp, type CategoryListQuery } from '../../../services/api/categories.ts';
-import { guestCategoriesApi } from '../../../services/guest/guestCategories.ts';
-import { forEachCachedQueryArgs } from '../../../services/sync/cacheLookup.ts';
-import { enqueueOffline, isStillQueued, newLocalId } from '../../../services/sync/offlineEnqueue.ts';
-import { isCurrentlyOnline } from '../../../services/sync/networkState.ts';
-import { buildOptimisticCategory } from '../../../services/sync/optimisticRecords.ts';
+import { categoriesApi as categoriesHttp, type CategoryListQuery } from '@/services/api';
+import { ensureSeeded, guestCategoriesApi } from '@/services/guest';
+import { buildOptimisticCategory, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId, setCurrentlyOnline } from '@/services/sync';
+import { isNetworkError } from '../../../utils/errors.ts';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
 
-export type { CategoryListQuery } from '../../../services/api/categories.ts';
+export type { CategoryListQuery } from '@/services/api';
 
 const CATEGORY_TAGS = ['Category', 'Budget', 'Dashboard', 'Transaction'] as const;
 
@@ -19,7 +17,22 @@ export const categoriesApiSlice = apiSlice.injectEndpoints({
     listCategories: builder.query<CategoryResponse[], CategoryListQuery>({
       queryFn: (query, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() => (isGuest ? guestCategoriesApi.list(query) : categoriesHttp.list(query)));
+        return toQueryFnResult(async () => {
+          if (isGuest || !isCurrentlyOnline()) {
+            await ensureSeeded();
+            return guestCategoriesApi.list(query);
+          }
+          try {
+            return await categoriesHttp.list(query);
+          } catch (err) {
+            if (isNetworkError(err)) {
+              setCurrentlyOnline(false);
+              await ensureSeeded();
+              return guestCategoriesApi.list(query);
+            }
+            throw err;
+          }
+        });
       },
       providesTags: ['Category'],
     }),

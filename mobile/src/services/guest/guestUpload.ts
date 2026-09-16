@@ -31,11 +31,7 @@ import {
 // graph: the real api modules reach axios, expo-secure-store and eventually
 // react-native's own Flow-typed entry, which bare `node --test` cannot parse.
 // The values are pulled in on demand by `defaultApis()` below.
-import type { accountsApi } from '../api/accounts.ts';
-import type { budgetsApi } from '../api/budgets.ts';
-import type { categoriesApi } from '../api/categories.ts';
-import type { goalsApi } from '../api/goals.ts';
-import type { transactionsApi } from '../api/transactions.ts';
+import type { accountsApi, budgetsApi, categoriesApi, goalsApi, transactionsApi } from '@/services/api';
 import { isApiError } from '../../utils/errors.ts';
 import { newLocalId } from './guestIds.ts';
 import { guestStore } from './guestStorage.ts';

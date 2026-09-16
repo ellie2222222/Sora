@@ -5,17 +5,15 @@ import {
   type CreateAccountRequest,
 } from '@sora/contracts';
 
-import { accountsApi as accountsHttp, type AccountListQuery } from '../../../services/api/accounts.ts';
-import { guestAccountsApi } from '../../../services/guest/guestAccounts.ts';
-import { forEachCachedQueryArgs } from '../../../services/sync/cacheLookup.ts';
-import { enqueueOffline, isStillQueued, newLocalId } from '../../../services/sync/offlineEnqueue.ts';
-import { isCurrentlyOnline } from '../../../services/sync/networkState.ts';
-import { buildOptimisticAccount } from '../../../services/sync/optimisticRecords.ts';
+import { accountsApi as accountsHttp, type AccountListQuery } from '@/services/api';
+import { ensureSeeded, guestAccountsApi } from '@/services/guest';
+import { buildOptimisticAccount, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId, setCurrentlyOnline } from '@/services/sync';
+import { isNetworkError } from '../../../utils/errors.ts';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
 
-export type { AccountListQuery } from '../../../services/api/accounts.ts';
+export type { AccountListQuery } from '@/services/api';
 
 const ACCOUNT_TAGS = ['Account', 'Wallet', 'Dashboard'] as const;
 
@@ -24,14 +22,44 @@ export const accountsApiSlice = apiSlice.injectEndpoints({
     listAccounts: builder.query<AccountResponse[], AccountListQuery>({
       queryFn: (query, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() => (isGuest ? guestAccountsApi.list(query) : accountsHttp.list(query)));
+        return toQueryFnResult(async () => {
+          if (isGuest || !isCurrentlyOnline()) {
+            await ensureSeeded();
+            return guestAccountsApi.list(query);
+          }
+          try {
+            return await accountsHttp.list(query);
+          } catch (err) {
+            if (isNetworkError(err)) {
+              setCurrentlyOnline(false);
+              await ensureSeeded();
+              return guestAccountsApi.list(query);
+            }
+            throw err;
+          }
+        });
       },
       providesTags: ['Account'],
     }),
     getAccount: builder.query<AccountDetailResponse, string>({
       queryFn: (accountId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() => (isGuest ? guestAccountsApi.detail(accountId) : accountsHttp.detail(accountId)));
+        return toQueryFnResult(async () => {
+          if (isGuest || !isCurrentlyOnline()) {
+            await ensureSeeded();
+            return guestAccountsApi.detail(accountId);
+          }
+          try {
+            return await accountsHttp.detail(accountId);
+          } catch (err) {
+            if (isNetworkError(err)) {
+              setCurrentlyOnline(false);
+              await ensureSeeded();
+              return guestAccountsApi.detail(accountId);
+            }
+            throw err;
+          }
+        });
       },
       providesTags: ['Account'],
     }),

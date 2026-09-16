@@ -14,7 +14,7 @@ import {
   postOne,
   postVoid,
   type ListResult,
-} from '../../../services/api/client.ts';
+} from '@/services/api';
 import { isApiError, serializeApiError, toApiError, type ApiErrorLike } from '../../../utils/errors.ts';
 
 interface GetArgs {

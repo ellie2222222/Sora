@@ -6,7 +6,7 @@
  * retry the sync engine performs reuses the value stored on the row.
  */
 
-import { newLocalId } from '../guest/guestIds.ts';
+import { newLocalId } from '@/services/guest';
 import { offlineQueue } from './offlineQueueInstance.ts';
 import type { QueueEntity, QueueOp, QueuedMutation } from './offlineQueueTypes.ts';
 

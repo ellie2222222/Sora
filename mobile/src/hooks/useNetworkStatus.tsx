@@ -2,21 +2,17 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 
 import NetInfo from '@react-native-community/netinfo';
 
-import { setCurrentlyOnline } from '../services/sync/networkState.ts';
+import { setCurrentlyOnline } from '@/services/sync';
 
 export interface NetworkStatusContextValue {
   isOnline: boolean;
-  hasSyncError: boolean;
   isSyncing: boolean;
-  setSyncError: (hasError: boolean) => void;
   retrySync: () => Promise<void>;
 }
 
 const NetworkStatusContext = createContext<NetworkStatusContextValue>({
   isOnline: true,
-  hasSyncError: false,
   isSyncing: false,
-  setSyncError: () => {},
   retrySync: async () => {},
 });
 
@@ -27,7 +23,6 @@ export interface NetworkStatusProviderProps {
 
 export function NetworkStatusProvider({ children, onRetrySync }: NetworkStatusProviderProps) {
   const [isOnline, setIsOnline] = useState<boolean>(true);
-  const [hasSyncError, setHasSyncError] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   useEffect(() => {
@@ -44,27 +39,14 @@ export function NetworkStatusProvider({ children, onRetrySync }: NetworkStatusPr
     if (isSyncing) return;
     setIsSyncing(true);
     try {
-      if (onRetrySync) {
-        await onRetrySync();
-      }
-      setHasSyncError(false);
-    } catch {
-      setHasSyncError(true);
+      await onRetrySync?.();
     } finally {
       setIsSyncing(false);
     }
   }, [isSyncing, onRetrySync]);
 
   return (
-    <NetworkStatusContext.Provider
-      value={{
-        isOnline,
-        hasSyncError,
-        isSyncing,
-        setSyncError: setHasSyncError,
-        retrySync,
-      }}
-    >
+    <NetworkStatusContext.Provider value={{ isOnline, isSyncing, retrySync }}>
       {children}
     </NetworkStatusContext.Provider>
   );

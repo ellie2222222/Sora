@@ -22,11 +22,7 @@ import type {
   UpdateTransactionRequest,
 } from '@sora/contracts';
 
-import type { accountsApi } from '../api/accounts.ts';
-import type { budgetsApi } from '../api/budgets.ts';
-import type { categoriesApi } from '../api/categories.ts';
-import type { goalsApi } from '../api/goals.ts';
-import type { transactionsApi } from '../api/transactions.ts';
+import type { accountsApi, budgetsApi, categoriesApi, goalsApi, transactionsApi } from '@/services/api';
 import type { QueueEntity } from './offlineQueueTypes.ts';
 
 export interface EntityAdapter {

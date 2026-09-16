@@ -2,16 +2,18 @@ import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '../../../app/providers/ThemeProvider';
+import { useTheme } from '@/app/providers';
 import { WalletSwitcher } from './WalletSwitcher';
-import { OfflineBanner } from '../../../components/OfflineBanner';
+import { ConnectionSyncStatus } from '@/components';
 
 /**
  * Thin wrapper so every screen that shows money renders the same wallet-
  * context row Home already does — SRS §6.2: the wallet in context must be
  * visible everywhere, never inferred from memory.
  *
- * Automatically includes the non-blocking OfflineBanner below the bar.
+ * Connection/sync status is communicated only via the small icons on the
+ * far right — no banner, toast, or full-screen state for normal
+ * connectivity/sync issues (every screen stays usable offline).
  */
 export function WalletContextBar({
   onManage,
@@ -28,10 +30,8 @@ export function WalletContextBar({
   const bar = (
     <View style={{ backgroundColor: theme.colors.background }}>
       <View
+        className="flex-row justify-between items-center"
         style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
           paddingHorizontal: theme.spacing.md,
           // MainTabNavigator has `headerShown: false`, so this bar must clear the status bar itself.
           paddingTop: insets.top + theme.spacing.sm,
@@ -39,15 +39,17 @@ export function WalletContextBar({
         }}
       >
         <WalletSwitcher onManage={onManage} />
-        {rightContent}
+        <View className="flex-row items-center" style={{ gap: theme.spacing.md }}>
+          {rightContent}
+          <ConnectionSyncStatus />
+        </View>
       </View>
-      <OfflineBanner />
     </View>
   );
 
   if (children === undefined) return bar;
   return (
-    <View style={{ flex: 1 }}>
+    <View className="flex-1">
       {bar}
       {children}
     </View>

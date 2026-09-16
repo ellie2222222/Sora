@@ -10,8 +10,8 @@ import { AppState, type AppStateStatus } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 
 import { apiSlice } from '../../app/store/api/apiSlice.ts';
-import type { AppStore } from '../../app/store/index.ts';
 import { queueRowsReplaced } from '../../app/store/offlineQueueSlice.ts';
+import type { AppStore } from '@/app/store';
 import { defaultEntityAdapters } from './entityAdapters.ts';
 import { offlineQueue } from './offlineQueueInstance.ts';
 import { runSyncPass } from './syncEngine.ts';
