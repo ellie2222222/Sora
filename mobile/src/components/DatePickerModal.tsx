@@ -4,7 +4,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 
-import { useTheme } from '../app/providers/ThemeProvider';
+import { useTheme } from '@/app/providers';
 import { BottomSheetModal } from './BottomSheetModal';
 import { Button } from './Button';
 import { Text } from './Text';
@@ -23,10 +23,6 @@ export interface DatePickerModalProps {
   onClose: () => void;
 }
 
-/**
- * Shared interactive date/year picker modal component.
- * Uses the primary `BottomSheetModal` component as its foundation.
- */
 export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: DatePickerModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -34,12 +30,16 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
   const initialDay = selectedDay && typeof selectedDay === 'string' && selectedDay.includes('-') ? selectedDay : today();
   const [viewDay, setViewDay] = useState(initialDay);
   const [viewMode, setViewMode] = useState<'days' | 'years'>('days');
+  // `style` can never be a function here — see CLAUDE.md Part 7 rule 15.
+  const [yearTogglePressed, setYearTogglePressed] = useState(false);
   const { year, month, date } = parseDay(viewDay || today());
 
   const grid = monthGrid(viewDay || today());
   const weekdayInitials = useMemo(() => {
     const locale = i18next.language || 'en';
     return Array.from({ length: 7 }, (_, i) => {
+      // 2026-05-10 is an arbitrary known Sunday, used only as a Sun-Sat anchor
+      // to read each weekday's locale-correct narrow initial.
       const dateObj = new Date(Date.UTC(2026, 4, 10 + i));
       return dateObj.toLocaleDateString(locale, { weekday: 'narrow', timeZone: 'UTC' });
     });
@@ -80,18 +80,16 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
   return (
     <BottomSheetModal visible={visible} onClose={onClose}>
       <View style={{ gap: theme.spacing.md }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View className="flex-row justify-between items-center">
           <Text variant="title">{t('common.selectDate', { defaultValue: 'Select Date' })}</Text>
-          <Pressable onPress={onClose} hitSlop={8} style={{ padding: 4 }}>
+          <Pressable onPress={onClose} hitSlop={8} className="p-xs">
             <X size={20} color={theme.colors.textMuted} />
           </Pressable>
         </View>
 
         <View
+          className="flex-row justify-between items-center"
           style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
             backgroundColor: theme.colors.surfaceMuted,
             borderRadius: theme.radius.md,
             padding: theme.spacing.xs,
@@ -99,38 +97,41 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
         >
           {viewMode === 'days' ? (
             <>
-              <Pressable onPress={handlePrevMonth} hitSlop={8} style={{ padding: 4 }}>
+              <Pressable onPress={handlePrevMonth} hitSlop={8} className="p-xs">
                 <ChevronLeft size={20} color={theme.colors.text} />
               </Pressable>
               <Pressable
                 onPress={() => setViewMode('years')}
-                style={({ pressed }) => ({
+                onPressIn={() => setYearTogglePressed(true)}
+                onPressOut={() => setYearTogglePressed(false)}
+                style={{
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 6,
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
+                  paddingHorizontal: theme.spacing.sm,
+                  paddingVertical: theme.spacing.xs,
                   borderRadius: theme.radius.sm,
-                  backgroundColor: pressed ? theme.colors.border : 'transparent',
-                })}
+                  backgroundColor: yearTogglePressed ? theme.colors.border : 'transparent',
+                }}
               >
                 <Text weight="semibold" style={{ fontSize: theme.fontSize.md }}>
                   {monthName(month)} {year}
                 </Text>
                 <CalendarIcon size={14} color={theme.colors.primary} />
               </Pressable>
-              <Pressable onPress={handleNextMonth} hitSlop={8} style={{ padding: 4 }}>
+              <Pressable onPress={handleNextMonth} hitSlop={8} className="p-xs">
                 <ChevronRight size={20} color={theme.colors.text} />
               </Pressable>
             </>
           ) : (
-            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8 }}>
+            <View className="flex-1 flex-row justify-between items-center px-sm">
               <Text weight="semibold" style={{ fontSize: theme.fontSize.md, paddingLeft: 8 }}>
                 {t('common.selectYear', { defaultValue: 'Select Year' })}
               </Text>
               <Pressable
                 onPress={() => setViewMode('days')}
-                style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radius.sm, backgroundColor: theme.colors.primary }}
+                className="px-[10px] py-xs"
+                style={{ borderRadius: theme.radius.sm, backgroundColor: theme.colors.primary }}
               >
                 <Text style={{ color: theme.colors.onPrimary, fontSize: theme.fontSize.xs, fontWeight: 'bold' }}>
                   {t('common.back', { defaultValue: 'Back' })}
@@ -142,7 +143,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
 
         {viewMode === 'days' ? (
           <>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <View className="flex-row justify-between">
               {weekdayInitials.map((initial, i) => (
                 <Text key={i} variant="caption" tone="muted" weight="semibold" style={{ width: 36, textAlign: 'center' }}>
                   {initial}
@@ -150,27 +151,21 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
               ))}
             </View>
 
-            <View style={{ gap: 4 }}>
+            <View className="gap-xs">
               {grid.map((row, rowIndex) => (
-                <View key={rowIndex} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  {row.map((cellDay, colIndex) => {
-                    if (cellDay === null) {
-                      return <View key={colIndex} style={{ width: 36, height: 36 }} />;
-                    }
-                    const isSelected = cellDay === selectedDay;
-                    const isToday = cellDay === today();
-                    const dayNum = parseDay(cellDay).date;
+                <View key={rowIndex} className="flex-row justify-between">
+                  {row.map((cell) => {
+                    const isSelected = cell.day === selectedDay;
+                    const isToday = cell.day === today();
+                    const dayNum = parseDay(cell.day).date;
 
                     return (
                       <Pressable
-                        key={cellDay}
-                        onPress={() => handleSelectDayInternal(cellDay)}
+                        key={cell.day}
+                        onPress={() => handleSelectDayInternal(cell.day)}
+                        className="w-[36px] h-[36px] items-center justify-center"
                         style={{
-                          width: 36,
-                          height: 36,
                           borderRadius: theme.radius.pill,
-                          alignItems: 'center',
-                          justifyContent: 'center',
                           backgroundColor: isSelected
                             ? theme.colors.primary
                             : isToday
@@ -188,7 +183,9 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
                               ? theme.colors.onPrimary
                               : isToday
                                 ? theme.colors.primary
-                                : theme.colors.text,
+                                : cell.inCurrentMonth
+                                  ? theme.colors.text
+                                  : theme.colors.textFaint,
                           }}
                         >
                           {dayNum}
@@ -201,19 +198,16 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
             </View>
           </>
         ) : (
-          <ScrollView style={{ maxHeight: 220 }} contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', paddingVertical: 8 }}>
+          <ScrollView className="max-h-[220px]" contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', paddingVertical: 8 }}>
             {years.map((y) => {
               const isSelectedYear = y === year;
               return (
                 <Pressable
                   key={y}
                   onPress={() => handleSelectYear(y)}
+                  className="w-[22%] py-[10px] items-center justify-center"
                   style={{
-                    width: '22%',
-                    paddingVertical: 10,
                     borderRadius: theme.radius.md,
-                    alignItems: 'center',
-                    justifyContent: 'center',
                     backgroundColor: isSelectedYear ? theme.colors.primary : theme.colors.surfaceMuted,
                   }}
                 >
@@ -233,13 +227,10 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
         )}
 
         <View
+          className="flex-row justify-between items-center border-t"
           style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
             marginTop: theme.spacing.xs,
             paddingTop: theme.spacing.sm,
-            borderTopWidth: 1,
             borderTopColor: theme.colors.border,
           }}
         >

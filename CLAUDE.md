@@ -845,3 +845,82 @@ rewriting it.
     imports are erased at compile time, so two barrels referencing each other only in types is not a
     cycle.
 
+15. **A `Pressable` (or any NativeWind-interop'd primitive) can never take a function as its `style`
+    prop — not `style={(state) => ({...})}`, not `style={({ pressed }) => ({...})}` — under this
+    project's NativeWind v4 / `react-native-css-interop` setup.** `react-native-css-interop`
+    registers `cssInterop(Pressable, { className: "style" })` globally
+    (`node_modules/react-native-css-interop/dist/runtime/components.js`) — this wraps **every**
+    `Pressable` in the app via the custom JSX runtime (`jsxImportSource: "nativewind"` in
+    `babel.config.js`), whether or not that element even has a `className`. That wrapper's config
+    (`getNormalizeConfig` in `runtime/config.js`) always sets `inlineProp = "style"` for a plain
+    `{ className: "style" }` mapping, so `getDeclarations` in `runtime/native/native-interop.js`
+    unconditionally runs whatever is in the `style` prop through `collectInlineRules` →
+    `getOpaqueStyles`, treating it as a static value to spread. A function has no own enumerable
+    properties, so `{...styleFn}` silently evaluates to `{}` — the entire function, and everything
+    it would have returned (background, border, radius, padding, the works), is discarded and
+    replaced with an empty object. This has nothing to do with `className` being present: it fires
+    on *any* interop'd component with a function `style`, `className` or not. A `Pressable` that also
+    has a static `className` still shows whatever the className contributed (those are separate,
+    additive declarations merged into the same object) — which is what made this bug look like a
+    `className`-interaction issue on first pass and led to an incorrect first fix (dropping
+    `className`, keeping the function) that made things strictly worse, since it removed the one
+    thing that had been rendering.
+
+    **The fix**: never pass a function to a `Pressable`'s `style`. Track `pressed` (or whatever
+    interaction state is needed) via local `useState` + `onPressIn`/`onPressOut`, and pass `style` as
+    a plain object or array built from that state — e.g. `Button.tsx`, `MonthSelector.tsx`,
+    `DatePickerModal.tsx`, `LanguageSection.tsx`, `CollapsibleSection.tsx`, and `AppearanceSection.tsx`
+    all follow this shape now. For a row rendered from a `.map()`, track *which* item is pressed (its
+    key) in one piece of state rather than one `useState` per row. If a component's public API still
+    accepts a caller-supplied function `style` (e.g. `ButtonProps` extends `PressableProps`), evaluate
+    it yourself with the locally-tracked state (`style({ pressed, hovered: false })`) and merge the
+    result into the plain-object/array `style` you pass down — never forward the function itself into
+    the JSX `style` prop.
+
+    ```tsx
+    // ❌ Broken — style is a function. Every property in it (background, border,
+    // radius, padding) silently vanishes at runtime; only className-derived
+    // styles (if any) survive. No error, no warning — it just renders wrong.
+    <Pressable
+      style={({ pressed }) => ({
+        backgroundColor: pressed ? theme.colors.border : theme.colors.surface,
+        borderRadius: theme.radius.pill,
+        paddingHorizontal: theme.spacing.md,
+      })}
+    >
+
+    // ✅ Fixed — pressed tracked locally, style is a plain object.
+    const [pressed, setPressed] = useState(false);
+    <Pressable
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={{
+        backgroundColor: pressed ? theme.colors.border : theme.colors.surface,
+        borderRadius: theme.radius.pill,
+        paddingHorizontal: theme.spacing.md,
+      }}
+    >
+    ```
+
+    ```tsx
+    // ❌ Broken — same bug, one `useState` per row in a .map() (do this instead
+    // with a single "which key is pressed" state, not N hooks in a loop):
+    {items.map((item) => (
+      <Pressable
+        key={item.id}
+        style={({ pressed }) => ({ backgroundColor: pressed ? theme.colors.surfaceMuted : 'transparent' })}
+      >
+    ))}
+
+    // ✅ Fixed
+    const [pressedId, setPressedId] = useState<string | null>(null);
+    {items.map((item) => (
+      <Pressable
+        key={item.id}
+        onPressIn={() => setPressedId(item.id)}
+        onPressOut={() => setPressedId(null)}
+        style={{ backgroundColor: pressedId === item.id ? theme.colors.surfaceMuted : 'transparent' }}
+      >
+    ))}
+    ```
+

@@ -1,10 +1,11 @@
 import type { LucideIcon } from 'lucide-react-native';
-import { ActivityIndicator, Pressable, StyleSheet, type PressableProps } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, type PressableProps } from 'react-native';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
+import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
 
-type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'danger-outline' | 'ghost';
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'danger-outline' | 'danger-soft' | 'ghost';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends Omit<PressableProps, 'children'> {
@@ -31,27 +32,81 @@ export function Button({
   disabled,
   testID,
   style,
+  onPressIn,
+  onPressOut,
   ...pressableProps
 }: ButtonProps) {
   const theme = useTheme();
   const isDisabled = disabled === true || loading;
+  // `style` can never be a function here — see CLAUDE.md Part 7 rule 15.
+  const [pressed, setPressed] = useState(false);
 
-  const rawBackgroundColor = {
+  const enabledBackgroundColor = {
     primary: theme.colors.primary,
     secondary: theme.colors.surfaceMuted,
+    outline: 'transparent',
     danger: theme.colors.danger,
     'danger-outline': theme.colors.dangerMuted,
+    'danger-soft': theme.colors.dangerMuted,
     ghost: 'transparent',
   }[variant];
 
-  const backgroundColor = isDisabled && (variant === 'primary' || variant === 'danger') ? theme.colors.surfaceMuted : rawBackgroundColor;
-  const textTone = isDisabled ? 'muted' : variant === 'primary' || variant === 'danger' ? 'onPrimary' : variant === 'danger-outline' ? 'danger' : 'default';
-  const iconColor = isDisabled ? theme.colors.textMuted : variant === 'primary' || variant === 'danger' ? theme.colors.onPrimary : variant === 'danger-outline' ? theme.colors.danger : theme.colors.text;
+  const disabledBackgroundColor = {
+    primary: theme.colors.buttonPrimaryDisabledBackground,
+    secondary: theme.colors.buttonSecondaryDisabledBackground,
+    outline: 'transparent',
+    danger: theme.colors.buttonDangerDisabledBackground,
+    'danger-outline': theme.colors.buttonDangerDisabledBackground,
+    'danger-soft': theme.colors.buttonDangerDisabledBackground,
+    ghost: 'transparent',
+  }[variant];
+
+  const enabledBorderColor = {
+    primary: theme.colors.primary,
+    secondary: theme.colors.borderStrong,
+    outline: theme.colors.borderStrong,
+    danger: theme.colors.danger,
+    'danger-outline': theme.colors.danger,
+    'danger-soft': 'transparent',
+    ghost: theme.colors.borderStrong,
+  }[variant];
+
+  const disabledBorderColor = {
+    primary: theme.colors.buttonPrimaryDisabledBorder,
+    secondary: theme.colors.buttonSecondaryDisabledBorder,
+    outline: theme.colors.buttonOutlineDisabledBorder,
+    danger: theme.colors.buttonDangerDisabledBorder,
+    'danger-outline': theme.colors.buttonDangerDisabledBorder,
+    'danger-soft': 'transparent',
+    ghost: theme.colors.buttonOutlineDisabledBorder,
+  }[variant];
+
+  const enabledTextColor = {
+    primary: theme.colors.onPrimary,
+    secondary: theme.colors.text,
+    outline: theme.colors.text,
+    danger: theme.colors.onPrimary,
+    'danger-outline': theme.colors.danger,
+    'danger-soft': theme.colors.danger,
+    ghost: theme.colors.text,
+  }[variant];
+
+  const disabledTextColor = {
+    primary: theme.colors.buttonPrimaryDisabledText,
+    secondary: theme.colors.buttonSecondaryDisabledText,
+    outline: theme.colors.buttonOutlineDisabledText,
+    danger: theme.colors.buttonDangerDisabledText,
+    'danger-outline': theme.colors.buttonDangerDisabledText,
+    'danger-soft': theme.colors.buttonDangerDisabledText,
+    ghost: theme.colors.buttonOutlineDisabledText,
+  }[variant];
+
+  const backgroundColor = isDisabled ? disabledBackgroundColor : enabledBackgroundColor;
+  const borderColor = isDisabled ? disabledBorderColor : enabledBorderColor;
+  const textColor = isDisabled ? disabledTextColor : enabledTextColor;
+  const iconColor = textColor;
   const iconSize = size === 'sm' ? 14 : size === 'lg' ? 18 : 16;
-  const borderWidth = variant === 'ghost' || variant === 'danger-outline' || variant === 'secondary' ? 1 : 0;
-  // `border` barely differs from `surface` in dark mode; `borderStrong` keeps
-  // buttons visible on an already-`surface`-coloured card.
-  const borderColor = isDisabled ? theme.colors.border : variant === 'danger-outline' ? theme.colors.danger : theme.colors.borderStrong;
+  const borderWidth = variant === 'danger-soft' || variant === 'ghost' ? 0 : 1;
 
   return (
     <Pressable
@@ -60,28 +115,46 @@ export function Button({
       disabled={isDisabled}
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled, busy: loading }}
-      style={(state) => [
-        styles.base,
+      onPressIn={(e) => {
+        setPressed(true);
+        onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        setPressed(false);
+        onPressOut?.(e);
+      }}
+      style={[
         {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
           backgroundColor,
           height: SIZE_HEIGHT[size],
           borderRadius: theme.radius.md,
           paddingVertical: SIZE_PADDING_VERTICAL[size],
           paddingHorizontal: SIZE_PADDING_HORIZONTAL[size],
-          opacity: isDisabled ? 0.7 : state.pressed ? 0.85 : 1,
+          opacity: pressed && !isDisabled ? 0.85 : 1,
           borderWidth,
           borderColor,
           alignSelf: fullWidth ? 'stretch' : 'flex-start',
         },
-        typeof style === 'function' ? style(state) : style,
+        typeof style === 'function' ? style({ pressed, hovered: false }) : style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? theme.colors.onPrimary : theme.colors.primary} />
+        <ActivityIndicator
+          color={
+            isDisabled
+              ? textColor
+              : variant === 'primary' || variant === 'danger'
+                ? theme.colors.onPrimary
+                : theme.colors.primary
+          }
+        />
       ) : (
         <>
           {Icon !== undefined ? <Icon size={iconSize} color={iconColor} style={{ marginRight: theme.spacing.xs }} /> : null}
-          <Text variant="label" weight="semibold" tone={textTone}>
+          <Text variant="label" weight="semibold" style={{ color: textColor }}>
             {label}
           </Text>
         </>
@@ -89,11 +162,3 @@ export function Button({
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
