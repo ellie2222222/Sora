@@ -573,6 +573,14 @@ an incomplete screen.
 translating new keys into disabled languages (`fr`, `de`, `es`, etc.). Only `en.ts` and `vi.ts` are
 maintained with full key parity.
 
+**MB-10** — Cross-directory imports go through the target's `@/...` barrel (`@/components`,
+`@/features/<name>`, `@/services/<name>`, `@/app/<providers,store,navigation,i18n>`), never a deep
+relative path reaching into another directory's internals. A file importing a sibling inside its own
+directory uses a direct relative path instead, never its own barrel. The one exception is a file that
+is itself an orchestrator reaching broadly across many other modules (e.g. `ModalProvider.tsx`) — it
+imports those specific deep paths directly and is excluded from its own directory's barrel, precisely
+to avoid the require-cycle shape rule 14 in Part 7 describes.
+
 
 ### Validation
 
@@ -813,4 +821,27 @@ rewriting it.
     are typed as `InactiveTranslationResource` (`DeepPartial<TranslationResource>`) so missing keys
     never fail typechecks. `LOCALES` in `@sora/contracts` and `SUPPORTED_LOCALES` in
     `mobile/src/app/i18n/index.ts` are both `['en', 'vi'] as const`.
+
+14. **A barrel (`index.ts` re-exporting a directory) is an API boundary for outside callers, not a
+    place to route every internal dependency through.** `mobile/src/**` uses per-directory barrels
+    (`components/`, each `features/<name>/`, each `services/<name>/`, `app/<providers,store,
+    navigation,i18n>/`) with the `@/` path alias (wired in both `tsconfig.json`'s `paths` and
+    `metro.config.js`'s `resolver.extraNodeModules`, so it resolves at both typecheck and bundle
+    time). The rule of thumb: a file importing something **outside its own directory** uses the
+    target's `@/...` barrel; a file importing a sibling **inside its own directory** uses a direct
+    relative path — never its own barrel. Getting this backwards produces a require cycle that is
+    often invisible from any single file's imports, because it closes through two barrels rather
+    than a direct back-reference: `A/index.ts → A/foo.ts → B/index.ts → B/bar.ts → A/index.ts`. This
+    is exactly how `app/providers/index.ts` re-exporting `ModalProvider.tsx` broke: `ModalProvider`
+    legitimately needs deep access to modal components in several `features/*` (an orchestrator, not
+    a peer provider), and those modal components import `useTheme`/`AccountPicker`/etc. back through
+    other barrels — closing a cycle through `app/providers/index.ts` for every feature it touched.
+    The fix was never to stop using barrels; it was to have `ModalProvider.tsx` (and the api slices
+    reaching into `services/sync`, which had the same shape of cycle with `app/store/index.ts`) import
+    those specific cross-cutting dependencies by direct path, and to exclude `ModalProvider.tsx` from
+    the `app/providers` barrel entirely since it is structurally an orchestrator, not a provider. A
+    file that must reach broadly across many other modules is the one exception to the barrel rule,
+    not a reason to abandon barrels generally. `import type` never contributes an edge here — type-only
+    imports are erased at compile time, so two barrels referencing each other only in types is not a
+    cycle.
 

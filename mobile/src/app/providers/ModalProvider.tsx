@@ -1,11 +1,14 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
-import { AddAccountModal } from '../../features/accounts/components/AddAccountModal';
-import { AddBudgetModal } from '../../features/budgets/components/AddBudgetModal';
-import { AddContributionModal } from '../../features/goals/components/AddContributionModal';
-import { AddGoalModal } from '../../features/goals/components/AddGoalModal';
-import { AddTransactionModal } from '../../features/transactions/components/AddTransactionModal';
-import { EditTransactionModal } from '../../features/transactions/components/EditTransactionModal';
+// Deep-imported (not via each feature's barrel): a barrel import here would
+// pull in that feature's other files too, several of which import back from
+// this file's own `app/providers` barrel — a require cycle.
+import { AddAccountModal } from '../../features/accounts/components/AddAccountModal.tsx';
+import { AddBudgetModal } from '../../features/budgets/components/AddBudgetModal.tsx';
+import { AddContributionModal } from '../../features/goals/components/AddContributionModal.tsx';
+import { AddGoalModal } from '../../features/goals/components/AddGoalModal.tsx';
+import { AddTransactionModal } from '../../features/transactions/components/AddTransactionModal.tsx';
+import { EditTransactionModal } from '../../features/transactions/components/EditTransactionModal.tsx';
 
 export type ModalType =
   | 'AddTransaction'

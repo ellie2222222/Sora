@@ -1,18 +1,18 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Landmark, LayoutDashboard, PieChart, Settings as SettingsIcon, Target } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import { CalendarRange, Landmark, LayoutDashboard, PieChart, Settings as SettingsIcon } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AccountsScreen } from '../../features/accounts/screens/AccountsScreen.tsx';
-import { GoalsScreen } from '../../features/goals/screens/GoalsScreen.tsx';
-import { HomeScreen } from '../../features/dashboard/screens/HomeScreen.tsx';
-import { ReportScreen } from '../../features/reports/screens/ReportScreen.tsx';
-import { SettingsScreen } from '../../features/settings/screens/SettingsScreen.tsx';
-import { useTheme } from '../providers/ThemeProvider.tsx';
+import { AccountsScreen } from '@/features/accounts';
+import { PlanningScreen } from '@/features/planning';
+import { HomeScreen } from '@/features/dashboard';
+import { ReportScreen } from '@/features/reports';
+import { SettingsScreen } from '@/features/settings';
+import { useTheme } from '@/app/providers';
 import { TAB_BAR_HEIGHT } from './tabBarMetrics.ts';
 import type { MainTabParamList } from './types.ts';
 
@@ -54,15 +54,13 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
   return (
     <View
-      style={[
-        styles.tabBarContainer,
-        {
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.border,
-          height: TAB_BAR_HEIGHT + insets.bottom,
-          paddingBottom: insets.bottom,
-        },
-      ]}
+      className="flex-row relative border-t"
+      style={{
+        backgroundColor: theme.colors.surface,
+        borderTopColor: theme.colors.border,
+        height: TAB_BAR_HEIGHT + insets.bottom,
+        paddingBottom: insets.bottom,
+      }}
       onLayout={(e) => {
         const w = e.nativeEvent.layout.width;
         if (w > 0 && w !== containerWidth) {
@@ -110,22 +108,20 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             accessibilityRole="button"
             accessibilityState={isFocused ? { selected: true } : {}}
             accessibilityLabel={options.tabBarAccessibilityLabel}
-            testID={(options as any).tabBarTestID}
+            testID={`tab-${route.name.toLowerCase()}`}
             onPress={onPress}
             onLongPress={onLongPress}
-            style={styles.tabButton}
+            className="flex-1 items-center justify-center py-[6px]"
           >
             {options.tabBarIcon ? (
               options.tabBarIcon({ focused: isFocused, color, size: 22 })
             ) : null}
             <Text
-              style={[
-                styles.tabLabel,
-                {
-                  color,
-                  fontWeight: isFocused ? '600' : '400',
-                },
-              ]}
+              className="text-xs mt-[3px]"
+              style={{
+                color,
+                fontWeight: isFocused ? '600' : '400',
+              }}
               numberOfLines={1}
             >
               {label}
@@ -151,7 +147,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   );
 }
 
-/** Home | Account | Goals | Report | Settings */
+/** Home | Account | Planning | Report | Settings */
 export function MainTabNavigator() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -182,11 +178,11 @@ export function MainTabNavigator() {
         }}
       />
       <Tab.Screen
-        name="Goals"
-        component={GoalsScreen}
+        name="Planning"
+        component={PlanningScreen}
         options={{
-          tabBarLabel: t('nav.goals'),
-          tabBarIcon: ({ color, size }) => <Target color={color} size={size} />,
+          tabBarLabel: t('nav.planning', 'Planning'),
+          tabBarIcon: ({ color, size }) => <CalendarRange color={color} size={size} />,
         }}
       />
       <Tab.Screen
@@ -210,21 +206,6 @@ export function MainTabNavigator() {
 }
 
 const styles = StyleSheet.create({
-  tabBarContainer: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    position: 'relative',
-  },
-  tabButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 6,
-  },
-  tabLabel: {
-    fontSize: 11,
-    marginTop: 3,
-  },
   activeIndicator: {
     position: 'absolute',
     height: 3,

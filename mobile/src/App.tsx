@@ -1,5 +1,7 @@
 import { useCallback, useEffect } from 'react';
 
+import '../global.css';
+
 import {
   Mulish_400Regular,
   Mulish_500Medium,
@@ -12,16 +14,13 @@ import * as SplashScreen from 'expo-splash-screen';
 import { Provider as ReduxProvider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import './app/i18n/index.ts';
-import './services/guest/guestRuntime.ts';
-import { AuthProvider } from './app/providers/AuthProvider.tsx';
-import { LocaleProvider } from './app/providers/LocaleProvider.tsx';
-import { QueryProvider } from './app/providers/QueryProvider.tsx';
-import { ThemeProvider } from './app/providers/ThemeProvider.tsx';
+import '@/app/i18n';
+import '@/services/guest';
+import { AuthProvider, LocaleProvider, QueryProvider, ThemeProvider } from '@/app/providers';
 import { NetworkStatusProvider } from './hooks/useNetworkStatus.ts';
-import { RootNavigator } from './app/navigation/RootNavigator.tsx';
-import { store } from './app/store/index.ts';
-import { requestSyncNow, startSyncEngine } from './services/sync/syncEngineRuntime.ts';
+import { RootNavigator } from '@/app/navigation';
+import { store } from '@/app/store';
+import { requestSyncNow, startSyncEngine } from '@/services/sync';
 
 startSyncEngine(store);
 

@@ -13,7 +13,7 @@ import * as Localization from 'expo-localization';
 import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
-import { LOCALE_STORAGE_KEY, preferencesStore } from '../../services/storage/preferencesStore.ts';
+import { LOCALE_STORAGE_KEY, preferencesStore } from '@/services/storage';
 import en from './locales/en.ts';
 import vi from './locales/vi.ts';
 
