@@ -1,21 +1,26 @@
 import { View } from 'react-native';
 import { useSelector } from 'react-redux';
-import { formatMoney } from '@sora/contracts';
-import type { CurrencyTotal, TransactionResponse } from '@sora/contracts';
+import type { TransactionResponse } from '@sora/contracts';
 
-import { useTheme } from '../app/providers/ThemeProvider.tsx';
-import { selectQueueEntryFor } from '../app/store/offlineQueueSlice.ts';
+import { useTheme } from '@/app/providers';
+import { selectQueueEntryFor } from '@/app/store';
 import type { DayGroup } from '../utils/groupByDate.ts';
 import { formatDayHeading } from '../utils/date.ts';
-import { sumScaledByKey } from '../utils/money.ts';
-import { Money } from './Money.tsx';
 import { Text } from './Text.tsx';
 import { TransactionRow } from './TransactionRow.tsx';
+import { TransactionTotals } from './TransactionTotals.tsx';
 import { ListItemEnter } from './ListItemEnter.tsx';
+
+/** A row only plays its entrance animation while its creation is still fresh on screen — not on every remount (tab switch, leaving and reopening the screen) of already-existing data. */
+const RECENTLY_CREATED_MS = 5000;
+
+function isRecentlyCreated(transaction: TransactionResponse): boolean {
+  return Date.now() - new Date(transaction.createdAt).getTime() < RECENTLY_CREATED_MS;
+}
 
 export interface TransactionListSectionProps {
   groups: DayGroup[];
-  /** Shows a per-currency income/expense total next to each day's heading. */
+  /** Shows each day's per-currency income and expense totals next to its heading. */
   showDayTotals?: boolean;
   onPressTransaction?: (transaction: TransactionResponse) => void;
 }
@@ -29,34 +34,22 @@ export function TransactionListSection({
   const theme = useTheme();
 
   return (
-    <View style={{ width: '100%' }}>
+    <View className="w-full">
       {groups.map((group, index) => (
-        <View key={group.day} style={{ width: '100%', marginTop: index === 0 ? 0 : theme.spacing.md }}>
-          <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <View key={group.day} className="w-full" style={{ marginTop: index === 0 ? 0 : theme.spacing.md }}>
+          <View className="w-full flex-row justify-between items-baseline">
             <Text variant="label" tone="muted">
               {formatDayHeading(group.day)}
             </Text>
-            {showDayTotals ? <DayTotals transactions={group.transactions} /> : null}
+            {showDayTotals ? <TransactionTotals transactions={group.transactions} /> : null}
           </View>
           <View
-            style={{
-              width: '100%',
-              marginTop: theme.spacing.xs,
-              borderTopWidth: 1,
-              borderTopColor: theme.colors.border,
-            }}
+            className="w-full border-t"
+            style={{ marginTop: theme.spacing.xs, borderTopColor: theme.colors.border }}
           >
-            {group.transactions.map((transaction, rowIndex) => (
-              <View
-                key={transaction.id}
-                style={[
-                  { width: '100%' },
-                  rowIndex === 0
-                    ? undefined
-                    : { borderTopWidth: 1, borderTopColor: theme.colors.border },
-                ]}
-              >
-                <ListItemEnter style={{ width: '100%' }}>
+            {group.transactions.map((transaction) => (
+              <View key={transaction.id} className="w-full">
+                <ListItemEnter style={{ width: '100%' }} animate={isRecentlyCreated(transaction)}>
                   <TransactionListRow transaction={transaction} onPress={onPressTransaction} />
                 </ListItemEnter>
               </View>
@@ -86,35 +79,3 @@ function TransactionListRow({
   );
 }
 
-function DayTotals({ transactions }: { transactions: TransactionResponse[] }) {
-  const theme = useTheme();
-  const expense = sumByType(transactions, 'EXPENSE');
-  if (expense.length === 0) return null;
-  return (
-    <View style={{ flexDirection: 'row', gap: 6 }}>
-      {expense.map((total) => (
-        <Money
-          key={total.currency}
-          amount={total.amount}
-          currency={total.currency}
-          variant="caption"
-          style={{ color: theme.colors.textMuted }}
-        />
-      ))}
-    </View>
-  );
-}
-
-/**
- * Per-currency totals, so a multi-currency wallet never sums across
- * currencies (BR-07); transfers are excluded (BR-06 — neither income nor
- * expense).
- */
-function sumByType(transactions: TransactionResponse[], type: 'INCOME' | 'EXPENSE'): CurrencyTotal[] {
-  const byCurrency = sumScaledByKey(
-    transactions.filter((transaction) => transaction.type === type),
-    (transaction) => transaction.currency,
-    (transaction) => transaction.amount,
-  );
-  return Array.from(byCurrency, ([currency, amount]) => ({ currency, amount: formatMoney(amount) }));
-}

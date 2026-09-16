@@ -353,13 +353,10 @@ const zh: InactiveTranslationResource = {
     recordedBy: '记录人：{{name}}',
     cancelled: '已撤销',
     selectDate: '日期 / 年份',
-    dayPatternError: '请输入 YYYY-MM-DD 格式',
   },
   errors: {
     couldNotRefresh: '目前无法刷新。',
     offlineTitle: '无网络连接',
-    offlineMessage: '您的本地数据仍可正常查看。',
-    syncFailed: '数据同步失败',
     couldNotConnect: '暂时无法连接到服务器',
     couldNotLoad: '无法加载 {{item}}',
     loadWalletsFailed: '无法加载您的钱包',

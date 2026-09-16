@@ -171,22 +171,36 @@ export function formatTimeOfDay(instant: Instant): string {
   return `${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
 }
 
+export interface MonthGridCell {
+  day: CalendarDay;
+  /** False for the previous/next month's overflow days padding the grid to full weeks. */
+  inCurrentMonth: boolean;
+}
+
 /**
- * A month laid out as calendar rows, `null` padding the leading and trailing
- * blanks, so the picker renders a grid without arithmetic in the component.
+ * A month laid out as calendar rows, padded to full weeks with the real
+ * adjacent-month days (not blanks) — the picker's grid is a continuous
+ * calendar window, and every cell (including the overflow) must be a real,
+ * tappable day so tapping one can jump the picker straight into that month.
  */
-export function monthGrid(day: CalendarDay): (CalendarDay | null)[][] {
+export function monthGrid(day: CalendarDay): MonthGridCell[][] {
   const { year, month } = parseDay(day);
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
   const lastDate = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const monthStart: CalendarDay = `${year}-${pad(month)}-01`;
 
-  const cells: (CalendarDay | null)[] = Array.from({ length: firstWeekday }, () => null);
-  for (let date = 1; date <= lastDate; date += 1) {
-    cells.push(`${year}-${pad(month)}-${pad(date)}`);
+  const cells: MonthGridCell[] = [];
+  for (let offset = firstWeekday; offset > 0; offset -= 1) {
+    cells.push({ day: addDays(monthStart, -offset), inCurrentMonth: false });
   }
-  while (cells.length % 7 !== 0) cells.push(null);
+  for (let date = 1; date <= lastDate; date += 1) {
+    cells.push({ day: `${year}-${pad(month)}-${pad(date)}`, inCurrentMonth: true });
+  }
+  for (let offset = 1; cells.length % 7 !== 0; offset += 1) {
+    cells.push({ day: addDays(monthStart, lastDate - 1 + offset), inCurrentMonth: false });
+  }
 
-  const rows: (CalendarDay | null)[][] = [];
+  const rows: MonthGridCell[][] = [];
   for (let index = 0; index < cells.length; index += 7) {
     rows.push(cells.slice(index, index + 7));
   }

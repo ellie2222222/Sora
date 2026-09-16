@@ -353,13 +353,10 @@ const de: InactiveTranslationResource = {
     recordedBy: 'Erfasst von {{name}}',
     cancelled: 'Storniert',
     selectDate: 'Datum / Jahr',
-    dayPatternError: 'Nutzen Sie JJJJ-MM-TT',
   },
   errors: {
     couldNotRefresh: 'Konnte gerade nicht aktualisiert werden.',
     offlineTitle: 'Keine Internetverbindung',
-    offlineMessage: 'Ihre lokalen Daten sind weiterhin verfügbar.',
-    syncFailed: 'Änderungen konnten nicht synchronisiert werden',
     couldNotConnect: 'Verbindung derzeit nicht möglich',
     couldNotLoad: '{{item}} konnte nicht geladen werden',
     loadWalletsFailed: 'Geldbörsen konnten nicht geladen werden',

@@ -353,13 +353,10 @@ const ko: InactiveTranslationResource = {
     recordedBy: '작성자: {{name}}',
     cancelled: '취소됨',
     selectDate: '날짜 / 연도',
-    dayPatternError: 'YYYY-MM-DD 형식을 사용하세요',
   },
   errors: {
     couldNotRefresh: '지금은 새로고침할 수 없습니다.',
     offlineTitle: '인터넷 연결 없음',
-    offlineMessage: '로컬 데이터는 계속 이용 가능합니다.',
-    syncFailed: '변경 사항을 동기화할 수 없습니다',
     couldNotConnect: '현재 연결할 수 없습니다',
     couldNotLoad: '{{item}} 항목을 불러올 수 없습니다',
     loadWalletsFailed: '지갑 목록을 불러올 수 없습니다',

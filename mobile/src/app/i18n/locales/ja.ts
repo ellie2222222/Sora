@@ -353,13 +353,10 @@ const ja: InactiveTranslationResource = {
     recordedBy: '記録者: {{name}}',
     cancelled: 'キャンセル済み',
     selectDate: '日付 / 年',
-    dayPatternError: 'YYYY-MM-DD 形式で入力してください',
   },
   errors: {
     couldNotRefresh: '現在更新できません。',
     offlineTitle: 'インターネット接続がありません',
-    offlineMessage: 'ローカルデータは引き続き利用可能です。',
-    syncFailed: '変更を同期できませんでした',
     couldNotConnect: '現在接続できません',
     couldNotLoad: '{{item}} を読み込めませんでした',
     loadWalletsFailed: 'ウォレットを読み込めませんでした',

@@ -11,12 +11,15 @@
 import {
   MONEY_SCALE,
   add,
+  formatMoney,
   formatMoneyCompact,
   parseMoney,
   ZERO,
   TransactionType,
+  type CurrencyTotal,
   type MoneyString,
   type Scaled,
+  type TransactionResponse,
 } from '@sora/contracts';
 
 /**
@@ -25,7 +28,7 @@ import {
  */
 const ZERO_DECIMAL_CURRENCIES = new Set(['VND', 'JPY', 'KRW', 'CLP', 'ISK', 'XAF', 'XOF']);
 
-export const DEFAULT_CURRENCY_DECIMALS = 2;
+const DEFAULT_CURRENCY_DECIMALS = 2;
 
 export function currencyDecimals(currency: string): number {
   return ZERO_DECIMAL_CURRENCIES.has(currency.toUpperCase()) ? 0 : DEFAULT_CURRENCY_DECIMALS;
@@ -133,13 +136,6 @@ export function tryParseMoney(input: string): Scaled | null {
 }
 
 /**
- * Which direction the figure points, for colour and sign.
- *
- * A TRANSFER is deliberately neither: it is the one classification the product
- * cannot get wrong, because folding it into either side makes every other total
- * on the dashboard untrustworthy.
- */
-/**
  * Sums `amountOf(item)` per `keyOf(item)` (currency, almost always), in
  * bigint space — the one grouping loop every per-currency total in the app
  * shares, rather than each screen hand-rolling its own Map-and-`add` (BR-07:
@@ -158,15 +154,33 @@ export function sumScaledByKey<T>(
   return totals;
 }
 
+/**
+ * Per-currency INCOME or EXPENSE total across `transactions`, formatted for
+ * display. Shared by every "totals" summary row (a day's heading, a month's
+ * header) so none of them hand-roll their own filter+sum — TRANSFER is
+ * excluded by construction, since it matches neither `type` (BR-06).
+ */
+export function sumByTransactionType(
+  transactions: readonly TransactionResponse[],
+  type: 'INCOME' | 'EXPENSE',
+): CurrencyTotal[] {
+  const byCurrency = sumScaledByKey(
+    transactions.filter((transaction) => transaction.type === type),
+    (transaction) => transaction.currency,
+    (transaction) => transaction.amount,
+  );
+  return Array.from(byCurrency, ([currency, amount]) => ({ currency, amount: formatMoney(amount) }));
+}
+
+/**
+ * Which direction the figure points, for colour and sign.
+ *
+ * A TRANSFER is deliberately neither: it is the one classification the product
+ * cannot get wrong, because folding it into either side makes every other total
+ * on the dashboard untrustworthy.
+ */
 export function directionOf(type: TransactionType): 'in' | 'out' | 'neutral' {
   if (type === TransactionType.INCOME) return 'in';
   if (type === TransactionType.EXPENSE) return 'out';
   return 'neutral';
-}
-
-export function signPrefixOf(type: TransactionType): string {
-  const direction = directionOf(type);
-  if (direction === 'in') return '+';
-  if (direction === 'out') return '-';
-  return '';
 }

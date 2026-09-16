@@ -353,13 +353,10 @@ const ru: InactiveTranslationResource = {
     recordedBy: 'Создано: {{name}}',
     cancelled: 'Отменено',
     selectDate: 'Дата / Год',
-    dayPatternError: 'Используйте формат ГГГГ-ММ-ДД',
   },
   errors: {
     couldNotRefresh: 'Не удалось обновить сейчас.',
     offlineTitle: 'Нет подключения к интернету',
-    offlineMessage: 'Ваши локальные данные остаются доступны.',
-    syncFailed: 'Не удалось синхронизировать',
     couldNotConnect: 'Сейчас невозможно подключиться',
     couldNotLoad: 'Не удалось загрузить {{item}}',
     loadWalletsFailed: 'Не удалось загрузить ваши кошельки',

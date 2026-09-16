@@ -14,12 +14,6 @@ export interface WalletPermissions {
   canAdminister: boolean;
 }
 
-export const NO_PERMISSIONS: WalletPermissions = {
-  canRead: false,
-  canWrite: false,
-  canAdminister: false,
-};
-
 export function canRead(role: WalletRole | null): boolean {
   return roleSatisfies(role, REQUIRED_ROLE.READ);
 }

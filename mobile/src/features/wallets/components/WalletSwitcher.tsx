@@ -4,11 +4,9 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { WalletResponse } from '@sora/contracts';
 
-import { BottomSheetModal, Text } from '../../../components';
-import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useWallets } from '../../../app/providers/WalletProvider';
+import { BottomSheetModal, Text } from '@/components';
+import { useTheme, useWallets } from '@/app/providers';
 import { ROLE_LABELS } from '../../../utils/roles';
-
 
 /**
  * The product's headline surface: every wallet you own, alongside every one
@@ -22,8 +20,19 @@ export function WalletSwitcher({ onManage }: { onManage?: () => void }) {
 
   if (isLoading) {
     return (
-      <View style={{ flexDirection: 'row', alignItems: 'center', height: 28 }}>
-        <View style={{ height: 20, width: 120, borderRadius: theme.radius.sm, backgroundColor: theme.colors.skeleton }} />
+      <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
+        <View
+          className="w-[18px] h-[18px]"
+          style={{ borderRadius: theme.radius.pill, backgroundColor: theme.colors.skeleton }}
+        />
+        <View
+          className="h-[20px] w-[120px]"
+          style={{ borderRadius: theme.radius.sm, backgroundColor: theme.colors.skeleton }}
+        />
+        <View
+          className="w-[18px] h-[18px]"
+          style={{ borderRadius: theme.radius.sm, backgroundColor: theme.colors.skeleton }}
+        />
       </View>
     );
   }
@@ -41,7 +50,8 @@ export function WalletSwitcher({ onManage }: { onManage?: () => void }) {
       <Pressable
         testID="wallet-switcher-open"
         onPress={() => setOpen(true)}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}
+        className="flex-row items-center"
+        style={{ gap: theme.spacing.xs }}
       >
         {currentWallet && !currentWallet.isOwn ? (
           <UsersRound size={16} color={theme.colors.primary} />
@@ -104,17 +114,15 @@ function WalletRow({
     <Pressable
       testID={`wallet-switcher-item-${wallet.id}`}
       onPress={onPress}
+      className="flex-row items-center justify-between"
       style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
         paddingVertical: theme.spacing.sm,
         paddingHorizontal: theme.spacing.xs,
         borderRadius: theme.radius.md,
         backgroundColor: active ? theme.colors.primaryMuted : 'transparent',
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+      <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
         {!wallet.isOwn ? <UsersRound size={16} color={theme.colors.textMuted} /> : null}
         <View>
           <Text weight={active ? 'semibold' : 'regular'}>

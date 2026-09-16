@@ -1,25 +1,16 @@
-import { useState } from 'react';
-import { Calendar, Plus, Receipt } from 'lucide-react-native';
-import { Pressable, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, Receipt } from 'lucide-react-native';
+import { View } from 'react-native';
+import Animated, { FadeOut, SlideInLeft, SlideInRight } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import type { TransactionResponse } from '@sora/contracts';
 
-import {
-  AnimatedScreen,
-  DatePickerModal,
-  Fab,
-  MonthSelector,
-  RefreshableScrollView,
-  StateView,
-  Text,
-  TransactionListSection,
-} from '../../../components';
-import { SkeletonList } from '../../../components/Skeleton';
-import { useAuth, useTheme, useWallets } from '../../../app/providers';
-import { useListTransactionsQuery } from '../../../app/store/api';
-import { WalletContextBar } from '../../wallets/components/WalletContextBar';
+import { AnimatedScreen, DatePickerModal, DateStrip, Fab, MonthSelector, RefreshableScrollView, SkeletonList, StateView, TransactionListSection, TransactionTotals } from '@/components';
+import { useAuth, useTheme, useWallets } from '@/app/providers';
+import { useListTransactionsQuery } from '@/app/store';
+import { WalletContextBar } from '@/features/wallets';
 import { TransactionDetailModal } from './TransactionDetailModal';
-import { addMonths, endOfMonth, formatDay, groupTransactionsByDay, startOfMonth, today } from '../../../utils';
+import { addMonths, endOfMonth, formatDay, groupTransactionsByDay, isNetworkError, startOfMonth, today } from '../../../utils';
 
 /**
  * The transaction-list shell shared by the Home tab (unfiltered, the whole
@@ -51,6 +42,15 @@ export function TransactionListScreen({
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionResponse | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Read by the content wrapper's `entering` animation on the render this
+  // triggers — set before `setSelectedDay` so that render sees the direction
+  // for the day being navigated *to*, not the previous one.
+  const slideDirectionRef = useRef<'forward' | 'backward'>('forward');
+  const changeDay = (day: string) => {
+    slideDirectionRef.current = day >= selectedDay ? 'forward' : 'backward';
+    setSelectedDay(day);
+  };
+
   const walletId = activeWalletId ?? undefined;
   const dateFrom = startOfMonth(selectedDay);
   const dateTo = endOfMonth(selectedDay);
@@ -62,6 +62,21 @@ export function TransactionListScreen({
     { skip: !isGuest && walletId === undefined && accountId === undefined },
   );
 
+  // Whose money this is (wallet/account/category) — not which month. Changing
+  // month keeps last month's rows on screen while the new month loads (no
+  // skeleton flash); changing whose money it is must clear them immediately,
+  // so a moment of one wallet's transactions never reads as another's.
+  const scopeKey = `${walletId ?? ''}|${accountId ?? ''}|${categoryId ?? ''}`;
+  const [displayedItems, setDisplayedItems] = useState<TransactionResponse[]>([]);
+  const [displayedScopeKey, setDisplayedScopeKey] = useState(scopeKey);
+  if (scopeKey !== displayedScopeKey) {
+    setDisplayedScopeKey(scopeKey);
+    setDisplayedItems([]);
+  }
+  useEffect(() => {
+    if (transactions.data) setDisplayedItems(transactions.data.items);
+  }, [transactions.data]);
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -71,14 +86,14 @@ export function TransactionListScreen({
     }
   };
 
-  const items = transactions.data?.items ?? [];
-  const showFab = !transactions.isLoading && !transactions.isError && items.length > 0;
+  const items = scopeKey === displayedScopeKey ? displayedItems : [];
+  const showFab = !transactions.isLoading && items.length > 0;
 
   const renderContent = () => {
-    if (transactions.isLoading) {
+    if (transactions.isLoading && items.length === 0) {
       return <SkeletonList rows={8} />;
     }
-    if (transactions.isError) {
+    if (transactions.isError && items.length === 0 && !isNetworkError(transactions.error)) {
       return (
         <StateView
           variant="error"
@@ -110,8 +125,12 @@ export function TransactionListScreen({
     return (
       <RefreshableScrollView
         testID={`${testIDPrefix}-list`}
-        // 96 clears the Fab's own footprint (56 size + spacing.md margin) plus breathing room.
-        contentContainerStyle={{ padding: theme.spacing.md, paddingBottom: fabBottomOffset + 96 }}
+        contentContainerStyle={{
+          paddingHorizontal: theme.spacing.md,
+          paddingTop: theme.spacing.sm,
+          // 88 clears the Fab's own footprint (48 size + spacing.md margin) plus breathing room.
+          paddingBottom: fabBottomOffset + 88,
+        }}
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
       >
@@ -128,27 +147,34 @@ export function TransactionListScreen({
     <AnimatedScreen>
       <WalletContextBar onManage={onManage}>
         <View
+          className="flex-row justify-between items-center"
           style={{
-            flexDirection: 'row',
-            justifyContent: 'center',
-            alignItems: 'center',
             paddingHorizontal: theme.spacing.md,
-            paddingVertical: theme.spacing.xs,
-            backgroundColor: theme.colors.surfaceMuted,
-            borderBottomWidth: 1,
-            borderBottomColor: theme.colors.border,
+            paddingTop: theme.spacing.xs,
           }}
         >
           <MonthSelector
             label={formatDay(selectedDay)}
-            onPrev={() => setSelectedDay(addMonths(selectedDay, -1))}
-            onNext={() => setSelectedDay(addMonths(selectedDay, 1))}
+            onPrev={() => changeDay(addMonths(selectedDay, -1))}
+            onNext={() => changeDay(addMonths(selectedDay, 1))}
             onOpenPicker={() => setShowDatePicker(true)}
             testID={`${testIDPrefix}-month-selector`}
           />
+          <TransactionTotals transactions={items} testID={`${testIDPrefix}-month-totals`} />
         </View>
 
-        {renderContent()}
+        <View style={{ paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs }}>
+          <DateStrip selectedDay={selectedDay} onSelectDay={changeDay} testID={`${testIDPrefix}-date-strip`} />
+        </View>
+
+        <Animated.View
+          key={selectedDay}
+          style={{ flex: 1 }}
+          entering={(slideDirectionRef.current === 'forward' ? SlideInRight : SlideInLeft).duration(240)}
+          exiting={FadeOut.duration(150)}
+        >
+          {renderContent()}
+        </Animated.View>
 
         {showFab ? (
           <Fab
@@ -161,7 +187,7 @@ export function TransactionListScreen({
         <DatePickerModal
           visible={showDatePicker}
           selectedDay={selectedDay}
-          onSelectDay={(day) => setSelectedDay(day)}
+          onSelectDay={changeDay}
           onClose={() => setShowDatePicker(false)}
         />
 

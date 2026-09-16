@@ -353,13 +353,10 @@ const hi: InactiveTranslationResource = {
     recordedBy: 'द्वारा दर्ज: {{name}}',
     cancelled: 'रद्द',
     selectDate: 'तिथि / वर्ष',
-    dayPatternError: 'YYYY-MM-DD प्रारूप का उपयोग करें',
   },
   errors: {
     couldNotRefresh: 'अभी रिफ्रेश नहीं किया जा सका।',
     offlineTitle: 'कोई इंटरनेट कनेक्शन नहीं',
-    offlineMessage: 'आपका स्थानीय डेटा अभी भी उपलब्ध है।',
-    syncFailed: 'सिंक विफल रहा',
     couldNotConnect: 'अभी कनेक्ट नहीं हो सकता',
     couldNotLoad: '{{item}} लोड नहीं किया जा सका',
     loadWalletsFailed: 'आपके वॉलेट लोड नहीं किए जा सके',

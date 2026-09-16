@@ -89,15 +89,36 @@ export interface ColorTokens {
   overlay: string;
   skeleton: string;
   shadow: string;
+
+  // General disabled button tokens
+  buttonDisabledBackground: string;
+  buttonDisabledBorder: string;
+  buttonDisabledText: string;
+
+  // Variant-specific disabled button tokens
+  buttonPrimaryDisabledBackground: string;
+  buttonPrimaryDisabledBorder: string;
+  buttonPrimaryDisabledText: string;
+
+  buttonSecondaryDisabledBackground: string;
+  buttonSecondaryDisabledBorder: string;
+  buttonSecondaryDisabledText: string;
+
+  buttonOutlineDisabledBorder: string;
+  buttonOutlineDisabledText: string;
+
+  buttonDangerDisabledBackground: string;
+  buttonDangerDisabledBorder: string;
+  buttonDangerDisabledText: string;
 }
 
 const SEMANTIC_BASE = {
-  income: '#22C55E',
-  expense: '#EF4444',
+  income: '#32D583',
+  expense: '#FF5C5C',
   transfer: '#EC4899',
   warning: '#F59E0B',
-  danger: '#EF4444',
-  success: '#22C55E',
+  danger: '#FF5C5C',
+  success: '#32D583',
 } as const;
 
 const SEMANTIC_MUTED_DARK = {
@@ -139,6 +160,25 @@ export function getThemeColors(name: ThemeName, mode: ThemeMode = 'dark'): Color
       overlay: 'rgba(3, 6, 10, 0.72)',
       skeleton: '#1E2833',
       shadow: '#000000',
+
+      buttonDisabledBackground: '#1B1B20',
+      buttonDisabledBorder: '#3F3F46',
+      buttonDisabledText: '#A1A1AA',
+
+      buttonPrimaryDisabledBackground: ramp[900],
+      buttonPrimaryDisabledBorder: '#3F3F46',
+      buttonPrimaryDisabledText: '#A1A1AA',
+
+      buttonSecondaryDisabledBackground: '#1B1B20',
+      buttonSecondaryDisabledBorder: '#3F3F46',
+      buttonSecondaryDisabledText: '#A1A1AA',
+
+      buttonOutlineDisabledBorder: '#3F3F46',
+      buttonOutlineDisabledText: '#A1A1AA',
+
+      buttonDangerDisabledBackground: '#33121A',
+      buttonDangerDisabledBorder: '#541C24',
+      buttonDangerDisabledText: '#F87171',
     };
   }
 
@@ -160,6 +200,25 @@ export function getThemeColors(name: ThemeName, mode: ThemeMode = 'dark'): Color
     overlay: 'rgba(15, 23, 42, 0.45)',
     skeleton: '#E2E8F0',
     shadow: '#0F172A',
+
+    buttonDisabledBackground: '#F1F5F9',
+    buttonDisabledBorder: '#CBD5E1',
+    buttonDisabledText: '#64748B',
+
+    buttonPrimaryDisabledBackground: ramp[100],
+    buttonPrimaryDisabledBorder: ramp[300],
+    buttonPrimaryDisabledText: ramp[900],
+
+    buttonSecondaryDisabledBackground: '#F1F5F9',
+    buttonSecondaryDisabledBorder: '#CBD5E1',
+    buttonSecondaryDisabledText: '#64748B',
+
+    buttonOutlineDisabledBorder: '#CBD5E1',
+    buttonOutlineDisabledText: '#64748B',
+
+    buttonDangerDisabledBackground: '#FBE3E7',
+    buttonDangerDisabledBorder: '#FECDD3',
+    buttonDangerDisabledText: '#E11D48',
   };
 }
 

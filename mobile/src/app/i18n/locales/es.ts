@@ -353,13 +353,10 @@ const es: InactiveTranslationResource = {
     recordedBy: 'Registrado por {{name}}',
     cancelled: 'Cancelada',
     selectDate: 'Fecha / Año',
-    dayPatternError: 'Usa el formato AAAA-MM-DD',
   },
   errors: {
     couldNotRefresh: 'No se pudo actualizar ahora.',
     offlineTitle: 'Sin conexión a Internet',
-    offlineMessage: 'Tus datos locales siguen disponibles.',
-    syncFailed: 'No se pudieron sincronizar los cambios',
     couldNotConnect: 'No se puede conectar en este momento',
     couldNotLoad: 'No se pudo cargar {{item}}',
     loadWalletsFailed: 'No se pudieron cargar tus billeteras',

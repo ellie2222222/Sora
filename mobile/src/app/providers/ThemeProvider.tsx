@@ -1,16 +1,10 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Platform } from 'react-native';
-import Animated, {
-  Easing,
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
+import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { buildTheme, THEME_MODES, THEME_NAMES, type Theme, type ThemeMode, type ThemeName } from '../../design-system/index';
-import { authApi } from '../../services/api/auth';
-import { THEME_MODE_STORAGE_KEY, THEME_STORAGE_KEY, preferencesStore } from '../../services/storage/preferencesStore';
+import { authApi } from '@/services/api';
+import { THEME_MODE_STORAGE_KEY, THEME_STORAGE_KEY, preferencesStore } from '@/services/storage';
 import { useAuth } from './AuthProvider';
 
 interface ThemeContextValue {
@@ -33,9 +27,13 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     styleEl.id = STYLE_ID;
     styleEl.innerHTML = `
       * {
+      *:not([role="switch"]):not([role="switch"] *) {
         transition: background-color 380ms cubic-bezier(0.4, 0, 0.2, 1),
                     border-color 380ms cubic-bezier(0.4, 0, 0.2, 1),
                     color 380ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+                    color 380ms cubic-bezier(0.4, 0, 0.2, 1),
+                    fill 380ms cubic-bezier(0.4, 0, 0.2, 1),
+                    stroke 380ms cubic-bezier(0.4, 0, 0.2, 1) !important;
       }
     `;
     document.head.appendChild(styleEl);
@@ -50,38 +48,51 @@ function isThemeMode(value: string | null | undefined): value is ThemeMode {
   return value !== null && value !== undefined && (THEME_MODES as readonly string[]).includes(value);
 }
 
+/**
+ * On native, every descendant re-renders with the new theme's colors the
+ * instant `theme` changes — there's nothing to animate per-component. So
+ * instead of interpolating one color, a full-screen overlay holds the *old*
+ * background and fades itself out, masking the instant switch underneath as
+ * a single smooth cross-dissolve. Web instead gets a CSS transition on every
+ * element (see the injected stylesheet above), so this overlay is
+ * native-only.
+ */
 function AnimatedThemeRoot({ children, theme }: { children: ReactNode; theme: Theme }) {
-  const prevBg = useRef(theme.colors.background);
-  const nextBg = theme.colors.background;
-  const progress = useSharedValue(1);
+  const prevTheme = useRef<Theme>(theme);
+  const overlayOpacity = useSharedValue(0);
+  const [overlayColor, setOverlayColor] = useState<string | null>(null);
 
-  const [colors, setColors] = useState({ from: prevBg.current, to: nextBg });
+  useLayoutEffect(() => {
+    if (Platform.OS === 'web') return;
+    if (prevTheme.current.mode === theme.mode && prevTheme.current.name === theme.name) return;
 
-  useEffect(() => {
-    if (prevBg.current !== nextBg) {
-      setColors({ from: prevBg.current, to: nextBg });
-      prevBg.current = nextBg;
-      progress.value = 0;
-      progress.value = withTiming(1, {
-        duration: 380,
-        easing: Easing.inOut(Easing.ease),
-      });
-    }
-  }, [nextBg, progress]);
-
-  const animatedStyle = useAnimatedStyle(() => {
-    const backgroundColor = interpolateColor(
-      progress.value,
-      [0, 1],
-      [colors.from, colors.to]
+    setOverlayColor(prevTheme.current.colors.background);
+    prevTheme.current = theme;
+    overlayOpacity.value = 1;
+    overlayOpacity.value = withTiming(
+      0,
+      { duration: 380, easing: Easing.bezier(0.4, 0, 0.2, 1) },
+      (finished) => {
+        if (finished) runOnJS(setOverlayColor)(null);
+      },
     );
-    return {
-      flex: 1,
-      backgroundColor,
-    };
-  });
+  }, [theme, overlayOpacity]);
 
-  return <Animated.View style={animatedStyle}>{children}</Animated.View>;
+  const overlayStyle = useAnimatedStyle(() => ({
+    opacity: overlayOpacity.value,
+  }));
+
+  return (
+    <View className="flex-1" style={{ backgroundColor: theme.colors.background }}>
+      {children}
+      {overlayColor !== null ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { backgroundColor: overlayColor, zIndex: 99999 }, overlayStyle]}
+        />
+      ) : null}
+    </View>
+  );
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }): ReactNode {

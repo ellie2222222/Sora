@@ -353,13 +353,10 @@ const fr: InactiveTranslationResource = {
     recordedBy: 'Enregistré par {{name}}',
     cancelled: 'Annulée',
     selectDate: 'Date / Année',
-    dayPatternError: 'Utilisez le format AAAA-MM-JJ',
   },
   errors: {
     couldNotRefresh: "Impossible d'actualiser pour le moment.",
     offlineTitle: 'Pas de connexion Internet',
-    offlineMessage: 'Vos données locales restent accessibles.',
-    syncFailed: 'Impossible de synchroniser',
     couldNotConnect: 'Impossible de se connecter',
     couldNotLoad: 'Impossible de charger {{item}}',
     loadWalletsFailed: 'Impossible de charger vos portefeuilles',
