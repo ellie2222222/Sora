@@ -3,7 +3,7 @@ import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ACCOUNT_TYPES, AccountType } from '@sora/contracts';
 
-import { BottomSheetModal, Button, Input, Text } from '@/components';
+import { BottomSheetModal, Button, Input, MoneyInput, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { useCreateAccountMutation } from '@/app/store';
 import { messageOf } from '../../../utils/errors';
@@ -84,12 +84,11 @@ export function AddAccountScreen({ route, navigation }: AppStackScreenProps<'Add
 
           <Input testID="add-account-currency" label={t('accounts.currency', { defaultValue: 'Currency' })} autoCapitalize="characters" maxLength={3} value={currency} onChangeText={setCurrency} />
 
-          <Input
+          <MoneyInput
             testID="add-account-initial-balance"
             label={type === AccountType.CREDIT_CARD ? t('accounts.openingBalanceCreditCard', { defaultValue: 'Opening balance (negative if you owe)' }) : t('accounts.openingBalance', { defaultValue: 'Opening balance' })}
-            keyboardType="numbers-and-punctuation"
             value={initialBalance}
-            onChangeText={setInitialBalance}
+            onChangeValue={setInitialBalance}
           />
 
           {error !== null ? <Text tone="danger">{error}</Text> : null}

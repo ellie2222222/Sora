@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { BudgetStatus } from '@sora/contracts';
-import { Button, Card, ConfirmDialog, Input, Money, ProgressBar, SkeletonList, StateView, Text } from '@/components';
+import { Button, Card, ConfirmDialog, Input, KeyboardDockProvider, Money, MoneyInput, ProgressBar, SkeletonList, StateView, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import {
   useArchiveBudgetMutation,
@@ -117,12 +117,11 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
               {t('budgets.editBudget', 'Edit budget')}
             </Text>
             <Input testID="budget-detail-name" label={t('categories.name', 'Name')} value={nameValue} onChangeText={setName} />
-            <Input
+            <MoneyInput
               testID="budget-detail-amount"
               label={t('transactions.amount', 'Amount')}
-              keyboardType="decimal-pad"
               value={amountValue}
-              onChangeText={setAmount}
+              onChangeValue={setAmount}
             />
 
             {actionError !== null ? <Text tone="danger">{actionError}</Text> : null}
@@ -149,18 +148,20 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
   };
 
   return (
-    <View style={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
-      {renderContent()}
+    <KeyboardDockProvider>
+      <View style={{ flex: 1, padding: theme.spacing.md, gap: theme.spacing.md }}>
+        {renderContent()}
 
-      <ConfirmDialog
-        visible={archiving}
-        title={t('budgets.archiveConfirmTitle', 'Archive this budget?')}
-        message={t('budgets.archiveConfirmMessage', 'It stops tracking new spending. Past figures stay visible.')}
-        confirmLabel={t('common.archive', 'Archive')}
-        destructive
-        onConfirm={() => void handleConfirmArchive()}
-        onCancel={() => setArchiving(false)}
-      />
-    </View>
+        <ConfirmDialog
+          visible={archiving}
+          title={t('budgets.archiveConfirmTitle', 'Archive this budget?')}
+          message={t('budgets.archiveConfirmMessage', 'It stops tracking new spending. Past figures stay visible.')}
+          confirmLabel={t('common.archive', 'Archive')}
+          destructive
+          onConfirm={() => void handleConfirmArchive()}
+          onCancel={() => setArchiving(false)}
+        />
+      </View>
+    </KeyboardDockProvider>
   );
 }

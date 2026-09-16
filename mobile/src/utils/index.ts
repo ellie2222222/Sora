@@ -1,3 +1,4 @@
+export * from './calculatorEngine.ts';
 export * from './categoryIcons.ts';
 export * from './date.ts';
 export * from './errors.ts';

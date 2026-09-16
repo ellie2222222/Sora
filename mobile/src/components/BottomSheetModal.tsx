@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/app/providers';
+import { KeyboardDockProvider } from './KeyboardDockProvider.tsx';
 import { Text } from './Text';
 
 export interface BottomSheetModalProps {
@@ -156,6 +157,11 @@ export function BottomSheetModal({
                   paddingHorizontal: theme.spacing.lg,
                   paddingBottom: safeBottom + 30, // Zero-gap bottom extension skirt
                   borderColor: theme.colors.border,
+                  // flexShrink/minHeight: 0 so this actually shrinks to the ancestor's `maxHeight`
+                  // on web (CSS flexbox defaults a flex item's min-height to `auto`, refusing to
+                  // shrink below content size — Yoga on native doesn't have that quirk).
+                  flexShrink: 1,
+                  minHeight: 0,
                   ...(theme.shadows.md as object),
                 }}
               >
@@ -181,7 +187,7 @@ export function BottomSheetModal({
                   </Text>
                 ) : null}
 
-                {children}
+                <KeyboardDockProvider applySafeArea={false}>{children}</KeyboardDockProvider>
               </View>
             </Animated.View>
           </Pressable>
