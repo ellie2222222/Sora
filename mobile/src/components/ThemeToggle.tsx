@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Pressable } from 'react-native';
 import Animated, {
   Easing,
@@ -37,15 +37,20 @@ export function ThemeToggle({
   const travelDistance = dim.trackWidth - dim.thumbSize - dim.padding * 2;
 
   const slideProgress = useSharedValue(value ? 1 : 0);
+  // Which end `slideProgress` is animating toward. Guards against the `value` prop's
+  // confirming update (arriving a render later, once the parent's state/context settles)
+  // restarting an animation `onPress` already started this same tick.
+  const animatedTarget = useRef(value ? 1 : 0);
+
+  const animateTo = (target: 0 | 1) => {
+    if (animatedTarget.current === target) return;
+    animatedTarget.current = target;
+    slideProgress.value = withTiming(target, TIMING_CONFIG);
+  };
 
   useEffect(() => {
-    const target = value ? 1 : 0;
-    slideProgress.value = withTiming(target, {
-      duration: 200,
-      easing: Easing.out(Easing.quad),
-    });
-    slideProgress.value = withTiming(value ? 1 : 0, TIMING_CONFIG);
-  }, [value, slideProgress]);
+    animateTo(value ? 1 : 0);
+  }, [value]);
 
   // Track colors update synchronously with the app's theme change
   const trackStyle = {
@@ -107,7 +112,11 @@ export function ThemeToggle({
   return (
     <Pressable
       testID={testID}
-      onPress={() => onValueChange(!value)}
+      onPress={() => {
+        const next = !value;
+        animateTo(next ? 1 : 0);
+        onValueChange(next);
+      }}
       accessibilityRole="switch"
       accessibilityState={{ checked: value }}
       accessibilityLabel="Toggle night mode"
