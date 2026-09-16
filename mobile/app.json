@@ -6,13 +6,12 @@
     "orientation": "portrait",
     "scheme": "sora",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sora.app"
     },
     "android": {
-      "package": "com.sora.app",
+      "package": "com.sora.app"
     },
     "web": {
       "bundler": "metro"
