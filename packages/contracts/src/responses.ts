@@ -402,6 +402,26 @@ export interface CategorySpendSlice {
   color: string | null;
   amount: MoneyString;
   percentage: number;
+  /**
+   * The category's own parent, so a client can group the breakdown by parent
+   * without a second round-trip to /categories. `null` for a top-level
+   * category — never the wallet or a synthetic root.
+   */
+  parentId: string | null;
+}
+
+/**
+ * One wallet member's share of a period's activity.
+ *
+ * Attributed by `transactions.created_by_user_id`, so it answers "who recorded
+ * this", which on a shared wallet is also "whose spending was it". Per-currency
+ * for the same reason every other total here is (BR-07).
+ */
+export interface MemberSpendSlice {
+  userId: string;
+  displayName: string;
+  income: CurrencyTotal[];
+  expense: CurrencyTotal[];
 }
 
 export interface ConvertedValuation {
@@ -421,7 +441,17 @@ export interface DashboardResponse {
   income: CurrencyTotal[];
   expense: CurrencyTotal[];
   net: CurrencyTotal[];
+  /**
+   * Transfers across this wallet's boundary, reported on their own and never
+   * folded into income/expense/net (BR-06). An internal transfer between two of
+   * this wallet's own accounts appears in neither — it never crossed the
+   * boundary, and counting it both ways would inflate each figure equally.
+   */
+  transferredIn: CurrencyTotal[];
+  transferredOut: CurrencyTotal[];
   spendingByCategory: CategorySpendSlice[];
+  /** One entry per member who recorded activity in the period; `[]` when there was none. */
+  spendingByMember: MemberSpendSlice[];
   recentTransactions: TransactionResponse[];
   activeBudgets: BudgetResponse[];
   activeGoals: GoalResponse[];

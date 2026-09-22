@@ -1031,9 +1031,15 @@ One request answering the four questions the dashboard exists to answer: how muc
 
 **Query** — `dashboardQuerySchema`: `walletId` (required), `dateFrom`, `dateTo` (default: the current calendar month), `displayCurrency` (optional, three-letter code)
 
-**Response `200`** — `DashboardResponse`: `totalBalance`, `income`, `expense`, `net` (each **per currency**), `spendingByCategory` (descending, with percentages), `recentTransactions` (10), `activeBudgets`, `activeGoals`, `valuation` (optional — present only when `displayCurrency` was supplied).
+**Response `200`** — `DashboardResponse`: `totalBalance`, `income`, `expense`, `net`, `transferredIn`, `transferredOut` (each **per currency**), `spendingByCategory` (descending, with percentages), `spendingByMember`, `recentTransactions` (10), `activeBudgets`, `activeGoals`, `valuation` (optional — present only when `displayCurrency` was supplied).
 
 > `income` and `expense` **exclude transfers entirely**. This is the single most consequential rule in the product: a wallet that moved 2,000,000 from bank to cash has not earned or spent anything, and a dashboard that says otherwise makes every other number untrustworthy.
+
+**`transferredIn` / `transferredOut`** (`CurrencyTotal[]`): the period's transfers **across this wallet's boundary**, reported on their own and never folded into `income`/`expense`/`net`. A transfer whose two legs are both this wallet's own accounts is **internal** and appears in neither figure — it never crossed the boundary, and counting it as both in and out would inflate each by the same amount. In practice these are the cross-wallet transfers of §11.4 (BR-02), seen from one side.
+
+**`spendingByCategory[].parentId`** (`string | null`): the category's own parent, so a client can group the breakdown by parent without a second call to §7. `null` for a top-level category.
+
+**`spendingByMember`** (`MemberSpendSlice[]`): `{userId, displayName, income, expense}` per member who recorded activity in the period, ordered by spend. Attributed by `transactions.created_by_user_id` — on a shared wallet, "who recorded this" is also "whose spending was it". Each member's figures are filtered by the same predicate as the wallet-level totals, so the split always reconciles against `income`/`expense`. No new information is exposed: any `VIEWER` on the wallet can already read every transaction and its `createdBy` via §11.1.
 
 **`valuation`** (`ConvertedValuation`, present only when `displayCurrency` is requested): `{currency, amount, isApproximate, status, rateTimestamp?, missingCurrencies?}`. `amount` is `totalBalance` converted into `currency` — an estimate, never authoritative, never stored, never summed into any other figure. `status` is one of `FRESH` (converted just now, or every account already in `currency` so no conversion was needed), `STALE` (converted using the best available cached/snapshotted rate, older than preferred), or `UNAVAILABLE` (`amount: null`, `missingCurrencies` lists what couldn't be converted — the whole total is withheld rather than silently excluding a currency). Rates come from an external provider (`ExchangeRateService`, 12h cache by default) with a daily-snapshot fallback for staleness; a request with no `displayCurrency` omits this field entirely rather than sending `null`.
 

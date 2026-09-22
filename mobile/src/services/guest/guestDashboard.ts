@@ -12,15 +12,16 @@
 
 import {
   add,
+  countsAsPeriodActivity,
   formatMoney,
   isWithinPeriod,
   parseMoney,
   percentageOf,
   subtract,
+  transferDirection,
   ZERO,
   BudgetStatus,
   GoalStatus,
-  TransactionStatus,
   TransactionType,
   ValuationStatus,
   type CategorySpendSlice,
@@ -76,23 +77,42 @@ interface PeriodActivity {
   income: Map<string, Scaled>;
   expense: Map<string, Scaled>;
   expenseByCategory: Map<string, Map<string, Scaled>>;
+  transferredIn: Map<string, Scaled>;
+  transferredOut: Map<string, Scaled>;
 }
 
 /**
- * INCOME/EXPENSE only, COMPLETED only, within `[dateFrom, dateTo]` — the
- * same rule `periodActivity` enforces server-side.
+ * INCOME/EXPENSE only, COMPLETED only, within `[dateFrom, dateTo]`, plus the
+ * period's transfer flow — the same rules `periodActivity` enforces
+ * server-side, through the same shared `countsAsPeriodActivity`/
+ * `transferDirection` predicates rather than a second local copy of BR-06.
+ *
+ * A guest wallet has no other wallet to transfer with, so `transferredIn/Out`
+ * are structurally always empty here; they are computed anyway so the guest
+ * response cannot drift into a different *shape* from the server's.
  */
-function periodActivity(transactions: readonly GuestTransaction[], dateFrom: string, dateTo: string): PeriodActivity {
+function periodActivity(
+  transactions: readonly GuestTransaction[],
+  accountIds: ReadonlySet<string>,
+  dateFrom: string,
+  dateTo: string,
+): PeriodActivity {
   const income = new Map<string, Scaled>();
   const expense = new Map<string, Scaled>();
   const expenseByCategory = new Map<string, Map<string, Scaled>>();
+  const transferredIn = new Map<string, Scaled>();
+  const transferredOut = new Map<string, Scaled>();
 
   for (const transaction of transactions) {
-    if (transaction.status !== TransactionStatus.COMPLETED) continue;
-    if (transaction.type !== TransactionType.INCOME && transaction.type !== TransactionType.EXPENSE) continue;
-    if (!isWithinPeriod(transaction.transactionDate, dateFrom, dateTo)) continue;
-
     const amount = parseMoney(transaction.amount);
+
+    if (!countsAsPeriodActivity(transaction, dateFrom, dateTo)) {
+      if (!isWithinPeriod(transaction.transactionDate, dateFrom, dateTo)) continue;
+      const direction = transferDirection(transaction, accountIds);
+      if (direction === 'IN') transferredIn.set(transaction.currency, add(transferredIn.get(transaction.currency) ?? ZERO, amount));
+      if (direction === 'OUT') transferredOut.set(transaction.currency, add(transferredOut.get(transaction.currency) ?? ZERO, amount));
+      continue;
+    }
 
     if (transaction.type === TransactionType.INCOME) {
       income.set(transaction.currency, add(income.get(transaction.currency) ?? ZERO, amount));
@@ -107,7 +127,7 @@ function periodActivity(transactions: readonly GuestTransaction[], dateFrom: str
     expenseByCategory.set(categoryId, byCurrency);
   }
 
-  return { income, expense, expenseByCategory };
+  return { income, expense, expenseByCategory, transferredIn, transferredOut };
 }
 
 /**
@@ -143,6 +163,7 @@ function spendingByCategory(activity: PeriodActivity): CategorySpendSlice[] {
         color: category?.color ?? null,
         amount: formatMoney(slice.amount),
         percentage: percentageOf(slice.amount, totalExpense),
+        parentId: category?.parentId ?? null,
       };
     });
 }
@@ -160,7 +181,8 @@ export const guestDashboardApi = {
       guestGoalsApi.list({ walletId: wallet.id, status: GoalStatus.ACTIVE }),
     ]);
 
-    const activity = periodActivity(transactions, dateFrom, dateTo);
+    const accountIds = new Set(guestStore.current().accounts.map((account) => account.id));
+    const activity = periodActivity(transactions, accountIds, dateFrom, dateTo);
     const totalBalance = walletResponse.balances;
 
     let valuation: ConvertedValuation | null | undefined = undefined;
@@ -194,7 +216,13 @@ export const guestDashboardApi = {
       income: toCurrencyTotals(activity.income),
       expense: toCurrencyTotals(activity.expense),
       net: netOf(activity.income, activity.expense),
+      transferredIn: toCurrencyTotals(activity.transferredIn),
+      transferredOut: toCurrencyTotals(activity.transferredOut),
       spendingByCategory: spendingByCategory(activity),
+      // A guest wallet has exactly one (local, unnamed) member, so there is no
+      // split to report — the widget that consumes this only renders for a
+      // shared wallet anyway.
+      spendingByMember: [],
       recentTransactions: recent.items,
       activeBudgets,
       activeGoals,

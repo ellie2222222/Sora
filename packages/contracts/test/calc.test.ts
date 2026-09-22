@@ -12,9 +12,11 @@ import {
   calculateGoalProgress,
   calculateGoalRemaining,
   calculateWalletBalance,
+  countsAsPeriodActivity,
   isGoalReached,
   isOverBudget,
   isWithinPeriod,
+  transferDirection,
 } from '../src/calc.ts';
 import { TransactionStatus, TransactionType } from '../src/enums.ts';
 import { formatMoneyCompact, parseMoney } from '../src/money.ts';
@@ -268,5 +270,74 @@ describe('isWithinPeriod', () => {
     assert.equal(isWithinPeriod('2026-08-31T23:30:00Z', '2026-08-01', '2026-08-31'), true);
     assert.equal(isWithinPeriod('2026-07-31T23:59:59Z', '2026-08-01', '2026-08-31'), false);
     assert.equal(isWithinPeriod('2026-09-01T00:00:00Z', '2026-08-01', '2026-08-31'), false);
+  });
+});
+
+describe('countsAsPeriodActivity', () => {
+  const august = ['2026-08-01', '2026-08-31'] as const;
+  const base = { status: TransactionStatus.COMPLETED, transactionDate: '2026-08-15T10:00:00Z' };
+
+  it('admits completed income and expense inside the window', () => {
+    assert.equal(countsAsPeriodActivity({ ...base, type: TransactionType.INCOME }, ...august), true);
+    assert.equal(countsAsPeriodActivity({ ...base, type: TransactionType.EXPENSE }, ...august), true);
+  });
+
+  it('excludes a TRANSFER outright — BR-06, not netted to zero', () => {
+    assert.equal(countsAsPeriodActivity({ ...base, type: TransactionType.TRANSFER }, ...august), false);
+  });
+
+  it('excludes pending and deleted rows', () => {
+    const pending = { ...base, type: TransactionType.EXPENSE, status: TransactionStatus.PENDING };
+    const deleted = { ...base, type: TransactionType.EXPENSE, status: TransactionStatus.DELETED };
+    assert.equal(countsAsPeriodActivity(pending, ...august), false);
+    assert.equal(countsAsPeriodActivity(deleted, ...august), false);
+  });
+
+  it('excludes a row outside the window', () => {
+    const september = { ...base, type: TransactionType.EXPENSE, transactionDate: '2026-09-01T00:00:00Z' };
+    assert.equal(countsAsPeriodActivity(september, ...august), false);
+  });
+});
+
+describe('transferDirection', () => {
+  // VIETCOMBANK/CASH belong to the wallet being reported on; TECHCOMBANK is
+  // another person's wallet, the same split the fixture above uses.
+  const ownAccounts = new Set([VIETCOMBANK, CASH]);
+  const completedTransfer = { type: TransactionType.TRANSFER, status: TransactionStatus.COMPLETED };
+
+  it('reports a cross-wallet transfer arriving as IN', () => {
+    const received = { ...completedTransfer, fromAccountId: TECHCOMBANK, toAccountId: VIETCOMBANK };
+    assert.equal(transferDirection(received, ownAccounts), 'IN');
+  });
+
+  it('reports a cross-wallet transfer leaving as OUT', () => {
+    const sent = { ...completedTransfer, fromAccountId: VIETCOMBANK, toAccountId: TECHCOMBANK };
+    assert.equal(transferDirection(sent, ownAccounts), 'OUT');
+  });
+
+  it('reports an internal transfer as neither, rather than as both', () => {
+    // Bank → cash inside one wallet: counting it in *and* out would inflate
+    // both figures by the same amount for money that never left the wallet.
+    const internal = { ...completedTransfer, fromAccountId: VIETCOMBANK, toAccountId: CASH };
+    assert.equal(transferDirection(internal, ownAccounts), null);
+  });
+
+  it('ignores a transfer that touches neither side of this wallet', () => {
+    const elsewhere = { ...completedTransfer, fromAccountId: TECHCOMBANK, toAccountId: 'b0000002' };
+    assert.equal(transferDirection(elsewhere, ownAccounts), null);
+  });
+
+  it('ignores income and expense — those are not transfers', () => {
+    const income = { type: TransactionType.INCOME, status: TransactionStatus.COMPLETED, fromAccountId: null, toAccountId: VIETCOMBANK };
+    const expense = { type: TransactionType.EXPENSE, status: TransactionStatus.COMPLETED, fromAccountId: VIETCOMBANK, toAccountId: null };
+    assert.equal(transferDirection(income, ownAccounts), null);
+    assert.equal(transferDirection(expense, ownAccounts), null);
+  });
+
+  it('ignores a pending or deleted transfer', () => {
+    const pending = { type: TransactionType.TRANSFER, status: TransactionStatus.PENDING, fromAccountId: VIETCOMBANK, toAccountId: TECHCOMBANK };
+    const deleted = { type: TransactionType.TRANSFER, status: TransactionStatus.DELETED, fromAccountId: VIETCOMBANK, toAccountId: TECHCOMBANK };
+    assert.equal(transferDirection(pending, ownAccounts), null);
+    assert.equal(transferDirection(deleted, ownAccounts), null);
   });
 });

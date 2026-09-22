@@ -148,6 +148,67 @@ export function isGoalReached(targetAmount: Scaled, current: Scaled): boolean {
   return current >= targetAmount;
 }
 
+export interface PeriodActivityTransaction {
+  type: TransactionType;
+  status: TransactionStatus;
+  transactionDate: string;
+}
+
+/**
+ * Does this row count toward a period's income/expense figures?
+ *
+ * BR-06: a TRANSFER is excluded outright rather than netted to zero. Shared so
+ * the wallet-level totals and any breakdown of them (by category, by member)
+ * are filtered by one predicate — a breakdown computed under a second, subtly
+ * different rule would not reconcile against the total it sits under.
+ */
+export function countsAsPeriodActivity(
+  transaction: PeriodActivityTransaction,
+  dateFrom: string,
+  dateTo: string,
+): boolean {
+  if (transaction.status !== TransactionStatus.COMPLETED) return false;
+  if (transaction.type !== TransactionType.INCOME && transaction.type !== TransactionType.EXPENSE) {
+    return false;
+  }
+  return isWithinPeriod(transaction.transactionDate, dateFrom, dateTo);
+}
+
+export interface TransferDirectionTransaction {
+  type: TransactionType;
+  status: TransactionStatus;
+  fromAccountId: string | null;
+  toAccountId: string | null;
+}
+
+/** `IN`/`OUT` across the wallet boundary; `null` for anything that isn't one. */
+export type TransferDirection = 'IN' | 'OUT' | null;
+
+/**
+ * Which way a completed TRANSFER moved money across one wallet's boundary.
+ *
+ * A transfer whose two legs are both inside `accountIds` is **internal** and
+ * returns `null`: the wallet moved money to itself, so counting it as both in
+ * and out would inflate both figures by the same amount and report activity
+ * that never crossed the boundary (the same reasoning BR-06 applies to
+ * income/expense). Only a cross-wallet transfer (BR-02) has a direction here.
+ */
+export function transferDirection(
+  transaction: TransferDirectionTransaction,
+  accountIds: ReadonlySet<string>,
+): TransferDirection {
+  if (transaction.type !== TransactionType.TRANSFER) return null;
+  if (transaction.status !== TransactionStatus.COMPLETED) return null;
+
+  const isIncoming = transaction.toAccountId !== null && accountIds.has(transaction.toAccountId);
+  const isOutgoing = transaction.fromAccountId !== null && accountIds.has(transaction.fromAccountId);
+
+  if (isIncoming && isOutgoing) return null;
+  if (isIncoming) return 'IN';
+  if (isOutgoing) return 'OUT';
+  return null;
+}
+
 /**
  * Inclusive date-window test.
  *

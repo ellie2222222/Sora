@@ -20,11 +20,14 @@ import {
   calculateGoalCurrent,
   calculateGoalProgress,
   calculateGoalRemaining,
+  countsAsPeriodActivity,
   formatMoney,
   isOverBudget,
   isWithinPeriod,
+  maxOf,
   parseMoney,
   percentageOf,
+  transferDirection,
   BudgetStatus,
   GoalStatus,
   TransactionStatus,
@@ -36,6 +39,7 @@ import {
   type DashboardQuery,
   type DashboardResponse,
   type GoalResponse,
+  type MemberSpendSlice,
   type Scaled,
   type TransactionAccountRef,
   type TransactionResponse,
@@ -93,7 +97,10 @@ export class DashboardService {
       income: activity.income.toArray(),
       expense: activity.expense.toArray(),
       net: netOf(activity.income, activity.expense),
+      transferredIn: activity.transferredIn.toArray(),
+      transferredOut: activity.transferredOut.toArray(),
       spendingByCategory: await this.spendingByCategory(activity),
+      spendingByMember: memberSlices(activity.byMember),
       recentTransactions,
       activeBudgets,
       activeGoals,
@@ -102,13 +109,19 @@ export class DashboardService {
   }
 
   /**
-   * INCOME/EXPENSE only, `COMPLETED` only, within `[dateFrom, dateTo]` — BR-06:
-   * a TRANSFER is excluded outright rather than netted to zero, because a
-   * wallet that moved money to itself did not earn or spend anything.
+   * One pass over the period's completed transactions, producing every figure
+   * derived from them: income/expense (and their per-category and per-member
+   * splits) and the wallet's transfer flow.
    *
-   * The date window is applied in JS via `isWithinPeriod`, the same calendar-day
-   * comparison `calculateBudgetSpent` uses, rather than a second SQL-side rule
-   * for what "within the period" means.
+   * BR-06 is enforced by `countsAsPeriodActivity`, shared with the app's
+   * guest-mode mirror — a TRANSFER is excluded from income/expense outright
+   * rather than netted to zero, and reported as its own figure instead. Every
+   * split here is filtered by that same predicate, so a breakdown always
+   * reconciles against the total it sits under.
+   *
+   * The date window is applied in JS, the same calendar-day comparison
+   * `calculateBudgetSpent` uses, rather than a second SQL-side rule for what
+   * "within the period" means.
    */
   private async periodActivity(
     accountIds: readonly string[],
@@ -118,38 +131,78 @@ export class DashboardService {
     income: CurrencyLedger;
     expense: CurrencyLedger;
     expenseByCategory: Map<string, Map<string, Scaled>>;
+    transferredIn: CurrencyLedger;
+    transferredOut: CurrencyLedger;
+    byMember: Map<string, MemberActivity>;
   }> {
     const income = new CurrencyLedger();
     const expense = new CurrencyLedger();
     const expenseByCategory = new Map<string, Map<string, Scaled>>();
+    const transferredIn = new CurrencyLedger();
+    const transferredOut = new CurrencyLedger();
+    const byMember = new Map<string, MemberActivity>();
 
-    if (accountIds.length === 0) return { income, expense, expenseByCategory };
+    if (accountIds.length === 0) {
+      return { income, expense, expenseByCategory, transferredIn, transferredOut, byMember };
+    }
 
     const rows = await this.database.db
-      .selectFrom('transactions')
-      .select(['type', 'amount', 'currency', 'category_id', 'transaction_date'])
-      .where('status', '=', TransactionStatus.COMPLETED)
-      .where('type', 'in', [TransactionType.INCOME, TransactionType.EXPENSE])
+      .selectFrom('transactions as t')
+      .innerJoin('users as u', 'u.id', 't.created_by_user_id')
+      .select([
+        't.type as type',
+        't.status as status',
+        't.amount as amount',
+        't.currency as currency',
+        't.category_id as category_id',
+        't.transaction_date as transaction_date',
+        't.from_account_id as from_account_id',
+        't.to_account_id as to_account_id',
+        'u.id as created_by_user_id',
+        'u.display_name as display_name',
+      ])
+      .where('t.status', '=', TransactionStatus.COMPLETED)
       .where((eb) =>
         eb.or([
-          eb('to_account_id', 'in', [...accountIds]),
-          eb('from_account_id', 'in', [...accountIds]),
+          eb('t.to_account_id', 'in', [...accountIds]),
+          eb('t.from_account_id', 'in', [...accountIds]),
         ]),
       )
       .execute();
 
+    const ownAccounts = new Set(accountIds);
+
     for (const row of rows) {
       const isoDate = row.transaction_date.toISOString();
-      if (!isWithinPeriod(isoDate, dateFrom, dateTo)) continue;
-
       const amount = parseMoney(row.amount);
+
+      if (!countsAsPeriodActivity({ ...row, transactionDate: isoDate }, dateFrom, dateTo)) {
+        if (!isWithinPeriod(isoDate, dateFrom, dateTo)) continue;
+        const direction = transferDirection(
+          { type: row.type, status: row.status, fromAccountId: row.from_account_id, toAccountId: row.to_account_id },
+          ownAccounts,
+        );
+        if (direction === 'IN') transferredIn.addTo(row.currency, amount);
+        if (direction === 'OUT') transferredOut.addTo(row.currency, amount);
+        continue;
+      }
+
+      const member = byMember.get(row.created_by_user_id) ?? {
+        userId: row.created_by_user_id,
+        displayName: row.display_name,
+        income: new CurrencyLedger(),
+        expense: new CurrencyLedger(),
+      };
+      byMember.set(row.created_by_user_id, member);
 
       if (row.type === TransactionType.INCOME) {
         income.addTo(row.currency, amount);
+        member.income.addTo(row.currency, amount);
         continue;
       }
 
       expense.addTo(row.currency, amount);
+      member.expense.addTo(row.currency, amount);
       // chk_transaction_shape guarantees an EXPENSE row always carries a category.
       const categoryId = row.category_id as string;
       const byCurrency = expenseByCategory.get(categoryId) ?? new Map<string, Scaled>();
@@ -157,7 +210,7 @@ export class DashboardService {
       expenseByCategory.set(categoryId, byCurrency);
     }
 
-    return { income, expense, expenseByCategory };
+    return { income, expense, expenseByCategory, transferredIn, transferredOut, byMember };
   }
 
   /**
@@ -188,7 +241,7 @@ export class DashboardService {
 
     const categories = await this.database.db
       .selectFrom('categories')
-      .select(['id', 'name', 'icon', 'color'])
+      .select(['id', 'name', 'icon', 'color', 'parent_id'])
       .where('id', 'in', slices.map((slice) => slice.categoryId))
       .execute();
     const categoryById = new Map(categories.map((category) => [category.id, category]));
@@ -204,6 +257,7 @@ export class DashboardService {
           color: category?.color ?? null,
           amount: formatMoney(slice.amount),
           percentage: percentageOf(slice.amount, totalExpense),
+          parentId: category?.parent_id ?? null,
         };
       });
   }
@@ -431,6 +485,49 @@ export class DashboardService {
       };
     });
   }
+}
+
+interface MemberActivity {
+  userId: string;
+  displayName: string;
+  income: CurrencyLedger;
+  expense: CurrencyLedger;
+}
+
+/**
+ * A ledger's largest single-currency figure — an *ordering* key only.
+ *
+ * Deliberately a max, not a sum: adding a VND figure to a USD one produces a
+ * meaningless number (BR-07). This value is never reported, only compared, so
+ * picking the largest single currency keeps the ordering sensible for the
+ * common one-currency wallet without inventing a cross-currency total.
+ */
+function peak(ledger: CurrencyLedger): Scaled {
+  return ledger.currencies().reduce((best, currency) => maxOf(best, ledger.get(currency)), ZERO);
+}
+
+/**
+ * Ordered by expense, then income, then name — "who spent the most" is what the
+ * widget leads with, and the name tiebreak keeps the order stable for members
+ * who recorded neither.
+ */
+function memberSlices(byMember: ReadonlyMap<string, MemberActivity>): MemberSpendSlice[] {
+  return [...byMember.values()]
+    .sort((a, b) => {
+      const expenseA = peak(a.expense);
+      const expenseB = peak(b.expense);
+      if (expenseA !== expenseB) return expenseA > expenseB ? -1 : 1;
+      const incomeA = peak(a.income);
+      const incomeB = peak(b.income);
+      if (incomeA !== incomeB) return incomeA > incomeB ? -1 : 1;
+      return a.displayName.localeCompare(b.displayName);
+    })
+    .map((member) => ({
+      userId: member.userId,
+      displayName: member.displayName,
+      income: member.income.toArray(),
+      expense: member.expense.toArray(),
+    }));
 }
 
 /** `dateFrom`/`dateTo` each default independently to the current calendar month's bound. */
