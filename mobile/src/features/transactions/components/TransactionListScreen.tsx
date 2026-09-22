@@ -1,16 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Receipt } from 'lucide-react-native';
 import { View } from 'react-native';
-import Animated, { FadeOut, SlideInLeft, SlideInRight } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { TransactionStatus, type TransactionResponse } from '@sora/contracts';
 
-import { AnimatedScreen, DatePickerModal, DateStrip, Fab, MonthSelector, RefreshableScrollView, SkeletonList, StateView, TransactionListSection, TransactionTotals } from '@/components';
+import { AnimatedScreen, DatePickerModal, DateStrip, Fab, PeriodBar, RefreshableScrollView, SkeletonList, SlideSwap, StateView, Text, TransactionListSection, TransactionTotals } from '@/components';
 import { useAuth, useTheme, useWallets } from '@/app/providers';
 import { useListTransactionsQuery } from '@/app/store';
 import { WalletContextBar } from '@/features/wallets';
 import { TransactionDetailModal } from './TransactionDetailModal';
-import { addMonths, endOfMonth, formatDay, groupTransactionsByDay, isNetworkError, startOfMonth, today } from '../../../utils';
+import {
+  groupTransactionsByDay,
+  isNetworkError,
+  shiftAnchor,
+  today,
+  windowFor,
+  type CalendarDay,
+  type DashboardPeriod,
+} from '@/utils';
 
 /**
  * The transaction-list shell shared by the Home tab (unfiltered, the whole
@@ -37,26 +44,18 @@ export function TransactionListScreen({
   const { isGuest } = useAuth();
   const { activeWalletId } = useWallets();
 
-  const [selectedDay, setSelectedDay] = useState<string>(today());
+  const [period, setPeriod] = useState<DashboardPeriod>('monthly');
+  const [selectedDay, setSelectedDay] = useState<CalendarDay>(today());
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionResponse | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Read by the content wrapper's `entering` animation on the render this
-  // triggers — set before `setSelectedDay` so that render sees the direction
-  // for the day being navigated *to*, not the previous one.
-  const slideDirectionRef = useRef<'forward' | 'backward'>('forward');
-  const changeDay = (day: string) => {
-    slideDirectionRef.current = day >= selectedDay ? 'forward' : 'backward';
-    setSelectedDay(day);
-  };
-
   const walletId = activeWalletId ?? undefined;
-  const dateFrom = startOfMonth(selectedDay);
-  const dateTo = endOfMonth(selectedDay);
+  // One source for the window, so the day strip and the query cannot disagree.
+  const { dateFrom, dateTo } = windowFor(period, selectedDay);
 
   const transactions = useListTransactionsQuery(
-    { walletId, accountId, categoryId, dateFrom, dateTo, pageSize: 100 },
+    { walletId, accountId, categoryId, dateFrom, dateTo, pageSize: 200 },
     // Guest mode has one wallet and never receives a walletId filter from the
     // wallet switcher, so gating on one would leave the list permanently idle.
     { skip: !isGuest && walletId === undefined && accountId === undefined },
@@ -93,6 +92,13 @@ export function TransactionListScreen({
 
   const items = scopeKey === displayedScopeKey ? displayedItems : [];
   const showFab = !transactions.isLoading && items.length > 0;
+
+  // A total summed from one page of a larger window is wrong, not merely partial,
+  // so it is withheld instead. Measured against the fetched count, not the
+  // displayed one, since DELETED rows are filtered out after the fetch.
+  const fetchedCount = transactions.data?.items.length ?? 0;
+  const windowTotal = transactions.data?.pagination?.total ?? fetchedCount;
+  const isTruncated = windowTotal > fetchedCount;
 
   const renderContent = () => {
     if (transactions.isLoading && items.length === 0) {
@@ -153,41 +159,37 @@ export function TransactionListScreen({
   return (
     <AnimatedScreen>
       <WalletContextBar onManage={onManage}>
-        <View
-          className="flex-row justify-between items-center"
-          style={{
-            paddingHorizontal: theme.spacing.md,
-            paddingTop: theme.spacing.xs,
-          }}
-        >
-          <MonthSelector
-            label={formatDay(selectedDay)}
-            onPrev={() => changeDay(addMonths(selectedDay, -1))}
-            onNext={() => changeDay(addMonths(selectedDay, 1))}
+        <View style={{ paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.xs }}>
+          <PeriodBar
+            period={period}
+            anchor={selectedDay}
+            onChangePeriod={setPeriod}
+            onShift={(delta) => setSelectedDay((current) => shiftAnchor(period, current, delta))}
             onOpenPicker={() => setShowDatePicker(true)}
-            testID={`${testIDPrefix}-month-selector`}
+            testIDPrefix={testIDPrefix}
           />
-          <TransactionTotals transactions={items} testID={`${testIDPrefix}-month-totals`} />
+          <View className="flex-row justify-end" style={{ marginTop: theme.spacing.xs }}>
+            {isTruncated ? (
+              <Text variant="caption" tone="muted" testID={`${testIDPrefix}-period-truncated`}>
+                {t('transactions.showingNewest', { count: fetchedCount, total: windowTotal })}
+              </Text>
+            ) : (
+              <TransactionTotals transactions={items} testID={`${testIDPrefix}-period-totals`} />
+            )}
+          </View>
         </View>
 
-        <View style={{ paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs }}>
-          <DateStrip selectedDay={selectedDay} onSelectDay={changeDay} testID={`${testIDPrefix}-date-strip`} />
-        </View>
+        {/* Only meaningful while a day *is* the window — in any wider one it would
+            pick a day the list does not narrow to. */}
+        {period === 'daily' ? (
+          <View style={{ paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs }}>
+            <DateStrip selectedDay={selectedDay} onSelectDay={setSelectedDay} testID={`${testIDPrefix}-date-strip`} />
+          </View>
+        ) : null}
 
-        <Animated.View
-          key={selectedDay}
-          style={{ flex: 1 }}
-          // Overdamped (damping/stiffness ratio > 1, no fixed duration) so a full-width panel
-          // settles into place without overshoot/bounce-back — DateStrip's own cell transition
-          // stays springier since that's a small highlight move, not a whole screen of content.
-          entering={(slideDirectionRef.current === 'forward' ? SlideInRight : SlideInLeft)
-            .springify()
-            .damping(34)
-            .stiffness(210)}
-          exiting={FadeOut.duration(150)}
-        >
+        <SlideSwap swapKey={dateFrom} style={{ flex: 1 }}>
           {renderContent()}
-        </Animated.View>
+        </SlideSwap>
 
         {showFab ? (
           <Fab
@@ -200,7 +202,7 @@ export function TransactionListScreen({
         <DatePickerModal
           visible={showDatePicker}
           selectedDay={selectedDay}
-          onSelectDay={changeDay}
+          onSelectDay={setSelectedDay}
           onClose={() => setShowDatePicker(false)}
         />
 
