@@ -87,6 +87,51 @@ export function addDays(day: CalendarDay, delta: number): CalendarDay {
   );
 }
 
+/**
+ * Weeks run Sunday–Saturday, matching `WEEKDAY_NAMES`/`monthGrid`'s own layout —
+ * the picker grid and a "this week" dashboard period must not disagree about
+ * which day a week starts on.
+ */
+export function startOfWeek(day: CalendarDay = today()): CalendarDay {
+  const { year, month, date } = parseDay(day);
+  const weekday = new Date(Date.UTC(year, month - 1, date)).getUTCDay();
+  return addDays(day, -weekday);
+}
+
+export function endOfWeek(day: CalendarDay = today()): CalendarDay {
+  return addDays(startOfWeek(day), 6);
+}
+
+export function addWeeks(day: CalendarDay, delta: number): CalendarDay {
+  return addDays(day, delta * 7);
+}
+
+/** 1-4, calendar quarters. */
+export function quarterOf(day: CalendarDay = today()): number {
+  return Math.floor((parseDay(day).month - 1) / 3) + 1;
+}
+
+export function startOfQuarter(day: CalendarDay = today()): CalendarDay {
+  const { year } = parseDay(day);
+  return `${year}-${pad((quarterOf(day) - 1) * 3 + 1)}-01`;
+}
+
+export function endOfQuarter(day: CalendarDay = today()): CalendarDay {
+  return endOfMonth(addMonths(startOfQuarter(day), 2));
+}
+
+export function addQuarters(day: CalendarDay, delta: number): CalendarDay {
+  return startOfQuarter(addMonths(startOfQuarter(day), delta * 3));
+}
+
+export function startOfYear(day: CalendarDay = today()): CalendarDay {
+  return `${parseDay(day).year}-01-01`;
+}
+
+export function endOfYear(day: CalendarDay = today()): CalendarDay {
+  return `${parseDay(day).year}-12-31`;
+}
+
 const MONTH_NAMES = [
   'Jan',
   'Feb',

@@ -1,5 +1,7 @@
 export * from './calculatorEngine.ts';
 export * from './categoryIcons.ts';
+export * from './dashboardAnalytics.ts';
+export * from './dashboardPeriod.ts';
 export * from './date.ts';
 export * from './errors.ts';
 export * from './groupByDate.ts';
