@@ -17,7 +17,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '@/app/i18n';
 import '@/services/guest';
 import { AuthProvider, LocaleProvider, QueryProvider, ThemeProvider } from '@/app/providers';
-import { NetworkStatusProvider } from './hooks/useNetworkStatus.ts';
+import { NetworkStatusProvider } from './hooks/useNetworkStatus.tsx';
 import { RootNavigator } from '@/app/navigation';
 import { store } from '@/app/store';
 import { requestSyncNow, startSyncEngine } from '@/services/sync';

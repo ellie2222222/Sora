@@ -58,7 +58,7 @@ services:
     container_name: sora-pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@sora.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?set PGADMIN_DEFAULT_PASSWORD in .env}
     ports:
       - '${PGADMIN_HOST_PORT:-5050}:80'
     volumes:
