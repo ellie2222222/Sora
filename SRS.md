@@ -478,7 +478,7 @@ Ranks are cumulative: a required role is satisfied by any role of at least that 
 
 1. The visitor submits display name, email, password and base currency.
 2. The system validates the address's form and its case-insensitive availability, and the password's length.
-3. The system creates, as one indivisible act: the user; a wallet named for them; their OWNER membership on it; and a starter category tree (food, transportation, shopping, bills, salary, other).
+3. The system creates, as one indivisible act: the user; a wallet named for them; their OWNER membership on it; and a starter category tree (see `packages/contracts/src/starter-categories.ts` for the current set).
 4. The system issues a session and records the registration in the audit trail.
 5. The app opens on the new wallet's dashboard, which is empty but usable — the user can record an expense immediately.
 6. On a later visit the user submits email and password.
