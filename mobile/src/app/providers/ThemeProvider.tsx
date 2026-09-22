@@ -67,25 +67,16 @@ export interface AnimatedThemeRootHandle {
 }
 
 /**
- * On native, every descendant re-renders with the new theme's colors the
- * instant `theme` changes — there's nothing to animate per-component. So
- * instead of interpolating one color, a full-screen overlay holds the *old*
- * background and fades itself out, masking the instant switch underneath as
- * a single smooth cross-dissolve. Web instead gets a CSS transition on every
- * element (see the injected stylesheet above), so this overlay is
- * native-only.
+ * Native re-renders every `useTheme()` call site instantly on a theme change, so instead of
+ * interpolating one color, a full-screen overlay holds the *old* background and fades out,
+ * masking the switch as one smooth cross-dissolve (web gets a CSS transition per element instead,
+ * via the injected stylesheet above — this overlay is native-only).
  *
- * `ThemeContext`'s value changes on every mode/name switch, and ~90 call
- * sites read it via `useTheme()` — so the re-render this triggers can take
- * long enough to be perceptible before this component's own `theme` prop
- * ever updates. `beginTransition` lets `setThemeMode`/`setThemeName` start
- * the fade imperatively, synchronously, in the same tick as the press —
- * before that re-render even begins — so the (now-hidden, behind the
- * overlay) re-render cost is masked instead of gating the animation's start.
- * The `useLayoutEffect` below still exists as the fallback path for any
- * theme change *not* driven through those setters (initial hydration from
- * storage/server) — `pendingImperativeTrigger` stops it from re-firing a
- * second, duplicate fade for a change `beginTransition` already started.
+ * `beginTransition` lets `setThemeMode`/`setThemeName` start that fade synchronously, in the same
+ * tick as the press — before the ~90-call-site re-render (perceptible on its own) even begins, so
+ * that cost stays hidden behind the overlay instead of gating the animation's start.
+ * `pendingImperativeTrigger` stops the `useLayoutEffect` fallback below (for a theme change not
+ * driven through those setters, e.g. initial hydration) from firing a second, duplicate fade.
  */
 const AnimatedThemeRoot = forwardRef<AnimatedThemeRootHandle, { children: ReactNode; theme: Theme }>(
   function AnimatedThemeRoot({ children, theme }, ref) {
@@ -142,8 +133,11 @@ const AnimatedThemeRoot = forwardRef<AnimatedThemeRootHandle, { children: ReactN
         {children}
         {overlayColor !== null ? (
           <Animated.View
-            pointerEvents="none"
-            style={[StyleSheet.absoluteFill, { backgroundColor: overlayColor, zIndex: 99999 }, overlayStyle]}
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: overlayColor, zIndex: 99999, pointerEvents: 'none' },
+              overlayStyle,
+            ]}
           />
         ) : null}
       </View>
@@ -180,10 +174,9 @@ export function ThemeProvider({ children }: { children: ReactNode }): ReactNode 
   }, [user, themeName]);
 
   const theme = useMemo(() => buildTheme(themeName, themeMode), [themeName, themeMode]);
-  // A "latest theme" ref rather than closing over `theme` directly: `setThemeName`/`setThemeMode`
-  // need the *previous* theme's background synchronously, at press time, without their own
-  // identity changing on every theme change (they're `void`-fired from `onPress`/`onValueChange`,
-  // so a fresh identity each render would still work, but this avoids recreating the closures).
+  // A "latest theme" ref, not a closure over `theme`: setThemeName/setThemeMode need the
+  // *previous* theme's background synchronously at press time, without their own identity
+  // changing on every theme change.
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
