@@ -12,7 +12,7 @@ import {
 import { BottomSheetModal, Button, Input, ListItemEnter, SkeletonList, StateView, SyncStatusDot, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { selectQueueEntryFor, useArchiveCategoryMutation, useCreateCategoryMutation, useDeleteCategoryPermanentlyMutation, useListCategoriesQuery, useUpdateCategoryMutation } from '@/app/store';
-import { isNetworkError, messageOf } from "../../../utils/errors";
+import { isNetworkError, messageOf } from '@/utils';
 import type { AppStackScreenProps } from "@/app/navigation";
 
 /** INCOME and EXPENSE are managed as two lists — a category is one or the other, never both. */
@@ -21,7 +21,7 @@ export function CategoryListScreen({
 }: AppStackScreenProps<"CategoryList">) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { activeWallet, permissions } = useWallets();
+  const { activeWallet, permissions, isLoading: walletsLoading } = useWallets();
   const walletId = route.params?.walletId ?? activeWallet?.id;
   const [creating, setCreating] = useState(false);
   const [deletingCategory, setDeletingCategory] =
@@ -49,7 +49,7 @@ export function CategoryListScreen({
         />
       );
     }
-    if (expense.isLoading || income.isLoading) return <SkeletonList rows={6} rowHeight={44} />;
+    if (expense.isLoading || income.isLoading || walletsLoading) return <SkeletonList rows={6} rowHeight={44} />;
     if (expense.isError && !isNetworkError(expense.error)) {
       return <StateView variant="error" error={expense.error} retryAction={() => void expense.refetch()} />;
     }

@@ -10,14 +10,14 @@ import {
   useGetBudgetQuery,
   useUpdateBudgetMutation,
 } from '@/app/store';
-import { isNetworkError, messageOf } from '../../../utils/errors.ts';
+import { isNetworkError, messageOf } from '@/utils';
 import type { AppStackScreenProps } from '@/app/navigation';
 
 export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'BudgetDetail'>) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { budgetId } = route.params;
-  const { permissions } = useWallets();
+  const { permissions, isLoading: walletsLoading } = useWallets();
 
   const budget = useGetBudgetQuery(budgetId);
   const [updateBudget, { isLoading: isSaving }] = useUpdateBudgetMutation();
@@ -57,7 +57,7 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
   }
 
   const renderContent = () => {
-    if (budget.isLoading) return <SkeletonList rows={3} />;
+    if (budget.isLoading || walletsLoading) return <SkeletonList rows={3} />;
     if (budget.isError && !isNetworkError(budget.error)) {
       return <StateView variant="error" error={budget.error} retryAction={() => void budget.refetch()} />;
     }

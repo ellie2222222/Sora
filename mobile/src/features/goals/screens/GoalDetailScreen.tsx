@@ -3,12 +3,10 @@ import { FlatList, Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { ContributionResponse } from '@sora/contracts';
 
-import { useTheme, useWallets } from '@/app/providers';
-import { useModal } from '../../../app/providers/ModalProvider.tsx';
+import { useModal, useTheme, useWallets } from '@/app/providers';
 import { Card, Money, ProgressBar, SkeletonList, StateView, Text } from '@/components';
 import { useGetGoalQuery, useListGoalContributionsQuery } from '@/app/store';
-import { formatDay } from '../../../utils/date';
-import { isNetworkError } from '../../../utils/errors';
+import { formatDay, isNetworkError } from '@/utils';
 import type { AppStackScreenProps } from '@/app/navigation';
 
 export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScreenProps<'GoalDetail'>) {
@@ -16,13 +14,13 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
   const { t } = useTranslation();
   const { openModal } = useModal();
   const { goalId } = route.params;
-  const { permissions } = useWallets();
+  const { permissions, isLoading: walletsLoading } = useWallets();
 
   const goal = useGetGoalQuery(goalId);
   const contributions = useListGoalContributionsQuery(goalId);
 
   const renderContent = () => {
-    if (goal.isLoading) {
+    if (goal.isLoading || walletsLoading) {
       return (
         <View style={{ padding: theme.spacing.md }}>
           <SkeletonList rows={4} />
