@@ -15,6 +15,13 @@ export const ACCOUNT_ICON: Record<AccountType, typeof Landmark> = {
   CREDIT_CARD: CreditCard,
 };
 
+export const ACCOUNT_TYPE_LABEL_KEY: Record<AccountType, string> = {
+  BANK_ACCOUNT: 'accounts.bankAccount',
+  CASH: 'accounts.cash',
+  E_WALLET: 'accounts.eWallet',
+  CREDIT_CARD: 'accounts.creditCard',
+};
+
 export interface AccountPickerProps {
   label: string;
   value: string | null;

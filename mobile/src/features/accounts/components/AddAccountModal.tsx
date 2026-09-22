@@ -7,14 +7,16 @@ import { BottomSheetModal, Button, Input, MoneyInput, Text } from '@/components'
 import { useTheme, useWallets } from '@/app/providers';
 import { useCreateAccountMutation } from '@/app/store';
 import { messageOf } from '@/utils';
+import { ACCOUNT_TYPE_LABEL_KEY } from './AccountPicker.tsx';
 
 export interface AddAccountModalProps {
   visible: boolean;
   walletId?: string;
+  initialType?: AccountType;
   onClose: () => void;
 }
 
-export function AddAccountModal({ visible, walletId: propWalletId, onClose }: AddAccountModalProps) {
+export function AddAccountModal({ visible, walletId: propWalletId, initialType, onClose }: AddAccountModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { activeWallet } = useWallets();
@@ -22,7 +24,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, onClose }: Ad
   const [createAccount, { isLoading: isCreating }] = useCreateAccountMutation();
 
   const [name, setName] = useState('');
-  const [type, setType] = useState<AccountType>(AccountType.BANK_ACCOUNT);
+  const [type, setType] = useState<AccountType>(initialType ?? AccountType.BANK_ACCOUNT);
   const [currency, setCurrency] = useState(activeWallet?.balances[0]?.currency ?? 'VND');
   const [initialBalance, setInitialBalance] = useState('0');
   const [error, setError] = useState<string | null>(null);
@@ -30,19 +32,12 @@ export function AddAccountModal({ visible, walletId: propWalletId, onClose }: Ad
   useEffect(() => {
     if (visible) {
       setName('');
-      setType(AccountType.BANK_ACCOUNT);
+      setType(initialType ?? AccountType.BANK_ACCOUNT);
       setCurrency(activeWallet?.balances[0]?.currency ?? 'VND');
       setInitialBalance('0');
       setError(null);
     }
-  }, [visible, activeWallet]);
-
-  const TYPE_LABEL: Record<AccountType, string> = {
-    [AccountType.BANK_ACCOUNT]: t('accounts.bankAccount', { defaultValue: 'Bank account' }),
-    [AccountType.CASH]: t('accounts.cash', { defaultValue: 'Cash' }),
-    [AccountType.E_WALLET]: t('accounts.eWallet', { defaultValue: 'E-wallet' }),
-    [AccountType.CREDIT_CARD]: t('accounts.creditCard', { defaultValue: 'Credit card' }),
-  };
+  }, [visible, activeWallet, initialType]);
 
   if (!visible) return null;
 
@@ -90,7 +85,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, onClose }: Ad
               <Button
                 key={candidate}
                 testID={`add-account-type-${candidate}`}
-                label={TYPE_LABEL[candidate]}
+                label={t(ACCOUNT_TYPE_LABEL_KEY[candidate])}
                 size="sm"
                 variant={type === candidate ? 'primary' : 'secondary'}
                 onPress={() => setType(candidate)}

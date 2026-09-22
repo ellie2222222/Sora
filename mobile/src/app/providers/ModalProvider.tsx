@@ -43,6 +43,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       <AddAccountModal
         visible={activeModal === 'AddAccount'}
         walletId={modalParams.walletId}
+        initialType={modalParams.accountType}
         onClose={closeModal}
       />
 

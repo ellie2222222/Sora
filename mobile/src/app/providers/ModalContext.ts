@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { AccountType } from '@sora/contracts';
 
 /**
  * Split out of `ModalProvider.tsx` so the barrel can export `useModal` safely:
@@ -19,6 +20,8 @@ export interface ModalParams {
   transactionId?: string;
   walletId?: string;
   goalId?: string;
+  /** Preselects the new account's type, for a caller that already knows which kind is being added. */
+  accountType?: AccountType;
 }
 
 export interface ModalContextValue {

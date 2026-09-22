@@ -4,6 +4,7 @@ import { Pressable, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import {
+  ACCOUNT_TYPES,
   add,
   formatMoney,
   isNegative,
@@ -17,7 +18,7 @@ import { useModal, useTheme, useWallets } from '@/app/providers';
 import { selectQueueEntryFor, useListAccountsQuery } from '@/app/store';
 import { WalletContextBar } from '@/features/wallets';
 import { isNetworkError, sumScaledByKey } from '@/utils';
-import { ACCOUNT_ICON } from '../components/AccountPicker';
+import { ACCOUNT_ICON, ACCOUNT_TYPE_LABEL_KEY } from '../components/AccountPicker';
 import type { MainTabScreenProps } from '@/app/navigation';
 
 export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
@@ -67,6 +68,7 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
           icon={WalletIcon}
           title={t('home.noWalletTitle')}
           message={t('home.noWalletDescription')}
+          primaryAction={{ label: t('wallets.newWallet'), onPress: onManage, icon: Plus }}
           testID="accounts-no-wallet"
         />
       );
@@ -85,6 +87,46 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
     }
 
     const items = accounts.data ?? [];
+
+    // Before the first account there is no net worth to report, and three "—"
+    // rows above the prompt read as a broken screen rather than a new one.
+    if (items.length === 0) {
+      return (
+        <RefreshableScrollView
+          testID="accounts-screen"
+          contentContainerStyle={{ flexGrow: 1, padding: theme.spacing.md }}
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+        >
+          <StateView
+            variant="empty"
+            icon={Landmark}
+            title={t('accounts.noAccountsTitle')}
+            message={t('accounts.noAccountsMessage')}
+            primaryAction={
+              permissions.canWrite
+                ? {
+                    label: t('accounts.addAccount'),
+                    onPress: () => openModal('AddAccount', { walletId: activeWalletId ?? undefined }),
+                    icon: Plus,
+                  }
+                : undefined
+            }
+            quickActions={
+              permissions.canWrite
+                ? ACCOUNT_TYPES.map((type) => ({
+                    label: t(ACCOUNT_TYPE_LABEL_KEY[type]),
+                    icon: ACCOUNT_ICON[type],
+                    onPress: () => openModal('AddAccount', { walletId: activeWalletId ?? undefined, accountType: type }),
+                  }))
+                : undefined
+            }
+            testID="accounts-empty"
+          />
+        </RefreshableScrollView>
+      );
+    }
+
     const { assets, liabilities, netWorth } = netWorthByCurrency(items);
 
     return (
@@ -185,48 +227,27 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
             ) : null}
           </View>
 
-          {items.length === 0 ? (
-            <StateView
-              variant="empty"
-              icon={Landmark}
-              title={t('accounts.noAccountsTitle')}
-              message={t('accounts.noAccountsMessage')}
-              primaryAction={
-                permissions.canWrite
-                  ? {
-                      label: t('accounts.addAccount'),
-                      onPress: () => openModal('AddAccount', { walletId: activeWalletId ?? undefined }),
-                      icon: Plus,
+          <View className="border-t" style={{ borderTopColor: theme.colors.border }}>
+            {items.map((account, index) => (
+              <View
+                key={account.id}
+                style={
+                  index === 0
+                    ? undefined
+                    : { borderTopWidth: 1, borderTopColor: theme.colors.border }
+                }
+              >
+                <ListItemEnter>
+                  <AccountRow
+                    account={account}
+                    onPress={() =>
+                      navigation.getParent()?.navigate('AccountDetail', { accountId: account.id })
                     }
-                  : undefined
-              }
-              testID="accounts-empty"
-            />
-          ) : (
-            <View className="border-t" style={{ borderTopColor: theme.colors.border }}>
-              {items.map((account, index) => (
-                <View
-                  key={account.id}
-                  style={
-                    index === 0
-                      ? undefined
-                      : { borderTopWidth: 1, borderTopColor: theme.colors.border }
-                  }
-                >
-                  <ListItemEnter>
-                    <AccountRow
-                      account={account}
-                      onPress={() =>
-                        navigation
-                          .getParent()
-                          ?.navigate('AccountDetail', { accountId: account.id })
-                      }
-                    />
-                  </ListItemEnter>
-                </View>
-              ))}
-            </View>
-          )}
+                  />
+                </ListItemEnter>
+              </View>
+            ))}
+          </View>
         </View>
       </RefreshableScrollView>
     );
