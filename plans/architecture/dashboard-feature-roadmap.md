@@ -2,9 +2,15 @@
 
 A brainstorm (pasted by the user, 2026-09-22) of what a "full finance command center"
 dashboard could include, triaged against **this repo's actual current schema, contracts,
-and SRS.md §1.6 (Out of Scope)** — not a spec, not a commitment. Nothing in this document
-is built yet. See [dashboard-current-state.md](dashboard-current-state.md) for what
+and SRS.md §1.6 (Out of Scope)** — not a spec, not a commitment. See
+[dashboard-current-state.md](dashboard-current-state.md) for what
 `DashboardScreen`/`DashboardService.summary()` actually do today.
+
+> **Status (2026-09-22): Phases 0-6 of the Tier A breakdown below are built.** Tier B and
+> Tier C remain untouched and still need what each says it needs — a migration, or a
+> product decision to amend SRS.md §1.6. See
+> [verifications/2026-09-22-dashboard-tier-a-phases.md](../../verifications/2026-09-22-dashboard-tier-a-phases.md)
+> for what was verified and what was deliberately left out.
 
 **Do not build this end-to-end from this document alone.** It spans three very different
 kinds of work — UI-only additions, new columns/queries on existing entities, and net-new
@@ -70,7 +76,7 @@ Each phase follows this repo's normal workflow — [SRS.md](../../SRS.md) user s
 service → RTK Query hook → screen → tests — not a shortcut around it. None of this is scheduled;
 it's here so picking a phase in the future doesn't require re-deriving these steps.
 
-### Phase 0 — Render what `DashboardScreen` already fetches (§7, §15)
+### Phase 0 (built) — Render what `DashboardScreen` already fetches (§7, §15)
 
 **Mobile-only.** `DashboardResponse.activeBudgets`/`.activeGoals` are already in the object
 `useGetDashboardSummaryQuery` returns on this exact screen; nothing renders them today.
@@ -92,7 +98,7 @@ it's here so picking a phase in the future doesn't require re-deriving these ste
 6. Verify: `npx tsc --noEmit -p mobile/tsconfig.json`, `npm run test -w mobile`. No
    `check-contract-parity.mjs` run needed — nothing it checks changed.
 
-### Phase 1 — Period granularity: day/week/quarter (§3, §6)
+### Phase 1 (built) — Period granularity: day/week/quarter (§3, §6)
 
 **Mobile-only.** `dashboardQuerySchema.dateFrom`/`dateTo` are already free-form ISO dates
 (`packages/contracts/src/schemas.ts:391-396`) — the server places no monthly/yearly assumption
@@ -110,7 +116,7 @@ on them. Today's `daily`/`weekly`/`quarterly` gap is entirely in what the mobile
 4. Verify: `npm run test -w mobile`, plus a manual check that switching periods doesn't break the
    existing monthly/yearly views (regression, not just the new ones).
 
-### Phase 2 — Category ranking, trends, top N (§4)
+### Phase 2 (built) — Category ranking, trends, top N (§4)
 
 **Mobile-only**, reusing the existing two-period-fetch pattern `MonthlyReport` already uses for
 month-over-month insights (`current`/`previous` queries).
@@ -123,7 +129,7 @@ month-over-month insights (`current`/`previous` queries).
    indicator per row.
 4. Verify: `npm run test -w mobile` (add cases for the ranking/% change helper function).
 
-### Phase 3 — Category-hierarchy-aware grouping (§25, hierarchy sub-item)
+### Phase 3 (built) — Category-hierarchy-aware grouping (§25, hierarchy sub-item)
 
 **Contract + server + mobile**, small. This is the one part of §25 that isn't already exposed by
 the dashboard endpoint.
@@ -140,7 +146,7 @@ the dashboard endpoint.
 6. Tests: `server/test` — a fixture asserting a child category's slice carries its parent's id;
    `calculatorEngine`-style unit test for the mobile grouping helper.
 
-### Phase 4 — Transfer analytics (§22, needed by §33-34's waterfall chart too)
+### Phase 4 (built) — Transfer analytics (§22, needed by §33-34's waterfall chart too)
 
 **Contract + server + mobile**, small, and a prerequisite for the waterfall chart (Phase 6).
 
@@ -159,7 +165,7 @@ the dashboard endpoint.
    `transferredIn`/`Out` and *not* in `income`/`expense`/`net` — this is the one place BR-06
    regressions are most likely, so the test should be adversarial, not just a happy path.
 
-### Phase 5 — Shared wallet member contribution/spending (§24)
+### Phase 5 (built) — Shared wallet member contribution/spending (§24)
 
 **Contract + server + mobile**, the largest Tier A phase — genuine new aggregation logic, not a
 field rename.
@@ -182,7 +188,12 @@ field rename.
    split adds up to the wallet-level `income`/`expense` totals (a reconciliation check, not just
    presence).
 
-### Phase 6 — Chart types on top of Phases 0-5's data (§33-34, §35)
+### Phase 6 (built, except §35) — Chart types on top of Phases 0-5's data (§33-34, §35)
+
+> Built: the waterfall chart (`components/WaterfallChart.tsx`, fed by `CashFlowCard`) and the
+> stacked/label-less variants of `TrendBarChart` (a `variant` prop, not a second component).
+> **Not built: the financial calendar view (§35).** It shares no data or component surface with
+> the rest of this phase — it is a whole new screen and route, and belongs in its own phase.
 
 **Mobile-only**, deliberately last — depends on Phase 4's transfer figures for the waterfall
 chart specifically, and is otherwise pure frontend work against data already flowing by this
@@ -247,8 +258,11 @@ silently reversing it.
 
 ## Suggested next step
 
-Given the size of this list, the reasonable next step is picking **one phase** from the
-breakdown above — not attempting the list end-to-end. Phase 0 (render the budgets/goals data
-`DashboardScreen` already fetches) is the cheapest possible next step: zero contract/server
-change, pure mobile UI. Say which phase (or a different slice entirely), and it gets a proper
-SRS user story + API spec section + implementation plan before any code.
+Phases 0-6 are done (§35's calendar view excepted). The cheapest remaining Tier A work is in
+**Not phased here** above — §5/§8/§16-17 are pure client-side math over figures the endpoint
+already returns, so they need no contract or server change at all; §38's filter UI and §40's
+customization are the larger mobile-only pieces.
+
+Anything in **Tier B** needs a migration first, and anything in **Tier C** needs a product
+decision to reopen an [SRS.md §1.6](../../SRS.md#16-out-of-scope) line before code — neither is
+a "just build it" item, and neither was touched by the Phase 0-6 work.

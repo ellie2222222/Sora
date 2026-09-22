@@ -30,9 +30,14 @@ match. The tab bar order is now Home | Account | Planning | **Dashboard** | Sett
 
 1. **`totalBalance`** — delegates to `BalanceService.walletBalances()` (BR-05: derived from
    transactions on every read, never cached).
-2. **`periodActivity`** — income/expense/spending-by-category for `[dateFrom, dateTo]`.
-   `INCOME`/`EXPENSE` only, `COMPLETED` only, transfers **excluded entirely** (BR-06 — the
-   single most consequential rule this endpoint has to get right).
+2. **`periodActivity`** — one pass over the period's `COMPLETED` rows producing income/expense,
+   their per-category and per-member splits, and the wallet's transfer flow. Transfers stay
+   **excluded from income/expense entirely** (BR-06 — the single most consequential rule this
+   endpoint has to get right) and are reported as their own `transferredIn`/`transferredOut`
+   figures instead; a transfer between two of the wallet's *own* accounts counts in neither,
+   since it never crossed the wallet boundary. The BR-06 predicate itself
+   (`countsAsPeriodActivity`) and the direction rule (`transferDirection`) live in
+   `@sora/contracts`, shared with the guest-mode mirror rather than written twice.
 3. **`recentTransactions`** — last 10, newest first.
 4. **`activeBudgets`** — every `ACTIVE` budget in the wallet, each with `spent`/`remaining`/usage
    recomputed from its category's transactions.
@@ -50,7 +55,14 @@ SQL `WHERE` clause — see Known Issues.
 `spendingByCategory` reports one `amount`/`percentage` pair per category, not one per currency:
 it scopes to whichever currency accounts for the most expense in the period (`dominant`), so a
 wallet whose expenses genuinely span more than one currency gets an honest single-currency
-breakdown rather than a silently-summed, meaningless number (BR-07).
+breakdown rather than a silently-summed, meaningless number (BR-07). Each slice also carries its
+category's `parentId`, so the app can roll the breakdown up one level without a second call to
+`/categories`.
+
+`spendingByMember` splits the same income/expense figures by `transactions.created_by_user_id`
+— "who recorded this" is also "whose spending was it" on a shared wallet. It is filtered by the
+same predicate as the wallet-level totals, so the split always reconciles against them, and it
+exposes nothing new: any `VIEWER` can already read every transaction's `createdBy` via §11.1.
 
 ## Mobile consumption
 
@@ -61,13 +73,19 @@ breakdown rather than a silently-summed, meaningless number (BR-07).
   math against the local guest store, not a call to the real endpoint); a real request that fails
   with a network error falls back the same way and flips the app into offline mode for subsequent
   calls.
-- **`DashboardScreen.tsx`** — two separate call patterns depending on the selected period:
-  `MonthlyReport` fetches the selected month plus the previous month (two direct hook calls) to
-  compute month-over-month deltas for the "insights" lines; `YearlyReport` fetches all 12 months
-  via `MonthDataPoint`, one query component per month so hook-call count stays stable across a
-  fixed-length list, with no previous-year comparison call. Handles loading/error/empty per screen
-  convention (MB-07); a month whose query errors still settles as a zero point in the trend rather
-  than spinning forever.
+- **`DashboardScreen.tsx`** — five period granularities (day/week/month/quarter/year), with two
+  call patterns: `PeriodReport` fetches the selected window plus the one before it (two direct
+  hook calls) for the change-vs-previous indicators and the "insights" lines, and drives the KPI
+  row, cash-flow waterfall, category breakdown, member split and budget/goal preview from that
+  one response; `YearlyReport` instead fetches all 12 months via `MonthDataPoint`, one query
+  component per month so hook-call count stays stable across a fixed-length list. Handles
+  loading/error/empty per screen convention (MB-07); a month whose query errors still settles as
+  a zero point in the trend rather than spinning forever. "Empty" is three distinct states
+  (`emptyReasonFor` in `dashboardAnalytics.ts`) — no accounts, nothing ever recorded, or a window
+  that happens to be empty — since each needs a different next step rather than one blank panel. The window arithmetic itself lives in
+  `mobile/src/utils/dashboardPeriod.ts` and the ranking/grouping math in
+  `dashboardAnalytics.ts`, both unit-tested — the screen is a `.tsx` file this repo's
+  `node --test` runner cannot load, so anything worth testing lives outside it.
 - Nothing else in the mobile app currently calls this endpoint.
 
 ## Multi-currency / exchange-rate integration
@@ -89,9 +107,11 @@ From [verifications/2026-09-21-infra-audit.md](../../verifications/2026-09-21-in
 (Tier 2, not yet fixed — the user explicitly chose "Tier 1 quick wins only" for that pass, so this
 was deliberately left open, not missed):
 
-- **Unbounded transaction-history scans.** `periodActivity` fetches *every* `INCOME`/`EXPENSE`
+- **Unbounded transaction-history scans.** `periodActivity` fetches *every* completed
   transaction ever recorded against the wallet's accounts, then filters to the requested date
-  window in JavaScript (`isWithinPeriod`) rather than in SQL. `activeBudgets`' expense lookup does
+  window in JavaScript (`isWithinPeriod`) rather than in SQL. **This got wider on 2026-09-22**:
+  the query used to exclude `TRANSFER` rows in SQL and now has to read them too, for the
+  `transferredIn`/`transferredOut` figures. Same unbounded shape, a larger row set. `activeBudgets`' expense lookup does
   the same for every `EXPENSE` transaction against the budgeted categories, unbounded by date at
   the SQL layer at all. Both scale with the wallet's total transaction count, not with the size of
   the requested period — a wallet with years of history pays the same query cost for "this month"
