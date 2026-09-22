@@ -1,17 +1,32 @@
 import { Platform, type ViewStyle } from 'react-native';
 
+function hexToRgba(hex: string, alpha: number): string {
+  const normalized = hex.replace('#', '');
+  const value = parseInt(normalized, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 /**
- * Elevation is expressed twice because the two platforms read different
- * properties: iOS honours the shadow* family, Android only `elevation`.
+ * Elevation is expressed three ways because each platform reads a different
+ * property: Android only `elevation`, iOS the shadow* family, and web the
+ * `shadow*` props are deprecated in favour of the CSS `boxShadow` shorthand.
  */
 function elevate(level: number, shadowColor: string): ViewStyle {
-  return Platform.select<ViewStyle>({
+  const opacity = 0.18 + level * 0.01;
+  const radius = level * 1.6;
+  const offsetY = Math.max(1, Math.round(level / 2));
+
+  return Platform.select({
     android: { elevation: level, shadowColor },
+    web: { boxShadow: `0px ${offsetY}px ${radius}px ${hexToRgba(shadowColor, opacity)}` },
     default: {
       shadowColor,
-      shadowOpacity: 0.18 + level * 0.01,
-      shadowRadius: level * 1.6,
-      shadowOffset: { width: 0, height: Math.max(1, Math.round(level / 2)) },
+      shadowOpacity: opacity,
+      shadowRadius: radius,
+      shadowOffset: { width: 0, height: offsetY },
     },
   }) as ViewStyle;
 }
