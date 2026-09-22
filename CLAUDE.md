@@ -72,6 +72,13 @@ change that satisfies it → give new/changed behaviour test coverage, a bug fix
 re-read the diff as a reviewer would, and run `check-contract-parity.mjs` if any enum/route/
 constraint moved → report via the structured summary, with only what was actually verified.
 
+For anything spanning more than the single arrow-chain above — several files, several
+endpoints, a cross-package change — keep a running checklist of concrete, verifiable steps
+instead of holding the plan in your head, checking an item off only once it's actually done. If
+something learned mid-implementation invalidates the plan itself, revise the plan first, then
+the checklist to match, before continuing. This tracks progress through the work; it doesn't
+replace Part 5's Definition of Done, which is the gate for calling it finished.
+
 ### Ask, Don't Guess, When It Matters
 
 Ask before proceeding when a request is genuinely ambiguous with materially different outcomes,
@@ -326,7 +333,7 @@ npm install                                   # root; links every package
 
 npm run build -w @sora/contracts           # contracts must build before the API typechecks
 npm test                                      # every package that defines a test script
-npm test -w @sora/contracts                # money/derivation math, 61 tests
+npm test -w @sora/contracts                # money/derivation math, 63 tests
 npm test -w @sora/server                   # asserts every ROUTES path is mounted
 npm run typecheck                             # every package
 
@@ -416,7 +423,7 @@ boundary, and read access to someone's wallet must not let you push money into i
 `amount`, `type`, `fromAccountId` and `toAccountId` cannot be edited (`409
 TRANSACTION_IMMUTABLE`). A recorded movement of money is a historical fact, and every balance,
 budget figure and goal total is derived from it — rewriting one silently rewrites all of them.
-Correcting a mistake is cancel + create, which leaves both rows visible. Only `description`,
+Correcting a mistake is delete + create, which leaves both rows visible. Only `description`,
 `transactionDate`, `categoryId` and `reference` are mutable.
 
 **BR-04 — Budget windows do not overlap.**
@@ -537,7 +544,7 @@ FKs `<entity>_id`. Constraint prefixes are load-bearing because the parity check
 `chk_`, `uq_`, `idx_`, `excl_`.
 
 **NC-03** — Resource paths `/wallets/{id}/members`; actions are a `POST` sub-path
-(`/transactions/{id}/cancel`, `/wallets/{id}/transfer-ownership`).
+(`/transactions/{id}/delete`, `/wallets/{id}/transfer-ownership`).
 
 **NC-04 — React Native `testID`, not element IDs.**
 There is no DOM here; `testID` is the only stable selector Detox and React Native Testing
@@ -609,7 +616,7 @@ schema, so the two cannot disagree.
 message.
 
 **VL-03** — A request referencing another entity verifies it exists and is in a usable state:
-`404` when missing or not visible, `409` when archived or already cancelled.
+`404` when missing or not visible, `409` when archived, cancelled, or deleted.
 
 **VL-04 — Amounts.** Positive, non-zero, `DECIMAL(19,4)`, transported as strings, compared and
 summed as scaled `bigint`. Direction comes from `type` plus which account side is set, never
@@ -713,8 +720,9 @@ Synthetic test data is cleaned up by its own obviously-fake identifier only (an 
 `probe+<uuid>@example.invalid`, a wallet named `scratch-...`), never by an unfiltered statement
 and never by "everything created today".
 
-Nothing financial is hard-deleted by design: wallets, accounts, categories and budgets are
-archived, transactions are cancelled, members are revoked. Don't add a hard-delete path.
+Nothing financial is hard-*removed* by design: wallets, accounts, categories and budgets are
+archived, transactions are marked `DELETED` (the row stays — only the status changes; see BR-03),
+members are revoked. Don't add a path that removes a financial row outright.
 
 ### Security Requirements
 
@@ -860,7 +868,12 @@ rewriting it.
     file that must reach broadly across many other modules is the one exception to the barrel rule,
     not a reason to abandon barrels generally. `import type` never contributes an edge here — type-only
     imports are erased at compile time, so two barrels referencing each other only in types is not a
-    cycle.
+    cycle. `useModal`/`ModalContext`/`ModalType`/`ModalParams` were later split out into their own
+    `ModalContext.ts` (zero cross-feature imports) specifically so the barrel *could* re-export the
+    hook — only `ModalProvider.tsx` itself, the orchestrator with the heavy imports, stays excluded
+    and directly imported. The same split is the move whenever a provider's hook is lightweight but
+    its implementation isn't: don't let the implementation's exclusion drag the hook out of the barrel
+    with it.
 
 15. **A `Pressable` (or any NativeWind-interop'd primitive) can never take a function as its `style`
     prop — not `style={(state) => ({...})}`, not `style={({ pressed }) => ({...})}` — under this
