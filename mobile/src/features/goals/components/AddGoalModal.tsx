@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { BottomSheetModal, Button, DateField, Input, MoneyInput, StateView, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { useCreateGoalMutation } from '@/app/store';
-import { messageOf } from '../../../utils/errors';
+import { messageOf } from '@/utils';
 
 export interface AddGoalModalProps {
   visible: boolean;
@@ -87,7 +87,7 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
 
         <Button
           testID="add-goal-submit"
-          label={t('goals.newGoal')}
+          label={t('common.create')}
           onPress={handleSubmit}
           loading={isCreating}
           disabled={name.trim().length === 0}

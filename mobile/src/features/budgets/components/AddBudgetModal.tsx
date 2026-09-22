@@ -5,10 +5,12 @@ import { BUDGET_PERIOD_TYPES, type BudgetPeriodType } from '@sora/contracts';
 
 import { BottomSheetModal, Button, DateField, Input, MoneyInput, StateView, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
+// Deep-imported (not via the categories barrel): this component is itself deep-imported by
+// ModalProvider, and pulling in `@/features/categories` here reintroduces a cycle through that
+// barrel's other exports (same reasoning as AddTransactionModal.tsx's identical comment).
 import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
 import { useCreateBudgetMutation } from '@/app/store';
-import { messageOf } from '../../../utils/errors';
-import { addDays, endOfMonth, startOfMonth, today, type CalendarDay } from '../../../utils/date';
+import { messageOf, addDays, endOfMonth, startOfMonth, today, type CalendarDay } from '@/utils';
 
 /**
  * A starting window for a newly-picked period type — a convenience default, not a constraint:
@@ -184,7 +186,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
 
         <Button
           testID="add-budget-submit"
-          label={t('budgets.newBudget')}
+          label={t('common.create')}
           onPress={handleSubmit}
           loading={isCreating}
           fullWidth
