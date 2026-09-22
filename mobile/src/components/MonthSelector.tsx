@@ -1,6 +1,7 @@
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
@@ -14,7 +15,7 @@ export interface MonthSelectorProps {
   testID?: string;
 }
 
-/** Unified period selector: `‹ September 2026 [Calendar] ›` */
+/** Unified window stepper: `‹ September 2026 [Calendar] ›` — any granularity, not only months. */
 export function MonthSelector({
   label,
   onPrev,
@@ -24,6 +25,7 @@ export function MonthSelector({
   testID,
 }: MonthSelectorProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   // `style` can never be a function here — see CLAUDE.md Part 7 rule 15.
   const [prevPressed, setPrevPressed] = useState(false);
   const [triggerPressed, setTriggerPressed] = useState(false);
@@ -33,7 +35,7 @@ export function MonthSelector({
     <View testID={testID} className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Previous month"
+        accessibilityLabel={t('common.previousPeriod')}
         onPress={onPrev}
         onPressIn={() => setPrevPressed(true)}
         onPressOut={() => setPrevPressed(false)}
@@ -50,7 +52,7 @@ export function MonthSelector({
       <Pressable
         testID={testID !== undefined ? `${testID}-picker-trigger` : undefined}
         accessibilityRole="button"
-        accessibilityLabel="Select date or year"
+        accessibilityLabel={t('common.selectDate')}
         onPress={onOpenPicker}
         onPressIn={() => setTriggerPressed(true)}
         onPressOut={() => setTriggerPressed(false)}
@@ -75,7 +77,7 @@ export function MonthSelector({
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Next month"
+        accessibilityLabel={t('common.nextPeriod')}
         onPress={onNext}
         onPressIn={() => setNextPressed(true)}
         onPressOut={() => setNextPressed(false)}

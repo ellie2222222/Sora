@@ -1,10 +1,11 @@
 import type { LucideIcon } from 'lucide-react-native';
 import { Inbox, Info, Search, TriangleAlert } from 'lucide-react-native';
-import { View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
-import { getServerErrorMessage, isNetworkError } from '@/utils';
+import { getServerErrorMessage, isNetworkError, isUnauthenticated } from '@/utils';
 import { AnimatedIcon, type IconAnimationType } from './AnimatedIcon';
 import { Button } from './Button';
 import { SlideUp } from './SlideUp';
@@ -28,14 +29,11 @@ export interface StateViewProps {
   error?: unknown;
   primaryAction?: StateViewAction;
   secondaryAction?: StateViewAction;
+  /** Presets rendered as a chip row under the buttons, for a first-run screen. */
+  quickActions?: StateViewAction[];
   retryAction?: () => void;
   testID?: string;
-  /**
-   * 'bounce' (default) fades and springs up from below — a screen's first appearance.
-   * 'none' renders with no entrance animation of its own, for a state view sitting inside content
-   * that already has its own transition (e.g. a container that slides per date navigation) —
-   * animating here too would double up on top of that transition.
-   */
+  /** 'none' skips the entrance animation, for a view inside content that already has its own transition. */
   entrance?: 'bounce' | 'none';
 }
 
@@ -53,9 +51,6 @@ const VARIANT_ANIMATION: Record<StateViewVariant, IconAnimationType> = {
   informational: 'none',
 };
 
-/**
- * Centered icon, title, optional message, and optional action(s) for screen/section states.
- */
 export function StateView({
   variant,
   icon,
@@ -65,6 +60,7 @@ export function StateView({
   error,
   primaryAction,
   secondaryAction,
+  quickActions,
   retryAction,
   testID,
   entrance = 'bounce',
@@ -72,14 +68,13 @@ export function StateView({
   const theme = useTheme();
   const { t } = useTranslation();
 
-  // Never render error state view on network errors / offline — silently fallback to local data.
-  // The string checks below are a backstop for callers that pass a plain
-  // title/message instead of the original `error` (so `isNetworkError` alone
-  // can't see it) — fragile against copy changes and only checks English
-  // substrings, but there's no `error` object left to check by then.
+  // Offline and an unrecoverable 401 both resolve themselves elsewhere (local-data fallback; the
+  // interceptor's failed refresh flips to AuthNavigator), so a banner here would flash and vanish.
+  // The string checks are a backstop for callers that pass a title/message instead of the `error`.
   if (
     variant === 'error' &&
     (isNetworkError(error) ||
+      isUnauthenticated(error) ||
       title === t('errors.offlineTitle', 'No internet connection') ||
       message === t('errors.offlineTitle', 'No internet connection') ||
       (typeof title === 'string' &&
@@ -174,6 +169,20 @@ export function StateView({
           testID={testID !== undefined ? `${testID}-secondary-action` : undefined}
         />
       ) : null}
+      {quickActions !== undefined && quickActions.length > 0 ? (
+        <View
+          className="flex-row flex-wrap justify-center"
+          style={{ gap: theme.spacing.xs, marginTop: theme.spacing.sm }}
+        >
+          {quickActions.map((action) => (
+            <QuickActionChip
+              key={action.label}
+              action={action}
+              testID={testID !== undefined ? `${testID}-quick-${action.label}` : undefined}
+            />
+          ))}
+        </View>
+      ) : null}
     </>
   );
 
@@ -189,5 +198,36 @@ export function StateView({
     <SlideUp testID={testID} style={containerStyle}>
       {content}
     </SlideUp>
+  );
+}
+
+function QuickActionChip({ action, testID }: { action: StateViewAction; testID?: string }) {
+  const theme = useTheme();
+  const [pressed, setPressed] = useState(false);
+  const Icon = action.icon;
+
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      onPress={action.onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      className="flex-row items-center"
+      style={{
+        gap: theme.spacing.xs,
+        paddingVertical: theme.spacing.xs,
+        paddingHorizontal: theme.spacing.md,
+        borderRadius: theme.radius.pill,
+        borderWidth: 1,
+        borderColor: pressed ? theme.colors.primary : theme.colors.border,
+        backgroundColor: pressed ? theme.colors.surfaceMuted : theme.colors.surface,
+      }}
+    >
+      {Icon !== undefined ? <Icon size={14} color={theme.colors.primary} strokeWidth={2} /> : null}
+      <Text variant="caption" weight="medium">
+        {action.label}
+      </Text>
+    </Pressable>
   );
 }

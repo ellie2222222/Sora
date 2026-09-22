@@ -192,7 +192,7 @@ export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
   CATEGORY_HAS_TRANSACTIONS: 'errors.categoryHasTransactions',
   TRANSACTION_NOT_FOUND: 'errors.transactionNotFound',
   TRANSACTION_IMMUTABLE: 'errors.transactionImmutable',
-  TRANSACTION_ALREADY_DELETED: 'errors.transactionAlreadyCancelled',
+  TRANSACTION_ALREADY_DELETED: 'errors.transactionAlreadyDeleted',
   TRANSFER_SAME_ACCOUNT: 'errors.transferSameAccount',
   TRANSFER_CURRENCY_MISMATCH: 'errors.transferCurrencyMismatch',
   BUDGET_NOT_FOUND: 'errors.budgetNotFound',
