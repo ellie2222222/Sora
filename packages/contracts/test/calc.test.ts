@@ -97,7 +97,7 @@ describe('calculateAccountBalance', () => {
     );
   });
 
-  it('ignores PENDING and CANCELLED rows', () => {
+  it('ignores PENDING and DELETED rows', () => {
     const noise: BalanceRelevantTransaction[] = [
       {
         type: TransactionType.INCOME,
@@ -108,7 +108,7 @@ describe('calculateAccountBalance', () => {
       },
       {
         type: TransactionType.EXPENSE,
-        status: TransactionStatus.CANCELLED,
+        status: TransactionStatus.DELETED,
         amount: parseMoney('8888'),
         fromAccountId: VIETCOMBANK,
         toAccountId: null,
@@ -166,7 +166,7 @@ const spending: SpendRelevantTransaction[] = [
   },
   {
     type: TransactionType.EXPENSE,
-    status: TransactionStatus.CANCELLED,
+    status: TransactionStatus.DELETED,
     amount: parseMoney('700000'),
     categoryId: FOOD,
     transactionDate: '2026-08-12T09:00:00Z',
@@ -201,7 +201,7 @@ describe('calculateBudgetSpent', () => {
 
   it('excludes cancelled rows, other categories, other months and income', () => {
     const spent = calculateBudgetSpent(augustFood, spending);
-    // 150,000 + 1,000,000 only: not the cancelled 700,000, not September's
+    // 150,000 + 1,000,000 only: not the deleted 700,000, not September's
     // 300,000, not the salary.
     assert.equal(formatMoneyCompact(spent), '1150000');
   });

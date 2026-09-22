@@ -1,7 +1,7 @@
 /**
  * Guest-mode transactions repository — the local mirror of `transactionsApi`.
  *
- * Validation mirrors `transactions.service.ts`'s create/update/cancel: same
+ * Validation mirrors `transactions.service.ts`'s create/update/delete: same
  * error codes (via `guestError`/`fromZodError`), same currency and
  * archived-account rules, same BR-03 restriction on what update may touch.
  * BR-03 needs no runtime rawBody check here the way the server's controller
@@ -292,7 +292,7 @@ export const guestTransactionsApi = {
     const { categories, transactions } = guestStore.current();
     const existing = transactions.find((candidate) => candidate.id === transactionId);
     if (!existing) throw guestError('TRANSACTION_NOT_FOUND');
-    if (existing.status === TransactionStatus.CANCELLED) throw guestError('TRANSACTION_ALREADY_CANCELLED');
+    if (existing.status === TransactionStatus.DELETED) throw guestError('TRANSACTION_ALREADY_DELETED');
 
     if (patch.categoryId !== undefined) {
       if (existing.type === TransactionType.TRANSFER) throw guestError('CATEGORY_WRONG_TYPE');
@@ -320,26 +320,26 @@ export const guestTransactionsApi = {
     return toTransactionResponse(updated, data.accounts, data.categories, wallet);
   },
 
-  async cancel(transactionId: string): Promise<TransactionResponse> {
+  async delete(transactionId: string): Promise<TransactionResponse> {
     const wallet = requireWallet();
     const { transactions } = guestStore.current();
     const existing = transactions.find((candidate) => candidate.id === transactionId);
     if (!existing) throw guestError('TRANSACTION_NOT_FOUND');
-    if (existing.status === TransactionStatus.CANCELLED) throw guestError('TRANSACTION_ALREADY_CANCELLED');
+    if (existing.status === TransactionStatus.DELETED) throw guestError('TRANSACTION_ALREADY_DELETED');
 
-    const cancelled: GuestTransaction = { ...existing, status: TransactionStatus.CANCELLED, updatedAt: new Date().toISOString() };
+    const deleted: GuestTransaction = { ...existing, status: TransactionStatus.DELETED, updatedAt: new Date().toISOString() };
 
     const data = await guestStore.mutate((current) => ({
       ...current,
       transactions: current.transactions.map((candidate) =>
-        candidate.id === transactionId ? cancelled : candidate,
+        candidate.id === transactionId ? deleted : candidate,
       ),
-      // A cancelled payment stops crediting whatever goal it was backing
-      // (§11.5) — mirrors transactions.service.ts's `cancel()` deleting the
+      // A deleted payment stops crediting whatever goal it was backing
+      // (§11.5) — mirrors transactions.service.ts's `delete()` deleting the
       // linked `goal_contributions` row.
       contributions: current.contributions.filter((contribution) => contribution.transactionId !== transactionId),
     }));
 
-    return toTransactionResponse(cancelled, data.accounts, data.categories, wallet);
+    return toTransactionResponse(deleted, data.accounts, data.categories, wallet);
   },
 };

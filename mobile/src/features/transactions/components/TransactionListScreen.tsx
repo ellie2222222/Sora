@@ -3,7 +3,7 @@ import { Plus, Receipt } from 'lucide-react-native';
 import { View } from 'react-native';
 import Animated, { FadeOut, SlideInLeft, SlideInRight } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
-import type { TransactionResponse } from '@sora/contracts';
+import { TransactionStatus, type TransactionResponse } from '@sora/contracts';
 
 import { AnimatedScreen, DatePickerModal, DateStrip, Fab, MonthSelector, RefreshableScrollView, SkeletonList, StateView, TransactionListSection, TransactionTotals } from '@/components';
 import { useAuth, useTheme, useWallets } from '@/app/providers';
@@ -74,7 +74,12 @@ export function TransactionListScreen({
     setDisplayedItems([]);
   }
   useEffect(() => {
-    if (transactions.data) setDisplayedItems(transactions.data.items);
+    // Deleted transactions stay in the ledger (BR-03) but a deleted entry
+    // reads as noise here, not history — it's excluded from every derived
+    // figure server-side already, so the list should match.
+    if (transactions.data) {
+      setDisplayedItems(transactions.data.items.filter((item) => item.status !== TransactionStatus.DELETED));
+    }
   }, [transactions.data]);
 
   const handleRefresh = async () => {
@@ -172,12 +177,13 @@ export function TransactionListScreen({
         <Animated.View
           key={selectedDay}
           style={{ flex: 1 }}
-          // Same spring as DateStrip's own cell transition (damping/stiffness, not a fixed
-          // duration), so the content underneath moves with the same physics as the strip above it.
+          // Overdamped (damping/stiffness ratio > 1, no fixed duration) so a full-width panel
+          // settles into place without overshoot/bounce-back — DateStrip's own cell transition
+          // stays springier since that's a small highlight move, not a whole screen of content.
           entering={(slideDirectionRef.current === 'forward' ? SlideInRight : SlideInLeft)
             .springify()
-            .damping(26)
-            .stiffness(220)}
+            .damping(34)
+            .stiffness(210)}
           exiting={FadeOut.duration(150)}
         >
           {renderContent()}

@@ -14,6 +14,8 @@
 import type { ZodError } from 'zod';
 import type { ErrorCode } from '@sora/contracts';
 
+// Relative, not `@/utils`: this file is reached by bare `node --test` (no bundler,
+// no path-alias resolution at runtime), unlike the rest of the app.
 import { ApiError, type FieldErrors } from '../../utils/errors.ts';
 
 const GUEST_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
@@ -31,8 +33,8 @@ const GUEST_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   CATEGORY_HAS_TRANSACTIONS:
     'This category has transactions — rename or archive it instead of deleting it permanently',
   TRANSACTION_NOT_FOUND: 'Transaction not found',
-  TRANSACTION_IMMUTABLE: 'Amount, type and accounts cannot be changed — cancel and re-record instead',
-  TRANSACTION_ALREADY_CANCELLED: 'This transaction is already cancelled',
+  TRANSACTION_IMMUTABLE: 'Amount, type and accounts cannot be changed — delete and re-record instead',
+  TRANSACTION_ALREADY_DELETED: 'This transaction is already deleted',
   TRANSFER_SAME_ACCOUNT: 'A transfer needs two different accounts',
   TRANSFER_CURRENCY_MISMATCH: 'Both sides of a transfer must share one currency',
   BUDGET_NOT_FOUND: 'Budget not found',

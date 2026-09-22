@@ -3,7 +3,7 @@ import { TransactionStatus, type CreateTransactionRequest, type TransactionQuery
 import { transactionsApi as transactionsHttp, type TransactionPage } from '@/services/api';
 import { ensureSeeded, guestTransactionsApi } from '@/services/guest';
 import { buildOptimisticTransaction, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '../../../utils/errors.ts';
+import { isNetworkError } from '@/utils';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
@@ -134,10 +134,10 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
       },
       invalidatesTags: (_result, _error, { transactionId }) => (isStillQueued(transactionId) ? [] : TRANSACTION_TAGS),
     }),
-    cancelTransaction: builder.mutation<TransactionResponse, { transactionId: string; reason?: string }>({
+    deleteTransaction: builder.mutation<TransactionResponse, { transactionId: string; reason?: string }>({
       queryFn: ({ transactionId, reason }, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        if (isGuest) return toQueryFnResult(() => guestTransactionsApi.cancel(transactionId));
+        if (isGuest) return toQueryFnResult(() => guestTransactionsApi.delete(transactionId));
         if (!isCurrentlyOnline()) {
           return toQueryFnResult(async () => {
             await enqueueOffline({
@@ -147,27 +147,27 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
               serverId: transactionId,
               payload: { reason },
             });
-            return { id: transactionId, status: TransactionStatus.CANCELLED } as unknown as TransactionResponse;
+            return { id: transactionId, status: TransactionStatus.DELETED } as unknown as TransactionResponse;
           });
         }
-        return toQueryFnResult(() => transactionsHttp.cancel(transactionId, reason));
+        return toQueryFnResult(() => transactionsHttp.delete(transactionId, reason));
       },
       onQueryStarted: async ({ transactionId }, { dispatch, queryFulfilled, getState }) => {
         try {
           await queryFulfilled;
           if (!isStillQueued(transactionId)) return;
 
-          const markCancelled = (draft: TransactionResponse) => {
-            draft.status = TransactionStatus.CANCELLED;
+          const markDeleted = (draft: TransactionResponse) => {
+            draft.status = TransactionStatus.DELETED;
           };
-          dispatch(transactionsApiSlice.util.updateQueryData('getTransaction', transactionId, markCancelled));
+          dispatch(transactionsApiSlice.util.updateQueryData('getTransaction', transactionId, markDeleted));
 
           const rootState = getState();
           forEachCachedQueryArgs(rootState, 'listTransactions', (args) => {
             dispatch(
               transactionsApiSlice.util.updateQueryData('listTransactions', args as Partial<TransactionQuery>, (draft) => {
                 const item = draft.items.find((candidate) => candidate.id === transactionId);
-                if (item) item.status = TransactionStatus.CANCELLED;
+                if (item) item.status = TransactionStatus.DELETED;
               }),
             );
           });
@@ -186,5 +186,5 @@ export const {
   useGetTransactionQuery,
   useCreateTransactionMutation,
   useUpdateTransactionMutation,
-  useCancelTransactionMutation,
+  useDeleteTransactionMutation,
 } = transactionsApiSlice;

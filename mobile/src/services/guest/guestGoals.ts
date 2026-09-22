@@ -265,7 +265,8 @@ export const guestGoalsApi = {
     return toContributionResponse(contribution, account.name);
   },
 
-  /** Deletes the contribution row; a transaction-backed one is cancelled, not deleted (§13.8). */
+  /** Removes the contribution row outright; a transaction-backed one only flips its backing
+   * transaction's status to deleted — the transaction row itself is never removed (§13.8). */
   async removeContribution(goalId: string, contributionId: string): Promise<void> {
     requireWallet();
     const { goals, contributions } = guestStore.current();
@@ -282,7 +283,7 @@ export const guestGoalsApi = {
       transactions: contribution.transactionId
         ? current.transactions.map((candidate) =>
             candidate.id === contribution.transactionId
-              ? { ...candidate, status: TransactionStatus.CANCELLED, updatedAt: new Date().toISOString() }
+              ? { ...candidate, status: TransactionStatus.DELETED, updatedAt: new Date().toISOString() }
               : candidate,
           )
         : current.transactions,

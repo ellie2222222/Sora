@@ -71,12 +71,12 @@ export const TransactionType = {
   TRANSFER: 'TRANSFER',
 } as const;
 
-export const TRANSACTION_STATUSES = ['PENDING', 'COMPLETED', 'CANCELLED'] as const;
+export const TRANSACTION_STATUSES = ['PENDING', 'COMPLETED', 'DELETED'] as const;
 export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
 export const TransactionStatus = {
   PENDING: 'PENDING',
   COMPLETED: 'COMPLETED',
-  CANCELLED: 'CANCELLED',
+  DELETED: 'DELETED',
 } as const;
 
 export const BUDGET_PERIOD_TYPES = ['WEEKLY', 'MONTHLY', 'CUSTOM'] as const;

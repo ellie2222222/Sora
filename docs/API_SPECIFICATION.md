@@ -172,7 +172,7 @@ Mutating endpoints accept an optional `Idempotency-Key` header. A replay with th
 | 32 | POST | `/transactions` | EDITOR | [11.2](#112-post-transactions) |
 | 33 | GET | `/transactions/{id}` | VIEWER | [11.3](#113-get-transactionsid) |
 | 34 | PATCH | `/transactions/{id}` | EDITOR | [11.4](#114-patch-transactionsid) |
-| 35 | POST | `/transactions/{id}/cancel` | EDITOR | [11.5](#115-post-transactionsidcancel) |
+| 35 | POST | `/transactions/{id}/delete` | EDITOR | [11.5](#115-post-transactionsiddelete) |
 | 36 | GET | `/budgets` | VIEWER | [12.1](#121-get-budgets) |
 | 37 | POST | `/budgets` | EDITOR | [12.2](#122-post-budgets) |
 | 38 | GET | `/budgets/{id}` | VIEWER | [12.3](#123-get-budgetsid) |
@@ -849,29 +849,29 @@ Results are restricted to transactions touching an account in a wallet the calle
 
 **Request** — `updateTransactionSchema`: `{ "description"?, "transactionDate"?, "categoryId"?, "reference"? }`
 
-**Validation** — `amount`, `type`, `fromAccountId` and `toAccountId` are **immutable**. A recorded movement of money is a historical fact; rewriting one silently changes every balance, budget figure and goal total derived from it. Correcting a real mistake means §11.5 then a fresh create, which leaves both rows visible. Attempting to change an immutable field returns `409 TRANSACTION_IMMUTABLE`. A `CANCELLED` transaction cannot be edited at all.
+**Validation** — `amount`, `type`, `fromAccountId` and `toAccountId` are **immutable**. A recorded movement of money is a historical fact; rewriting one silently changes every balance, budget figure and goal total derived from it. Correcting a real mistake means §11.5 then a fresh create, which leaves both rows visible. Attempting to change an immutable field returns `409 TRANSACTION_IMMUTABLE`. A `DELETED` transaction cannot be edited at all.
 
 A changed `categoryId` must keep the same `type` and wallet.
 
 **Response `200`** — `TransactionResponse`.
 
-**Errors** — `409 TRANSACTION_IMMUTABLE` · `409 TRANSACTION_ALREADY_CANCELLED` · `422 CATEGORY_WRONG_TYPE` · `404 TRANSACTION_NOT_FOUND`
+**Errors** — `409 TRANSACTION_IMMUTABLE` · `409 TRANSACTION_ALREADY_DELETED` · `422 CATEGORY_WRONG_TYPE` · `404 TRANSACTION_NOT_FOUND`
 
 **Side effects** — audit `TRANSACTION_UPDATED` with the changed field names.
 
-### 11.5 POST /transactions/{id}/cancel
+### 11.5 POST /transactions/{id}/delete
 
 | | |
 |---|---|
 | **Auth** | Bearer · **Min role** `EDITOR` (both wallets, for a cross-wallet transfer) |
 
-**Request** — `cancelTransactionSchema`: `{ "reason"? }`
+**Request** — `deleteTransactionSchema`: `{ "reason"? }`
 
-**Response `200`** — the transaction with `status: "CANCELLED"`.
+**Response `200`** — the transaction with `status: "DELETED"`.
 
-**Errors** — `409 TRANSACTION_ALREADY_CANCELLED` · `404 TRANSACTION_NOT_FOUND` · `403 FORBIDDEN`
+**Errors** — `409 TRANSACTION_ALREADY_DELETED` · `404 TRANSACTION_NOT_FOUND` · `403 FORBIDDEN`
 
-**Side effects** — sets `status = CANCELLED`; the row stays. Because only `COMPLETED` transactions count, every derived balance, budget `spent` and dashboard total drops the amount on the next read, with the cancelled row still visible as the record of what happened. Any `goal_contributions` row pointing at it is removed in the same transaction — otherwise a cancelled payment would keep crediting a savings goal. Audit `TRANSACTION_CANCELLED`.
+**Side effects** — sets `status = DELETED`; the row stays — this is a soft delete, not a row removal. Because only `COMPLETED` transactions count, every derived balance, budget `spent` and dashboard total drops the amount on the next read, with the deleted row still visible as the record of what happened. Any `goal_contributions` row pointing at it is removed in the same transaction — otherwise a deleted payment would keep crediting a savings goal. Audit `TRANSACTION_DELETED`.
 
 ---
 
@@ -1015,7 +1015,7 @@ Min role `VIEWER`. Paginated. `200` — `ContributionResponse[]`.
 
 ### 13.8 DELETE /goals/{id}/contributions/{cId}
 
-Min role `EDITOR`. `204`. Deletes the contribution row; when it was transaction-backed, the backing transaction is **cancelled**, not deleted, keeping the ledger intact. Audit `GOAL_CONTRIBUTION_REMOVED`.
+Min role `EDITOR`. `204`. Removes the contribution row outright; when it was transaction-backed, the backing transaction only has its status flipped to `DELETED` — the transaction row itself is never removed, keeping the ledger intact. Audit `GOAL_CONTRIBUTION_REMOVED`.
 
 ---
 
@@ -1065,7 +1065,7 @@ One request answering the four questions the dashboard exists to answer: how muc
 
 ### 16.1 What is logged
 
-Audited at `INFO`: transaction created / updated / cancelled; account, category, budget, goal created / updated / archived; member invited / accepted / removed / role changed; ownership transferred; wallet created / archived; login, logout, registration. Every `401` and `403` is logged at `WARN` with actor, role and target.
+Audited at `INFO`: transaction created / updated / deleted; account, category, budget, goal created / updated / archived; member invited / accepted / removed / role changed; ownership transferred; wallet created / archived; login, logout, registration. Every `401` and `403` is logged at `WARN` with actor, role and target.
 
 Never logged: passwords, tokens (access, refresh, or invitation), or password hashes. User ids and emails may appear at `INFO`.
 
@@ -1075,7 +1075,7 @@ Multi-row writes run in one database transaction: wallet + owner membership, inv
 
 ### 16.3 Deletion policy
 
-Nothing financial is hard-deleted. Wallets, accounts, categories, budgets are archived; transactions are cancelled; members are revoked. The only true delete is a goal contribution, and that cancels its backing transaction rather than erasing it. Transactions are the source of truth for every derived figure, so a destroyed row silently changes historical answers.
+Nothing financial is hard-removed. Wallets, accounts, categories, budgets are archived; transactions are marked `DELETED` (status flip, row stays); members are revoked. The only true row removal is a goal contribution, and that marks its backing transaction `DELETED` rather than erasing it. Transactions are the source of truth for every derived figure, so a destroyed row silently changes historical answers.
 
 ### 16.4 Currency scope for v1
 

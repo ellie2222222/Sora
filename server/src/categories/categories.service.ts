@@ -333,7 +333,7 @@ export class CategoriesService {
     return levels;
   }
 
-  /** How many transactions (any status — a cancelled one still happened) name each id. */
+  /** How many transactions (any status — a deleted one still happened) name each id. */
   private async transactionCounts(categoryIds: readonly string[]): Promise<Map<string, number>> {
     if (categoryIds.length === 0) return new Map();
 

@@ -169,7 +169,8 @@ export class GoalContributionsService {
     return response!;
   }
 
-  /** Deletes the contribution row; a transaction-backed one is cancelled, not deleted (§13.8). */
+  /** Removes the contribution row outright; a transaction-backed one only flips its backing
+   * transaction's status to deleted — the transaction row itself is never removed (§13.8). */
   async remove(
     user: AuthenticatedUser,
     goalId: string,
@@ -192,7 +193,7 @@ export class GoalContributionsService {
       if (contribution.transaction_id) {
         await trx
           .updateTable('transactions')
-          .set({ status: TransactionStatus.CANCELLED, updated_at: new Date() })
+          .set({ status: TransactionStatus.DELETED, updated_at: new Date() })
           .where('id', '=', contribution.transaction_id)
           .execute();
       }

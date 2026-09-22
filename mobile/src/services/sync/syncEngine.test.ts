@@ -138,7 +138,7 @@ describe('runSyncPass failure classification', () => {
     const { adapters } = recordingAdapters({
       transaction: {
         async cancelOrArchive() {
-          throw new ApiError('TRANSACTION_ALREADY_CANCELLED', 'already cancelled', 409);
+          throw new ApiError('TRANSACTION_ALREADY_DELETED', 'already deleted', 409);
         },
       },
     });

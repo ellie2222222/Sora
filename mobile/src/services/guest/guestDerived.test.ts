@@ -85,10 +85,10 @@ describe('guestAccountsApi — balance', () => {
     assert.equal(account!.balance, formatMoney(expected));
   });
 
-  it('ignores PENDING and CANCELLED rows, as only COMPLETED moves money', async () => {
+  it('ignores PENDING and DELETED rows, as only COMPLETED moves money', async () => {
     const pending = await guestTransactionsApi.create(tx({ amount: '999999', status: 'PENDING' }));
     const doomed = await guestTransactionsApi.create(tx({ amount: '888888' }));
-    await guestTransactionsApi.cancel(doomed.id);
+    await guestTransactionsApi.delete(doomed.id);
 
     const [account] = await guestAccountsApi.list();
     assert.equal(account!.balance, formatMoney(parseMoney('1000000.0000')));
@@ -148,13 +148,13 @@ describe('guestAccountsApi — detail activity (BR-06)', () => {
     assert.equal(detail.transferredIn, formatMoney(parseMoney('0')));
   });
 
-  it('counts every row touching the account, cancelled included', async () => {
+  it('counts every row touching the account, deleted included', async () => {
     const doomed = await guestTransactionsApi.create(tx({ amount: '1000' }));
-    await guestTransactionsApi.cancel(doomed.id);
+    await guestTransactionsApi.delete(doomed.id);
 
     const detail = await guestAccountsApi.detail(ACCOUNT_ID);
     assert.equal(detail.transactionCount, 4);
-    // ...but the cancelled row contributes nothing to the totals.
+    // ...but the deleted row contributes nothing to the totals.
     assert.equal(detail.totalExpense, formatMoney(parseMoney('150000')));
   });
 });
@@ -418,7 +418,7 @@ describe('guestGoalsApi — progress', () => {
     assert.equal((await guestGoalsApi.contributions(created.id)).length, 1);
   });
 
-  it('cancels the backing transaction when a linked contribution is removed (§13.8)', async () => {
+  it('deletes the backing transaction when a linked contribution is removed (§13.8)', async () => {
     const created = await guestGoalsApi.create(goal);
     const contribution = await guestGoalsApi.addContribution(created.id, {
       accountId: ACCOUNT_ID,
@@ -432,8 +432,8 @@ describe('guestGoalsApi — progress', () => {
     await guestGoalsApi.removeContribution(created.id, contribution.id);
 
     const [transaction] = guestStore.current().transactions;
-    assert.equal(transaction!.status, 'CANCELLED');
-    // Cancelled, so the money is back in the account rather than lost.
+    assert.equal(transaction!.status, 'DELETED');
+    // Deleted, so the money is back in the account rather than lost.
     const [account] = await guestAccountsApi.list();
     assert.equal(account!.balance, formatMoney(parseMoney('1000000.0000')));
   });

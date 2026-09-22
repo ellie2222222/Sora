@@ -14,7 +14,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import { sql, type Kysely, type Transaction } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 
 import {
   TransactionStatus,
@@ -39,7 +39,7 @@ import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
 import { AccountAccess, WalletAccessService } from '../wallets/wallet-access.service.ts';
 
-export interface CancelTransactionRequest {
+export interface DeleteTransactionRequest {
   reason?: string;
 }
 
@@ -253,10 +253,10 @@ export class TransactionsService {
     if (filters.type) builder = builder.where('transactions.type', '=', filters.type);
     if (filters.status) builder = builder.where('transactions.status', '=', filters.status);
     if (filters.dateFrom) {
-      builder = builder.where(sql<boolean>`transactions.transaction_date::date >= ${filters.dateFrom}::date`);
+      builder = builder.where('transactions.transaction_date', '>=', new Date(`${filters.dateFrom}T00:00:00.000Z`));
     }
     if (filters.dateTo) {
-      builder = builder.where(sql<boolean>`transactions.transaction_date::date <= ${filters.dateTo}::date`);
+      builder = builder.where('transactions.transaction_date', '<', dayAfter(filters.dateTo));
     }
     if (filters.minAmount) builder = builder.where('transactions.amount', '>=', filters.minAmount);
     if (filters.maxAmount) builder = builder.where('transactions.amount', '<=', filters.maxAmount);
@@ -387,7 +387,7 @@ export class TransactionsService {
     }
 
     const row = await this.plainRow(transactionId);
-    if (row.status === TransactionStatus.CANCELLED) throw new AppError('TRANSACTION_ALREADY_CANCELLED');
+    if (row.status === TransactionStatus.DELETED) throw new AppError('TRANSACTION_ALREADY_DELETED');
 
     const accessMap = await this.access.requireAccountsWritable(user.id, accountIdsOfRow(row));
 
@@ -430,30 +430,30 @@ export class TransactionsService {
     return this.toResponse(transactionId);
   }
 
-  async cancel(
+  async delete(
     user: AuthenticatedUser,
     transactionId: string,
-    body: CancelTransactionRequest,
+    body: DeleteTransactionRequest,
     ip: string | null,
   ): Promise<TransactionResponse> {
     const row = await this.plainRow(transactionId);
-    if (row.status === TransactionStatus.CANCELLED) throw new AppError('TRANSACTION_ALREADY_CANCELLED');
+    if (row.status === TransactionStatus.DELETED) throw new AppError('TRANSACTION_ALREADY_DELETED');
 
     const accessMap = await this.access.requireAccountsWritable(user.id, accountIdsOfRow(row));
 
     await this.database.db.transaction().execute(async (trx) => {
       await trx
         .updateTable('transactions')
-        .set({ status: TransactionStatus.CANCELLED, updated_at: new Date() })
+        .set({ status: TransactionStatus.DELETED, updated_at: new Date() })
         .where('id', '=', transactionId)
         .execute();
 
-      // A cancelled payment must stop crediting whatever goal it was backing (§11.5).
+      // A deleted payment must stop crediting whatever goal it was backing (§11.5).
       await trx.deleteFrom('goal_contributions').where('transaction_id', '=', transactionId).execute();
     });
 
     await this.auditTransaction(
-      AUDIT_EVENTS.TRANSACTION_CANCELLED,
+      AUDIT_EVENTS.TRANSACTION_DELETED,
       transactionId,
       user.id,
       this.walletIdsTouched(accessMap),
@@ -538,4 +538,11 @@ function toTransactionResponse(row: TransactionJoinRow): TransactionResponse {
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
+}
+
+/** Exclusive upper bound for an inclusive calendar-day filter on a TIMESTAMPTZ column. */
+function dayAfter(date: string): Date {
+  const next = new Date(`${date}T00:00:00.000Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next;
 }

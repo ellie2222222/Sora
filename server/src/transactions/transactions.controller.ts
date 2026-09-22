@@ -13,7 +13,7 @@ import { z } from 'zod';
 
 import {
   ROUTES,
-  cancelTransactionSchema,
+  deleteTransactionSchema,
   createTransactionSchema,
   transactionQuerySchema,
   updateTransactionSchema,
@@ -70,13 +70,13 @@ export class TransactionsController {
   }
 
   @HttpCode(HttpStatus.OK)
-  @Post(ROUTES.transactions.cancel(':id'))
-  cancel(
+  @Post(ROUTES.transactions.delete(':id'))
+  delete(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') transactionId: string,
-    @Body(zodPipe(cancelTransactionSchema)) body: z.infer<typeof cancelTransactionSchema>,
+    @Body(zodPipe(deleteTransactionSchema)) body: z.infer<typeof deleteTransactionSchema>,
     @ClientIp() ip: string | null,
   ): Promise<TransactionResponse> {
-    return this.transactions.cancel(user, transactionId, body, ip);
+    return this.transactions.delete(user, transactionId, body, ip);
   }
 }

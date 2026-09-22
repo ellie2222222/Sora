@@ -43,7 +43,6 @@ function isErrorBody(value: unknown): value is ApiErrorBody {
   return typeof (candidate.error as { code?: unknown }).code === 'string';
 }
 
-/** Check if an error represents a network/connectivity failure. */
 export function isNetworkError(error: unknown): boolean {
   if (!error) return false;
   if (isApiError(error)) {
@@ -193,7 +192,7 @@ export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
   CATEGORY_HAS_TRANSACTIONS: 'errors.categoryHasTransactions',
   TRANSACTION_NOT_FOUND: 'errors.transactionNotFound',
   TRANSACTION_IMMUTABLE: 'errors.transactionImmutable',
-  TRANSACTION_ALREADY_CANCELLED: 'errors.transactionAlreadyCancelled',
+  TRANSACTION_ALREADY_DELETED: 'errors.transactionAlreadyCancelled',
   TRANSFER_SAME_ACCOUNT: 'errors.transferSameAccount',
   TRANSFER_CURRENCY_MISMATCH: 'errors.transferCurrencyMismatch',
   BUDGET_NOT_FOUND: 'errors.budgetNotFound',
@@ -207,10 +206,6 @@ export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
   VALUATION_UNAVAILABLE: 'errors.valuationUnavailable',
 };
 
-/**
- * Returns a localized user-facing message for any API or network error.
- * Uses `error.code` -> local i18n translation key, falling back safely.
- */
 export function getServerErrorMessage(error: unknown, t: TranslationFunction): string {
   if (isNetworkError(error)) {
     return t('errors.offlineTitle');

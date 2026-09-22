@@ -18,13 +18,22 @@
  * Usage: node scripts/check-contract-parity.mjs
  */
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const SCHEMA_SQL = readFileSync(join(ROOT, 'db/migrations/001_initial_wallet_schema.sql'), 'utf8');
+// Concatenated in the same filename order the real migrator applies them, so
+// a later migration's ALTER of a constraint a table's own CREATE defined
+// (e.g. renaming an allowed status value) is reflected too — constraintValues()
+// below takes the *last* definition of a given constraint name, not the first.
+const MIGRATIONS_DIR = join(ROOT, 'db/migrations');
+const SCHEMA_SQL = readdirSync(MIGRATIONS_DIR)
+  .filter((name) => name.endsWith('.sql'))
+  .sort()
+  .map((name) => readFileSync(join(MIGRATIONS_DIR, name), 'utf8'))
+  .join('\n');
 const ENUMS_TS = readFileSync(join(ROOT, 'packages/contracts/src/enums.ts'), 'utf8');
 const ROUTES_TS = readFileSync(join(ROOT, 'packages/contracts/src/routes.ts'), 'utf8');
 const API_SPEC = readFileSync(join(ROOT, 'docs/API_SPECIFICATION.md'), 'utf8');
@@ -37,15 +46,20 @@ function check(label, ok, detail = '') {
   if (!ok) failures.push(`${label}${detail ? ` — ${detail}` : ''}`);
 }
 
-/** Values a named CHECK constraint admits, read out of its IN (...) list. */
+/**
+ * Values a named CHECK constraint admits, read out of its IN (...) list.
+ * Takes the *last* match in migration-applied order, so a later migration's
+ * `DROP CONSTRAINT` + `ADD CONSTRAINT` redefinition wins over the original
+ * CREATE TABLE definition — matching how Postgres itself ends up seeing it.
+ */
 function constraintValues(constraintName) {
   const pattern = new RegExp(
-    `CONSTRAINT\\s+${constraintName}\\s*\\n?\\s*CHECK\\s*\\(([^;]*?)\\)\\s*(?:,|\\n\\s*\\))`,
-    's',
+    `CONSTRAINT\\s+${constraintName}\\s*\\n?\\s*CHECK\\s*\\(([^;]*?)\\)\\s*(?:,|\\n\\s*\\)|;)`,
+    'gs',
   );
-  const match = SCHEMA_SQL.match(pattern);
-  if (!match) return null;
-  const values = [...match[1].matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);
+  const matches = [...SCHEMA_SQL.matchAll(pattern)];
+  if (matches.length === 0) return null;
+  const values = [...matches[matches.length - 1][1].matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);
   return values.length > 0 ? values.sort() : null;
 }
 

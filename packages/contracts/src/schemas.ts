@@ -287,7 +287,7 @@ export const createTransactionSchema = z.discriminatedUnion('type', [
  * Amount, accounts and type are immutable: a recorded movement of money is a
  * historical fact, and rewriting one retroactively changes every balance,
  * budget and goal figure derived from it with no trace. Correcting a real
- * mistake means cancelling and re-recording, which leaves both rows visible.
+ * mistake means deleting and re-recording, which leaves both rows visible.
  */
 export const updateTransactionSchema = z
   .object({
@@ -298,7 +298,7 @@ export const updateTransactionSchema = z
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
 
-export const cancelTransactionSchema = z.object({
+export const deleteTransactionSchema = z.object({
   reason: z.string().trim().max(500).optional(),
 });
 

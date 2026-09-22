@@ -3,9 +3,8 @@
  *
  * Balance and the detail-view totals are derived exactly the way
  * `balance.service.ts` derives them — `calculateAccountBalance` and the same
- * income/expense/transfer split as `activityForAccount` (server/src/accounts/
- * balance.service.ts:180-218), over the local transaction list via
- * `toBalanceRelevant`. Never stored, per BR-05.
+ * income/expense/transfer split as `activityForAccount`, over the local
+ * transaction list via `toBalanceRelevant`. Never stored, per BR-05.
  *
  * `createAccountSchema`/`updateAccountSchema` are re-run here the same way
  * `guestTransactions.ts` re-runs its own schemas: the real `zodPipe` sits in
@@ -124,7 +123,7 @@ export const guestAccountsApi = {
       totalExpense: formatMoney(totalExpense),
       transferredIn: formatMoney(transferredIn),
       transferredOut: formatMoney(transferredOut),
-      // Counts every row touching the account, cancelled included — a cancelled
+      // Counts every row touching the account, deleted included — a deleted
       // entry is still a visible record of what happened (§16.3).
       transactionCount: touching.length,
     };

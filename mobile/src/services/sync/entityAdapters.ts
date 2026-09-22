@@ -28,14 +28,14 @@ import type { QueueEntity } from './offlineQueueTypes.ts';
 export interface EntityAdapter {
   create(payload: unknown, idempotencyKey: string): Promise<{ id: string }>;
   update(id: string, payload: unknown, idempotencyKey: string): Promise<void>;
-  /** Transactions/goals cancel; accounts/budgets/categories archive — same slot either way. */
+  /** Transactions delete; goals cancel; accounts/budgets/categories archive — same slot either way. */
   cancelOrArchive(id: string, payload: unknown, idempotencyKey: string): Promise<void>;
 }
 
 export type EntityAdapters = Record<QueueEntity, EntityAdapter>;
 
 export interface AdapterApis {
-  transactions: Pick<typeof transactionsApi, 'create' | 'update' | 'cancel'>;
+  transactions: Pick<typeof transactionsApi, 'create' | 'update' | 'delete'>;
   accounts: Pick<typeof accountsApi, 'create' | 'update' | 'archive'>;
   budgets: Pick<typeof budgetsApi, 'create' | 'update' | 'archive'>;
   goals: Pick<typeof goalsApi, 'create' | 'cancel'>;
@@ -71,7 +71,7 @@ export function buildEntityAdapters(apis: AdapterApis): EntityAdapters {
       },
       async cancelOrArchive(id, payload, key) {
         const reason = (payload as { reason?: string } | undefined)?.reason;
-        await apis.transactions.cancel(id, reason, key);
+        await apis.transactions.delete(id, reason, key);
       },
     },
     account: {

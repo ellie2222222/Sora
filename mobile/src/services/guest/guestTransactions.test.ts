@@ -121,9 +121,9 @@ describe('guestTransactionsApi.create', () => {
     assert.equal(code, 'VALIDATION_FAILED');
   });
 
-  it('preserves a client-supplied CANCELLED status, as the server does', async () => {
-    const created = await guestTransactionsApi.create(expense({ status: 'CANCELLED' }));
-    assert.equal(created.status, 'CANCELLED');
+  it('preserves a client-supplied DELETED status, as the server does', async () => {
+    const created = await guestTransactionsApi.create(expense({ status: 'DELETED' }));
+    assert.equal(created.status, 'DELETED');
   });
 });
 
@@ -162,12 +162,12 @@ describe('guestTransactionsApi.update — BR-03', () => {
     assert.equal(after.description, 'Tampered');
   });
 
-  it('refuses to edit a cancelled transaction', async () => {
+  it('refuses to edit a deleted transaction', async () => {
     const created = await guestTransactionsApi.create(expense());
-    await guestTransactionsApi.cancel(created.id);
+    await guestTransactionsApi.delete(created.id);
 
     const code = await codeOf(() => guestTransactionsApi.update(created.id, { description: 'No' }));
-    assert.equal(code, 'TRANSACTION_ALREADY_CANCELLED');
+    assert.equal(code, 'TRANSACTION_ALREADY_DELETED');
   });
 
   it('rejects re-categorising to the wrong type', async () => {
@@ -180,25 +180,25 @@ describe('guestTransactionsApi.update — BR-03', () => {
   });
 });
 
-describe('guestTransactionsApi.cancel', () => {
-  it('marks the row cancelled rather than deleting it (§16.3)', async () => {
+describe('guestTransactionsApi.delete', () => {
+  it('marks the row deleted rather than removing it (§16.3)', async () => {
     const created = await guestTransactionsApi.create(expense());
-    const cancelled = await guestTransactionsApi.cancel(created.id);
+    const deleted = await guestTransactionsApi.delete(created.id);
 
-    assert.equal(cancelled.status, 'CANCELLED');
+    assert.equal(deleted.status, 'DELETED');
     const { items } = await guestTransactionsApi.list();
     assert.equal(items.length, 1);
   });
 
-  it('refuses a second cancel', async () => {
+  it('refuses a second delete', async () => {
     const created = await guestTransactionsApi.create(expense());
-    await guestTransactionsApi.cancel(created.id);
+    await guestTransactionsApi.delete(created.id);
 
-    const code = await codeOf(() => guestTransactionsApi.cancel(created.id));
-    assert.equal(code, 'TRANSACTION_ALREADY_CANCELLED');
+    const code = await codeOf(() => guestTransactionsApi.delete(created.id));
+    assert.equal(code, 'TRANSACTION_ALREADY_DELETED');
   });
 
-  it('drops any contribution the cancelled payment was backing (§11.5)', async () => {
+  it('drops any contribution the deleted payment was backing (§11.5)', async () => {
     const created = await guestTransactionsApi.create(expense());
     await guestStore.mutate((data) => ({
       ...data,
@@ -217,7 +217,7 @@ describe('guestTransactionsApi.cancel', () => {
       ],
     }));
 
-    await guestTransactionsApi.cancel(created.id);
+    await guestTransactionsApi.delete(created.id);
     assert.deepEqual(guestStore.current().contributions, []);
   });
 });

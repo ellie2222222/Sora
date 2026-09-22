@@ -43,7 +43,7 @@ export const transactionsApi = {
   /**
    * Only the descriptive fields. Amount, type and accounts are immutable server
    * side (API spec §11.4) because every balance and budget figure derives from
-   * them; correcting a real mistake means `cancel` then a fresh `create`.
+   * them; correcting a real mistake means `delete` then a fresh `create`.
    */
   update(
     transactionId: string,
@@ -57,9 +57,9 @@ export const transactionsApi = {
     );
   },
 
-  cancel(transactionId: string, reason?: string, idempotencyKey?: string): Promise<TransactionResponse> {
+  delete(transactionId: string, reason?: string, idempotencyKey?: string): Promise<TransactionResponse> {
     return postOne<TransactionResponse>(
-      apiUrl(ROUTES.transactions.cancel(transactionId)),
+      apiUrl(ROUTES.transactions.delete(transactionId)),
       reason === undefined ? {} : { reason },
       idempotencyHeaders(idempotencyKey),
     );

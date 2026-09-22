@@ -66,7 +66,7 @@ export const ROUTES = {
     create: () => '/transactions',
     detail: (transactionId: string) => `/transactions/${transactionId}`,
     update: (transactionId: string) => `/transactions/${transactionId}`,
-    cancel: (transactionId: string) => `/transactions/${transactionId}/cancel`,
+    delete: (transactionId: string) => `/transactions/${transactionId}/delete`,
   },
 
   budgets: {
