@@ -385,9 +385,9 @@ Real screens under `mobile/src/features/*/screens/`, grouped by feature:
 
 | Feature | Screens |
 | --- | --- |
-| Dashboard | `HomeScreen` |
+| Home | `HomeScreen` |
 | Planning | `PlanningScreen` (a segmented Budgets/Goals list; there is no separate `BudgetsScreen`/`GoalsScreen`) |
-| Reports | `ReportScreen` (a read-only monthly/yearly view over the dashboard's own derived figures — see the note below; not report generation/export, which stays out of scope per [SRS.md §1.6](SRS.md#16-out-of-scope)) |
+| Dashboard | `DashboardScreen` (a read-only monthly/yearly view over the dashboard's own derived figures — see the note below; not report generation/export, which stays out of scope per [SRS.md §1.6](SRS.md#16-out-of-scope)) |
 | Transactions | `TransactionsScreen` (list; add/detail are `ModalProvider` modals, not screens — see below) |
 | Accounts | `AccountsScreen` (list + net worth), `AccountDetailScreen` |
 | Categories | `CategoryListScreen` |
@@ -404,12 +404,12 @@ by the modal pattern plus `PlanningScreen`.
 
 **Bottom tab bar** (`MainTabNavigator`, a fully custom `CustomTabBar` with an animated sliding
 indicator, not the default React Navigation tab bar) — five destinations, none of them an "Add"
-action: **Home | Account | Planning | Report | Settings**. There is no center "+" tab; recording a
-transaction/budget/goal is reached from within a screen via `ModalProvider`. Wallet management,
+action: **Home | Account | Planning | Dashboard | Settings**. There is no center "+" tab; recording
+a transaction/budget/goal is reached from within a screen via `ModalProvider`. Wallet management,
 categories, and invitations are reached from within Account/Settings, not from the tab bar
 itself.
 
-**`ReportScreen` is a dashboard view, not a report generator.** It renders two periods (monthly,
+**`DashboardScreen` is a dashboard view, not a report generator.** It renders two periods (monthly,
 yearly) purely from `useGetDashboardSummaryQuery` — the same derived, computed-on-read figures
 [DASH-US-01](SRS.md#dash-us-01-read-a-wallets-dashboard) describes — plus a short, fixed list of
 plain-language observations computed client-side from that same response (e.g. "biggest expense

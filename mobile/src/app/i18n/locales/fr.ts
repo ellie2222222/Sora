@@ -35,7 +35,6 @@ const fr: InactiveTranslationResource = {
     home: 'Accueil',
     account: 'Comptes',
     goals: 'Objectifs',
-    report: 'Rapports',
   },
   auth: {
     loginTitle: 'Bon retour',
@@ -245,7 +244,7 @@ const fr: InactiveTranslationResource = {
     noContributionsYet: 'Aucune contribution pour l instant.',
     namePlaceholder: 'ex. Nouvel Ordinateur',
   },
-  reports: {
+  dashboard: {
     monthly: 'Mensuel',
     yearly: 'Annuel',
     noWalletYet: 'Pas de portefeuille',
@@ -264,22 +263,6 @@ const fr: InactiveTranslationResource = {
     spendingChanged: 'Les dépenses en {{category}} ont {{direction}} de {{change}}%.',
     increased: 'augmenté',
     decreased: 'diminué',
-  },
-  dashboard: {
-    totalBalance: 'Solde total',
-    income: 'Revenus',
-    expenses: 'Dépenses',
-    viewAll: 'Tout voir',
-    spendingByCategory: 'Dépenses par catégorie',
-    noWalletYet: 'Pas de portefeuille',
-    createWalletToSee: 'Créez un portefeuille pour voir votre tableau de bord.',
-    budgets: 'Budgets',
-    vsLastMonth: '{{direction}} de {{change}}% par rapport au mois dernier',
-    convertedTotal: 'Total estimé',
-    convertedEstimateNotice: 'Les valeurs converties sont des estimations.',
-    acrossCurrencies: 'Sur {{count}} devises',
-    valuationUnavailable: 'Total converti non disponible actuellement.',
-    valuationCurrency: 'Devise d’évaluation',
   },
   wallets: {
     title: 'Portefeuilles',

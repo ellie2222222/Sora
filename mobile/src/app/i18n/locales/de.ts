@@ -35,7 +35,6 @@ const de: InactiveTranslationResource = {
     home: 'Start',
     account: 'Konten',
     goals: 'Ziele',
-    report: 'Berichte',
   },
   auth: {
     loginTitle: 'Willkommen zurück',
@@ -245,7 +244,7 @@ const de: InactiveTranslationResource = {
     noContributionsYet: 'Noch keine Einzahlungen.',
     namePlaceholder: 'z. B. Neuer Laptop',
   },
-  reports: {
+  dashboard: {
     monthly: 'Monatlich',
     yearly: 'Jährlich',
     noWalletYet: 'Keine Geldbörse',
@@ -264,22 +263,6 @@ const de: InactiveTranslationResource = {
     spendingChanged: 'Ausgaben für {{category}} sind um {{change}}% {{direction}}.',
     increased: 'gestiegen',
     decreased: 'gesunken',
-  },
-  dashboard: {
-    totalBalance: 'Gesamtsaldo',
-    income: 'Einnahmen',
-    expenses: 'Ausgaben',
-    viewAll: 'Alle anzeigen',
-    spendingByCategory: 'Ausgaben nach Kategorie',
-    noWalletYet: 'Keine Geldbörse',
-    createWalletToSee: 'Erstellen Sie eine Geldbörse für das Dashboard.',
-    budgets: 'Budgets',
-    vsLastMonth: '{{direction}} um {{change}}% geg. Vormonat',
-    convertedTotal: 'Geschätzter Gesamtwert',
-    convertedEstimateNotice: 'Umgerechnete Werte sind Schätzungen.',
-    acrossCurrencies: 'Über {{count}} Währungen',
-    valuationUnavailable: 'Umgerechneter Gesamtwert derzeit nicht verfügbar.',
-    valuationCurrency: 'Bewertungswährung',
   },
   wallets: {
     title: 'Geldbörsen',

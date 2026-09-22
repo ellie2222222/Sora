@@ -12,7 +12,7 @@ export type MainTabParamList = {
   Home: undefined;
   Account: undefined;
   Planning: undefined;
-  Report: undefined;
+  Dashboard: undefined;
   Settings: undefined;
 };
 

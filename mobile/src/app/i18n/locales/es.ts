@@ -35,7 +35,6 @@ const es: InactiveTranslationResource = {
     home: 'Inicio',
     account: 'Cuentas',
     goals: 'Metas',
-    report: 'Informes',
   },
   auth: {
     loginTitle: 'Bienvenido de nuevo',
@@ -245,7 +244,7 @@ const es: InactiveTranslationResource = {
     noContributionsYet: 'Sin aportes aún.',
     namePlaceholder: 'ej. Laptop nueva',
   },
-  reports: {
+  dashboard: {
     monthly: 'Mensual',
     yearly: 'Anual',
     noWalletYet: 'Sin billetera',
@@ -264,22 +263,6 @@ const es: InactiveTranslationResource = {
     spendingChanged: 'El gasto en {{category}} {{direction}} un {{change}}%.',
     increased: 'aumentó',
     decreased: 'disminuyó',
-  },
-  dashboard: {
-    totalBalance: 'Saldo total',
-    income: 'Ingresos',
-    expenses: 'Gastos',
-    viewAll: 'Ver todo',
-    spendingByCategory: 'Gastos por categoría',
-    noWalletYet: 'Sin billetera',
-    createWalletToSee: 'Crea una billetera para ver el panel.',
-    budgets: 'Presupuestos',
-    vsLastMonth: '{{direction}} un {{change}}% vs mes anterior',
-    convertedTotal: 'Total estimado',
-    convertedEstimateNotice: 'Los valores convertidos son estimaciones.',
-    acrossCurrencies: 'En {{count}} monedas',
-    valuationUnavailable: 'Total convertido no disponible ahora.',
-    valuationCurrency: 'Moneda de valoración',
   },
   wallets: {
     title: 'Billeteras',

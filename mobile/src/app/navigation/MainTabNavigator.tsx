@@ -9,8 +9,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AccountsScreen } from '@/features/accounts';
 import { PlanningScreen } from '@/features/planning';
-import { HomeScreen } from '@/features/dashboard';
-import { ReportScreen } from '@/features/reports';
+import { HomeScreen } from '@/features/home';
+import { DashboardScreen } from '@/features/dashboard';
 import { SettingsScreen } from '@/features/settings';
 import { useTheme } from '@/app/providers';
 import { TAB_BAR_HEIGHT } from './tabBarMetrics.ts';
@@ -147,7 +147,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   );
 }
 
-/** Home | Account | Planning | Report | Settings */
+/** Home | Account | Planning | Dashboard | Settings */
 export function MainTabNavigator() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -186,10 +186,10 @@ export function MainTabNavigator() {
         }}
       />
       <Tab.Screen
-        name="Report"
-        component={ReportScreen}
+        name="Dashboard"
+        component={DashboardScreen}
         options={{
-          tabBarLabel: t('nav.report'),
+          tabBarLabel: t('nav.dashboard'),
           tabBarIcon: ({ color, size }) => <PieChart color={color} size={size} />,
         }}
       />

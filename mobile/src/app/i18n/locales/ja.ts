@@ -35,7 +35,6 @@ const ja: InactiveTranslationResource = {
     home: 'ホーム',
     account: '口座',
     goals: '目標',
-    report: 'レポート',
   },
   auth: {
     loginTitle: 'おかえりなさい',
@@ -245,7 +244,7 @@ const ja: InactiveTranslationResource = {
     noContributionsYet: 'まだ積立履歴がありません。',
     namePlaceholder: '例: 新しいPC購入',
   },
-  reports: {
+  dashboard: {
     monthly: '月間',
     yearly: '年間',
     noWalletYet: 'ウォレットがありません',
@@ -264,22 +263,6 @@ const ja: InactiveTranslationResource = {
     spendingChanged: '{{category}} の支出が先月より {{change}}% {{direction}}しました。',
     increased: '増加',
     decreased: '減少',
-  },
-  dashboard: {
-    totalBalance: '総残高',
-    income: '収入',
-    expenses: '支出',
-    viewAll: 'すべて見る',
-    spendingByCategory: 'カテゴリ別支出',
-    noWalletYet: 'ウォレットがありません',
-    createWalletToSee: 'ダッシュボードを見るにはウォレットを作成してください。',
-    budgets: '予算',
-    vsLastMonth: '先月比 {{change}}% {{direction}}',
-    convertedTotal: '換算推定総額',
-    convertedEstimateNotice: '換算額は推定値です。',
-    acrossCurrencies: '{{count}} 通貨合算',
-    valuationUnavailable: '現在換算総額を表示できません。',
-    valuationCurrency: '換算通貨',
   },
   wallets: {
     title: 'ウォレット',

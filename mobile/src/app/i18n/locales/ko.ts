@@ -35,7 +35,6 @@ const ko: InactiveTranslationResource = {
     home: '홈',
     account: '계좌',
     goals: '목표',
-    report: '보고서',
   },
   auth: {
     loginTitle: '환영합니다',
@@ -245,7 +244,7 @@ const ko: InactiveTranslationResource = {
     noContributionsYet: '아직 기여 내역이 없습니다.',
     namePlaceholder: '예: 새 노트북 구매',
   },
-  reports: {
+  dashboard: {
     monthly: '월간',
     yearly: '연간',
     noWalletYet: '지갑이 없습니다',
@@ -264,22 +263,6 @@ const ko: InactiveTranslationResource = {
     spendingChanged: '{{category}} 지출이 지난달보다 {{change}}% {{direction}}했습니다.',
     increased: '증가',
     decreased: '감소',
-  },
-  dashboard: {
-    totalBalance: '총 잔액',
-    income: '수입',
-    expenses: '지출',
-    viewAll: '전체 보기',
-    spendingByCategory: '카테고리별 지출',
-    noWalletYet: '지갑이 없습니다',
-    createWalletToSee: '대시보드를 보려면 지갑을 만드세요.',
-    budgets: '예산',
-    vsLastMonth: '지난달 대비 {{direction}} {{change}}%',
-    convertedTotal: '예상 총액',
-    convertedEstimateNotice: '환산 가치는 예상치입니다.',
-    acrossCurrencies: '{{count}}개 통화 기준',
-    valuationUnavailable: '현재 환산 총액을 표시할 수 없습니다.',
-    valuationCurrency: '환산 기준 통화',
   },
   wallets: {
     title: '지갑',

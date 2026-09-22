@@ -35,7 +35,6 @@ const hi: InactiveTranslationResource = {
     home: 'होम',
     account: 'खाते',
     goals: 'लक्ष्य',
-    report: 'रिपोर्ट',
   },
   auth: {
     loginTitle: 'वापसी पर स्वागत है',
@@ -245,7 +244,7 @@ const hi: InactiveTranslationResource = {
     noContributionsYet: 'अभी कोई योगदान नहीं।',
     namePlaceholder: 'उदा. नया लैपटॉप',
   },
-  reports: {
+  dashboard: {
     monthly: 'मासिक',
     yearly: 'वार्षिक',
     noWalletYet: 'कोई वॉलेट नहीं',
@@ -264,22 +263,6 @@ const hi: InactiveTranslationResource = {
     spendingChanged: '{{category}} खर्च में {{change}}% की {{direction}} हुई।',
     increased: 'वृद्धि',
     decreased: 'कमी',
-  },
-  dashboard: {
-    totalBalance: 'कुल शेष',
-    income: 'आय',
-    expenses: 'व्यय',
-    viewAll: 'सभी देखें',
-    spendingByCategory: 'श्रेणी के अनुसार खर्च',
-    noWalletYet: 'कोई वॉलेट नहीं',
-    createWalletToSee: 'डैशबोर्ड देखने के लिए वॉलेट बनाएं।',
-    budgets: 'बजट',
-    vsLastMonth: 'पिछले महीने की तुलना में {{change}}% {{direction}}',
-    convertedTotal: 'अनुमानित कुल',
-    convertedEstimateNotice: 'परिवर्तित मूल्य अनुमान हैं।',
-    acrossCurrencies: '{{count}} मुद्राओं में',
-    valuationUnavailable: 'परिवर्तित कुल अभी उपलब्ध नहीं है।',
-    valuationCurrency: 'मूल्यांकन मुद्रा',
   },
   wallets: {
     title: 'वॉलेट',

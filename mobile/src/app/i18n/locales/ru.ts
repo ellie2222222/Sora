@@ -35,7 +35,6 @@ const ru: InactiveTranslationResource = {
     home: 'Главная',
     account: 'Счета',
     goals: 'Цели',
-    report: 'Отчеты',
   },
   auth: {
     loginTitle: 'С возвращением',
@@ -245,7 +244,7 @@ const ru: InactiveTranslationResource = {
     noContributionsYet: 'Взносов пока нет.',
     namePlaceholder: 'напр. Новый ноутбук',
   },
-  reports: {
+  dashboard: {
     monthly: 'Ежемесячный',
     yearly: 'Ежегодный',
     noWalletYet: 'Нет кошелька',
@@ -264,22 +263,6 @@ const ru: InactiveTranslationResource = {
     spendingChanged: 'Расходы на {{category}} {{direction}} на {{change}}%.',
     increased: 'выросли',
     decreased: 'снизились',
-  },
-  dashboard: {
-    totalBalance: 'Общий баланс',
-    income: 'Доходы',
-    expenses: 'Расходы',
-    viewAll: 'Смотреть все',
-    spendingByCategory: 'Расходы по категориям',
-    noWalletYet: 'Нет кошелька',
-    createWalletToSee: 'Создайте кошелек для дашборда.',
-    budgets: 'Бюджеты',
-    vsLastMonth: '{{direction}} на {{change}}% к прошлому месяцу',
-    convertedTotal: 'Ориентировочный итог',
-    convertedEstimateNotice: 'Пересчитанные значения являются ориентировочными.',
-    acrossCurrencies: 'По {{count}} валютам',
-    valuationUnavailable: 'Пересчитанный итог сейчас недоступен.',
-    valuationCurrency: 'Валюта оценки',
   },
   wallets: {
     title: 'Кошельки',

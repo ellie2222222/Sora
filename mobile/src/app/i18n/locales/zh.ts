@@ -35,7 +35,6 @@ const zh: InactiveTranslationResource = {
     home: '首页',
     account: '账户',
     goals: '目标',
-    report: '报表',
   },
   auth: {
     loginTitle: '欢迎回来',
@@ -245,7 +244,7 @@ const zh: InactiveTranslationResource = {
     noContributionsYet: '暂无存金记录。',
     namePlaceholder: '例：买新电脑',
   },
-  reports: {
+  dashboard: {
     monthly: '月度',
     yearly: '年度',
     noWalletYet: '暂无钱包',
@@ -264,22 +263,6 @@ const zh: InactiveTranslationResource = {
     spendingChanged: '{{category}} 支出较上月{{direction}}了 {{change}}%。',
     increased: '增加',
     decreased: '减少',
-  },
-  dashboard: {
-    totalBalance: '总资产',
-    income: '收入',
-    expenses: '支出',
-    viewAll: '查看全部',
-    spendingByCategory: '分类支出',
-    noWalletYet: '暂无钱包',
-    createWalletToSee: '创建钱包以查看仪表盘。',
-    budgets: '预算',
-    vsLastMonth: '较上月{{direction}} {{change}}%',
-    convertedTotal: '预估总额',
-    convertedEstimateNotice: '折算价值仅供参考。',
-    acrossCurrencies: '涵盖 {{count}} 种币种',
-    valuationUnavailable: '折算总额暂不可用。',
-    valuationCurrency: '计价币种',
   },
   wallets: {
     title: '钱包',
