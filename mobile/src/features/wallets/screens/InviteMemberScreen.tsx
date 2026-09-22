@@ -6,8 +6,7 @@ import { WalletRole, type InvitableRole } from '@sora/contracts';
 import { Button, Input, Text } from '@/components';
 import { useTheme } from '@/app/providers';
 import { useCreateInvitationMutation } from '@/app/store';
-import { messageOf } from '../../../utils/errors.ts';
-import { getRoleDescription, getRoleLabel } from '../../../utils/roles.ts';
+import { messageOf, getRoleDescription, getRoleLabel } from '@/utils';
 import type { AppStackScreenProps } from '@/app/navigation';
 
 const INVITABLE: InvitableRole[] = [WalletRole.EDITOR, WalletRole.VIEWER];

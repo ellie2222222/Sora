@@ -2,7 +2,7 @@ import type { MemberStatus, UpdateMemberRequest, WalletMemberResponse } from '@s
 
 import { membersApi as membersHttp, type TransferOwnershipRequest } from '@/services/api';
 import { isCurrentlyOnline, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '../../../utils/errors.ts';
+import { isNetworkError } from '@/utils';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
 
 export type { TransferOwnershipRequest } from '@/services/api';

@@ -3,7 +3,7 @@ import type { DashboardQuery, DashboardResponse } from '@sora/contracts';
 import { dashboardApi as dashboardHttp } from '@/services/api';
 import { ensureSeeded, guestDashboardApi } from '@/services/guest';
 import { isCurrentlyOnline, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '../../../utils/errors.ts';
+import { isNetworkError } from '@/utils';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';

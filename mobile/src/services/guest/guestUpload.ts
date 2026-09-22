@@ -32,6 +32,8 @@ import {
 // react-native's own Flow-typed entry, which bare `node --test` cannot parse.
 // The values are pulled in on demand by `defaultApis()` below.
 import type { accountsApi, budgetsApi, categoriesApi, goalsApi, transactionsApi } from '@/services/api';
+// Relative, not `@/utils`: same bare-`node --test` constraint as the type-only
+// import above — no path-alias resolution at runtime outside the bundler.
 import { isApiError } from '../../utils/errors.ts';
 import { newLocalId } from './guestIds.ts';
 import { guestStore } from './guestStorage.ts';

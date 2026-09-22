@@ -3,7 +3,7 @@ import type { CreateWalletRequest, WalletResponse } from '@sora/contracts';
 import { walletsApi as walletsHttp, type WalletListQuery } from '@/services/api';
 import { ensureSeeded, guestWalletsApi } from '@/services/guest';
 import { isCurrentlyOnline, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '../../../utils/errors.ts';
+import { isNetworkError } from '@/utils';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';

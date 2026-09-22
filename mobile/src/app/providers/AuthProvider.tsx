@@ -14,7 +14,7 @@ import { authApi } from '@/services/api';
 import { session, type StoredSession } from '@/services/auth';
 import { ensureSeeded, guestStore, uploadGuestData } from '@/services/guest';
 import { GUEST_MODE_STORAGE_KEY, preferencesStore } from '@/services/storage';
-import { isNetworkError, isUnauthenticated } from '../../utils/errors.ts';
+import { isNetworkError, isUnauthenticated } from '@/utils';
 import { setIsGuest as setIsGuestInStore, useAppDispatch } from '@/app/store';
 
 /**

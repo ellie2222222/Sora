@@ -15,6 +15,8 @@
  * server has never seen.
  */
 
+// Relative, not `@/utils`: this module is exercised by bare `node --test` per
+// the file's own header above (no bundler, no path-alias resolution at runtime).
 import { isApiError, type ApiErrorLike } from '../../utils/errors.ts';
 import type { EntityAdapters } from './entityAdapters.ts';
 import type { OfflineQueue } from './offlineQueue.ts';

@@ -7,8 +7,7 @@ import type { WalletResponse } from '@sora/contracts';
 import { BottomSheetModal, Button, Card, Input, Money, SkeletonList, StateView, Text } from '@/components';
 import { useAuth, useTheme, useWallets } from '@/app/providers';
 import { useCreateWalletMutation } from '@/app/store';
-import { ROLE_LABELS } from '../../../utils/roles';
-import { messageOf } from '../../../utils/errors';
+import { ROLE_LABELS, messageOf } from '@/utils';
 import type { AppStackScreenProps } from '@/app/navigation';
 
 /**

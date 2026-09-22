@@ -12,8 +12,7 @@ import { ActionSheet, Button, Card, ConfirmDialog, ListItemEnter, SkeletonList, 
 import type { ActionSheetAction } from "@/components";
 import { useAuth, useTheme } from '@/app/providers';
 import { useGetWalletQuery, useListInvitationsQuery, useListMembersQuery, useRemoveMemberMutation, useRevokeInvitationMutation, useTransferOwnershipMutation, useUpdateMemberRoleMutation } from '@/app/store';
-import { isNetworkError, messageOf } from "../../../utils/errors.ts";
-import { canAdminister, getRoleLabel } from "../../../utils/roles.ts";
+import { isNetworkError, messageOf, canAdminister, getRoleLabel } from '@/utils';
 import type { AppStackScreenProps } from "@/app/navigation";
 
 export function WalletMembersScreen({

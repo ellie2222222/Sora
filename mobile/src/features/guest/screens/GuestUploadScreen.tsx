@@ -6,7 +6,7 @@ import type { WalletResponse } from '@sora/contracts';
 import { Button, Card, Input, StateView, Text } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
 import { walletsApi } from '@/services/api';
-import { messageOf } from '../../../utils/errors.ts';
+import { messageOf } from '@/utils';
 
 /**
  * Rendered by `RootNavigator` whenever `pendingGuestUpload` is true: a real

@@ -3,7 +3,7 @@ import { CategoryStatus, type CategoryResponse, type CreateCategoryRequest, type
 import { categoriesApi as categoriesHttp, type CategoryListQuery } from '@/services/api';
 import { ensureSeeded, guestCategoriesApi } from '@/services/guest';
 import { buildOptimisticCategory, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '../../../utils/errors.ts';
+import { isNetworkError } from '@/utils';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';

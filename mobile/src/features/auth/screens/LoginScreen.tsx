@@ -8,7 +8,7 @@ import { loginSchema, type LoginRequest } from '@sora/contracts';
 
 import { AnimatedScreen, Button, Input, Text } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
-import { messageOf } from '../../../utils/errors.ts';
+import { messageOf } from '@/utils';
 import { useGoogleSignIn } from '../hooks/useGoogleSignIn.ts';
 import type { AuthStackScreenProps } from '@/app/navigation';
 

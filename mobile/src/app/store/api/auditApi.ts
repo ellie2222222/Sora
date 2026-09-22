@@ -1,7 +1,7 @@
 import { ROUTES, apiUrl, type AuditLogResponse } from '@sora/contracts';
 import { getList, type ListResult } from '@/services/api';
 import { isCurrentlyOnline, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '../../../utils/errors.ts';
+import { isNetworkError } from '@/utils';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
 
 /** API spec §15.1 — OWNER-only, append-only, no update/delete path anywhere. */

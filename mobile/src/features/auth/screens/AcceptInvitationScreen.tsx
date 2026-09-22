@@ -6,8 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, SkeletonList, StateView, Text } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
 import { useAcceptInvitationMutation, usePreviewInvitationQuery } from '@/app/store';
-import { messageOf } from '../../../utils/errors.ts';
-import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '../../../utils/roles.ts';
+import { messageOf, ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/utils';
 import type { AuthStackScreenProps } from '@/app/navigation';
 
 export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenProps<'AcceptInvitation'>) {

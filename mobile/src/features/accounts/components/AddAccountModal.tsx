@@ -6,7 +6,7 @@ import { ACCOUNT_TYPES, AccountType } from '@sora/contracts';
 import { BottomSheetModal, Button, Input, MoneyInput, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { useCreateAccountMutation } from '@/app/store';
-import { messageOf } from '../../../utils/errors';
+import { messageOf } from '@/utils';
 
 export interface AddAccountModalProps {
   visible: boolean;

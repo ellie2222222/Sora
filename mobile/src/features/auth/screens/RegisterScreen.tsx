@@ -9,7 +9,7 @@ import type { z } from 'zod';
 
 import { AnimatedScreen, Button, Input, Text } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
-import { messageOf } from '../../../utils/errors.ts';
+import { messageOf } from '@/utils';
 import type { AuthStackScreenProps } from '@/app/navigation';
 
 export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>) {

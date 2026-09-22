@@ -3,7 +3,7 @@ import type { ContributionResponse, CreateContributionRequest, CreateGoalRequest
 import { goalsApi as goalsHttp, type GoalListQuery } from '@/services/api';
 import { ensureSeeded, guestGoalsApi } from '@/services/guest';
 import { buildOptimisticGoal, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '../../../utils/errors.ts';
+import { isNetworkError } from '@/utils';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';

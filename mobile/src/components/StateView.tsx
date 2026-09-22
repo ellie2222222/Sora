@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
-import { getServerErrorMessage, isNetworkError } from '../utils/errors';
+import { getServerErrorMessage, isNetworkError } from '@/utils';
 import { AnimatedIcon, type IconAnimationType } from './AnimatedIcon';
 import { Button } from './Button';
 import { SlideUp } from './SlideUp';

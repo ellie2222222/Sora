@@ -6,7 +6,7 @@ import type { WalletResponse } from '@sora/contracts';
 
 import { BottomSheetModal, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
-import { ROLE_LABELS } from '../../../utils/roles';
+import { ROLE_LABELS } from '@/utils';
 
 /**
  * The product's headline surface: every wallet you own, alongside every one

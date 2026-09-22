@@ -15,8 +15,7 @@ import { WalletRole, type AccountResponse } from "@sora/contracts";
 import { Card, ConfirmDialog, Money, SkeletonList, StateView, Text } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
 import { useArchiveWalletMutation, useGetWalletQuery, useLeaveWalletMutation, useListAccountsQuery, useListMembersQuery } from '@/app/store';
-import { isNetworkError, messageOf } from "../../../utils/errors.ts";
-import { permissionsFor, ROLE_LABELS } from "../../../utils/roles.ts";
+import { isNetworkError, messageOf, permissionsFor, ROLE_LABELS } from '@/utils';
 import type { AppStackScreenProps } from "@/app/navigation";
 
 type PendingAction = "leave" | "archive" | null;

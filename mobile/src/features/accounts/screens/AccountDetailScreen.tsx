@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, Money, SkeletonList, StateView, Text } from '@/components';
 import { useTheme } from '@/app/providers';
 import { useGetAccountQuery } from '@/app/store';
-import { isNetworkError } from '../../../utils/errors.ts';
+import { isNetworkError } from '@/utils';
 import type { AppStackScreenProps } from '@/app/navigation';
 
 export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'AccountDetail'>) {

@@ -2,7 +2,7 @@ import type { MoneyString, TransactionType } from '@sora/contracts';
 import { negate, parseMoney } from '@sora/contracts';
 
 import { useTheme } from '@/app/providers';
-import { directionOf, formatScaled, type MoneyFormatOptions } from '../utils/money.ts';
+import { directionOf, formatScaled, type MoneyFormatOptions } from '@/utils';
 import { Text, type TextComponentProps } from './Text.tsx';
 
 export interface MoneyProps extends Omit<TextComponentProps, 'tone' | 'numeric'> {

@@ -8,7 +8,7 @@ import {
 import { accountsApi as accountsHttp, type AccountListQuery } from '@/services/api';
 import { ensureSeeded, guestAccountsApi } from '@/services/guest';
 import { buildOptimisticAccount, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '../../../utils/errors.ts';
+import { isNetworkError } from '@/utils';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';

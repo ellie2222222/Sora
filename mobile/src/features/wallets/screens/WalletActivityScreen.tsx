@@ -7,9 +7,7 @@ import type { AuditLogResponse } from '@sora/contracts';
 import { Card, RefreshableSectionList, SkeletonList, StateView, Text } from '@/components';
 import { useTheme } from '@/app/providers';
 import { useListAuditLogsQuery } from '@/app/store';
-import { dayOfInstant, formatDayHeading, formatTimeOfDay } from '../../../utils/date.ts';
-import { isNetworkError } from '../../../utils/errors.ts';
-import { getRoleLabel } from '../../../utils/roles.ts';
+import { dayOfInstant, formatDayHeading, formatTimeOfDay, isNetworkError, getRoleLabel } from '@/utils';
 import type { AppStackScreenProps } from '@/app/navigation';
 
 /** WAL-US-13. OWNER-only (API spec §15.1) — this screen is only ever reached from a control already gated to the owner. */

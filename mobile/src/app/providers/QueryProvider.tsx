@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 
-import { isUnauthenticated } from '../../utils/errors.ts';
+import { isUnauthenticated } from '@/utils';
 
 /**
  * One client per app instance, created inside the component so React Fast

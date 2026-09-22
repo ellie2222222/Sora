@@ -15,7 +15,7 @@ import {
   postVoid,
   type ListResult,
 } from '@/services/api';
-import { isApiError, serializeApiError, toApiError, type ApiErrorLike } from '../../../utils/errors.ts';
+import { isApiError, serializeApiError, toApiError, type ApiErrorLike } from '@/utils';
 
 interface GetArgs {
   method: 'get';

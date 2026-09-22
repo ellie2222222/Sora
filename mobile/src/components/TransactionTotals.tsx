@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { TransactionType, type TransactionResponse } from '@sora/contracts';
 
-import { sumByTransactionType } from '../utils/money.ts';
+import { sumByTransactionType } from '@/utils';
 import { Money } from './Money.tsx';
 
 export interface TransactionTotalsProps {

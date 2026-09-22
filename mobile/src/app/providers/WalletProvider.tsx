@@ -9,8 +9,7 @@ import {
 import type { WalletResponse } from '@sora/contracts';
 
 import { useListWalletsQuery } from '@/app/store';
-import { permissionsFor, type WalletPermissions } from '../../utils/roles.ts';
-import { isNetworkError } from '../../utils/errors.ts';
+import { permissionsFor, type WalletPermissions, isNetworkError } from '@/utils';
 import { useAuth } from './AuthProvider.tsx';
 
 /**

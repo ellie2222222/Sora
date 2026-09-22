@@ -3,7 +3,7 @@ import { BudgetStatus, type BudgetResponse, type CreateBudgetRequest, type Updat
 import { budgetsApi as budgetsHttp, type BudgetListQuery } from '@/services/api';
 import { ensureSeeded, guestBudgetsApi } from '@/services/guest';
 import { buildOptimisticBudget, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '../../../utils/errors.ts';
+import { isNetworkError } from '@/utils';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';

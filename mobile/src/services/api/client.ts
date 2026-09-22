@@ -16,7 +16,7 @@ import axios, {
 import { HTTP_STATUS, type ApiEnvelope, type PaginationMeta } from '@sora/contracts';
 
 import { env } from '@/app/config';
-import { toApiError } from '../../utils/errors.ts';
+import { toApiError } from '@/utils';
 import { AUTH_PATHS_WITHOUT_RETRY, session } from '@/services/auth';
 
 interface RetryableConfig extends InternalAxiosRequestConfig {
