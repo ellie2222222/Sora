@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { PiggyBank, Plus, Target } from 'lucide-react-native';
+import { PiggyBank, Plus, Target, Wallet as WalletIcon } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import type { BudgetResponse, GoalResponse } from '@sora/contracts';
 
-import { AnimatedScreen, Card, ListItemEnter, Money, ProgressBar, RefreshableFlatList, SkeletonList, StateView, SyncStatusDot, Text } from '@/components';
+import { AnimatedScreen, Card, ListItemEnter, Money, ProgressBar, RefreshableFlatList, SkeletonList, SlideSwap, StateView, SyncStatusDot, Text } from '@/components';
 import { useModal, useTheme, useWallets } from '@/app/providers';
 import { WalletContextBar } from '@/features/wallets';
 import { today, formatMoneyString, isNetworkError } from '@/utils';
@@ -48,7 +48,10 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
   };
 
   const renderBudgetsContent = () => {
-    if (activeWalletId === null || budgets.isLoading) {
+    // The query is skipped without a wallet, so this must resolve before the
+    // loading branch — otherwise the skeleton below never ends.
+    if (activeWalletId === null) return <NoWalletState onManage={onManage} />;
+    if (budgets.isLoading) {
       return <SkeletonList rows={4} rowHeight={96} />;
     }
     if (budgets.isError && !isNetworkError(budgets.error)) {
@@ -58,6 +61,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
           error={budgets.error}
           retryAction={() => void budgets.refetch()}
           testID="budgets-error"
+          entrance="none"
         />
       );
     }
@@ -76,6 +80,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
               : undefined
           }
           testID="budgets-empty"
+          entrance="none"
         />
       );
     }
@@ -108,7 +113,8 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
   };
 
   const renderGoalsContent = () => {
-    if (activeWalletId === null || goals.isLoading) {
+    if (activeWalletId === null) return <NoWalletState onManage={onManage} />;
+    if (goals.isLoading) {
       return <SkeletonList rows={4} rowHeight={110} />;
     }
     if (goals.isError && !isNetworkError(goals.error)) {
@@ -118,6 +124,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
           error={goals.error}
           retryAction={() => void goals.refetch()}
           testID="goals-error"
+          entrance="none"
         />
       );
     }
@@ -136,6 +143,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
               : undefined
           }
           testID="goals-empty"
+          entrance="none"
         />
       );
     }
@@ -239,9 +247,28 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
           </View>
         </View>
 
-        {section === 'budgets' ? renderBudgetsContent() : renderGoalsContent()}
+        <SlideSwap swapKey={section === 'budgets' ? 0 : 1} style={{ flex: 1 }}>
+          {section === 'budgets' ? renderBudgetsContent() : renderGoalsContent()}
+        </SlideSwap>
       </WalletContextBar>
     </AnimatedScreen>
+  );
+}
+
+/** Matches what the Accounts and Dashboard tabs show without a wallet, rather than a third wording. */
+function NoWalletState({ onManage }: { onManage: () => void }) {
+  const { t } = useTranslation();
+
+  return (
+    <StateView
+      variant="empty"
+      icon={WalletIcon}
+      title={t('home.noWalletTitle')}
+      message={t('home.noWalletDescription')}
+      primaryAction={{ label: t('wallets.newWallet'), onPress: onManage, icon: Plus }}
+      testID="planning-no-wallet"
+      entrance="none"
+    />
   );
 }
 

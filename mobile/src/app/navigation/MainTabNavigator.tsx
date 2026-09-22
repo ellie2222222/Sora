@@ -4,7 +4,7 @@ import { CalendarRange, Landmark, LayoutDashboard, PieChart, Settings as Setting
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AccountsScreen } from '@/features/accounts';
@@ -39,11 +39,11 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       translateX.value = targetX;
       isInitialized.value = true;
     } else {
-      translateX.value = withSpring(targetX, {
-        damping: 11,
-        stiffness: 120,
-        mass: 0.7,
-        overshootClamping: false,
+      // Decelerates onto the tab and stops dead — the same horizontal-motion
+      // treatment as `SlideSwap`, rather than springing past it and back.
+      translateX.value = withTiming(targetX, {
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
       });
     }
   }, [state.index, containerWidth, tabWidth]);
