@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSelector } from 'react-redux';
-import { Check, Clock, RefreshCw, TriangleAlert, Wifi, WifiOff } from 'lucide-react-native';
+import { Clock, RefreshCw, TriangleAlert, Wifi, WifiOff } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useAuth, useTheme } from '@/app/providers';
@@ -31,40 +31,28 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
 
   const syncing = syncStatus === 'syncing' || retryInFlight;
 
-  // Guest mode never has a backend session to sync to — the offline queue
-  // stays permanently empty (guest writes bypass it entirely), so
-  // `syncStatus` would otherwise read as 'synced' regardless of `isOnline`.
-  // Claiming "connected / synced to the cloud" there would be false: device
-  // network reachability (NetInfo, via `isOnline`) is not the same fact as
-  // "there is a backend this data is backed up to."
-  const connectionLabel = isGuest ? t('guest.settings.guestTitle') : t(isOnline ? 'errors.connectionOnline' : 'errors.connectionOffline');
-  const connectionDetail = isGuest
-    ? t('guest.settings.guestSubtitle')
-    : t(isOnline ? 'errors.connectionOnlineDetail' : 'errors.connectionOfflineDetail');
+  const connectionLabel = t(isOnline ? 'errors.connectionOnline' : 'errors.connectionOffline');
+  const connectionDetail = t(isOnline ? 'errors.connectionOnlineDetail' : 'errors.connectionOfflineDetail');
 
-  const syncLabel = isGuest
-    ? t('guest.settings.guestTitle')
-    : t(
-        syncing
-          ? 'errors.syncStatusSyncing'
-          : syncStatus === 'failed'
-            ? 'errors.syncStatusFailed'
-            : syncStatus === 'pending'
-              ? 'errors.syncStatusPending'
-              : 'errors.syncStatusSynced',
-      );
-  const syncDetail = isGuest
-    ? t('guest.settings.guestSubtitle')
-    : t(
-        syncing
-          ? 'errors.syncDetailSyncing'
-          : syncStatus === 'failed'
-            ? 'errors.syncDetailFailed'
-            : syncStatus === 'pending'
-              ? 'errors.syncDetailPending'
-              : 'errors.syncDetailSynced',
-        { count: pendingCount },
-      );
+  const syncLabel = t(
+    syncing
+      ? 'errors.syncStatusSyncing'
+      : syncStatus === 'failed'
+        ? 'errors.syncStatusFailed'
+        : syncStatus === 'pending'
+          ? 'errors.syncStatusPending'
+          : 'errors.syncStatusSynced',
+  );
+  const syncDetail = t(
+    syncing
+      ? 'errors.syncDetailSyncing'
+      : syncStatus === 'failed'
+        ? 'errors.syncDetailFailed'
+        : syncStatus === 'pending'
+          ? 'errors.syncDetailPending'
+          : 'errors.syncDetailSynced',
+    { count: pendingCount },
+  );
 
   const syncIconColor = syncing
     ? theme.colors.primary
@@ -106,7 +94,7 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
         ) : syncStatus === 'pending' ? (
           <Clock size={16} color={syncIconColor} />
         ) : (
-          <Check size={16} color={syncIconColor} />
+          <RefreshCw size={16} color={syncIconColor} />
         )}
       </Pressable>
 

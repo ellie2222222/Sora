@@ -1,4 +1,4 @@
-import { Check, Clock, RefreshCw, TriangleAlert, Wifi, WifiOff } from 'lucide-react-native';
+import { Clock, RefreshCw, TriangleAlert, Wifi, WifiOff } from 'lucide-react-native';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { useSelector } from 'react-redux';
@@ -18,23 +18,13 @@ export function SyncSection({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { isOnline, isSyncing: retryInFlight, retrySync } = useNetworkStatus();
+  const { isOnline, isSyncing: networkSyncing, retrySync } = useNetworkStatus();
   const { isGuest } = useAuth();
   const syncStatus = useSelector(selectSyncStatus);
   const pendingCount = useSelector(selectPendingCount);
-
   const [manualSyncing, setManualSyncing] = useState(false);
-  const syncing = syncStatus === 'syncing' || retryInFlight || manualSyncing;
 
-  const handleManualSync = async () => {
-    if (syncing) return;
-    setManualSyncing(true);
-    try {
-      await retrySync();
-    } finally {
-      setManualSyncing(false);
-    }
-  };
+  const syncing = syncStatus === 'syncing' || networkSyncing || manualSyncing;
 
   const syncIconColor = syncing
     ? theme.colors.primary
@@ -44,50 +34,48 @@ export function SyncSection({
         ? theme.colors.textFaint
         : theme.colors.success;
 
-  // Guest mode never has a backend session to sync to — the offline queue
-  // stays permanently empty (guest writes bypass it entirely), so
-  // `syncStatus`/`isOnline` alone would otherwise read as "connected, synced
-  // to the cloud" purely from device network reachability.
-  const syncSubtitle = isGuest
-    ? t('guest.settings.guestSubtitle')
-    : syncing
-      ? t('errors.syncStatusSyncing')
+  const handleManualSync = async () => {
+    if (syncing || !isOnline || isGuest) return;
+    setManualSyncing(true);
+    try {
+      await retrySync();
+    } finally {
+      setManualSyncing(false);
+    }
+  };
+
+  const syncSubtitle = syncing
+    ? t('errors.syncStatusSyncing')
+    : syncStatus === 'failed'
+      ? t('errors.syncStatusFailed')
+      : pendingCount > 0
+        ? t('errors.syncDetailPending', { count: pendingCount })
+        : isOnline
+          ? t('errors.syncStatusSynced')
+          : t('errors.connectionOffline');
+
+  const connectionTitle = t(isOnline ? 'errors.connectionOnline' : 'errors.connectionOffline');
+  const connectionDetail = t(isOnline ? 'errors.connectionOnlineDetail' : 'errors.connectionOfflineDetail');
+
+  const syncTitle = t(
+    syncing
+      ? 'errors.syncStatusSyncing'
       : syncStatus === 'failed'
-        ? t('errors.syncStatusFailed')
-        : pendingCount > 0
-          ? t('errors.syncDetailPending', { count: pendingCount })
-          : isOnline
-            ? t('errors.syncStatusSynced')
-            : t('errors.connectionOffline');
-
-  const connectionTitle = isGuest ? t('guest.settings.guestTitle') : t(isOnline ? 'errors.connectionOnline' : 'errors.connectionOffline');
-  const connectionDetail = isGuest
-    ? t('guest.settings.guestSubtitle')
-    : t(isOnline ? 'errors.connectionOnlineDetail' : 'errors.connectionOfflineDetail');
-
-  const syncTitle = isGuest
-    ? t('guest.settings.guestTitle')
-    : t(
-        syncing
-          ? 'errors.syncStatusSyncing'
-          : syncStatus === 'failed'
-            ? 'errors.syncStatusFailed'
-            : syncStatus === 'pending'
-              ? 'errors.syncStatusPending'
-              : 'errors.syncStatusSynced',
-      );
-  const syncDetail = isGuest
-    ? t('guest.settings.guestSubtitle')
-    : t(
-        syncing
-          ? 'errors.syncDetailSyncing'
-          : syncStatus === 'failed'
-            ? 'errors.syncDetailFailed'
-            : syncStatus === 'pending'
-              ? 'errors.syncDetailPending'
-              : 'errors.syncDetailSynced',
-        { count: pendingCount },
-      );
+        ? 'errors.syncStatusFailed'
+        : syncStatus === 'pending'
+          ? 'errors.syncStatusPending'
+          : 'errors.syncStatusSynced',
+  );
+  const syncDetail = t(
+    syncing
+      ? 'errors.syncDetailSyncing'
+      : syncStatus === 'failed'
+        ? 'errors.syncDetailFailed'
+        : syncStatus === 'pending'
+          ? 'errors.syncDetailPending'
+          : 'errors.syncDetailSynced',
+    { count: pendingCount },
+  );
 
   return (
     <CollapsibleSection
@@ -127,7 +115,7 @@ export function SyncSection({
           ) : syncStatus === 'pending' ? (
             <Clock size={18} color={syncIconColor} />
           ) : (
-            <Check size={18} color={syncIconColor} strokeWidth={2.5} />
+            <RefreshCw size={18} color={syncIconColor} />
           )}
         </View>
 
