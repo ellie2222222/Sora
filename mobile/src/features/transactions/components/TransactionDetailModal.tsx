@@ -4,11 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { Calendar, Clock, CreditCard, Tag, User, UsersRound, X } from 'lucide-react-native';
 import { TransactionStatus, type TransactionResponse } from '@sora/contracts';
 
-import { BottomSheetModal, Button, CategoryAvatar, Money, Text } from '@/components';
+import { BottomSheetModal, Button, CategoryAvatar, ConfirmDialog, Money, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
-import { useCancelTransactionMutation } from '@/app/store';
-import { formatDay, formatTimeOfDay } from '../../../utils/date';
-import { messageOf } from '../../../utils/errors';
+import { useDeleteTransactionMutation } from '@/app/store';
+import { formatDay, formatTimeOfDay, messageOf } from '@/utils';
 
 export interface TransactionDetailModalProps {
   visible: boolean;
@@ -26,32 +25,35 @@ export function TransactionDetailModal({
   const theme = useTheme();
   const { t } = useTranslation();
   const { permissions } = useWallets();
-  const [cancelTransaction, { isLoading: isCancelling }] = useCancelTransactionMutation();
-  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [deleteTransaction, { isLoading: isDeleting }] = useDeleteTransactionMutation();
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (!transaction) return null;
 
   const category = transaction.category;
   const fromAcc = transaction.fromAccount;
   const toAcc = transaction.toAccount;
-  const isCancelled = transaction.status === TransactionStatus.CANCELLED;
-  const isEditable = !isCancelled && permissions.canWrite;
+  const isDeleted = transaction.status === TransactionStatus.DELETED;
+  const isEditable = !isDeleted && permissions.canWrite;
 
   const title = transaction.description || category?.name || transaction.type;
   const tint = category?.color ?? theme.colors.primary;
 
-  async function handleCancel() {
+  async function handleDelete() {
     if (!transaction) return;
-    setCancelError(null);
+    setDeleteError(null);
     try {
-      await cancelTransaction({ transactionId: transaction.id }).unwrap();
+      await deleteTransaction({ transactionId: transaction.id }).unwrap();
+      setConfirmingDelete(false);
       onClose();
     } catch (err) {
-      setCancelError(messageOf(err, t));
+      setDeleteError(messageOf(err, t));
     }
   }
 
   return (
+    <>
     <BottomSheetModal visible={visible} onClose={onClose} title={t('transactions.detailTitle', { defaultValue: 'Transaction Details' })}>
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -79,7 +81,7 @@ export function TransactionDetailModal({
             variant="heading"
           />
 
-          {isCancelled ? (
+          {isDeleted ? (
             <View
               style={{
                 backgroundColor: theme.colors.dangerMuted,
@@ -90,7 +92,7 @@ export function TransactionDetailModal({
               }}
             >
               <Text tone="danger" weight="semibold" variant="caption">
-                {t('transactions.cancelled', { defaultValue: 'Cancelled' })}
+                {t('transactions.cancelled', { defaultValue: 'Deleted' })}
               </Text>
             </View>
           ) : null}
@@ -155,7 +157,7 @@ export function TransactionDetailModal({
           ) : null}
         </View>
 
-        {cancelError !== null ? <Text tone="danger">{cancelError}</Text> : null}
+        {deleteError !== null ? <Text tone="danger">{deleteError}</Text> : null}
 
         {isEditable ? (
           <View style={{ gap: theme.spacing.sm }}>
@@ -171,16 +173,28 @@ export function TransactionDetailModal({
               />
             ) : null}
             <Button
-              label={t('transactions.cancelTransaction', { defaultValue: 'Cancel transaction' })}
+              label={t('transactions.cancelTransaction', { defaultValue: 'Delete transaction' })}
               variant="danger-outline"
-              onPress={handleCancel}
-              loading={isCancelling}
+              onPress={() => setConfirmingDelete(true)}
               fullWidth
             />
           </View>
         ) : null}
       </ScrollView>
     </BottomSheetModal>
+    <ConfirmDialog
+      visible={confirmingDelete}
+      title={t('transactions.cancelConfirmTitle', { defaultValue: 'Delete this transaction?' })}
+      message={t('transactions.cancelConfirmBody', {
+        defaultValue: "This removes it from your list and reverses its effect on your balances and budgets. This can't be undone.",
+      })}
+      confirmLabel={t('transactions.cancelTransaction', { defaultValue: 'Delete transaction' })}
+      destructive
+      loading={isDeleting}
+      onConfirm={handleDelete}
+      onCancel={() => setConfirmingDelete(false)}
+    />
+    </>
   );
 }
 

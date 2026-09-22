@@ -8,13 +8,7 @@ import { useTheme } from '@/app/providers';
 import { BottomSheetModal } from './BottomSheetModal';
 import { Button } from './Button';
 import { Text } from './Text';
-import {
-  addMonths,
-  monthGrid,
-  monthName,
-  parseDay,
-  today,
-} from '../utils/date';
+import { addMonths, monthGrid, monthName, parseDay, today } from '@/utils';
 
 export interface DatePickerModalProps {
   visible: boolean;

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { useTheme } from '@/app/providers';
-import { formatDay, today } from '../utils/date';
+import { formatDay, today } from '@/utils';
 import { DatePickerModal } from './DatePickerModal';
 import { Text } from './Text';
 

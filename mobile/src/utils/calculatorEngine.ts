@@ -220,3 +220,55 @@ export function tryEvaluate(expression: string): Scaled | null {
     return null;
   }
 }
+
+/** The keypad's own operator glyphs — `OPERATOR_ALIASES`' keys minus the ASCII `-`/`*`/`/`
+ * duplicates the keypad never inserts, so a trailing `-` typed nowhere but here can't false-positive. */
+const OPERATOR_GLYPHS = ['+', '−', '×', '÷', '^'];
+
+const OPERATOR_GLYPH_PATTERN = /[+−×÷^]/g;
+
+/** Adds breathing room around each operator for display only — `tokenize` already skips
+ * whitespace, so this never changes what the expression evaluates to. */
+export function spaceExpression(expression: string): string {
+  return expression.replace(OPERATOR_GLYPH_PATTERN, ' $& ').replace(/ {2,}/g, ' ').trim();
+}
+
+function isOperatorGlyph(ch: string): boolean {
+  return OPERATOR_GLYPHS.includes(ch);
+}
+
+/** True once the expression (ignoring trailing whitespace) ends in an operator — "100 +", not "100". */
+export function hasTrailingOperator(expression: string): boolean {
+  const trimmed = expression.trim();
+  return trimmed.length > 0 && isOperatorGlyph(trimmed.charAt(trimmed.length - 1));
+}
+
+/** True if the expression contains an operator anywhere — "100 + 5", not just "100". */
+export function hasOperator(expression: string): boolean {
+  return [...expression].some(isOperatorGlyph);
+}
+
+/** The digits/decimal typed since the last operator or parenthesis — where a second `.` would collide. */
+function currentNumberSegment(expression: string): string {
+  let i = expression.length - 1;
+  while (i >= 0 && !isOperatorGlyph(expression.charAt(i)) && expression.charAt(i) !== '(' && expression.charAt(i) !== ')') {
+    i--;
+  }
+  return expression.slice(i + 1);
+}
+
+/**
+ * Append a single keypad token to `expression`, with two guards a raw string-concat keypad
+ * can't express: a second operator in a row replaces the first instead of stacking ("100 +" then
+ * "×" becomes "100 ×", never "100 +×"), and a second "." within the number currently being typed
+ * is ignored rather than producing a token `parseLiteral` can only reject at evaluation time.
+ */
+export function insertToken(expression: string, token: string): string {
+  if (token === '.') {
+    return currentNumberSegment(expression).includes('.') ? expression : expression + token;
+  }
+  if (isOperatorGlyph(token) && expression.length > 0 && isOperatorGlyph(expression.charAt(expression.length - 1))) {
+    return expression.slice(0, -1) + token;
+  }
+  return expression + token;
+}

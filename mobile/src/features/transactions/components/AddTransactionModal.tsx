@@ -1,22 +1,34 @@
-import { useEffect, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { TransactionType, CategoryType } from '@sora/contracts';
+import { Banknote } from 'lucide-react-native';
+import { formatCurrencyInput, formatMoney, formatMoneyCompact, TransactionType, CategoryType } from '@sora/contracts';
 
-import { BottomSheetModal, Button, DateField, Input, MoneyInput, Text } from '@/components';
+import { BottomSheetModal, Button, CalculatorKeypad, DatePickerModal, Input, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
+// Deep-imported (not via each feature's barrel): this component is itself deep-imported by
+// ModalProvider to avoid a cycle (see its own comment), so pulling in `@/features/accounts` or
+// `@/features/categories` here would reintroduce one through their barrels' other exports.
 import { AccountPicker } from '../../accounts/components/AccountPicker.tsx';
-import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
-import { messageOf } from '../../../utils/errors';
-import { dayOfInstant, nowInstant, replaceDay } from '../../../utils/date';
+import { CategoryGrid } from '../../categories/components/CategoryGrid.tsx';
 import {
+  messageOf,
+  dayOfInstant,
+  formatDay,
+  nowInstant,
+  replaceDay,
+  today,
   emptyDraft,
   fieldsForType,
   primaryAccountOf,
   setPrimaryAccount,
   switchType,
   validateDraft,
-} from '../../../utils/transactionForm';
+  hasOperator as hasOperatorGlyph,
+  hasTrailingOperator,
+  spaceExpression,
+  tryEvaluate,
+} from '@/utils';
 import { useCreateTransactionMutation } from '@/app/store';
 
 export interface AddTransactionModalProps {
@@ -27,14 +39,17 @@ export interface AddTransactionModalProps {
 export function AddTransactionModal({ visible, onClose }: AddTransactionModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { activeWallet, permissions } = useWallets();
+  const { activeWallet, permissions, isLoading: walletsLoading } = useWallets();
   const [createTransaction, { isLoading: isSubmitting }] = useCreateTransactionMutation();
 
   const [draft, setDraft] = useState(() => emptyDraft({ currency: 'VND', transactionDate: nowInstant() }));
-  const [amountText, setAmountText] = useState('');
+  const [expression, setExpression] = useState('');
+  const expressionRef = useRef(expression);
+  expressionRef.current = expression;
   const [toAccountWalletId, setToAccountWalletId] = useState<string | undefined>(undefined);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const walletId = activeWallet?.id;
   const fields = fieldsForType(draft.type);
@@ -49,17 +64,49 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
   useEffect(() => {
     if (visible) {
       setDraft(emptyDraft({ currency: 'VND', transactionDate: nowInstant() }));
-      setAmountText('');
+      setExpression('');
       setToAccountWalletId(undefined);
       setFieldErrors({});
       setSubmitError(null);
+      setDatePickerOpen(false);
     }
   }, [visible, walletId]);
+
+  const hasOperator = hasOperatorGlyph(expression);
+  const evaluated = useMemo(() => tryEvaluate(expression), [expression]);
+  // Mirrors MoneyInput's own rule: an operator expression only becomes a real amount once it's
+  // evaluated (see handleConfirm below), so it contributes nothing here while still mid-typing.
+  const committedAmount = !hasOperator && evaluated !== null ? formatMoney(evaluated) : '';
+
+  const displayAmount = useMemo(() => {
+    if (expression.trim() === '') return '0';
+    if (hasOperator) return spaceExpression(expression);
+    if (evaluated === null) return expression;
+    const negative = evaluated < 0n;
+    const magnitude = negative ? -evaluated : evaluated;
+    const formatted = formatCurrencyInput(formatMoneyCompact(magnitude, 0), true);
+    return negative ? `-${formatted}` : formatted;
+  }, [evaluated, expression, hasOperator]);
 
   const crossWallet =
     draft.type === TransactionType.TRANSFER && toAccountWalletId !== undefined && toAccountWalletId !== walletId;
 
-  if (!permissions.canWrite) {
+  const selectedDay = dayOfInstant(draft.transactionDate);
+  const dateLabel =
+    selectedDay === today() ? t('common.today', { defaultValue: 'Today' }) : formatDay(selectedDay);
+
+  // Ref pattern (see CalculatorKeypadProps.onConfirmRef) so the keypad's grid identity stays
+  // stable even though these two closures change every keystroke/render. Declared before the
+  // early return below so every render calls the same hooks regardless of `permissions.canWrite`.
+  const onConfirmRef = useRef(handleConfirm);
+  onConfirmRef.current = handleConfirm;
+  const onQuickDateRef = useRef(() => {});
+  onQuickDateRef.current = () => setDatePickerOpen(true);
+
+  // Gate only once the wallets query has actually resolved — while it's still loading,
+  // `activeWallet` (and thus `permissions.canWrite`) is transiently null/false for every
+  // role, including the wallet's own owner, and would otherwise flash this notice at them.
+  if (!walletsLoading && !permissions.canWrite) {
     return (
       <BottomSheetModal visible={visible} onClose={onClose} title={t('home.addTransaction')}>
         <View className="items-center justify-center" style={{ padding: theme.spacing.lg }}>
@@ -73,9 +120,9 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
     );
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(amount: string) {
     setSubmitError(null);
-    const withAmount = { ...draft, amount: amountText };
+    const withAmount = { ...draft, amount };
     const result = validateDraft(withAmount);
 
     if (!result.ok) {
@@ -94,118 +141,195 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
     }
   }
 
+  /**
+   * Two-stage: an operator expression is evaluated (or, if it ends in a dangling operator, just
+   * trimmed back to its last complete term) on the first tap and the sheet stays open so the
+   * result can be reviewed — only a plain, already-complete number submits and closes it. Each
+   * tap performs exactly one of strip/evaluate/submit, never two in sequence.
+   */
+  function handleConfirm() {
+    const trimmed = expression.trim();
+    if (trimmed === '' || !hasOperator) {
+      void handleSubmit(trimmed === '' ? '' : committedAmount);
+      return;
+    }
+    if (hasTrailingOperator(trimmed)) {
+      setExpression(trimmed.slice(0, -1));
+      return;
+    }
+    if (evaluated === null) return; // incomplete (e.g. unmatched parenthesis) — keep editing
+    setExpression(formatMoney(evaluated));
+  }
+
   return (
-    <BottomSheetModal visible={visible} onClose={onClose} title={t('home.addTransaction')}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.xl }}
-      >
-        <View className="flex-row" style={{ gap: theme.spacing.sm }}>
-          {TYPES.map(({ type, label }) => (
-            <Button
-              key={type}
-              testID={`transaction-type-${type}`}
-              label={label}
-              variant={draft.type === type ? 'primary' : 'secondary'}
-              onPress={() => setDraft((current) => switchType(current, type))}
-              style={{ flex: 1 }}
-            />
-          ))}
-        </View>
+    <BottomSheetModal visible={visible} onClose={onClose}>
+      <View className="flex-row items-center justify-between" style={{ marginBottom: theme.spacing.sm }}>
+        <Pressable
+          testID="transaction-cancel"
+          onPress={onClose}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.cancel', { defaultValue: 'Cancel' })}
+        >
+          <Text tone="muted">{t('common.cancel', { defaultValue: 'Cancel' })}</Text>
+        </Pressable>
+        <Text variant="title">{t('home.addTransaction')}</Text>
+        <Text tone="muted" variant="caption" style={{ minWidth: 40, textAlign: 'right' }}>
+          {draft.currency}
+        </Text>
+      </View>
 
-        <MoneyInput
-          testID="transaction-amount"
-          label={t('transactions.amount', { defaultValue: 'Amount' })}
-          value={amountText}
-          onChangeValue={setAmountText}
-          error={fieldErrors.amount}
-        />
-
-        <DateField
-          testID="transaction-date"
-          label={t('transactions.date', { defaultValue: 'Date' })}
-          value={dayOfInstant(draft.transactionDate)}
-          onChange={(day) => setDraft((current) => ({ ...current, transactionDate: replaceDay(current.transactionDate, day) }))}
-        />
-
-        {(fields.fromAccount || fields.toAccount) && draft.type !== TransactionType.TRANSFER ? (
-          <AccountPicker
-            testID="transaction-account"
-            label={t('accounts.accountLabel', { defaultValue: 'Account' })}
-            walletId={walletId}
-            value={primaryAccount}
-            onChange={(accountId) => setDraft((current) => setPrimaryAccount(current, accountId))}
-            error={fieldErrors.fromAccountId ?? fieldErrors.toAccountId}
+      <View className="flex-row" style={{ gap: theme.spacing.sm, marginBottom: theme.spacing.md }}>
+        {TYPES.map(({ type, label }) => (
+          <Button
+            key={type}
+            testID={`transaction-type-${type}`}
+            label={label}
+            variant={draft.type === type ? 'primary' : 'secondary'}
+            onPress={() => setDraft((current) => switchType(current, type))}
+            style={{ flex: 1 }}
           />
-        ) : null}
+        ))}
+      </View>
 
-        {draft.type === TransactionType.TRANSFER ? (
-          <>
-            <AccountPicker
-              testID="transaction-from-account"
-              label={t('transactions.fromLabel', { defaultValue: 'From' })}
+      <View style={{ flexShrink: 1, minHeight: 0 }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          style={{ flex: 1 }}
+          contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.sm }}
+        >
+          {draft.type === TransactionType.TRANSFER ? (
+            <>
+              <AccountPicker
+                testID="transaction-from-account"
+                label={t('transactions.fromLabel', { defaultValue: 'From' })}
+                walletId={walletId}
+                value={draft.fromAccountId}
+                onChange={(accountId) => setDraft((current) => ({ ...current, fromAccountId: accountId }))}
+                error={fieldErrors.fromAccountId}
+              />
+              <AccountPicker
+                testID="transaction-to-account"
+                label={t('transactions.toLabel', { defaultValue: 'To' })}
+                value={draft.toAccountId}
+                onChange={(accountId, pickedWalletId) => {
+                  setDraft((current) => ({ ...current, toAccountId: accountId }));
+                  setToAccountWalletId(pickedWalletId);
+                }}
+                error={fieldErrors.toAccountId}
+              />
+              {crossWallet ? (
+                <View
+                  style={{
+                    backgroundColor: theme.colors.warningMuted,
+                    borderRadius: theme.radius.md,
+                    padding: theme.spacing.sm,
+                  }}
+                >
+                  <Text variant="caption" tone="muted">
+                    {t('transactions.crossWalletNotice', {
+                      defaultValue: 'This moves money into another wallet. It will appear in their ledger too.',
+                    })}
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          ) : null}
+
+          {fields.category && walletId !== undefined ? (
+            <CategoryGrid
+              testID="transaction-category"
               walletId={walletId}
-              value={draft.fromAccountId}
-              onChange={(accountId) => setDraft((current) => ({ ...current, fromAccountId: accountId }))}
-              error={fieldErrors.fromAccountId}
+              type={draft.type === TransactionType.INCOME ? CategoryType.INCOME : CategoryType.EXPENSE}
+              value={draft.categoryId}
+              onChange={(categoryId) => setDraft((current) => ({ ...current, categoryId }))}
+              error={fieldErrors.categoryId}
             />
-            <AccountPicker
-              testID="transaction-to-account"
-              label={t('transactions.toLabel', { defaultValue: 'To' })}
-              value={draft.toAccountId}
-              onChange={(accountId, pickedWalletId) => {
-                setDraft((current) => ({ ...current, toAccountId: accountId }));
-                setToAccountWalletId(pickedWalletId);
-              }}
-              error={fieldErrors.toAccountId}
-            />
-            {crossWallet ? (
+          ) : null}
+        </ScrollView>
+      </View>
+
+      <View
+        style={{
+          flexShrink: 0,
+          gap: theme.spacing.sm,
+          marginTop: theme.spacing.sm,
+          paddingTop: theme.spacing.md,
+          borderTopWidth: 1,
+          borderTopColor: theme.colors.border,
+        }}
+      >
+        <View className="flex-row items-end justify-between">
+          {draft.type === TransactionType.TRANSFER ? (
+            <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
               <View
                 style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: theme.radius.pill,
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   backgroundColor: theme.colors.warningMuted,
-                  borderRadius: theme.radius.md,
-                  padding: theme.spacing.sm,
                 }}
               >
-                <Text variant="caption" tone="muted">
-                  {t('transactions.crossWalletNotice', {
-                    defaultValue: 'This moves money into another wallet. It will appear in their ledger too.',
-                  })}
-                </Text>
+                <Banknote size={16} color={theme.colors.warning} strokeWidth={2} />
               </View>
-            ) : null}
-          </>
+              <Text tone="muted">{draft.currency}</Text>
+            </View>
+          ) : (
+            <AccountPicker
+              compact
+              testID="transaction-account"
+              label={t('accounts.accountLabel', { defaultValue: 'Account' })}
+              walletId={walletId}
+              value={primaryAccount}
+              onChange={(accountId) => setDraft((current) => setPrimaryAccount(current, accountId))}
+            />
+          )}
+          <Text variant="heading" numeric weight="bold" testID="transaction-amount-display">
+            {displayAmount}
+          </Text>
+        </View>
+        {draft.type !== TransactionType.TRANSFER && (fieldErrors.fromAccountId ?? fieldErrors.toAccountId) !== undefined ? (
+          <Text variant="caption" tone="danger">
+            {fieldErrors.fromAccountId ?? fieldErrors.toAccountId}
+          </Text>
         ) : null}
-
-        {fields.category && walletId !== undefined ? (
-          <CategoryPicker
-            testID="transaction-category"
-            walletId={walletId}
-            type={draft.type === TransactionType.INCOME ? CategoryType.INCOME : CategoryType.EXPENSE}
-            value={draft.categoryId}
-            onChange={(categoryId) => setDraft((current) => ({ ...current, categoryId }))}
-            error={fieldErrors.categoryId}
-          />
+        {fieldErrors.amount !== undefined ? (
+          <Text variant="caption" tone="danger">
+            {fieldErrors.amount}
+          </Text>
         ) : null}
 
         <Input
           testID="transaction-description"
-          label={t('transactions.note', { defaultValue: 'Note' })}
+          placeholder={t('transactions.notePlaceholder', { defaultValue: 'Enter a note...' })}
           value={draft.description}
           onChangeText={(text) => setDraft((current) => ({ ...current, description: text }))}
         />
 
         {submitError !== null ? <Text tone="danger">{submitError}</Text> : null}
 
-        <Button
-          testID="transaction-submit"
-          label={t('common.save', { defaultValue: 'Save' })}
-          onPress={handleSubmit}
-          loading={isSubmitting}
-          fullWidth
+        <CalculatorKeypad
+          expressionRef={expressionRef}
+          onExpressionChange={setExpression}
+          onConfirmRef={onConfirmRef}
+          confirmDisabled={isSubmitting}
+          onQuickDateRef={onQuickDateRef}
+          dateLabel={dateLabel}
+          testID="transaction-amount-keypad"
         />
-      </ScrollView>
+      </View>
+
+      <DatePickerModal
+        visible={datePickerOpen}
+        selectedDay={selectedDay}
+        onSelectDay={(day) =>
+          setDraft((current) => ({ ...current, transactionDate: replaceDay(current.transactionDate, day) }))
+        }
+        onClose={() => setDatePickerOpen(false)}
+      />
     </BottomSheetModal>
   );
 }

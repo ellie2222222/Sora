@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Platform, Pressable, TextInput, View } from 'react-native';
-import { Check } from 'lucide-react-native';
+import { BackHandler, Platform, TextInput, View } from 'react-native';
 
 import { formatCurrencyInput, formatMoney, formatMoneyCompact } from '@sora/contracts';
 
 import { useTheme } from '@/app/providers';
-import { tryEvaluate } from '@/utils';
+import { hasOperator, spaceExpression, tryEvaluate } from '@/utils';
 import { CalculatorKeypad } from './CalculatorKeypad.tsx';
 import { useKeyboardDock } from './KeyboardDockProvider.tsx';
 import { Text } from './Text.tsx';
@@ -19,8 +18,6 @@ export interface MoneyInputProps {
   placeholder?: string;
   testID?: string;
 }
-
-const HAS_OPERATOR = /[+−×÷^]/;
 
 let instanceCounter = 0;
 
@@ -38,10 +35,14 @@ export function MoneyInput({ value, onChangeValue, label, error, placeholder = '
 
   const [expression, setExpression] = useState(value);
   const [focused, setFocused] = useState(false);
-  // Read by CalculatorKeypad's key-press handling without forcing its 20-key grid to re-render on
+  // Read by CalculatorKeypad's key-press handling without forcing its key grid to re-render on
   // every keystroke — see the comment on CalculatorKeypadProps.expressionRef.
   const expressionRef = useRef(expression);
   expressionRef.current = expression;
+  // Same ref pattern as expressionRef, so CalculatorKeypadProps.onConfirmRef's identity stays
+  // stable across renders even though what it does depends on the field's current focus/ref.
+  const onConfirmRef = useRef(() => inputRef.current?.blur());
+  onConfirmRef.current = () => inputRef.current?.blur();
   const message = Array.isArray(error) ? error[0] : error;
   const hasError = message !== undefined && message.length > 0;
 
@@ -60,6 +61,11 @@ export function MoneyInput({ value, onChangeValue, label, error, placeholder = '
       }
       return;
     }
+    // An expression with an operator (e.g. "5+3" while typing "5+30") only commits when the user
+    // taps the Done checkmark below — evaluating on every keystroke here would commit "5+3" the
+    // instant it becomes syntactically valid, before the second "0" is even typed. A plain number
+    // has no such intermediate false-complete state, so it can keep committing live.
+    if (hasOperator(expression)) return;
     if (evaluated !== null) {
       const formatted = formatMoney(evaluated);
       if (lastEmittedRef.current !== formatted) {
@@ -71,6 +77,16 @@ export function MoneyInput({ value, onChangeValue, label, error, placeholder = '
     // committed value in place instead of clearing it — the field commits its last valid result.
   }, [expression, evaluated, onChangeValue]);
 
+  const commitExpression = () => {
+    if (!hasOperator(expression)) return;
+    const result = tryEvaluate(expression);
+    if (result === null) return; // Incomplete (trailing operator) — leave it for more typing.
+    const formatted = formatMoney(result);
+    lastEmittedRef.current = formatted;
+    setExpression(formatted);
+    onChangeValue(formatted);
+  };
+
   useEffect(() => {
     if (value !== lastEmittedRef.current) {
       lastEmittedRef.current = value;
@@ -80,6 +96,9 @@ export function MoneyInput({ value, onChangeValue, label, error, placeholder = '
 
   const displayValue = useMemo(() => {
     if (expression.trim() === '') return '';
+    // An operator expression echoes exactly what was typed until Done evaluates it — a live
+    // running total here would show a wrong intermediate result while an operand is still mid-entry.
+    if (hasOperator(expression)) return spaceExpression(expression);
     if (evaluated === null) return expression;
     // formatCurrencyInput strips anything but digits/'.', so a negative amount (the signed
     // initialBalance field, VL-04) needs its sign re-applied after formatting the magnitude.
@@ -107,45 +126,14 @@ export function MoneyInput({ value, onChangeValue, label, error, placeholder = '
     }
     setDockedKeypad(
       idRef.current,
-      <View style={{ gap: theme.spacing.sm }}>
-        <View className="flex-row items-center justify-between">
-          {HAS_OPERATOR.test(expression) ? (
-            <Text variant="caption" tone="muted" numeric>
-              {expression}
-            </Text>
-          ) : (
-            <View />
-          )}
-          <Pressable
-            testID={`${idRef.current}-done`}
-            onPress={() => inputRef.current?.blur()}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Done"
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: theme.spacing.xxs,
-              paddingVertical: theme.spacing.xxs,
-              paddingHorizontal: theme.spacing.sm,
-              borderRadius: theme.radius.pill,
-              backgroundColor: theme.colors.primaryMuted,
-            }}
-          >
-            <Check size={14} color={theme.colors.primary} strokeWidth={2.5} />
-            <Text variant="label" weight="semibold" style={{ color: theme.colors.primary }}>
-              Done
-            </Text>
-          </Pressable>
-        </View>
-        <CalculatorKeypad
-          expressionRef={expressionRef}
-          onExpressionChange={setExpression}
-          testID={`${idRef.current}-keypad`}
-        />
-      </View>,
+      <CalculatorKeypad
+        expressionRef={expressionRef}
+        onExpressionChange={setExpression}
+        onConfirmRef={onConfirmRef}
+        testID={`${idRef.current}-keypad`}
+      />,
     );
-  }, [focused, expression, theme, setDockedKeypad]);
+  }, [focused, setDockedKeypad]);
 
   // Unmounting (modal closed, navigated away) must never leave a stale keypad docked.
   useEffect(() => {
@@ -172,7 +160,13 @@ export function MoneyInput({ value, onChangeValue, label, error, placeholder = '
         showSoftInputOnFocus={false}
         caretHidden={false}
         onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onBlur={() => {
+          // Losing focus any other way (tapping outside, the hardware back button) must commit
+          // a pending operator expression too — otherwise the field would keep showing raw,
+          // uncommitted text like "5+30" with the parent still holding the old value.
+          commitExpression();
+          setFocused(false);
+        }}
         accessibilityLabel={label}
         className="h-[48px]"
         style={{

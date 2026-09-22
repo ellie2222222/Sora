@@ -22,9 +22,13 @@ export interface AccountPickerProps {
   walletId?: string;
   error?: string;
   testID?: string;
+  /** Renders as a small icon+name pill instead of a full labeled field — for a spot where the
+   * account only needs a quick swap, not a dedicated form row (e.g. next to an amount). `label`
+   * still names the picker's modal title; there's just nowhere to show it inline. */
+  compact?: boolean;
 }
 
-export function AccountPicker({ label, value, onChange, walletId, error, testID }: AccountPickerProps) {
+export function AccountPicker({ label, value, onChange, walletId, error, testID, compact = false }: AccountPickerProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { wallets } = useWallets();
@@ -46,37 +50,77 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID 
 
   const selected = accounts.data?.find((a) => a.id === value);
   const walletNameOf = (id: string): string => wallets.find((w) => w.id === id)?.name ?? '';
+  const AccountTypeIcon = selected !== undefined ? ACCOUNT_ICON[selected.type] : Banknote;
 
   return (
-    <View style={{ gap: theme.spacing.xs }}>
-      <Text variant="label" tone="muted">
-        {label}
-      </Text>
-      <Pressable
-        testID={testID}
-        onPress={() => setOpen(true)}
-        style={{
-          height: 48,
-          borderRadius: theme.radius.md,
-          borderWidth: 1,
-          borderColor: error !== undefined ? theme.colors.danger : theme.colors.border,
-          backgroundColor: theme.colors.surface,
-          paddingHorizontal: theme.spacing.md,
-          justifyContent: 'center',
-        }}
-      >
-        <View className="flex-row justify-between items-center">
-          <Text tone={selected === undefined ? 'faint' : 'default'}>
-            {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Select an account' }) : selected.name}
-          </Text>
-          <ChevronDown size={18} color={theme.colors.textMuted} />
+    <View style={compact ? undefined : { gap: theme.spacing.xs }}>
+      {compact ? (
+        <View style={{ gap: theme.spacing.xs }}>
+          <Pressable
+            testID={testID}
+            onPress={() => setOpen(true)}
+            className="flex-row items-center"
+            style={{ gap: theme.spacing.xs }}
+          >
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: theme.radius.pill,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: error !== undefined ? theme.colors.dangerMuted : theme.colors.warningMuted,
+              }}
+            >
+              <AccountTypeIcon size={16} color={error !== undefined ? theme.colors.danger : theme.colors.warning} strokeWidth={2} />
+            </View>
+            <Text
+              tone={selected === undefined ? 'faint' : 'default'}
+              numberOfLines={1}
+              style={{ maxWidth: 120 }}
+            >
+              {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Select an account' }) : selected.name}
+            </Text>
+            <ChevronDown size={14} color={theme.colors.textMuted} />
+          </Pressable>
+          {error !== undefined ? (
+            <Text variant="caption" tone="danger">
+              {error}
+            </Text>
+          ) : null}
         </View>
-      </Pressable>
-      {error !== undefined ? (
-        <Text variant="caption" tone="danger">
-          {error}
-        </Text>
-      ) : null}
+      ) : (
+        <>
+          <Text variant="label" tone="muted">
+            {label}
+          </Text>
+          <Pressable
+            testID={testID}
+            onPress={() => setOpen(true)}
+            style={{
+              height: 48,
+              borderRadius: theme.radius.md,
+              borderWidth: 1,
+              borderColor: error !== undefined ? theme.colors.danger : theme.colors.border,
+              backgroundColor: theme.colors.surface,
+              paddingHorizontal: theme.spacing.md,
+              justifyContent: 'center',
+            }}
+          >
+            <View className="flex-row justify-between items-center">
+              <Text tone={selected === undefined ? 'faint' : 'default'}>
+                {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Select an account' }) : selected.name}
+              </Text>
+              <ChevronDown size={18} color={theme.colors.textMuted} />
+            </View>
+          </Pressable>
+          {error !== undefined ? (
+            <Text variant="caption" tone="danger">
+              {error}
+            </Text>
+          ) : null}
+        </>
+      )}
 
       <BottomSheetModal
         visible={open}

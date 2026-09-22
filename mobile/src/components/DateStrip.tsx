@@ -2,7 +2,7 @@ import { Pressable, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { useTheme } from '@/app/providers';
-import { addDays, monthName, parseDay, today, type CalendarDay } from '../utils/date.ts';
+import { addDays, monthName, parseDay, today, type CalendarDay } from '@/utils';
 import { Text } from './Text.tsx';
 
 const CELL_LAYOUT = LinearTransition.springify().damping(26).stiffness(220);

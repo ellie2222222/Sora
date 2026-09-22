@@ -16,8 +16,7 @@ import {
   useGetTransactionQuery,
   useUpdateTransactionMutation,
 } from "@/app/store";
-import { dayOfInstant, replaceDay } from "../../../utils/date";
-import { isNetworkError, messageOf } from "../../../utils/errors";
+import { dayOfInstant, replaceDay, isNetworkError, messageOf } from '@/utils';
 
 export interface EditTransactionModalProps {
   visible: boolean;
@@ -105,7 +104,7 @@ export function EditTransactionModal({
       );
     }
 
-    if (data.status === TransactionStatus.CANCELLED) {
+    if (data.status === TransactionStatus.DELETED) {
       return (
         <BottomSheetModal
           visible={visible}
@@ -119,7 +118,7 @@ export function EditTransactionModal({
             <Text tone="muted" style={{ textAlign: "center" }}>
               {t("transactions.cancelledNotice", {
                 defaultValue:
-                  "A cancelled transaction cannot be edited. Record a new one instead.",
+                  "A deleted transaction cannot be edited. Record a new one instead.",
               })}
             </Text>
           </View>
@@ -187,7 +186,7 @@ export function EditTransactionModal({
           <Text variant="caption" tone="muted">
             {t("transactions.immutableFieldsNotice", {
               defaultValue:
-                "Amount, type and accounts cannot be changed. Cancel and re-record to correct those.",
+                "Amount, type and accounts cannot be changed. Delete and re-record to correct those.",
             })}
           </Text>
 
