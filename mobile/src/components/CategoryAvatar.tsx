@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import { TransactionType, type TransactionType as TxType } from '@sora/contracts';
 
 import { useTheme } from '@/app/providers';
-import { categoryIconFor, TRANSFER_ICON } from '../utils/categoryIcons.ts';
+import { categoryIconFor, TRANSFER_ICON } from '@/utils';
 import { Text } from './Text.tsx';
 
 export interface CategoryAvatarProps {
