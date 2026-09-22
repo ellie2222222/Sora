@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, View, type DimensionValue } from 'react-native';
+import { Animated, Platform, View, type DimensionValue } from 'react-native';
 
 import { useTheme } from '@/app/providers';
 
@@ -9,6 +9,9 @@ export interface SkeletonProps {
   radius?: number;
 }
 
+// The native animated module doesn't exist on web, which warns if asked for it there.
+const NATIVE_DRIVER_ENABLED = Platform.OS !== 'web';
+
 export function Skeleton({ width = '100%', height = 16, radius }: SkeletonProps) {
   const theme = useTheme();
   const opacity = useRef(new Animated.Value(0.4)).current;
@@ -16,8 +19,8 @@ export function Skeleton({ width = '100%', height = 16, radius }: SkeletonProps)
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: NATIVE_DRIVER_ENABLED }),
+        Animated.timing(opacity, { toValue: 0.4, duration: 700, useNativeDriver: NATIVE_DRIVER_ENABLED }),
       ]),
     );
     loop.start();

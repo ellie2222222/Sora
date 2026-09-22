@@ -25,12 +25,12 @@ export function PullToRefreshIndicator({
 
   return (
     <Animated.View
-      pointerEvents={refreshing ? 'auto' : 'box-none'}
       style={[
         styles.container,
         {
           backgroundColor: theme.colors.surfaceElevated,
           borderColor: theme.colors.border,
+          pointerEvents: refreshing ? 'auto' : 'box-none',
           ...theme.shadows.md,
         },
         indicatorAnimatedStyle,

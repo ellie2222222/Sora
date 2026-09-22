@@ -16,6 +16,9 @@ import { useTheme } from '@/app/providers';
 import { KeyboardDockProvider } from './KeyboardDockProvider.tsx';
 import { Text } from './Text';
 
+// The native animated module doesn't exist on web, which warns if asked for it there.
+const NATIVE_DRIVER_ENABLED = Platform.OS !== 'web';
+
 export interface BottomSheetModalProps {
   visible: boolean;
   onClose: () => void;
@@ -25,13 +28,12 @@ export interface BottomSheetModalProps {
   testID?: string;
 }
 
-/** Standardized slide-up bottom sheet modal component. */
 export function BottomSheetModal({
   visible,
   onClose,
   title,
   children,
-  maxHeight = '90%',
+  maxHeight = '100%',
   testID,
 }: BottomSheetModalProps) {
   const theme = useTheme();
@@ -50,12 +52,12 @@ export function BottomSheetModal({
         Animated.timing(translateYAnim, {
           toValue: initialTranslateY,
           duration: 180,
-          useNativeDriver: true,
+          useNativeDriver: NATIVE_DRIVER_ENABLED,
         }),
         Animated.timing(backdropOpacityAnim, {
           toValue: 0,
           duration: 180,
-          useNativeDriver: true,
+          useNativeDriver: NATIVE_DRIVER_ENABLED,
         }),
       ]).start(() => {
         onClose();
@@ -74,12 +76,12 @@ export function BottomSheetModal({
           toValue: 0,
           tension: 75,
           friction: 9,
-          useNativeDriver: true,
+          useNativeDriver: NATIVE_DRIVER_ENABLED,
         }),
         Animated.timing(backdropOpacityAnim, {
           toValue: 1,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: NATIVE_DRIVER_ENABLED,
         }),
       ]).start();
     }
@@ -105,12 +107,12 @@ export function BottomSheetModal({
               toValue: 0,
               tension: 75,
               friction: 9,
-              useNativeDriver: true,
+              useNativeDriver: NATIVE_DRIVER_ENABLED,
             }),
             Animated.timing(backdropOpacityAnim, {
               toValue: 1,
               duration: 150,
-              useNativeDriver: true,
+              useNativeDriver: NATIVE_DRIVER_ENABLED,
             }),
           ]).start();
         }
@@ -123,6 +125,7 @@ export function BottomSheetModal({
       visible={visible}
       animationType="none"
       transparent
+      statusBarTranslucent
       onRequestClose={() => dismissModal()}
       testID={testID}
     >

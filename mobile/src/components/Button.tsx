@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, type PressableProps } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
@@ -13,6 +14,7 @@ export interface ButtonProps extends Omit<PressableProps, 'children'> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   loading?: boolean;
+  loadingLabel?: string;
   fullWidth?: boolean;
   icon?: LucideIcon;
   testID?: string;
@@ -27,6 +29,7 @@ export function Button({
   variant = 'primary',
   size = 'md',
   loading = false,
+  loadingLabel,
   fullWidth = false,
   icon: Icon,
   disabled,
@@ -37,8 +40,8 @@ export function Button({
   ...pressableProps
 }: ButtonProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const isDisabled = disabled === true || loading;
-  // `style` can never be a function here — see CLAUDE.md Part 7 rule 15.
   const [pressed, setPressed] = useState(false);
 
   const enabledBackgroundColor = {
@@ -138,19 +141,28 @@ export function Button({
           borderColor,
           alignSelf: fullWidth ? 'stretch' : 'flex-start',
         },
+        // Resolved to a plain object/array here so the Pressable below never receives a function
+        // `style` — see CLAUDE.md Part 7 rule 15.
         typeof style === 'function' ? style({ pressed, hovered: false }) : style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator
-          color={
-            isDisabled
-              ? textColor
-              : variant === 'primary' || variant === 'danger'
-                ? theme.colors.onPrimary
-                : theme.colors.primary
-          }
-        />
+        <>
+          <ActivityIndicator
+            size="small"
+            color={
+              isDisabled
+                ? textColor
+                : variant === 'primary' || variant === 'danger'
+                  ? theme.colors.onPrimary
+                  : theme.colors.primary
+            }
+            style={{ marginRight: theme.spacing.xs }}
+          />
+          <Text variant="label" weight="semibold" style={{ color: textColor }}>
+            {loadingLabel ?? t('common.loading', 'Loading…')}
+          </Text>
+        </>
       ) : (
         <>
           {Icon !== undefined ? <Icon size={iconSize} color={iconColor} style={{ marginRight: theme.spacing.xs }} /> : null}
