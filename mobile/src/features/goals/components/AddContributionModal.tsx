@@ -6,11 +6,14 @@ import { isPositive, MoneyError, parseMoney } from '@sora/contracts';
 
 import { BottomSheetModal, Button, DateField, Input, MoneyInput, SkeletonList, StateView, Text } from '@/components';
 import { useTheme } from '@/app/providers';
+// Deep-imported (not via each feature's barrel): this component is itself deep-imported by
+// ModalProvider, and pulling in `@/features/accounts` or `@/features/categories` here
+// reintroduces a cycle through their barrels' other exports (same reasoning as
+// AddTransactionModal.tsx's identical comment).
 import { AccountPicker } from '../../accounts/components/AccountPicker.tsx';
 import { CategoryPicker } from '../../categories/components/CategoryPicker.tsx';
 import { useAddContributionMutation, useGetGoalQuery } from '@/app/store';
-import { isNetworkError, messageOf } from '../../../utils/errors';
-import { instantOfDay, today } from '../../../utils/date';
+import { isNetworkError, messageOf, instantOfDay, today } from '@/utils';
 
 export interface AddContributionModalProps {
   visible: boolean;

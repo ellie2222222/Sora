@@ -13,12 +13,10 @@ import {
   type AccountResponse,
 } from '@sora/contracts';
 import { AnimatedScreen, ListItemEnter, Money, RefreshableScrollView, SkeletonList, StateView, SyncStatusDot, Text } from '@/components';
-import { useTheme, useWallets } from '@/app/providers';
-import { useModal } from '../../../app/providers/ModalProvider.tsx';
+import { useModal, useTheme, useWallets } from '@/app/providers';
 import { selectQueueEntryFor, useListAccountsQuery } from '@/app/store';
 import { WalletContextBar } from '@/features/wallets';
-import { isNetworkError } from '../../../utils/errors';
-import { sumScaledByKey } from '../../../utils/money';
+import { isNetworkError, sumScaledByKey } from '@/utils';
 import { ACCOUNT_ICON } from '../components/AccountPicker';
 import type { MainTabScreenProps } from '@/app/navigation';
 
@@ -167,7 +165,7 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
             className="flex-row justify-between items-center"
             style={{ marginBottom: theme.spacing.sm }}
           >
-            <Text variant="title">{t('accounts.accounts')}</Text>
+            <Text variant="title">{t('accounts.accountsLabel')}</Text>
             {permissions.canWrite ? (
               <Pressable
                 testID="accounts-add-button"

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 // Deep-imported (not via each feature's barrel): a barrel import here would
 // pull in that feature's other files too, several of which import back from
@@ -9,27 +9,7 @@ import { AddContributionModal } from '../../features/goals/components/AddContrib
 import { AddGoalModal } from '../../features/goals/components/AddGoalModal.tsx';
 import { AddTransactionModal } from '../../features/transactions/components/AddTransactionModal.tsx';
 import { EditTransactionModal } from '../../features/transactions/components/EditTransactionModal.tsx';
-
-export type ModalType =
-  | 'AddTransaction'
-  | 'EditTransaction'
-  | 'AddAccount'
-  | 'AddGoal'
-  | 'AddBudget'
-  | 'AddContribution';
-
-export interface ModalParams {
-  transactionId?: string;
-  walletId?: string;
-  goalId?: string;
-}
-
-interface ModalContextValue {
-  openModal: (type: ModalType, params?: ModalParams) => void;
-  closeModal: () => void;
-}
-
-const ModalContext = createContext<ModalContextValue | null>(null);
+import { ModalContext, type ModalParams, type ModalType } from './ModalContext.ts';
 
 export function ModalProvider({ children }: { children: ReactNode }) {
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
@@ -83,12 +63,4 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       />
     </ModalContext.Provider>
   );
-}
-
-export function useModal(): ModalContextValue {
-  const context = useContext(ModalContext);
-  if (context === null) {
-    throw new Error('useModal must be used within a ModalProvider');
-  }
-  return context;
 }

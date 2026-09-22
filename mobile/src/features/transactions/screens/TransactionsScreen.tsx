@@ -1,6 +1,6 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useModal } from '../../../app/providers/ModalProvider.tsx';
+import { useModal } from '@/app/providers';
 import { TransactionListScreen } from '../components/TransactionListScreen';
 import type { AppStackScreenProps } from '@/app/navigation';
 
