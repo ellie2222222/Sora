@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { WalletResponse } from '@sora/contracts';
 
 import { BottomSheetModal, Button, Card, Input, Money, SkeletonList, StateView, Text } from '@/components';
-import { useAuth, useTheme, useWallets } from '@/app/providers';
+import { useAuth, useTheme, useToast, useWallets } from '@/app/providers';
 import { useCreateWalletMutation } from '@/app/store';
 import { ROLE_LABELS, messageOf } from '@/utils';
 import type { AppStackScreenProps } from '@/app/navigation';
@@ -105,6 +105,7 @@ function WalletRow({ wallet, onPress }: { wallet: WalletResponse; onPress: () =>
 function CreateWalletModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const [createWallet, { isLoading: isCreating }] = useCreateWalletMutation();
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +116,7 @@ function CreateWalletModal({ visible, onClose }: { visible: boolean; onClose: ()
       await createWallet({ name }).unwrap();
       setName('');
       onClose();
+      showToast(t('toast.walletCreated', { defaultValue: 'Wallet created' }), 'success');
     } catch (submitError) {
       setError(messageOf(submitError, t));
     }

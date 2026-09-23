@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { isPositive, MoneyError, parseMoney } from '@sora/contracts';
 
 import { BottomSheetModal, Button, DateField, Input, MoneyInput, SkeletonList, StateView, Text } from '@/components';
-import { useTheme } from '@/app/providers';
+import { useTheme, useToast } from '@/app/providers';
 // Deep-imported (not via each feature's barrel): this component is itself deep-imported by
 // ModalProvider, and pulling in `@/features/accounts` or `@/features/categories` here
 // reintroduces a cycle through their barrels' other exports (same reasoning as
@@ -24,6 +24,7 @@ export interface AddContributionModalProps {
 export function AddContributionModal({ visible, goalId, onClose }: AddContributionModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const goal = useGetGoalQuery(goalId ?? '', { skip: !visible || !goalId });
   const [addContribution, { isLoading: isSubmitting }] = useAddContributionMutation();
 
@@ -103,6 +104,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
         },
       }).unwrap();
       onClose();
+      showToast(t('toast.contributionAdded', { defaultValue: 'Contribution added' }), 'success');
     } catch (submitError) {
       setError(messageOf(submitError, t));
     }

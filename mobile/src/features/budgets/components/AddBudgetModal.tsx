@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { BUDGET_PERIOD_TYPES, type BudgetPeriodType } from '@sora/contracts';
 
 import { BottomSheetModal, Button, DateField, Input, MoneyInput, StateView, Text } from '@/components';
-import { useTheme, useWallets } from '@/app/providers';
+import { useTheme, useToast, useWallets } from '@/app/providers';
 // Deep-imported (not via the categories barrel): this component is itself deep-imported by
 // ModalProvider, and pulling in `@/features/categories` here reintroduces a cycle through that
 // barrel's other exports (same reasoning as AddTransactionModal.tsx's identical comment).
@@ -37,6 +37,7 @@ export interface AddBudgetModalProps {
 export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const { activeWallet } = useWallets();
   const [createBudget, { isLoading: isCreating }] = useCreateBudgetMutation();
 
@@ -116,6 +117,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
         endDate,
       }).unwrap();
       onClose();
+      showToast(t('toast.budgetCreated', { defaultValue: 'Budget created' }), 'success');
     } catch (submitError) {
       setError(messageOf(submitError, t));
     }

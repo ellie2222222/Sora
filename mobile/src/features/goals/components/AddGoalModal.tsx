@@ -3,7 +3,7 @@ import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { BottomSheetModal, Button, DateField, Input, MoneyInput, StateView, Text } from '@/components';
-import { useTheme, useWallets } from '@/app/providers';
+import { useTheme, useToast, useWallets } from '@/app/providers';
 import { useCreateGoalMutation } from '@/app/store';
 import { messageOf } from '@/utils';
 
@@ -15,6 +15,7 @@ export interface AddGoalModalProps {
 export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const { activeWallet } = useWallets();
   const [createGoal, { isLoading: isCreating }] = useCreateGoalMutation();
 
@@ -55,6 +56,7 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
         targetDate,
       }).unwrap();
       onClose();
+      showToast(t('toast.goalCreated', { defaultValue: 'Goal created' }), 'success');
     } catch (submitError) {
       setError(messageOf(submitError, t));
     }

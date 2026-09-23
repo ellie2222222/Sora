@@ -78,7 +78,6 @@ const vi: TranslationResource = {
   settings: {
     title: 'Cài đặt',
     profile: 'Hồ sơ',
-    activeAccount: 'Đang hoạt động',
     appearance: 'Giao diện',
     theme: 'Chủ đề',
     themeMode: 'Chế độ giao diện',
@@ -402,6 +401,9 @@ const vi: TranslationResource = {
     recordedBy: 'Ghi nhận bởi {{name}}',
     cancelled: 'Đã xóa',
     selectDate: 'Ngày / Năm',
+    expensesLabel: 'Chi tiêu',
+    incomeLabel: 'Thu nhập',
+    netCashFlow: 'Dòng tiền ròng',
   },
   errors: {
     couldNotRefresh: 'Không thể làm mới lúc này.',
@@ -497,6 +499,16 @@ const vi: TranslationResource = {
     relationPlaceholder: 'vd: Bạn đời / Bạn gái',
     role: 'Vai trò',
     sendInvitation: 'Gửi lời mời',
+  },
+  toast: {
+    transactionAdded: 'Đã thêm giao dịch',
+    accountAdded: 'Đã thêm tài khoản',
+    walletCreated: 'Đã tạo ví',
+    categoryAdded: 'Đã thêm danh mục',
+    budgetCreated: 'Đã tạo ngân sách',
+    goalCreated: 'Đã tạo mục tiêu',
+    contributionAdded: 'Đã thêm khoản đóng góp',
+    invitationSent: 'Đã gửi lời mời',
   },
 };
 

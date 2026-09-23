@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { WalletRole, type InvitableRole } from '@sora/contracts';
 
 import { Button, Input, Text } from '@/components';
-import { useTheme } from '@/app/providers';
+import { useTheme, useToast } from '@/app/providers';
 import { useCreateInvitationMutation } from '@/app/store';
 import { messageOf, getRoleDescription, getRoleLabel } from '@/utils';
 import type { AppStackScreenProps } from '@/app/navigation';
@@ -17,6 +17,7 @@ const SUGGESTED_LABELS = ['Girlfriend', 'Boyfriend', 'Partner', 'Mom', 'Dad', 'S
 export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'InviteMember'>) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const { walletId } = route.params;
   const [inviteMember, { isLoading: isInviting }] = useCreateInvitationMutation();
 
@@ -37,6 +38,7 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
         },
       }).unwrap();
       navigation.goBack();
+      showToast(t('toast.invitationSent', { defaultValue: 'Invitation sent' }), 'success');
     } catch (submitError) {
       setError(messageOf(submitError, t));
     }

@@ -10,7 +10,7 @@ import {
 } from "@sora/contracts";
 
 import { BottomSheetModal, Button, Input, ListItemEnter, SkeletonList, StateView, SyncStatusDot, Text } from '@/components';
-import { useTheme, useWallets } from '@/app/providers';
+import { useTheme, useToast, useWallets } from '@/app/providers';
 import { selectQueueEntryFor, useArchiveCategoryMutation, useCreateCategoryMutation, useDeleteCategoryPermanentlyMutation, useListCategoriesQuery, useUpdateCategoryMutation } from '@/app/store';
 import { isNetworkError, messageOf } from '@/utils';
 import type { AppStackScreenProps } from "@/app/navigation";
@@ -159,6 +159,7 @@ export function CategoryListScreen({
   }) {
     const theme = useTheme();
     const { t } = useTranslation();
+    const { showToast } = useToast();
     const [createCategory, { isLoading: isCreating }] =
       useCreateCategoryMutation();
     const [name, setName] = useState("");
@@ -171,6 +172,7 @@ export function CategoryListScreen({
         await createCategory({ walletId, name, type }).unwrap();
         setName("");
         onClose();
+        showToast(t('toast.categoryAdded', { defaultValue: 'Category added' }), 'success');
       } catch (submitError) {
         setError(messageOf(submitError, t));
       }

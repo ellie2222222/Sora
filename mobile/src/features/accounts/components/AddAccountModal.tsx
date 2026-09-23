@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ACCOUNT_TYPES, AccountType } from '@sora/contracts';
 
 import { BottomSheetModal, Button, Input, MoneyInput, Text } from '@/components';
-import { useTheme, useWallets } from '@/app/providers';
+import { useTheme, useToast, useWallets } from '@/app/providers';
 import { useCreateAccountMutation } from '@/app/store';
 import { messageOf } from '@/utils';
 import { ACCOUNT_TYPE_LABEL_KEY } from './AccountPicker.tsx';
@@ -19,6 +19,7 @@ export interface AddAccountModalProps {
 export function AddAccountModal({ visible, walletId: propWalletId, initialType, onClose }: AddAccountModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const { activeWallet } = useWallets();
   const walletId = propWalletId ?? activeWallet?.id;
   const [createAccount, { isLoading: isCreating }] = useCreateAccountMutation();
@@ -62,6 +63,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
         initialBalance,
       }).unwrap();
       onClose();
+      showToast(t('toast.accountAdded', { defaultValue: 'Account added' }), 'success');
     } catch (submitError) {
       setError(messageOf(submitError, t));
     }

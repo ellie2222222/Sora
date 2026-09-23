@@ -80,7 +80,6 @@ const en = {
   settings: {
     title: 'Settings',
     profile: 'Profile',
-    activeAccount: 'Active',
     appearance: 'Appearance',
     theme: 'Theme',
     themeMode: 'Theme Mode',
@@ -404,6 +403,9 @@ const en = {
     recordedBy: 'Recorded by {{name}}',
     cancelled: 'Deleted',
     selectDate: 'Date / Year',
+    expensesLabel: 'Expenses',
+    incomeLabel: 'Income',
+    netCashFlow: 'Net cash flow',
   },
   errors: {
     couldNotRefresh: "Couldn't refresh right now.",
@@ -499,6 +501,16 @@ const en = {
     relationPlaceholder: 'e.g. Girlfriend',
     role: 'Role',
     sendInvitation: 'Send invitation',
+  },
+  toast: {
+    transactionAdded: 'Transaction added',
+    accountAdded: 'Account added',
+    walletCreated: 'Wallet created',
+    categoryAdded: 'Category added',
+    budgetCreated: 'Budget created',
+    goalCreated: 'Goal created',
+    contributionAdded: 'Contribution added',
+    invitationSent: 'Invitation sent',
   },
 };
 

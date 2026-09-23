@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ACCOUNT_TYPES, AccountType } from '@sora/contracts';
 
 import { BottomSheetModal, Button, Input, MoneyInput, Text } from '@/components';
-import { useTheme, useWallets } from '@/app/providers';
+import { useTheme, useToast, useWallets } from '@/app/providers';
 import { useCreateAccountMutation } from '@/app/store';
 import { messageOf } from '@/utils';
 import type { AppStackScreenProps } from '@/app/navigation';
@@ -12,6 +12,7 @@ import type { AppStackScreenProps } from '@/app/navigation';
 export function AddAccountScreen({ route, navigation }: AppStackScreenProps<'AddAccount'>) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const { activeWallet } = useWallets();
   const walletId = route.params?.walletId ?? activeWallet?.id;
   const [createAccount, { isLoading: isCreating }] = useCreateAccountMutation();
@@ -50,6 +51,7 @@ export function AddAccountScreen({ route, navigation }: AppStackScreenProps<'Add
         initialBalance,
       }).unwrap();
       navigation.goBack();
+      showToast(t('toast.accountAdded', { defaultValue: 'Account added' }), 'success');
     } catch (submitError) {
       setError(messageOf(submitError, t));
     }

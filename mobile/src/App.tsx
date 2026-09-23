@@ -16,7 +16,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '@/app/i18n';
 import '@/services/guest';
-import { AuthProvider, LocaleProvider, QueryProvider, ThemeProvider } from '@/app/providers';
+import { AuthProvider, LocaleProvider, QueryProvider, ThemeProvider, ToastProvider } from '@/app/providers';
 import { NetworkStatusProvider } from './hooks/useNetworkStatus.tsx';
 import { RootNavigator } from '@/app/navigation';
 import { store } from '@/app/store';
@@ -64,8 +64,10 @@ export default function App() {
             <AuthProvider>
               <ThemeProvider>
                 <LocaleProvider>
-                  <StatusBar style="auto" />
-                  <RootNavigator />
+                  <ToastProvider>
+                    <StatusBar style="auto" />
+                    <RootNavigator />
+                  </ToastProvider>
                 </LocaleProvider>
               </ThemeProvider>
             </AuthProvider>

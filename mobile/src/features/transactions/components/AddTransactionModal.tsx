@@ -5,7 +5,7 @@ import { Banknote } from 'lucide-react-native';
 import { formatCurrencyInput, formatMoney, formatMoneyCompact, TransactionType, CategoryType } from '@sora/contracts';
 
 import { BottomSheetModal, Button, CalculatorKeypad, DatePickerModal, Input, Text } from '@/components';
-import { useTheme, useWallets } from '@/app/providers';
+import { useTheme, useToast, useWallets } from '@/app/providers';
 // Deep-imported (not via each feature's barrel): this component is itself deep-imported by
 // ModalProvider to avoid a cycle (see its own comment), so pulling in `@/features/accounts` or
 // `@/features/categories` here would reintroduce one through their barrels' other exports.
@@ -39,6 +39,7 @@ export interface AddTransactionModalProps {
 export function AddTransactionModal({ visible, onClose }: AddTransactionModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const { activeWallet, permissions, isLoading: walletsLoading } = useWallets();
   const [createTransaction, { isLoading: isSubmitting }] = useCreateTransactionMutation();
 
@@ -136,6 +137,7 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
     try {
       await createTransaction(result.payload).unwrap();
       onClose();
+      showToast(t('toast.transactionAdded', { defaultValue: 'Transaction added' }), 'success');
     } catch (error) {
       setSubmitError(messageOf(error, t));
     }
