@@ -126,6 +126,21 @@ that one is not superseded by this one, both apply). A prior approval to run a d
 once does not carry forward to the next occasion; ask again. When in doubt about whether an
 action is reversible, treat it as destructive and ask.
 
+**Verify the target before running anything destructive, not just the command.** This repo can
+have more than one instance of the same kind of resource reachable at once — a host-installed
+Postgres alongside the optional Docker Postgres (different ports, `docker-compose.yml`'s
+`POSTGRES_HOST_PORT`/`DATABASE_URL` can point at either one and disagree with each other after a
+`.env` edit that hasn't taken effect yet), local branches alongside remotes, a container that
+looks like this project's but isn't (a stale/differently-named one from another project entirely).
+Read back the actual connection string, container name, or remote a command is about to run
+against — don't infer it from what it was earlier in the session or from what it's *supposed* to
+be per `.env`. A destructive or mutating command aimed at the wrong instance is exactly as costly
+as one aimed at the right instance without permission, and this repo's own multi-Postgres setup
+(Part 6 → Technology Stack → Local environment) is precisely the shape of situation where that
+mistake is easy to make. If a command surfaces a resource unrelated to the current task — an
+unfamiliar database, an unrelated container, a different project's data — say so and ask; that is
+never itself permission to inspect further, let alone modify it.
+
 ### Keep It Short
 
 Prose is the default failure mode in this repo's output. Cut it everywhere.
@@ -323,8 +338,9 @@ for the deleted stack and was removed rather than rewritten (see the README). Th
 `docker-compose.yml` and `server/Dockerfile` are an **optional** addition on top of that, covering
 only `server/` and Postgres (`docker compose up -d`, needs `JWT_SECRET`/`GOOGLE_CLIENT_ID` set in
 `.env` first) — not `mobile/` (needs LAN/USB device access) and not the parked `webpage/`.
-Postgres's container defaults to host port 5433, not 5432, so it can run alongside the host
-Postgres this section describes rather than colliding with it. Debugging either container: plain
+Postgres's container defaults to host port 5432 — the same port the host Postgres above uses —
+so override `POSTGRES_HOST_PORT` in `.env` before bringing this stack up if a host Postgres is
+already running, or the two will collide. Debugging either container: plain
 `docker logs <container>` runs through rtk's `docker` filter and can summarize, so use
 `rtk proxy docker logs <container> --tail N` for the full unfiltered output.
 
@@ -361,11 +377,11 @@ proves the rules are enforced, which is why both run.
 
 | | |
 |---|---|
-| API | `http://localhost:3001` (`.env.example`'s `PORT`) |
+| API | `http://localhost:3000` (`.env.example`'s `PORT`) |
 | Expo dev server | `http://localhost:8081` |
 | Database | `postgresql://<user>:<pass>@localhost:5432/<db>` via `DATABASE_URL` |
-| API (Docker) | `http://localhost:3001` (`API_HOST_PORT`) |
-| Database (Docker) | `postgresql://<user>:<pass>@localhost:5433/<db>` (`POSTGRES_HOST_PORT`) |
+| API (Docker) | `http://localhost:3000` (`API_HOST_PORT`) |
+| Database (Docker) | `postgresql://<user>:<pass>@localhost:5432/<db>` (`POSTGRES_HOST_PORT`) |
 
 `.env.example` and `server/src/config/env.ts` currently disagree on several variable names
 (`API_PORT` vs `PORT`, `JWT_ACCESS_TTL` vs `ACCESS_TOKEN_TTL_SECONDS`). **`env.ts` is what is
@@ -605,6 +621,9 @@ is itself an orchestrator reaching broadly across many other modules (e.g. `Moda
 imports those specific deep paths directly and is excluded from its own directory's barrel, precisely
 to avoid the require-cycle shape rule 14 in Part 7 describes.
 
+**MB-11** — UI and state design follow [`docs/DESIGN_GUIDELINES.md`](docs/DESIGN_GUIDELINES.md)
+(product principles, loading/empty/error architecture, visual tokens); run its Part 4 check before
+calling UI work done.
 
 ### Validation
 
@@ -710,6 +729,19 @@ re-running a migration — **ask first**.
 because `--reset` is one keystroke from `--status` and destroys everything; **do not remove or
 loosen it**, and do not set the override to get past it on a database you did not create for the
 purpose.
+
+**This repo can have more than one Postgres reachable at once, and they are not interchangeable.**
+The documented host Postgres (Service URLs above, port 5432 by default) and the optional Docker
+Postgres (`docker-compose.yml`, whatever `POSTGRES_HOST_PORT` currently resolves to in `.env`) are
+separate databases that can each hold different data — one populated, one empty, one a stranger's
+local instance entirely unrelated to this project. Before running anything that reads state to act
+on or writes/deletes anything, confirm which instance the actual `DATABASE_URL` (or the connection
+string a raw `psql`/`docker exec ... psql` call names) points at — don't assume it's "the" dev
+database because a port number matches what it was last time, and don't infer it from `.env`'s
+intent if a container hasn't actually been recreated since that file changed (`docker inspect`/
+`docker port` show the truth, the file only shows intent). If a query surfaces a database that
+isn't recognizably this project's (unfamiliar tables, unrelated data, a name that doesn't match
+`sora_dev`/`sora_test`/etc.), stop and say so rather than continuing to query or, worse, mutate it.
 
 **Applied migrations are immutable.** `scripts/migrate.mjs` records a checksum per file and
 refuses to run when an applied file's contents have changed — the database no longer matches the

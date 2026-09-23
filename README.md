@@ -221,12 +221,12 @@ root are an **optional** addition covering only `server/` and Postgres:
 ```bash
 cp .env.example .env   # fill in JWT_SECRET and GOOGLE_CLIENT_ID at minimum
 docker compose up -d --build
-curl http://localhost:3001/api/v1/health
+curl http://localhost:3000/api/v1/health
 ```
 
-Postgres's container publishes to host port **5433**, not 5432, so it can run alongside the
-host Postgres above instead of colliding with it — override `POSTGRES_HOST_PORT` in `.env` if you'd
-rather point it at 5432 directly. `mobile/` isn't containerized (Expo's dev server needs direct
+Postgres's container publishes to host port **5432** by default — the same port the host
+Postgres above uses — so override `POSTGRES_HOST_PORT` in `.env` first if a host Postgres is
+already running, or the two will collide. `mobile/` isn't containerized (Expo's dev server needs direct
 LAN/USB access to a physical device, which containerizing complicates for no gain), and neither is
 `webpage/` (parked — see `webpage/PARKED.md`, it doesn't run against the current API at all).
 

@@ -39,6 +39,6 @@ COPY --from=build --chown=serveruser:nodejs /repo/server/package.json ./server/p
 COPY --from=build --chown=serveruser:nodejs /repo/server/dist ./server/dist
 
 USER serveruser
-EXPOSE 3001
+EXPOSE 3000
 
 CMD ["node", "server/dist/src/main.js"]

@@ -17,7 +17,7 @@ is never deployed.
 
 | | |
 |---|---|
-| API | `http://localhost:3001` (local) — `PORT` / `API_HOST_PORT` (Docker) |
+| API | `http://localhost:3000` (local) — `PORT` / `API_HOST_PORT` (Docker) |
 | Health check | `GET /api/v1/health` → `{"status","version","database"}`, `200` or `503` |
 | Database | `postgresql://<user>:<pass>@<host>:5432/<db>` via `DATABASE_URL` |
 
@@ -56,11 +56,12 @@ npm start --workspace @sora/server  # or: npm run start:dev for watch mode
 ```bash
 cp .env.example .env   # fill in at least JWT_SECRET and GOOGLE_CLIENT_ID
 docker compose up -d --build
-curl http://localhost:3001/api/v1/health
+curl http://localhost:3000/api/v1/health
 ```
 
-Postgres's container publishes to host port **5433** (not 5432) so it can run alongside a host
-Postgres without colliding — override `POSTGRES_HOST_PORT` in `.env` if nothing is on 5432.
+Postgres's container publishes to host port **5432** by default — the same port a host Postgres
+would use — so override `POSTGRES_HOST_PORT` in `.env` first if something's already listening on
+5432, or the two will collide.
 
 **After any deploy**, confirm the health check reports `"database": "up"` — a `503` with
 `"database": "down"` means the API started but can't reach Postgres (see below).

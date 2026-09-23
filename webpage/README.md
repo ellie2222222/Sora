@@ -20,7 +20,7 @@ Next.js + React + TypeScript frontend for the Finance application.
    npm run dev
    ```
 
-Frontend will be available at `http://localhost:3001`
+Frontend will be available at `http://localhost:3000`
 
 ## Architecture
 

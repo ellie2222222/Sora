@@ -2,10 +2,10 @@
 # host-Postgres workflow in CLAUDE.md/README — see the "Docker" section there
 # for when to reach for this instead.
 #
-# Postgres's host port defaults to 5433, not 5432: the documented dev workflow
-# runs Postgres 17 directly on the host at :5432, and this stack is meant to
-# run alongside that, not fight it for the port. Override POSTGRES_HOST_PORT
-# in .env if nothing is listening on 5432 and you'd rather use it directly.
+# Postgres's host port defaults to 5432 — the same port the documented host
+# workflow (Postgres 17 run directly on the host) also uses. Override
+# POSTGRES_HOST_PORT in .env before bringing this stack up if a host Postgres
+# is already running, or the two will collide on the port.
 services:
   postgres:
     image: postgres:17
@@ -15,11 +15,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sora}
       POSTGRES_DB: ${POSTGRES_DB:-sora_dev}
     ports:
-      - '${POSTGRES_HOST_PORT:-5433}:5432'
+      - '${POSTGRES_HOST_PORT:-5432}:5432'
     volumes:
       - sora_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ 'CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-sora}' ]
+      test: [ 'CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-sora} -d ${POSTGRES_DB:-sora_dev}' ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -35,7 +35,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-sora}:${POSTGRES_PASSWORD:-sora}@postgres:5432/${POSTGRES_DB:-sora_dev}
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
-      PORT: 3001
+      PORT: 3000
       NODE_ENV: production
       # Not defaulted or required here: server/src/config/env.ts already refuses to
       # boot without a usable JWT_SECRET/GOOGLE_CLIENT_ID, and a `:?` guard on
@@ -51,7 +51,7 @@ services:
       APP_VERSION: ${APP_VERSION:-0.1.0}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     ports:
-      - '${API_HOST_PORT:-3001}:3001'
+      - '${API_HOST_PORT:-3000}:3000'
 
   pgadmin:
     image: dpage/pgadmin4:latest

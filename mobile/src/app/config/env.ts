@@ -9,7 +9,7 @@
  * the device's own loopback, not the developer's machine, which is why
  * .env.example spells out using the LAN address there.
  */
-const DEFAULT_API_BASE_URL = 'http://localhost:3001';
+const DEFAULT_API_BASE_URL = 'http://localhost:3000';
 const DEFAULT_TIMEOUT_MS = 15000;
 
 function trimTrailingSlashes(value: string): string {
