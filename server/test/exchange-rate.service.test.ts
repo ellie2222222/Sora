@@ -8,7 +8,7 @@ import { ExchangeRateService } from '../src/exchange-rate/exchange-rate.service.
 describe('ExchangeRateService', () => {
   const mockConfig: AppConfig = {
     NODE_ENV: 'test',
-    PORT: 3001,
+    PORT: 3000,
     DATABASE_URL: 'postgres://localhost/test',
     DATABASE_POOL_MAX: 10,
     JWT_SECRET: '01234567890123456789012345678901',
@@ -20,7 +20,7 @@ describe('ExchangeRateService', () => {
     LOGIN_FAILURE_LIMIT: 5,
     LOGIN_LOCKOUT_MINUTES: 15,
     APP_VERSION: '0.1.0',
-    GOOGLE_CLIENT_ID: 'test-google-client-id',
+    GOOGLE_CLIENT_ID: ['test-google-client-id'],
     EXCHANGE_RATE_API_URL: 'https://open.er-api.com/v6/latest',
     EXCHANGE_RATE_TIMEOUT_SECONDS: 5,
     EXCHANGE_RATE_CACHE_TTL_MINUTES: 720,

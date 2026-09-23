@@ -11,7 +11,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().min(0).max(65535).default(3001),
+  PORT: z.coerce.number().int().min(0).max(65535).default(3000),
 
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
@@ -37,12 +37,20 @@ const envSchema = z.object({
   MIGRATIONS_DIR: z.string().optional(),
 
   /**
-   * The OAuth client id Google issues an ID token for. Verification checks the
-   * token's `aud` claim against this, so a token minted for a different app
-   * (including the mobile app's own client if it differs by platform) cannot
-   * be replayed against this API.
+   * OAuth client id(s) Google issues an ID token for, comma-separated — a
+   * mobile app's `aud` varies per platform client id, so every one the app
+   * can sign in with must be listed or that platform's tokens fail verification.
    */
-  GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID is required'),
+  GOOGLE_CLIENT_ID: z
+    .string()
+    .min(1, 'GOOGLE_CLIENT_ID is required')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0),
+    )
+    .refine((ids) => ids.length > 0, 'GOOGLE_CLIENT_ID is required'),
 
   EXCHANGE_RATE_API_URL: z.string().url().default('https://open.er-api.com/v6/latest'),
   EXCHANGE_RATE_TIMEOUT_SECONDS: z.coerce.number().int().min(1).default(5),

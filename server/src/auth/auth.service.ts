@@ -72,7 +72,8 @@ export class AuthService {
     private readonly audit: AuditService,
     private readonly rateLimit: RateLimitService,
   ) {
-    this.googleClient = new OAuth2Client(this.config.GOOGLE_CLIENT_ID);
+    // No client_id: verifyIdToken (below) takes its own explicit `audience` list instead.
+    this.googleClient = new OAuth2Client();
   }
 
   /**
