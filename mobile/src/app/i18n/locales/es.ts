@@ -59,7 +59,6 @@ const es: InactiveTranslationResource = {
   settings: {
     title: 'Ajustes',
     profile: 'Perfil',
-    activeAccount: 'Activo',
     appearance: 'Apariencia',
     theme: 'Tema',
     themeMode: 'Modo de tema',

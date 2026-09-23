@@ -18,34 +18,22 @@ export function ProfileHeader() {
   return (
     <View className="flex-row items-center gap-md">
       <View
-        className="w-[48px] h-[48px] rounded-pill items-center justify-center"
+        className="w-[36px] h-[36px] rounded-pill items-center justify-center"
         style={{ backgroundColor: theme.colors.primaryMuted }}
       >
         {isGuest ? (
-          <UserIcon size={24} color={theme.colors.primary} />
+          <UserIcon size={18} color={theme.colors.primary} />
         ) : (
-          <Text weight="bold" style={{ fontSize: 20, color: theme.colors.primary }}>
+          <Text weight="bold" style={{ fontSize: 15, color: theme.colors.primary }}>
             {initial}
           </Text>
         )}
       </View>
 
       <View className="flex-1 gap-xxs">
-        <View className="flex-row items-center gap-xs">
-          <Text weight="bold" style={{ fontSize: 16 }}>
-            {displayName}
-          </Text>
-          {!isGuest ? (
-            <View
-              className="px-sm py-xxs rounded-pill"
-              style={{ backgroundColor: theme.colors.primaryMuted }}
-            >
-              <Text style={{ fontSize: 10, color: theme.colors.primary }} weight="semibold">
-                {t('settings.activeAccount')}
-              </Text>
-            </View>
-          ) : null}
-        </View>
+        <Text weight="bold" style={{ fontSize: 16 }}>
+          {displayName}
+        </Text>
 
         <Text tone="muted" variant="caption" numberOfLines={1}>
           {subtitle}

@@ -59,7 +59,6 @@ const ko: InactiveTranslationResource = {
   settings: {
     title: '설정',
     profile: '프로필',
-    activeAccount: '활성 계정',
     appearance: '화면 설정',
     theme: '테마',
     themeMode: '테마 모드',

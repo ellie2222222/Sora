@@ -80,7 +80,7 @@ export function SyncSection({
   return (
     <CollapsibleSection
       testID="settings-nav-sync"
-      icon={<RefreshCw size={20} color={theme.colors.primary} />}
+      icon={<RefreshCw size={18} color={theme.colors.textMuted} />}
       title={t('settings.sync', 'Sync & Storage')}
       subtitle={syncSubtitle}
       isOpen={isOpen}

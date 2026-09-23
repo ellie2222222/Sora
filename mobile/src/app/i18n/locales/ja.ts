@@ -59,7 +59,6 @@ const ja: InactiveTranslationResource = {
   settings: {
     title: '設定',
     profile: 'プロフィール',
-    activeAccount: 'アクティブ',
     appearance: '外観',
     theme: 'テーマ',
     themeMode: 'テーマモード',

@@ -25,7 +25,7 @@ export function LanguageSection({
   return (
     <CollapsibleSection
       testID="settings-nav-language"
-      icon={<Globe size={20} color={theme.colors.primary} />}
+      icon={<Globe size={18} color={theme.colors.textMuted} />}
       title={t('settings.language', 'Language')}
       subtitle={languageSubtitle}
       isOpen={isOpen}

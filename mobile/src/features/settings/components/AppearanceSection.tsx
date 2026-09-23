@@ -1,4 +1,4 @@
-import { Check, Moon, Palette, Sparkles, Sun } from 'lucide-react-native';
+import { Check, Moon, Palette, Sun } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -41,7 +41,7 @@ export function AppearanceSection({
   return (
     <CollapsibleSection
       testID="settings-nav-appearance"
-      icon={<Palette size={20} color={theme.colors.primary} />}
+      icon={<Palette size={18} color={theme.colors.textMuted} />}
       title={t('settings.appearance', 'Appearance')}
       subtitle={appearanceSubtitle}
       isOpen={isOpen}
@@ -116,12 +116,9 @@ export function AppearanceSection({
       <SettingsDivider />
 
       <View className="gap-xs py-xs">
-        <View className="flex-row items-center gap-xs">
-          <Sparkles size={14} color={theme.colors.primary} />
-          <Text variant="label" weight="semibold" tone="muted" style={{ fontSize: 11 }}>
-            {t('settings.preview', { defaultValue: 'Theme Preview' })}
-          </Text>
-        </View>
+        <Text variant="label" weight="semibold" tone="muted" style={{ fontSize: 11 }}>
+          {t('settings.preview', { defaultValue: 'Theme Preview' })}
+        </Text>
         <Text variant="heading" weight="bold" style={{ fontSize: 20 }}>
           ₫12,500,000
         </Text>

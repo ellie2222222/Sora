@@ -59,7 +59,6 @@ const hi: InactiveTranslationResource = {
   settings: {
     title: 'सेटिंग्स',
     profile: 'प्रोफाइल',
-    activeAccount: 'सक्रिय',
     appearance: 'दिखावट',
     theme: 'थीम',
     themeMode: 'थीम मोड',

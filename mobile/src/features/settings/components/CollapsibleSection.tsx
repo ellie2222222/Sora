@@ -63,12 +63,7 @@ export function CollapsibleSection({
               : 'transparent',
         }}
       >
-        <View
-          className="w-[36px] h-[36px] rounded-sm items-center justify-center"
-          style={{ backgroundColor: theme.colors.primaryMuted }}
-        >
-          {icon}
-        </View>
+        <View className="w-[20px] items-center justify-center">{icon}</View>
 
         <View className="flex-1 gap-xxs">
           <Text weight="semibold" style={{ fontSize: 15 }}>

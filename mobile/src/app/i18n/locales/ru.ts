@@ -59,7 +59,6 @@ const ru: InactiveTranslationResource = {
   settings: {
     title: 'Настройки',
     profile: 'Профиль',
-    activeAccount: 'Активен',
     appearance: 'Внешний вид',
     theme: 'Тема',
     themeMode: 'Режим темы',

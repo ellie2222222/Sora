@@ -59,7 +59,6 @@ const zh: InactiveTranslationResource = {
   settings: {
     title: '设置',
     profile: '个人资料',
-    activeAccount: '已激活',
     appearance: '外观',
     theme: '主题',
     themeMode: '主题模式',

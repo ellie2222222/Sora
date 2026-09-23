@@ -1,4 +1,4 @@
-import { Info, Shield, Sparkles } from 'lucide-react-native';
+import { Info, Shield } from 'lucide-react-native';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Text } from '@/components';
@@ -21,32 +21,20 @@ export function AboutSection({
   return (
     <CollapsibleSection
       testID="settings-nav-about"
-      icon={<Info size={20} color={theme.colors.primary} />}
+      icon={<Info size={18} color={theme.colors.textMuted} />}
       title={t('settings.about', 'About Sora')}
       subtitle={t('settings.aboutSubtitle', { version: `${appVersion} (${buildNumber})` })}
       isOpen={isOpen}
       onToggle={onToggle}
     >
       <View className="items-center py-sm gap-xs">
-        <View
-          className="w-[52px] h-[52px] rounded-lg items-center justify-center border-[1.5px]"
-          style={{
-            backgroundColor: theme.colors.primaryMuted,
-            borderColor: theme.colors.primary,
-          }}
-        >
-          <Sparkles size={26} color={theme.colors.primary} />
-        </View>
-        <Text variant="heading" weight="bold" style={{ fontSize: 18 }}>
+        <Text variant="heading" weight="bold" style={{ fontSize: 20 }}>
           Sora
-        </Text>
-        <Text variant="caption" tone="muted">
-          {t('settings.aboutSubtitle', { version: `${appVersion} (${buildNumber})` })}
         </Text>
         <Text
           variant="caption"
           tone="muted"
-          style={{ textAlign: 'center', maxWidth: 260, marginTop: 2 }}
+          style={{ textAlign: 'center', maxWidth: 260 }}
         >
           {t('welcomeSubtitle', { defaultValue: 'Track your money simply and privately.' })}
         </Text>
