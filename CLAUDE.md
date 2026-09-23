@@ -606,8 +606,10 @@ literals.
 **MB-07** — Every screen handles loading, empty, error and success. An unhandled empty state is
 an incomplete screen.
 
-**MB-08** — Money is rendered through `formatMoney`/`formatMoneyCompact`. Never
-`Number(amount)`, never `toLocaleString` on a raw string.
+**MB-08** — Money is rendered through the `<Money>` component, or `formatMoneyString`/`formatScaled`
+(`mobile/src/utils/money.ts`) where a plain string is needed. Never `Number(amount)`, never
+`toLocaleString` on a raw string. `formatMoney`/`formatMoneyCompact` in `@sora/contracts` produce a
+wire `MoneyString`, not display text.
 
 **MB-09** — Active locales are English and Vietnamese only (`['en', 'vi'] as const`). Never spend time
 translating new keys into disabled languages (`fr`, `de`, `es`, etc.). Only `en.ts` and `vi.ts` are
