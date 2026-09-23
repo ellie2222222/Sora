@@ -16,6 +16,7 @@ export * from './DonutChart';
 export * from './Fab';
 export * from './MonthSelector';
 export * from './PeriodBar';
+export * from './PeriodSummaryCard';
 export * from './TransactionListSection';
 export * from './TransactionRow';
 export * from './TransactionTotals';

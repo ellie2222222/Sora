@@ -11,8 +11,7 @@ export interface TransactionTotalsProps {
 
 /**
  * Per-currency income + expense totals for a set of transactions, colour/
- * sign-coded via `Money`. Shared by a day's heading and a month's header so
- * both read the same figures the same way.
+ * sign-coded via `Money`. Used for a day's heading in `TransactionListSection`.
  */
 export function TransactionTotals({ transactions, testID }: TransactionTotalsProps) {
   const income = sumByTransactionType(transactions, 'INCOME');
@@ -38,7 +37,6 @@ export function TransactionTotals({ transactions, testID }: TransactionTotalsPro
           currency={total.currency}
           type={TransactionType.EXPENSE}
           variant="caption"
-          formatOptions={{ compact: true }}
         />
       ))}
     </View>

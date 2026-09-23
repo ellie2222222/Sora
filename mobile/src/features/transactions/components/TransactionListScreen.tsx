@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { TransactionStatus, type TransactionResponse } from '@sora/contracts';
 
-import { AnimatedScreen, DatePickerModal, DateStrip, Fab, PeriodBar, RefreshableScrollView, SkeletonList, SlideSwap, StateView, Text, TransactionListSection, TransactionTotals } from '@/components';
+import { AnimatedScreen, DatePickerModal, DateStrip, Fab, PeriodBar, PeriodSummaryCard, RefreshableScrollView, SkeletonList, SlideSwap, StateView, Text, TransactionListSection } from '@/components';
 import { useAuth, useTheme, useWallets } from '@/app/providers';
 import { useListTransactionsQuery } from '@/app/store';
 import { WalletContextBar } from '@/features/wallets';
@@ -168,15 +168,17 @@ export function TransactionListScreen({
             onOpenPicker={() => setShowDatePicker(true)}
             testIDPrefix={testIDPrefix}
           />
-          <View className="flex-row justify-end" style={{ marginTop: theme.spacing.xs }}>
-            {isTruncated ? (
+          {isTruncated ? (
+            <View className="flex-row justify-end" style={{ marginTop: theme.spacing.xs }}>
               <Text variant="caption" tone="muted" testID={`${testIDPrefix}-period-truncated`}>
                 {t('transactions.showingNewest', { count: fetchedCount, total: windowTotal })}
               </Text>
-            ) : (
-              <TransactionTotals transactions={items} testID={`${testIDPrefix}-period-totals`} />
-            )}
-          </View>
+            </View>
+          ) : (
+            <View style={{ marginTop: theme.spacing.sm }}>
+              <PeriodSummaryCard transactions={items} testID={`${testIDPrefix}-period-summary`} />
+            </View>
+          )}
         </View>
 
         {/* Only meaningful while a day *is* the window — in any wider one it would
