@@ -1,4 +1,4 @@
-import { Check, Delete } from 'lucide-react-native';
+import { Calendar, Check, Delete } from 'lucide-react-native';
 import { memo, useState, type RefObject } from 'react';
 import { Platform, Pressable, View, type ViewProps } from 'react-native';
 
@@ -23,9 +23,10 @@ export interface CalculatorKeypadProps {
   /** Omitted where there's no date to set (e.g. a generic `MoneyInput` field) — row 1 then renders
    * as plain 3-wide digits instead of reserving a 4th, empty cell. */
   onQuickDateRef?: RefObject<() => void>;
-  /** Text on the date key — e.g. "Today" or a formatted day once one is picked. Only meaningful
-   * together with `onQuickDateRef`; defaults to "Today" when that's set but this isn't. */
+  /** The selected day, short enough for one key ("Sep 24"). Only meaningful with `onQuickDateRef`. */
   dateLabel?: string;
+  /** Spoken label for the date key — the full date, since `dateLabel` drops the year. */
+  dateAccessibilityLabel?: string;
   testID?: string;
 }
 
@@ -62,7 +63,8 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
   onConfirmRef,
   confirmDisabled = false,
   onQuickDateRef,
-  dateLabel = 'Today',
+  dateLabel,
+  dateAccessibilityLabel,
   testID,
 }: CalculatorKeypadProps) {
   const theme = useTheme();
@@ -127,27 +129,38 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
         {ROW_789.map(digitCell)}
         {onQuickDateRef !== undefined ? (
           <Pressable
-            testID={testID !== undefined ? `${testID}-key-today` : undefined}
+            testID={testID !== undefined ? `${testID}-key-date` : undefined}
             accessibilityRole="button"
-            accessibilityLabel={dateLabel}
+            accessibilityLabel={dateAccessibilityLabel ?? dateLabel}
             onPress={() => onQuickDateRef.current()}
-            onPressIn={() => setPressedKey('today')}
+            onPressIn={() => setPressedKey('date')}
             onPressOut={() => setPressedKey(null)}
             style={{
               flex: 1,
               height: KEY_HEIGHT,
+              flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: pressedKey === 'today' ? theme.colors.surfaceMuted : theme.colors.surfaceElevated,
+              gap: theme.spacing.xxs,
+              paddingHorizontal: theme.spacing.xxs,
+              backgroundColor: theme.colors.primary,
+              opacity: pressedKey === 'date' ? 0.85 : 1,
               borderWidth: 1,
-              borderColor: theme.colors.warning,
+              borderColor: theme.colors.primary,
             }}
           >
-            {/* No icon here — the date can be a full formatted day ("22 Sep 2026"), and an icon
-             * alongside it pushed the text past the cell's width into an ellipsis. */}
-            <Text variant="label" weight="semibold" numberOfLines={1} style={{ color: theme.colors.warning }}>
-              {dateLabel}
-            </Text>
+            <Calendar size={15} color={theme.colors.onPrimary} strokeWidth={2.25} />
+            {dateLabel !== undefined ? (
+              <Text
+                variant="label"
+                weight="semibold"
+                numeric
+                numberOfLines={1}
+                style={{ color: theme.colors.onPrimary, flexShrink: 1 }}
+              >
+                {dateLabel}
+              </Text>
+            ) : null}
           </Pressable>
         ) : null}
       </View>

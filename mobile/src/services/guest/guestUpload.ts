@@ -23,6 +23,8 @@ import {
   BudgetStatus,
   GoalStatus,
   TransactionType,
+  type CategoryResponse,
+  type CategoryType,
   type CreateContributionRequest,
   type CreateTransactionRequest,
 } from '@sora/contracts';
@@ -108,9 +110,13 @@ async function ensureKey(field: KeyField, localId: string): Promise<string> {
   return key;
 }
 
+function typeSuffix(type: CategoryType): string {
+  return type.charAt(0) + type.slice(1).toLowerCase();
+}
+
 /**
  * Match-or-create against the target wallet's existing categories, so a
- * fresh 6-starter wallet, a customized login-target wallet, and a
+ * freshly seeded wallet, a customized login-target wallet, and a
  * renamed-starter-category guest are all handled by one rule.
  */
 async function uploadCategories(walletId: string, apis: UploadApis): Promise<void> {
@@ -134,12 +140,17 @@ async function uploadCategories(walletId: string, apis: UploadApis): Promise<voi
         continue;
       }
 
-      const match = serverCategories.find(
-        (candidate) =>
-          candidate.type === category.type &&
-          (candidate.parentId ?? null) === (mappedParentId ?? null) &&
-          candidate.name.toLowerCase() === category.name.toLowerCase(),
-      );
+      const siblingNamed = (candidate: CategoryResponse, name: string) =>
+        (candidate.parentId ?? null) === (mappedParentId ?? null) &&
+        candidate.name.toLowerCase() === name.toLowerCase();
+
+      let name = category.name;
+      let match = serverCategories.find((candidate) => candidate.type === category.type && siblingNamed(candidate, name));
+      // uq_category_name_per_parent ignores type, so a same-named category of another type would make create 409.
+      if (!match && serverCategories.some((candidate) => siblingNamed(candidate, name))) {
+        name = `${category.name} (${typeSuffix(category.type)})`;
+        match = serverCategories.find((candidate) => candidate.type === category.type && siblingNamed(candidate, name));
+      }
 
       const serverId = match
         ? match.id
@@ -147,7 +158,7 @@ async function uploadCategories(walletId: string, apis: UploadApis): Promise<voi
             await apis.categories.create({
               walletId,
               parentId: mappedParentId ?? undefined,
-              name: category.name,
+              name,
               type: category.type,
               icon: category.icon ?? undefined,
               color: category.color ?? undefined,
@@ -159,7 +170,7 @@ async function uploadCategories(walletId: string, apis: UploadApis): Promise<voi
           id: serverId,
           walletId,
           parentId: mappedParentId ?? null,
-          name: category.name,
+          name,
           type: category.type,
           icon: category.icon,
           color: category.color,
@@ -229,6 +240,7 @@ function buildTransactionRequest(
     type: TransactionType.TRANSFER,
     fromAccountId: progress.accountMap[transaction.fromAccountId!]!,
     toAccountId: progress.accountMap[transaction.toAccountId!]!,
+    categoryId: transaction.categoryId ? progress.categoryMap[transaction.categoryId]! : null,
   };
 }
 

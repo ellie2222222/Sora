@@ -24,10 +24,13 @@ import {
   Gift,
   GraduationCap,
   HandCoins,
+  Handshake,
   HeartPulse,
   Home,
+  Landmark,
   PawPrint,
   Percent,
+  PiggyBank,
   Plane,
   Receipt,
   Repeat,
@@ -38,6 +41,7 @@ import {
   TrendingUp,
   Undo2,
   Utensils,
+  Wallet,
   Wrench,
   Zap,
 } from 'lucide-react-native';
@@ -76,9 +80,13 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   'credit-card': CreditCard,
   'hand-coins': HandCoins,
   clock: Clock,
+  'piggy-bank': PiggyBank,
+  handshake: Handshake,
+  wallet: Wallet,
+  landmark: Landmark,
 };
 
-/** The icon for a TRANSFER row regardless of category — money moving is never a category concern. */
+/** The icon for a TRANSFER row regardless of its optional category, so a transfer never reads as income or expense. */
 export const TRANSFER_ICON: LucideIcon = ArrowLeftRight;
 
 export function categoryIconFor(icon: string | null | undefined): LucideIcon | null {

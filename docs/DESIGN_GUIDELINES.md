@@ -297,6 +297,16 @@ not a bolted-on error page.
 - Color communicates meaning before decoration. Semantic tokens are fixed: `income`, `expense`,
   `transfer`, `warning`, `danger`, `success`, `primary` (selected/accent), each with a `*Muted`
   background companion.
+- Status colors (`info`, `success`, `warning`, `danger`) and flow colors (`income`, `expense`,
+  `transfer`) are defined once in `STATUS_COLORS` / `FLOW_COLORS` (`mobile/src/design-system/colors.ts`):
+  one hex per mode, identical in every palette. Never `primary` for info, which changes with the palette.
+- Text on a filled color uses its `on*` token (`onPrimary`, `onDanger`), never a literal.
+- `text` > `textMuted` > `textFaint` is a hierarchy of readable text; all three hold 4.5:1 on every
+  neutral surface. `textFaint` is for placeholders, captions and empty states — not a way to fake a
+  disabled look.
+- Every foreground/background pair a control renders is listed in `RENDERED_PAIRS`
+  (`colors.test.ts`) and must hold 4.5:1 for text, 3:1 for borders and icons, in every palette and
+  mode. A new pair (a new chip, a new button variant) gets added there with the change.
 - ~90% of the UI is neutral; one accent (`primary`) for primary actions. A second bright color must
   encode a *different* meaning, never visual variety.
 - No raw literals (`#FF0000`) in components — tokens only (MB-06).

@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
+  Easing,
   KeyboardAvoidingView,
   Modal,
   PanResponder,
   Platform,
   Pressable,
+  StyleSheet,
   View,
-  type DimensionValue,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,12 +20,25 @@ import { Text } from './Text';
 // The native animated module doesn't exist on web, which warns if asked for it there.
 const NATIVE_DRIVER_ENABLED = Platform.OS !== 'web';
 
+// The sheet's bottom edge is pulled this far below the screen (the zero-gap skirt), so it must travel this much further to leave it.
+const SKIRT = 30;
+const DEFAULT_DISMISS_THRESHOLD = 0.3;
+const DEFAULT_DISMISS_VELOCITY = 0.5;
+const RETURN_SPRING = { tension: 75, friction: 9 } as const;
+
+type SheetPhase = 'idle' | 'dragging' | 'dismissing';
+
 export interface BottomSheetModalProps {
   visible: boolean;
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
-  maxHeight?: DimensionValue;
+  /** Points, not a percentage: the wrapper around the sheet is content-sized, so a percentage resolves against nothing. */
+  maxHeight?: number;
+  /** Fraction of the sheet's height a release must be dragged past to dismiss. */
+  dismissThreshold?: number;
+  /** Release speed (px/ms) that dismisses regardless of distance — a flick. */
+  dismissVelocity?: number;
   testID?: string;
 }
 
@@ -33,7 +47,9 @@ export function BottomSheetModal({
   onClose,
   title,
   children,
-  maxHeight = '100%',
+  maxHeight,
+  dismissThreshold = DEFAULT_DISMISS_THRESHOLD,
+  dismissVelocity = DEFAULT_DISMISS_VELOCITY,
   testID,
 }: BottomSheetModalProps) {
   const theme = useTheme();
@@ -41,82 +57,105 @@ export function BottomSheetModal({
   const safeBottom = Math.max(insets.bottom, 16);
 
   const windowHeight = Dimensions.get('window').height;
+  const availableHeight = windowHeight - insets.top - theme.spacing.lg;
+  const sheetMaxHeight = maxHeight === undefined ? availableHeight : Math.min(maxHeight, availableHeight);
   const initialTranslateY = windowHeight > 0 ? windowHeight : 600;
 
   const translateYAnim = useRef(new Animated.Value(initialTranslateY)).current;
-  const backdropOpacityAnim = useRef(new Animated.Value(0)).current;
+  const [sheetHeight, setSheetHeight] = useState(initialTranslateY);
+  const phase = useRef<SheetPhase>('idle');
 
-  const dismissModal = useCallback(
-    (onDone?: () => void) => {
-      Animated.parallel([
-        Animated.timing(translateYAnim, {
-          toValue: initialTranslateY,
-          duration: 180,
-          useNativeDriver: NATIVE_DRIVER_ENABLED,
-        }),
-        Animated.timing(backdropOpacityAnim, {
-          toValue: 0,
-          duration: 180,
-          useNativeDriver: NATIVE_DRIVER_ENABLED,
-        }),
-      ]).start(() => {
-        onClose();
-        onDone?.();
-      });
+  // Derived from the sheet's position, not animated separately: the backdrop clears exactly as the
+  // sheet leaves the screen, and the sheet itself never fades.
+  const backdropOpacity = useMemo(
+    () =>
+      translateYAnim.interpolate({
+        inputRange: [0, Math.max(sheetHeight + SKIRT, 1)],
+        outputRange: [1, 0],
+        extrapolate: 'clamp',
+      }),
+    [translateYAnim, sheetHeight],
+  );
+
+  const finishDismiss = useCallback(() => {
+    phase.current = 'idle';
+    onClose();
+  }, [onClose]);
+
+  const dismissModal = useCallback(() => {
+    if (phase.current === 'dismissing') return;
+    phase.current = 'dismissing';
+    Animated.timing(translateYAnim, {
+      toValue: sheetHeight + SKIRT,
+      duration: 220,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: NATIVE_DRIVER_ENABLED,
+    }).start(({ finished }) => finished && finishDismiss());
+  }, [translateYAnim, sheetHeight, finishDismiss]);
+
+  // A gesture release carries the finger's velocity into the slide-out, so the motion continues the drag.
+  const dismissFromRelease = useCallback(
+    (velocity: number) => {
+      phase.current = 'dismissing';
+      Animated.spring(translateYAnim, {
+        toValue: sheetHeight + SKIRT,
+        velocity,
+        ...RETURN_SPRING,
+        overshootClamping: true,
+        useNativeDriver: NATIVE_DRIVER_ENABLED,
+      }).start(({ finished }) => finished && finishDismiss());
     },
-    [initialTranslateY, translateYAnim, backdropOpacityAnim, onClose]
+    [translateYAnim, sheetHeight, finishDismiss],
+  );
+
+  const springBack = useCallback(
+    (velocity: number) => {
+      phase.current = 'idle';
+      Animated.spring(translateYAnim, {
+        toValue: 0,
+        velocity,
+        ...RETURN_SPRING,
+        useNativeDriver: NATIVE_DRIVER_ENABLED,
+      }).start();
+    },
+    [translateYAnim],
   );
 
   useEffect(() => {
     if (visible) {
+      phase.current = 'idle';
       translateYAnim.setValue(initialTranslateY);
-      backdropOpacityAnim.setValue(0);
-      Animated.parallel([
-        Animated.spring(translateYAnim, {
-          toValue: 0,
-          tension: 75,
-          friction: 9,
-          useNativeDriver: NATIVE_DRIVER_ENABLED,
-        }),
-        Animated.timing(backdropOpacityAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: NATIVE_DRIVER_ENABLED,
-        }),
-      ]).start();
+      Animated.spring(translateYAnim, {
+        toValue: 0,
+        ...RETURN_SPRING,
+        useNativeDriver: NATIVE_DRIVER_ENABLED,
+      }).start();
     }
-  }, [visible, initialTranslateY, translateYAnim, backdropOpacityAnim]);
+  }, [visible, initialTranslateY, translateYAnim]);
+
+  // The PanResponder is created once, so it reads the latest thresholds and handlers through a ref.
+  const gesture = useRef({ sheetHeight, dismissThreshold, dismissVelocity, dismissFromRelease, springBack });
+  gesture.current = { sheetHeight, dismissThreshold, dismissVelocity, dismissFromRelease, springBack };
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 5,
+      onStartShouldSetPanResponder: () => phase.current !== 'dismissing',
+      onMoveShouldSetPanResponder: (_, gestureState) => phase.current !== 'dismissing' && gestureState.dy > 5,
+      onPanResponderGrant: () => {
+        phase.current = 'dragging';
+        translateYAnim.stopAnimation();
+      },
       onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          translateYAnim.setValue(gestureState.dy);
-          const opacity = Math.max(0, 1 - gestureState.dy / 350);
-          backdropOpacityAnim.setValue(opacity);
-        }
+        translateYAnim.setValue(Math.max(gestureState.dy, 0));
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 90 || gestureState.vy > 0.4) {
-          dismissModal();
-        } else {
-          Animated.parallel([
-            Animated.spring(translateYAnim, {
-              toValue: 0,
-              tension: 75,
-              friction: 9,
-              useNativeDriver: NATIVE_DRIVER_ENABLED,
-            }),
-            Animated.timing(backdropOpacityAnim, {
-              toValue: 1,
-              duration: 150,
-              useNativeDriver: NATIVE_DRIVER_ENABLED,
-            }),
-          ]).start();
-        }
+        const current = gesture.current;
+        const pastThreshold = gestureState.dy >= current.sheetHeight * current.dismissThreshold;
+        const flicked = gestureState.vy >= current.dismissVelocity;
+        if (pastThreshold || flicked) current.dismissFromRelease(Math.max(gestureState.vy, 0));
+        else current.springBack(gestureState.vy);
       },
+      onPanResponderTerminate: (_, gestureState) => gesture.current.springBack(gestureState.vy),
     })
   ).current;
 
@@ -129,13 +168,11 @@ export function BottomSheetModal({
       onRequestClose={() => dismissModal()}
       testID={testID}
     >
-      <Animated.View
-        style={{
-          flex: 1,
-          backgroundColor: theme.colors.overlay,
-          opacity: backdropOpacityAnim,
-        }}
-      >
+      <View style={{ flex: 1 }}>
+        <Animated.View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.overlay, opacity: backdropOpacity }]}
+        />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           className="flex-1 justify-end"
@@ -143,22 +180,23 @@ export function BottomSheetModal({
           <Pressable className="flex-1" onPress={() => dismissModal()} />
           <Pressable onPress={(e) => e.stopPropagation()}>
             <Animated.View
+              onLayout={(event) => setSheetHeight(event.nativeEvent.layout.height)}
               style={{
                 transform: [{ translateY: translateYAnim }],
-                maxHeight,
+                maxHeight: sheetMaxHeight,
                 width: '100%',
               }}
             >
               <View
-                // Pulled offscreen below the screen's bottom edge, paired with the zero-gap paddingBottom skirt below
-                className="rounded-bl-none rounded-br-none border border-b-0 -mb-[30px]"
+                className="rounded-bl-none rounded-br-none border border-b-0"
                 style={{
                   backgroundColor: theme.colors.surfaceElevated,
                   borderTopLeftRadius: theme.radius.xl,
                   borderTopRightRadius: theme.radius.xl,
                   paddingTop: theme.spacing.sm,
                   paddingHorizontal: theme.spacing.lg,
-                  paddingBottom: safeBottom + 30, // Zero-gap bottom extension skirt
+                  marginBottom: -SKIRT,
+                  paddingBottom: safeBottom + SKIRT,
                   borderColor: theme.colors.border,
                   // flexShrink/minHeight: 0 so this actually shrinks to the ancestor's `maxHeight`
                   // on web (CSS flexbox defaults a flex item's min-height to `auto`, refusing to
@@ -195,7 +233,7 @@ export function BottomSheetModal({
             </Animated.View>
           </Pressable>
         </KeyboardAvoidingView>
-      </Animated.View>
+      </View>
     </Modal>
   );
 }

@@ -16,6 +16,7 @@ import {
 } from './testSupport.ts';
 
 const DATE = '2026-09-05T10:00:00.000Z';
+const TRANSFER_CATEGORY_ID = '3f1a7c62-0000-4000-8000-000000000099';
 
 function expense(overrides: Partial<CreateTransactionRequest> = {}): CreateTransactionRequest {
   return {
@@ -87,6 +88,48 @@ describe('guestTransactionsApi.create', () => {
         toAccountId: ACCOUNT_ID,
         categoryId: EXPENSE_CATEGORY_ID,
         amount: '900000',
+        currency: 'VND',
+        transactionDate: DATE,
+        status: 'COMPLETED',
+      }),
+    );
+
+    assert.equal(code, 'CATEGORY_WRONG_TYPE');
+  });
+
+  it('records a transfer labelled with a TRANSFER category, or with none', async () => {
+    await guestStore.mutate((data) => ({
+      ...data,
+      categories: [
+        ...data.categories,
+        { ...data.categories[0]!, id: TRANSFER_CATEGORY_ID, name: 'Savings', type: 'TRANSFER' },
+      ],
+    }));
+    const transfer = {
+      type: 'TRANSFER',
+      fromAccountId: ACCOUNT_ID,
+      toAccountId: OTHER_ACCOUNT_ID,
+      amount: '50000',
+      currency: 'VND',
+      transactionDate: DATE,
+      status: 'COMPLETED',
+    } as const;
+
+    const labelled = await guestTransactionsApi.create({ ...transfer, categoryId: TRANSFER_CATEGORY_ID });
+    const unlabelled = await guestTransactionsApi.create(transfer);
+
+    assert.equal(labelled.category?.id, TRANSFER_CATEGORY_ID);
+    assert.equal(unlabelled.category, null);
+  });
+
+  it('rejects a transfer pointed at an EXPENSE category', async () => {
+    const code = await codeOf(() =>
+      guestTransactionsApi.create({
+        type: 'TRANSFER',
+        fromAccountId: ACCOUNT_ID,
+        toAccountId: OTHER_ACCOUNT_ID,
+        categoryId: EXPENSE_CATEGORY_ID,
+        amount: '50000',
         currency: 'VND',
         transactionDate: DATE,
         status: 'COMPLETED',
@@ -168,6 +211,36 @@ describe('guestTransactionsApi.update — BR-03', () => {
 
     const code = await codeOf(() => guestTransactionsApi.update(created.id, { description: 'No' }));
     assert.equal(code, 'TRANSACTION_ALREADY_DELETED');
+  });
+
+  it('removes a transfer category when sent null', async () => {
+    await guestStore.mutate((data) => ({
+      ...data,
+      categories: [
+        ...data.categories,
+        { ...data.categories[0]!, id: TRANSFER_CATEGORY_ID, name: 'Savings', type: 'TRANSFER' },
+      ],
+    }));
+    const created = await guestTransactionsApi.create({
+      type: 'TRANSFER',
+      fromAccountId: ACCOUNT_ID,
+      toAccountId: OTHER_ACCOUNT_ID,
+      categoryId: TRANSFER_CATEGORY_ID,
+      amount: '50000',
+      currency: 'VND',
+      transactionDate: DATE,
+      status: 'COMPLETED',
+    });
+
+    const updated = await guestTransactionsApi.update(created.id, { categoryId: null });
+
+    assert.equal(updated.category, null);
+  });
+
+  it('refuses to remove an expense category, since income and expense always carry one', async () => {
+    const created = await guestTransactionsApi.create(expense());
+    const code = await codeOf(() => guestTransactionsApi.update(created.id, { categoryId: null }));
+    assert.equal(code, 'CATEGORY_WRONG_TYPE');
   });
 
   it('rejects re-categorising to the wrong type', async () => {
@@ -314,7 +387,6 @@ describe('calc.ts converters', () => {
     const relevant = toBalanceRelevant(row!);
     assert.equal(relevant.fromAccountId, ACCOUNT_ID);
     assert.equal(relevant.toAccountId, OTHER_ACCOUNT_ID);
-    // A transfer carries no category, so it can never count as spending (BR-06).
     assert.equal(toSpendRelevant(row!).categoryId, null);
   });
 });

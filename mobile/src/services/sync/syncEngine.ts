@@ -91,6 +91,32 @@ function errorCodeOf(error: unknown): ApiErrorLike['code'] | null {
   return isApiError(error) ? (error as ApiErrorLike).code : null;
 }
 
+/**
+ * A `failed` row is a 4xx the same payload will keep getting, so it is retried with a growing delay
+ * and, after this many attempts, parked as `conflict` (needs the user) instead of re-sent forever.
+ */
+export const MAX_FAILED_ATTEMPTS = 5;
+const FAILED_RETRY_BASE_MS = 30_000;
+const FAILED_RETRY_MAX_MS = 30 * 60_000;
+
+/** Delay before a `failed` row with this many attempts is sent again: 30s, 1m, 2m, … capped at 30m. */
+export function failedRetryDelayMs(attempts: number): number {
+  return Math.min(FAILED_RETRY_BASE_MS * 2 ** Math.max(attempts - 1, 0), FAILED_RETRY_MAX_MS);
+}
+
+function isDue(row: QueuedMutation, now: number, ignoreBackoff: boolean): boolean {
+  if (row.status === 'pending') return true;
+  if (row.status !== 'failed') return false;
+  return ignoreBackoff || Date.parse(row.updatedAt) + failedRetryDelayMs(row.attempts) <= now;
+}
+
+export interface SyncPassOptions {
+  onSynced?: (row: QueuedMutation, serverId: string) => void;
+  /** A user's explicit "Try again" retries `failed` rows immediately rather than waiting out the backoff. */
+  ignoreBackoff?: boolean;
+  now?: number;
+}
+
 export interface SyncPassResult {
   synced: string[];
   conflicted: string[];
@@ -110,7 +136,7 @@ let syncing = false;
 export async function runSyncPass(
   queue: OfflineQueue,
   adapters: EntityAdapters,
-  onSynced?: (row: QueuedMutation, serverId: string) => void,
+  { onSynced, ignoreBackoff = false, now = Date.now() }: SyncPassOptions = {},
 ): Promise<SyncPassResult> {
   const result: SyncPassResult = { synced: [], conflicted: [], failed: [], deferred: [], stoppedOnNetworkError: false };
   if (syncing) return result;
@@ -120,7 +146,7 @@ export async function runSyncPass(
     await queue.refresh();
     const rows = queue
       .current()
-      .filter((row) => row.status === 'pending' || row.status === 'failed')
+      .filter((row) => isDue(row, now, ignoreBackoff))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
     for (const row of rows) {
@@ -157,6 +183,9 @@ export async function runSyncPass(
       } catch (error) {
         const classification = classifyFailure(error);
         if (classification === 'conflict') {
+          await queue.markConflict(row.queueId, errorCodeOf(error));
+          result.conflicted.push(row.queueId);
+        } else if (classification === 'failed' && row.attempts + 1 >= MAX_FAILED_ATTEMPTS) {
           await queue.markConflict(row.queueId, errorCodeOf(error));
           result.conflicted.push(row.queueId);
         } else if (classification === 'failed') {

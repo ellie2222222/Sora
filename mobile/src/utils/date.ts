@@ -165,6 +165,15 @@ export function formatDay(day: CalendarDay, locale: string = i18next.language ||
   return d.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
+/** Day and month only ("Sep 24", "24 thg 9") — for controls too narrow for `formatDay`. */
+export function formatShortDay(day: CalendarDay, locale: string = i18next.language || 'en'): string {
+  if (!day || typeof day !== 'string') return '';
+  const { year, month, date } = parseDay(day);
+  const d = new Date(Date.UTC(year, month - 1, date));
+  if (Number.isNaN(d.getTime())) return day;
+  return d.toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
 export function formatMonthYear(day: CalendarDay, locale: string = i18next.language || 'en'): string {
   if (!day || typeof day !== 'string') return '';
   const { year, month } = parseDay(day);

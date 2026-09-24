@@ -1,12 +1,11 @@
 import type { CreateWalletRequest, WalletResponse } from '@sora/contracts';
 
 import { walletsApi as walletsHttp, type WalletListQuery } from '@/services/api';
-import { ensureSeeded, guestWalletsApi } from '@/services/guest';
-import { isCurrentlyOnline, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '@/utils';
+import { guestWalletsApi } from '@/services/guest';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
+import { readWithGuestFallback } from './guestFallback.ts';
 
 export type { WalletListQuery } from '@/services/api';
 
@@ -20,44 +19,26 @@ export const walletsApiSlice = apiSlice.injectEndpoints({
     listWallets: builder.query<WalletResponse[], WalletListQuery | void>({
       queryFn: (query, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(async () => {
-          if (isGuest || !isCurrentlyOnline()) {
-            await ensureSeeded();
-            return guestWalletsApi.list(query ?? {});
-          }
-          try {
-            return await walletsHttp.list(query ?? {});
-          } catch (err) {
-            if (isNetworkError(err)) {
-              setCurrentlyOnline(false);
-              await ensureSeeded();
-              return guestWalletsApi.list(query ?? {});
-            }
-            throw err;
-          }
-        });
+        return toQueryFnResult(() =>
+          readWithGuestFallback(
+            isGuest,
+            () => walletsHttp.list(query ?? {}),
+            () => guestWalletsApi.list(query ?? {}),
+          ),
+        );
       },
       providesTags: ['Wallet'],
     }),
     getWallet: builder.query<WalletResponse, string>({
       queryFn: (walletId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(async () => {
-          if (isGuest || !isCurrentlyOnline()) {
-            await ensureSeeded();
-            return guestWalletsApi.detail(walletId);
-          }
-          try {
-            return await walletsHttp.detail(walletId);
-          } catch (err) {
-            if (isNetworkError(err)) {
-              setCurrentlyOnline(false);
-              await ensureSeeded();
-              return guestWalletsApi.detail(walletId);
-            }
-            throw err;
-          }
-        });
+        return toQueryFnResult(() =>
+          readWithGuestFallback(
+            isGuest,
+            () => walletsHttp.detail(walletId),
+            () => guestWalletsApi.detail(walletId),
+          ),
+        );
       },
       providesTags: ['Wallet'],
     }),

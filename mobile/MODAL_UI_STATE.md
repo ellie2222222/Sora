@@ -38,7 +38,7 @@ All create and update modals adhere to Sora's design tokens defined in [`design-
 - **Surface Elevation**: Grounded with `theme.colors.surface` (e.g. `#16181D` in Obsidian theme, `#FFFFFF` in Light themes).
 - **Top Corners**: Rounded with `theme.radius.xl` (20px). Zero bottom gap via a 100px bottom extension skirt.
 - **Drag Handle**: Centered pill indicator (36px width, 4px height, `theme.radius.pill`, background `theme.colors.border`).
-- **Interactive Gestures**: Smooth PanResponder downward swipe-to-dismiss gesture (triggers dismiss when dragged down >100px or flicked at velocity >1.2).
+- **Interactive Gestures**: PanResponder drag-to-dismiss from the handle strip; dismisses past `dismissThreshold` (fraction of sheet height, default 0.3) or a flick above `dismissVelocity` (px/ms, default 0.5), otherwise springs back.
 - **Physics**: Slide-up animation using `Animated.spring` with `tension: 75, friction: 9` for a responsive, organic feel.
 - **Keyboard Handling**: Embedded `KeyboardAvoidingView` (`Platform.OS === 'ios' ? 'padding' : undefined`) prevents virtual keyboards from obscuring inputs.
 

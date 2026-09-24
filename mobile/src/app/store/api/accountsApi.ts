@@ -6,12 +6,12 @@ import {
 } from '@sora/contracts';
 
 import { accountsApi as accountsHttp, type AccountListQuery } from '@/services/api';
-import { ensureSeeded, guestAccountsApi } from '@/services/guest';
-import { buildOptimisticAccount, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '@/utils';
+import { guestAccountsApi } from '@/services/guest';
+import { buildOptimisticAccount, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
+import { readWithGuestFallback } from './guestFallback.ts';
 
 export type { AccountListQuery } from '@/services/api';
 
@@ -22,44 +22,26 @@ export const accountsApiSlice = apiSlice.injectEndpoints({
     listAccounts: builder.query<AccountResponse[], AccountListQuery>({
       queryFn: (query, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(async () => {
-          if (isGuest || !isCurrentlyOnline()) {
-            await ensureSeeded();
-            return guestAccountsApi.list(query);
-          }
-          try {
-            return await accountsHttp.list(query);
-          } catch (err) {
-            if (isNetworkError(err)) {
-              setCurrentlyOnline(false);
-              await ensureSeeded();
-              return guestAccountsApi.list(query);
-            }
-            throw err;
-          }
-        });
+        return toQueryFnResult(() =>
+          readWithGuestFallback(
+            isGuest,
+            () => accountsHttp.list(query),
+            () => guestAccountsApi.list(query),
+          ),
+        );
       },
       providesTags: ['Account'],
     }),
     getAccount: builder.query<AccountDetailResponse, string>({
       queryFn: (accountId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(async () => {
-          if (isGuest || !isCurrentlyOnline()) {
-            await ensureSeeded();
-            return guestAccountsApi.detail(accountId);
-          }
-          try {
-            return await accountsHttp.detail(accountId);
-          } catch (err) {
-            if (isNetworkError(err)) {
-              setCurrentlyOnline(false);
-              await ensureSeeded();
-              return guestAccountsApi.detail(accountId);
-            }
-            throw err;
-          }
-        });
+        return toQueryFnResult(() =>
+          readWithGuestFallback(
+            isGuest,
+            () => accountsHttp.detail(accountId),
+            () => guestAccountsApi.detail(accountId),
+          ),
+        );
       },
       providesTags: ['Account'],
     }),

@@ -9,9 +9,7 @@ export function HomeScreen({ navigation }: MainTabScreenProps<'Home'>) {
     <TransactionListScreen
       onManage={() => navigation.getParent()?.navigate('WalletList')}
       onAddTransaction={() => openModal('AddTransaction')}
-      // CustomTabBar is a normal-flow sibling (`position: 'relative'`), not
-      // an overlay, so this screen already stops right above it — no extra
-      // offset needed to clear it.
+      // CustomTabBar sits in normal flow below this screen, not over it, so the FAB needs no offset.
       fabBottomOffset={0}
       testIDPrefix="home"
     />

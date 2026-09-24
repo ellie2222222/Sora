@@ -10,7 +10,7 @@ import { describe, it } from 'node:test';
 import { ApiError } from '../../utils/errors.ts';
 import type { EntityAdapter, EntityAdapters } from './entityAdapters.ts';
 import { OfflineQueue } from './offlineQueue.ts';
-import { runSyncPass } from './syncEngine.ts';
+import { failedRetryDelayMs, MAX_FAILED_ATTEMPTS, runSyncPass } from './syncEngine.ts';
 import { memoryQueueDb, nextId } from './testSupport.ts';
 import type { NewQueuedMutation, QueueEntity } from './offlineQueueTypes.ts';
 
@@ -108,6 +108,53 @@ describe('runSyncPass ordering and idempotency', () => {
 
     assert.equal(calls[0]?.args[1], mutation.idempotencyKey);
     assert.equal(calls[1]?.args[1], mutation.idempotencyKey);
+  });
+});
+
+describe('runSyncPass retry backoff for failed rows', () => {
+  function alwaysConflicting409() {
+    return recordingAdapters({
+      transaction: {
+        async create() {
+          throw new ApiError('TRANSACTION_ALREADY_DELETED', 'already deleted', 409);
+        },
+      },
+    });
+  }
+
+  it('waits out the backoff before re-sending a failed row, unless the user asks to retry', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.enqueue(entry());
+    const { adapters } = alwaysConflicting409();
+
+    await runSyncPass(queue, adapters);
+    const failedAt = Date.parse(queue.current()[0]!.updatedAt);
+
+    const tooSoon = await runSyncPass(queue, adapters, { now: failedAt + failedRetryDelayMs(1) - 1 });
+    assert.equal(tooSoon.failed.length, 0);
+
+    const manual = await runSyncPass(queue, adapters, { now: failedAt + 1, ignoreBackoff: true });
+    assert.equal(manual.failed.length, 1);
+  });
+
+  it('doubles the delay per attempt and caps it', () => {
+    assert.equal(failedRetryDelayMs(2), failedRetryDelayMs(1) * 2);
+    assert.equal(failedRetryDelayMs(50), failedRetryDelayMs(20));
+  });
+
+  it('parks a row as conflict after MAX_FAILED_ATTEMPTS instead of retrying forever', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.enqueue(entry());
+    const { adapters } = alwaysConflicting409();
+
+    for (let pass = 1; pass <= MAX_FAILED_ATTEMPTS; pass += 1) {
+      await runSyncPass(queue, adapters, { ignoreBackoff: true });
+    }
+
+    assert.equal(queue.current()[0]?.status, 'conflict');
+    assert.equal(queue.current()[0]?.errorCode, 'TRANSACTION_ALREADY_DELETED');
+    const after = await runSyncPass(queue, adapters, { ignoreBackoff: true });
+    assert.equal(after.failed.length + after.conflicted.length, 0);
   });
 });
 

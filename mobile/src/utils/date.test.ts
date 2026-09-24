@@ -11,6 +11,7 @@ import {
   endOfQuarter,
   endOfWeek,
   endOfYear,
+  formatShortDay,
   instantOfDay,
   monthGrid,
   parseDay,
@@ -180,5 +181,18 @@ describe('monthGrid', () => {
     assert.equal(first.inCurrentMonth, false);
     assert.equal(last.inCurrentMonth, false);
     assert.equal(cells.filter((cell) => cell.inCurrentMonth).length, 31);
+  });
+});
+
+describe('formatShortDay', () => {
+  it('shows day and month only, in the locale order', () => {
+    assert.equal(formatShortDay('2026-09-24', 'en'), 'Sep 24');
+    assert.equal(formatShortDay('2026-09-24', 'vi'), '24 thg 9');
+  });
+
+  it('shows the actual date for today, not a relative word', () => {
+    const now = new Date();
+    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    assert.match(formatShortDay(day, 'en'), /^[A-Z][a-z]{2} \d{1,2}$/);
   });
 });

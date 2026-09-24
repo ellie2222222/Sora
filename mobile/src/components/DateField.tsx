@@ -34,7 +34,11 @@ export function DateField({ label, value, onChange, onClear, placeholder, error,
       <Text variant="label" tone="muted">
         {label}
       </Text>
-      <View
+      <Pressable
+        testID={testID}
+        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={value !== null ? `${label}, ${formatDay(value)}` : label}
         className="h-[48px] flex-row items-center justify-between border"
         style={{
           borderRadius: theme.radius.md,
@@ -43,9 +47,9 @@ export function DateField({ label, value, onChange, onClear, placeholder, error,
           paddingHorizontal: theme.spacing.md,
         }}
       >
-        <Pressable testID={testID} onPress={() => setOpen(true)} className="flex-1 flex-row items-center">
+        <View className="flex-1 flex-row items-center">
           {value !== null ? <Text>{formatDay(value)}</Text> : <Text tone="muted">{placeholder ?? ''}</Text>}
-        </Pressable>
+        </View>
         <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
           {onClear !== undefined && value !== null ? (
             <Pressable
@@ -60,7 +64,7 @@ export function DateField({ label, value, onChange, onClear, placeholder, error,
           ) : null}
           <Calendar size={18} color={theme.colors.textMuted} />
         </View>
-      </View>
+      </Pressable>
       {error !== undefined ? (
         <Text variant="caption" tone="danger">
           {error}

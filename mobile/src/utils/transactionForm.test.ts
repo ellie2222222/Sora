@@ -41,16 +41,16 @@ describe('fieldsForType', () => {
     assert.deepEqual(fieldsForType('TRANSFER'), {
       fromAccount: true,
       toAccount: true,
-      category: false,
+      category: true,
     });
   });
 });
 
 describe('categoryTypeFor', () => {
-  it('demands a matching category type, and none for a transfer', () => {
+  it('maps each transaction type to the category type of the same name', () => {
     assert.equal(categoryTypeFor('EXPENSE'), 'EXPENSE');
     assert.equal(categoryTypeFor('INCOME'), 'INCOME');
-    assert.equal(categoryTypeFor('TRANSFER'), null);
+    assert.equal(categoryTypeFor('TRANSFER'), 'TRANSFER');
   });
 });
 
@@ -150,7 +150,7 @@ describe('buildCreatePayload', () => {
     assert.equal(payload.fromAccountId, ACCOUNT_A);
   });
 
-  it('sends no category on a transfer', () => {
+  it('sends the chosen category on a transfer', () => {
     const payload = buildCreatePayload(
       draft({
         type: 'TRANSFER',
@@ -161,7 +161,14 @@ describe('buildCreatePayload', () => {
       }),
     ) as Record<string, unknown>;
 
-    assert.equal('categoryId' in payload, false);
+    assert.equal(payload.categoryId, CATEGORY);
+  });
+
+  it('accepts a transfer with no category, since it is optional there', () => {
+    const result = validateDraft(
+      draft({ type: 'TRANSFER', fromAccountId: ACCOUNT_A, toAccountId: ACCOUNT_B, amount: '500000' }),
+    );
+    assert.equal(result.ok, true);
   });
 
   it('turns blank text into null so an empty note is absent, not an empty string', () => {

@@ -149,6 +149,8 @@ export interface GuestData {
   goals: GuestGoal[];
   contributions: GuestContribution[];
   uploadProgress: GuestUploadProgress | null;
+  /** Which STARTER_CATEGORIES_VERSION this wallet was last seeded or backfilled to; 0 predates tracking. */
+  starterCategoriesVersion: number;
 }
 
 function emptyData(): GuestData {
@@ -161,6 +163,7 @@ function emptyData(): GuestData {
     goals: [],
     contributions: [],
     uploadProgress: null,
+    starterCategoriesVersion: 0,
   };
 }
 

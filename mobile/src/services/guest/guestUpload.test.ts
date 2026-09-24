@@ -37,7 +37,7 @@ interface Call {
  * as a wrong argument rather than passing silently.
  */
 function recordingApis(options: {
-  existingCategories?: { id: string; name: string; type: 'INCOME' | 'EXPENSE'; parentId: string | null }[];
+  existingCategories?: { id: string; name: string; type: 'INCOME' | 'EXPENSE' | 'TRANSFER'; parentId: string | null }[];
   failOn?: { method: string; times: number; error?: unknown };
 } = {}) {
   const calls: Call[] = [];
@@ -396,16 +396,31 @@ describe('uploadGuestData — category match-or-create', () => {
     assert.equal(progress.categoryMap[INCOME_CATEGORY_ID], 'server-existing-salary');
   });
 
-  it('does not reuse a same-named category of the other type', async () => {
+  it('creates a same-named category of another type under a type-suffixed name, since names ignore type', async () => {
     const fake = recordingApis({
       existingCategories: [{ id: 'server-existing', name: 'Food', type: 'INCOME', parentId: null }],
     });
 
     await uploadGuestData(TARGET_WALLET, fake.apis);
 
-    // 'Food' is EXPENSE locally, so it must be created rather than matched.
     const created = fake.of('categories.create').map((call) => (call.args[0] as { name: string }).name);
-    assert.ok(created.includes('Food'));
+    assert.ok(created.includes('Food (Expense)'));
+    assert.equal(created.includes('Food'), false, 'a plain "Food" would 409 on uq_category_name_per_parent');
+  });
+
+  it('reuses an earlier type-suffixed copy instead of creating it again', async () => {
+    const fake = recordingApis({
+      existingCategories: [
+        { id: 'server-existing', name: 'Food', type: 'INCOME', parentId: null },
+        { id: 'server-food-expense', name: 'Food (Expense)', type: 'EXPENSE', parentId: null },
+      ],
+    });
+
+    await uploadGuestData(TARGET_WALLET, fake.apis);
+
+    const created = fake.of('categories.create').map((call) => (call.args[0] as { name: string }).name);
+    assert.equal(created.some((name) => name.startsWith('Food')), false);
+    assert.equal(guestStore.current().uploadProgress!.categoryMap[EXPENSE_CATEGORY_ID], 'server-food-expense');
   });
 
   it('creates a child under its already-mapped parent', async () => {

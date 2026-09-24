@@ -68,26 +68,7 @@ export function StateView({
   const theme = useTheme();
   const { t } = useTranslation();
 
-  // Offline and an unrecoverable 401 both resolve themselves elsewhere (local-data fallback; the
-  // interceptor's failed refresh flips to AuthNavigator), so a banner here would flash and vanish.
-  // The string checks are a backstop for callers that pass a title/message instead of the `error`.
-  if (
-    variant === 'error' &&
-    (isNetworkError(error) ||
-      isUnauthenticated(error) ||
-      title === t('errors.offlineTitle', 'No internet connection') ||
-      message === t('errors.offlineTitle', 'No internet connection') ||
-      (typeof title === 'string' &&
-        (title.toLowerCase().includes('internet') ||
-          title.toLowerCase().includes('offline') ||
-          title.toLowerCase().includes('network') ||
-          title.toLowerCase().includes('connection'))) ||
-      (typeof message === 'string' &&
-        (message.toLowerCase().includes('internet') ||
-          message.toLowerCase().includes('offline') ||
-          message.toLowerCase().includes('network') ||
-          message.toLowerCase().includes('connection'))))
-  ) {
+  if (variant === 'error' && isSelfResolvingError(error, [title, message], t('errors.offlineTitle', 'No internet connection'))) {
     return null;
   }
 
@@ -229,5 +210,20 @@ function QuickActionChip({ action, testID }: { action: StateViewAction; testID?:
         {action.label}
       </Text>
     </Pressable>
+  );
+}
+
+const CONNECTIVITY_WORDS = ['internet', 'offline', 'network', 'connection'];
+
+/**
+ * Offline and an unrecoverable 401 resolve themselves elsewhere (local-data fallback; the refresh
+ * interceptor switches to AuthNavigator), so a banner would only flash and vanish.
+ */
+function isSelfResolvingError(error: unknown, texts: readonly unknown[], offlineTitle: string): boolean {
+  if (isNetworkError(error) || isUnauthenticated(error)) return true;
+  return texts.some(
+    (text) =>
+      typeof text === 'string' &&
+      (text === offlineTitle || CONNECTIVITY_WORDS.some((word) => text.toLowerCase().includes(word))),
   );
 }

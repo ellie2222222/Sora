@@ -60,7 +60,7 @@ export function buildOptimisticTransaction(
 ): TransactionResponse {
   const fromAccount = 'fromAccountId' in body ? accountRefOf(apiState, body.fromAccountId) : null;
   const toAccount = 'toAccountId' in body ? accountRefOf(apiState, body.toAccountId) : null;
-  const category = 'categoryId' in body ? categoryRefOf(apiState, body.categoryId) : null;
+  const category = body.categoryId ? categoryRefOf(apiState, body.categoryId) : null;
   const now = new Date().toISOString();
 
   return {

@@ -88,7 +88,7 @@ export function Button({
     primary: theme.colors.onPrimary,
     secondary: theme.colors.text,
     outline: theme.colors.text,
-    danger: theme.colors.onPrimary,
+    danger: theme.colors.onDanger,
     'danger-outline': theme.colors.danger,
     'danger-soft': theme.colors.danger,
     ghost: theme.colors.text,
@@ -153,9 +153,11 @@ export function Button({
             color={
               isDisabled
                 ? textColor
-                : variant === 'primary' || variant === 'danger'
+                : variant === 'primary'
                   ? theme.colors.onPrimary
-                  : theme.colors.primary
+                  : variant === 'danger'
+                    ? theme.colors.onDanger
+                    : textColor
             }
             style={{ marginRight: theme.spacing.xs }}
           />

@@ -1,10 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Banknote } from 'lucide-react-native';
-import { formatCurrencyInput, formatMoney, formatMoneyCompact, TransactionType, CategoryType } from '@sora/contracts';
+import { formatMoney, TransactionType } from '@sora/contracts';
 
-import { BottomSheetModal, Button, CalculatorKeypad, DatePickerModal, Input, Text } from '@/components';
+import {
+  BottomSheetModal,
+  Button,
+  CalculatorKeypad,
+  DatePickerModal,
+  Input,
+  Text,
+  useCalculatorExpression,
+} from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
 // Deep-imported (not via each feature's barrel): this component is itself deep-imported by
 // ModalProvider to avoid a cycle (see its own comment), so pulling in `@/features/accounts` or
@@ -15,21 +23,21 @@ import {
   messageOf,
   dayOfInstant,
   formatDay,
+  formatShortDay,
   nowInstant,
   replaceDay,
-  today,
   emptyDraft,
+  categoryTypeFor,
   fieldsForType,
   primaryAccountOf,
   setPrimaryAccount,
   switchType,
   validateDraft,
-  hasOperator as hasOperatorGlyph,
   hasTrailingOperator,
-  spaceExpression,
-  tryEvaluate,
 } from '@/utils';
 import { useCreateTransactionMutation } from '@/app/store';
+
+const HEADER_SIDE_WIDTH = 64;
 
 export interface AddTransactionModalProps {
   visible: boolean;
@@ -44,9 +52,8 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
   const [createTransaction, { isLoading: isSubmitting }] = useCreateTransactionMutation();
 
   const [draft, setDraft] = useState(() => emptyDraft({ currency: 'VND', transactionDate: nowInstant() }));
-  const [expression, setExpression] = useState('');
-  const expressionRef = useRef(expression);
-  expressionRef.current = expression;
+  const { expression, setExpression, expressionRef, evaluated, hasOperator, display: displayAmount } =
+    useCalculatorExpression('', '0');
   const [toAccountWalletId, setToAccountWalletId] = useState<string | undefined>(undefined);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -73,28 +80,16 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
     }
   }, [visible, walletId]);
 
-  const hasOperator = hasOperatorGlyph(expression);
-  const evaluated = useMemo(() => tryEvaluate(expression), [expression]);
   // Mirrors MoneyInput's own rule: an operator expression only becomes a real amount once it's
   // evaluated (see handleConfirm below), so it contributes nothing here while still mid-typing.
   const committedAmount = !hasOperator && evaluated !== null ? formatMoney(evaluated) : '';
-
-  const displayAmount = useMemo(() => {
-    if (expression.trim() === '') return '0';
-    if (hasOperator) return spaceExpression(expression);
-    if (evaluated === null) return expression;
-    const negative = evaluated < 0n;
-    const magnitude = negative ? -evaluated : evaluated;
-    const formatted = formatCurrencyInput(formatMoneyCompact(magnitude, 0), true);
-    return negative ? `-${formatted}` : formatted;
-  }, [evaluated, expression, hasOperator]);
 
   const crossWallet =
     draft.type === TransactionType.TRANSFER && toAccountWalletId !== undefined && toAccountWalletId !== walletId;
 
   const selectedDay = dayOfInstant(draft.transactionDate);
-  const dateLabel =
-    selectedDay === today() ? t('common.today', { defaultValue: 'Today' }) : formatDay(selectedDay);
+  const dateLabel = formatShortDay(selectedDay);
+  const dateAccessibilityLabel = `${t('transactions.date', 'Date')}, ${formatDay(selectedDay)}`;
 
   // Ref pattern (see CalculatorKeypadProps.onConfirmRef) so the keypad's grid identity stays
   // stable even though these two closures change every keystroke/render. Declared before the
@@ -165,23 +160,24 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
 
   return (
     <BottomSheetModal visible={visible} onClose={onClose}>
-      <View className="flex-row items-center justify-between" style={{ marginBottom: theme.spacing.sm }}>
+      <View className="flex-row items-center" style={{ flexShrink: 0, marginBottom: theme.spacing.xs }}>
         <Pressable
           testID="transaction-cancel"
           onPress={onClose}
-          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel={t('common.cancel', { defaultValue: 'Cancel' })}
+          style={{ minWidth: HEADER_SIDE_WIDTH, minHeight: 44, justifyContent: 'center' }}
         >
           <Text tone="muted">{t('common.cancel', { defaultValue: 'Cancel' })}</Text>
         </Pressable>
-        <Text variant="title">{t('home.addTransaction')}</Text>
-        <Text tone="muted" variant="caption" style={{ minWidth: 40, textAlign: 'right' }}>
-          {draft.currency}
+        <Text variant="title" numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
+          {t('home.addTransaction')}
         </Text>
+        {/* Mirrors the Cancel target's width so the title stays centred. */}
+        <View style={{ width: HEADER_SIDE_WIDTH }} />
       </View>
 
-      <View className="flex-row" style={{ gap: theme.spacing.sm, marginBottom: theme.spacing.md }}>
+      <View className="flex-row" style={{ flexShrink: 0, gap: theme.spacing.sm, marginBottom: theme.spacing.md }}>
         {TYPES.map(({ type, label }) => (
           <Button
             key={type}
@@ -198,7 +194,8 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          style={{ flex: 1 }}
+          // Not flex: 1 — the sheet is content-sized, so a zero flex-basis collapses this to 0px tall.
+          style={{ flexGrow: 0, flexShrink: 1 }}
           contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.sm }}
         >
           {draft.type === TransactionType.TRANSFER ? (
@@ -243,7 +240,8 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
             <CategoryGrid
               testID="transaction-category"
               walletId={walletId}
-              type={draft.type === TransactionType.INCOME ? CategoryType.INCOME : CategoryType.EXPENSE}
+              type={categoryTypeFor(draft.type)}
+              optional={draft.type === TransactionType.TRANSFER}
               value={draft.categoryId}
               onChange={(categoryId) => setDraft((current) => ({ ...current, categoryId }))}
               error={fieldErrors.categoryId}
@@ -320,6 +318,7 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
           confirmDisabled={isSubmitting}
           onQuickDateRef={onQuickDateRef}
           dateLabel={dateLabel}
+          dateAccessibilityLabel={dateAccessibilityLabel}
           testID="transaction-amount-keypad"
         />
       </View>

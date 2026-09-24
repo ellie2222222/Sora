@@ -15,7 +15,7 @@ import { selectQueueEntryFor, useArchiveCategoryMutation, useCreateCategoryMutat
 import { isNetworkError, messageOf } from '@/utils';
 import type { AppStackScreenProps } from "@/app/navigation";
 
-/** INCOME and EXPENSE are managed as two lists — a category is one or the other, never both. */
+/** One list per category type — a category has exactly one type, matching the transactions it can label. */
 export function CategoryListScreen({
   route,
 }: AppStackScreenProps<"CategoryList">) {
@@ -37,6 +37,11 @@ export function CategoryListScreen({
     type: CategoryType.INCOME,
     status: CategoryStatus.ACTIVE,
   });
+  const transfer = useListCategoriesQuery({
+    walletId: walletId ?? "",
+    type: CategoryType.TRANSFER,
+    status: CategoryStatus.ACTIVE,
+  });
 
   const renderContent = () => {
     if (walletId === undefined) {
@@ -49,14 +54,16 @@ export function CategoryListScreen({
         />
       );
     }
-    if (expense.isLoading || income.isLoading || walletsLoading) return <SkeletonList rows={6} rowHeight={44} />;
-    if (expense.isError && !isNetworkError(expense.error)) {
-      return <StateView variant="error" error={expense.error} retryAction={() => void expense.refetch()} />;
+    if (expense.isLoading || income.isLoading || transfer.isLoading || walletsLoading) return <SkeletonList rows={6} rowHeight={44} />;
+    const failed = [expense, income, transfer].find((query) => query.isError && !isNetworkError(query.error));
+    if (failed !== undefined) {
+      return <StateView variant="error" error={failed.error} retryAction={() => void failed.refetch()} />;
     }
 
     const sections = [
       { title: t('categories.expenseCategories'), data: expense.data ?? [] },
       { title: t('categories.incomeCategories'), data: income.data ?? [] },
+      { title: t('categories.transferCategories'), data: transfer.data ?? [] },
     ];
 
     return (
@@ -193,16 +200,25 @@ export function CategoryListScreen({
           />
           <View className="flex-row" style={{ gap: theme.spacing.xs }}>
             <Button
+              testID="btn-category-type-EXPENSE"
               label={t("categories.expense")}
               size="sm"
               variant={type === CategoryType.EXPENSE ? "primary" : "secondary"}
               onPress={() => setType(CategoryType.EXPENSE)}
             />
             <Button
+              testID="btn-category-type-INCOME"
               label={t("categories.income")}
               size="sm"
               variant={type === CategoryType.INCOME ? "primary" : "secondary"}
               onPress={() => setType(CategoryType.INCOME)}
+            />
+            <Button
+              testID="btn-category-type-TRANSFER"
+              label={t("categories.transfer")}
+              size="sm"
+              variant={type === CategoryType.TRANSFER ? "primary" : "secondary"}
+              onPress={() => setType(CategoryType.TRANSFER)}
             />
           </View>
           {error !== null ? <Text tone="danger">{error}</Text> : null}

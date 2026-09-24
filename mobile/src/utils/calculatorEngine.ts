@@ -7,7 +7,7 @@
  * range/precision rules the server enforces. Only the arithmetic (multiply/divide/power, which
  * `@sora/contracts` has no use for outside this UI) is written here.
  */
-import { MONEY_SCALE, parseMoney, type Scaled } from '@sora/contracts';
+import { formatCurrencyInput, formatMoneyCompact, MONEY_SCALE, parseMoney, type Scaled } from '@sora/contracts';
 
 export class CalculatorError extends Error {}
 
@@ -231,6 +231,22 @@ const OPERATOR_GLYPH_PATTERN = /[+−×÷^]/g;
  * whitespace, so this never changes what the expression evaluates to. */
 export function spaceExpression(expression: string): string {
   return expression.replace(OPERATOR_GLYPH_PATTERN, ' $& ').replace(/ {2,}/g, ' ').trim();
+}
+
+/**
+ * What an amount field shows for `expression` (`evaluated` = its `tryEvaluate` result). An operator
+ * expression echoes exactly what was typed until it is committed — a running total would show a
+ * wrong intermediate while an operand is still mid-entry. `empty` is what a blank field shows.
+ */
+export function formatExpressionDisplay(expression: string, evaluated: Scaled | null, empty = ''): string {
+  if (expression.trim() === '') return empty;
+  if (hasOperator(expression)) return spaceExpression(expression);
+  if (evaluated === null) return expression;
+  // formatCurrencyInput strips anything but digits/'.', so a negative amount (the signed
+  // initialBalance field, VL-04) needs its sign re-applied after formatting the magnitude.
+  const negative = evaluated < 0n;
+  const formatted = formatCurrencyInput(formatMoneyCompact(negative ? -evaluated : evaluated, 0), true);
+  return negative ? `-${formatted}` : formatted;
 }
 
 function isOperatorGlyph(ch: string): boolean {

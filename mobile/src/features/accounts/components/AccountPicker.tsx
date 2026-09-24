@@ -1,5 +1,5 @@
 import { Banknote, Check, ChevronDown, CreditCard, Landmark, Wallet as WalletIcon } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AccountResponse, AccountType } from '@sora/contracts';
@@ -7,6 +7,7 @@ import type { AccountResponse, AccountType } from '@sora/contracts';
 import { BottomSheetModal, Money, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { useListAccountsQuery } from '@/app/store';
+import { useDefaultToFirst } from '@/hooks';
 
 export const ACCOUNT_ICON: Record<AccountType, typeof Landmark> = {
   BANK_ACCOUNT: Landmark,
@@ -42,18 +43,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
   const [open, setOpen] = useState(false);
   const accounts = useListAccountsQuery({ walletId, status: 'ACTIVE' });
 
-  // Deliberate default-to-first-account UX shortcut, not just an init step:
-  // clearing `value` back to empty while the list is already loaded will
-  // immediately re-populate it with the first account, not leave it blank.
-  useEffect(() => {
-    const list = accounts.data;
-    if ((value === null || value === undefined || value === '') && list !== undefined && list.length > 0) {
-      const first = list[0];
-      if (first !== undefined) {
-        onChange(first.id, first.walletId);
-      }
-    }
-  }, [accounts.data, value, onChange]);
+  useDefaultToFirst(accounts.data, value, (first) => onChange(first.id, first.walletId));
 
   const selected = accounts.data?.find((a) => a.id === value);
   const walletNameOf = (id: string): string => wallets.find((w) => w.id === id)?.name ?? '';

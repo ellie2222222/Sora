@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import {
   TransactionStatus,
   TransactionType,
-  CategoryType,
   type TransactionResponse,
   type UpdateTransactionRequest,
 } from "@sora/contracts";
@@ -16,7 +15,7 @@ import {
   useGetTransactionQuery,
   useUpdateTransactionMutation,
 } from "@/app/store";
-import { dayOfInstant, replaceDay, isNetworkError, messageOf } from '@/utils';
+import { categoryTypeFor, dayOfInstant, replaceDay, isNetworkError, messageOf } from '@/utils';
 
 export interface EditTransactionModalProps {
   visible: boolean;
@@ -40,7 +39,8 @@ export function EditTransactionModal({
 
   const [description, setDescription] = useState<string | null>(null);
   const [day, setDay] = useState<string | null>(null);
-  const [categoryId, setCategoryId] = useState<string | null>(null);
+  // undefined = untouched; null = the user removed a transfer's category.
+  const [categoryId, setCategoryId] = useState<string | null | undefined>(undefined);
   const [reference, setReference] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -48,7 +48,7 @@ export function EditTransactionModal({
     if (visible) {
       setDescription(null);
       setDay(null);
-      setCategoryId(null);
+      setCategoryId(undefined);
       setReference(null);
       setSubmitError(null);
     }
@@ -128,7 +128,7 @@ export function EditTransactionModal({
 
     const descriptionValue = description ?? data.description ?? "";
     const dayValue = day ?? dayOfInstant(data.transactionDate);
-    const categoryValue = categoryId ?? data.category?.id ?? null;
+    const categoryValue = categoryId !== undefined ? categoryId : (data.category?.id ?? null);
     const referenceValue = reference ?? data.reference ?? "";
     const categoryWalletId =
       data.fromAccount?.walletId ?? data.toAccount?.walletId;
@@ -143,10 +143,7 @@ export function EditTransactionModal({
       if (dayValue !== dayOfInstant(current.transactionDate)) {
         body.transactionDate = replaceDay(current.transactionDate, dayValue);
       }
-      if (
-        categoryValue !== null &&
-        categoryValue !== (current.category?.id ?? null)
-      ) {
+      if (categoryValue !== (current.category?.id ?? null)) {
         body.categoryId = categoryValue;
       }
       if (referenceValue !== (current.reference ?? "")) {
@@ -204,16 +201,12 @@ export function EditTransactionModal({
             onChange={setDay}
           />
 
-          {data.type !== TransactionType.TRANSFER &&
-          categoryWalletId !== undefined ? (
+          {categoryWalletId !== undefined ? (
             <CategoryPicker
               testID="edit-transaction-category"
               walletId={categoryWalletId}
-              type={
-                data.type === TransactionType.INCOME
-                  ? CategoryType.INCOME
-                  : CategoryType.EXPENSE
-              }
+              type={categoryTypeFor(data.type)}
+              onClear={data.type === TransactionType.TRANSFER ? () => setCategoryId(null) : undefined}
               value={categoryValue}
               onChange={setCategoryId}
             />

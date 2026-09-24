@@ -1,22 +1,25 @@
-import { forwardRef, type ForwardedRef } from 'react';
-import {
-  SectionList,
-  View,
-  type DefaultSectionT,
-  type GestureResponderEvent,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-  type SectionListProps,
-} from 'react-native';
+import { forwardRef, type ForwardedRef, type ReactElement } from 'react';
+import { SectionList, type DefaultSectionT, type SectionListProps } from 'react-native';
+import Animated, { type AnimatedProps } from 'react-native-reanimated';
 
-import { PullToRefreshIndicator } from './PullToRefreshIndicator.tsx';
+import { PullToRefreshContainer } from './PullToRefreshContainer.tsx';
 import { usePullToRefresh } from './usePullToRefresh.ts';
 
+// Reanimated ships no animated SectionList, and createAnimatedComponent drops its item/section generics.
+const AnimatedSectionList = Animated.createAnimatedComponent(SectionList) as unknown as <ItemT, SectionT>(
+  props: AnimatedProps<SectionListProps<ItemT, SectionT>> & { ref?: ForwardedRef<SectionList<ItemT, SectionT>> }
+) => ReactElement;
+
 export interface RefreshableSectionListProps<ItemT, SectionT = DefaultSectionT>
-  extends Omit<SectionListProps<ItemT, SectionT>, 'refreshing' | 'onRefresh'> {
+  extends Omit<
+    SectionListProps<ItemT, SectionT>,
+    // onScroll is the wrapper's UI-thread offset tracker.
+    'refreshing' | 'onRefresh' | 'onScroll'
+  > {
   refreshing: boolean;
   onRefresh: () => Promise<void> | void;
   threshold?: number;
+  maxPullDistance?: number;
   indicatorTestID?: string;
 }
 
@@ -25,71 +28,27 @@ function RefreshableSectionListInner<ItemT, SectionT = DefaultSectionT>(
     refreshing,
     onRefresh,
     threshold,
-    onScroll,
-    onScrollEndDrag,
-    onTouchStart,
-    onTouchMove,
-    onTouchEnd,
+    maxPullDistance,
     indicatorTestID,
     style,
     ...sectionListProps
   }: RefreshableSectionListProps<ItemT, SectionT>,
   ref: ForwardedRef<SectionList<ItemT, SectionT>>
 ) {
-  const ptr = usePullToRefresh({
-    refreshing,
-    onRefresh,
-    threshold,
-  });
-
-  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    ptr.handleScroll(event);
-    onScroll?.(event);
-  };
-
-  const handleScrollEndDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    ptr.handleScrollEndDrag(event);
-    onScrollEndDrag?.(event);
-  };
-
-  const handleTouchStart = (e: GestureResponderEvent) => {
-    ptr.handleTouchStart(e);
-    onTouchStart?.(e);
-  };
-
-  const handleTouchMove = (e: GestureResponderEvent) => {
-    ptr.handleTouchMove(e);
-    onTouchMove?.(e);
-  };
-
-  const handleTouchEnd = (e: GestureResponderEvent) => {
-    ptr.handleTouchEnd();
-    onTouchEnd?.(e);
-  };
+  const ptr = usePullToRefresh({ refreshing, onRefresh, threshold, maxPullDistance });
 
   return (
-    <View
-      className="flex-1 overflow-hidden"
-      style={style}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
-      <PullToRefreshIndicator
-        refreshing={refreshing}
-        onRefresh={ptr.triggerRefresh}
-        indicatorAnimatedStyle={ptr.animatedIndicatorStyle}
-        iconAnimatedStyle={ptr.animatedIconStyle}
-        testID={indicatorTestID}
-      />
-      <SectionList
+    <PullToRefreshContainer ptr={ptr} refreshing={refreshing} style={style} indicatorTestID={indicatorTestID}>
+      <AnimatedSectionList
         ref={ref}
         scrollEventThrottle={16}
-        onScroll={handleScroll}
-        onScrollEndDrag={handleScrollEndDrag}
+        onScroll={ptr.scrollHandler}
+        // Overscroll would drag the content down with the pull; only the indicator may move.
+        bounces={false}
+        overScrollMode="never"
         {...sectionListProps}
       />
-    </View>
+    </PullToRefreshContainer>
   );
 }
 

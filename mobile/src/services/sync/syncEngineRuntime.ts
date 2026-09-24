@@ -45,8 +45,8 @@ export function startSyncEngine(store: AppStore): () => void {
     running = true;
     void defaultEntityAdapters()
       .then((adapters) =>
-        runSyncPass(offlineQueue, adapters, (row) => {
-          store.dispatch(apiSlice.util.invalidateTags([ENTITY_TAGS[row.entity]]));
+        runSyncPass(offlineQueue, adapters, {
+          onSynced: (row) => store.dispatch(apiSlice.util.invalidateTags([ENTITY_TAGS[row.entity]])),
         }),
       )
       .finally(() => {
@@ -80,7 +80,8 @@ export function startSyncEngine(store: AppStore): () => void {
 /** For pull-to-refresh and the banner's "Try again" — a manual, on-demand pass. */
 export async function requestSyncNow(store: AppStore): Promise<void> {
   const adapters = await defaultEntityAdapters();
-  await runSyncPass(offlineQueue, adapters, (row) => {
-    store.dispatch(apiSlice.util.invalidateTags([ENTITY_TAGS[row.entity]]));
+  await runSyncPass(offlineQueue, adapters, {
+    onSynced: (row) => store.dispatch(apiSlice.util.invalidateTags([ENTITY_TAGS[row.entity]])),
+    ignoreBackoff: true,
   });
 }

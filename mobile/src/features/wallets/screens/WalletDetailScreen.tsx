@@ -89,6 +89,7 @@ export function WalletDetailScreen({
               <View className="flex-row" style={{ gap: theme.spacing.md }}>
                 <Pressable
                   testID="wallet-detail-activity"
+                  hitSlop={12}
                   onPress={() =>
                     navigation.navigate("WalletActivity", { walletId })
                   }
@@ -97,6 +98,7 @@ export function WalletDetailScreen({
                 </Pressable>
                 <Pressable
                   testID="wallet-detail-settings"
+                  hitSlop={12}
                   onPress={() =>
                     navigation.navigate("WalletMembers", { walletId })
                   }
@@ -138,6 +140,7 @@ export function WalletDetailScreen({
             {permissions.canWrite ? (
               <Pressable
                 testID="wallet-detail-add-account"
+                hitSlop={12}
                 onPress={() => navigation.navigate("AddAccount", { walletId })}
               >
                 <Plus size={20} color={theme.colors.primary} />

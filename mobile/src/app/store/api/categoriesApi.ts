@@ -1,12 +1,12 @@
 import { CategoryStatus, type CategoryResponse, type CreateCategoryRequest, type UpdateCategoryRequest } from '@sora/contracts';
 
 import { categoriesApi as categoriesHttp, type CategoryListQuery } from '@/services/api';
-import { ensureSeeded, guestCategoriesApi } from '@/services/guest';
-import { buildOptimisticCategory, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '@/utils';
+import { guestCategoriesApi } from '@/services/guest';
+import { buildOptimisticCategory, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
+import { readWithGuestFallback } from './guestFallback.ts';
 
 export type { CategoryListQuery } from '@/services/api';
 
@@ -17,22 +17,13 @@ export const categoriesApiSlice = apiSlice.injectEndpoints({
     listCategories: builder.query<CategoryResponse[], CategoryListQuery>({
       queryFn: (query, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(async () => {
-          if (isGuest || !isCurrentlyOnline()) {
-            await ensureSeeded();
-            return guestCategoriesApi.list(query);
-          }
-          try {
-            return await categoriesHttp.list(query);
-          } catch (err) {
-            if (isNetworkError(err)) {
-              setCurrentlyOnline(false);
-              await ensureSeeded();
-              return guestCategoriesApi.list(query);
-            }
-            throw err;
-          }
-        });
+        return toQueryFnResult(() =>
+          readWithGuestFallback(
+            isGuest,
+            () => categoriesHttp.list(query),
+            () => guestCategoriesApi.list(query),
+          ),
+        );
       },
       providesTags: ['Category'],
     }),

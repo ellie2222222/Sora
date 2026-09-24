@@ -12,6 +12,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { Provider as ReduxProvider } from 'react-redux';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '@/app/i18n';
@@ -19,6 +20,7 @@ import '@/services/guest';
 import { AuthProvider, LocaleProvider, QueryProvider, ThemeProvider, ToastProvider } from '@/app/providers';
 import { NetworkStatusProvider } from './hooks/useNetworkStatus.tsx';
 import { RootNavigator } from '@/app/navigation';
+import { ErrorBoundary } from '@/components';
 import { store } from '@/app/store';
 import { requestSyncNow, startSyncEngine } from '@/services/sync';
 
@@ -57,23 +59,27 @@ export default function App() {
   if (!fontsLoaded) return null;
 
   return (
-    <ReduxProvider store={store}>
-      <SafeAreaProvider>
-        <QueryProvider>
-          <NetworkStatusProvider onRetrySync={() => requestSyncNow(store)}>
-            <AuthProvider>
-              <ThemeProvider>
-                <LocaleProvider>
-                  <ToastProvider>
-                    <StatusBar style="auto" />
-                    <RootNavigator />
-                  </ToastProvider>
-                </LocaleProvider>
-              </ThemeProvider>
-            </AuthProvider>
-          </NetworkStatusProvider>
-        </QueryProvider>
-      </SafeAreaProvider>
-    </ReduxProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ReduxProvider store={store}>
+        <SafeAreaProvider>
+          <QueryProvider>
+            <NetworkStatusProvider onRetrySync={() => requestSyncNow(store)}>
+              <AuthProvider>
+                <ThemeProvider>
+                  <LocaleProvider>
+                    <ToastProvider>
+                      <StatusBar style="auto" />
+                      <ErrorBoundary>
+                        <RootNavigator />
+                      </ErrorBoundary>
+                    </ToastProvider>
+                  </LocaleProvider>
+                </ThemeProvider>
+              </AuthProvider>
+            </NetworkStatusProvider>
+          </QueryProvider>
+        </SafeAreaProvider>
+      </ReduxProvider>
+    </GestureHandlerRootView>
   );
 }

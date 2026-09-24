@@ -73,24 +73,23 @@ export function fieldsForType(type: TransactionType): DraftFieldVisibility {
     case TransactionType.EXPENSE:
       return { fromAccount: true, toAccount: false, category: true };
     case TransactionType.TRANSFER:
-      return { fromAccount: true, toAccount: true, category: false };
+      return { fromAccount: true, toAccount: true, category: true };
   }
 }
 
-/** The category type a transaction type demands, or null when it takes none. */
-export function categoryTypeFor(type: TransactionType): CategoryType | null {
+/** The category type a transaction type takes — required for income/expense, optional for a transfer. */
+export function categoryTypeFor(type: TransactionType): CategoryType {
   if (type === TransactionType.INCOME) return CategoryType.INCOME;
   if (type === TransactionType.EXPENSE) return CategoryType.EXPENSE;
-  return null;
+  return CategoryType.TRANSFER;
 }
 
 /**
  * Switch the type, carrying the account the user already picked to whichever
  * side the new type names, and dropping anything the new type cannot hold.
  *
- * The category is always cleared on a real change: INCOME and EXPENSE demand
- * opposite category types and TRANSFER demands none, so no previously chosen
- * category can still be valid.
+ * The category is always cleared on a real change: each type takes its own
+ * category type, so no previously chosen category can still be valid.
  */
 export function switchType(draft: TransactionDraft, next: TransactionType): TransactionDraft {
   if (draft.type === next) return draft;
@@ -171,6 +170,7 @@ export function buildCreatePayload(draft: TransactionDraft): unknown {
         type: TransactionType.TRANSFER,
         fromAccountId: draft.fromAccountId,
         toAccountId: draft.toAccountId,
+        categoryId: draft.categoryId,
         ...common,
       };
   }

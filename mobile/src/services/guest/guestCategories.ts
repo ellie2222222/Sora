@@ -121,6 +121,14 @@ function collectDescendantLevels(categories: readonly GuestCategory[], rootId: s
   return levels;
 }
 
+/** A new ACTIVE category with a fresh local id — shared by create and the starter seed. */
+export function newGuestCategory(
+  fields: Pick<GuestCategory, 'walletId' | 'parentId' | 'name' | 'type' | 'icon' | 'color'>,
+  now: string = new Date().toISOString(),
+): GuestCategory {
+  return { id: newLocalId(), ...fields, status: CategoryStatus.ACTIVE, createdAt: now, updatedAt: now };
+}
+
 export const guestCategoriesApi = {
   async list(query: CategoryListQuery): Promise<CategoryResponse[]> {
     requireWallet();
@@ -153,19 +161,14 @@ export const guestCategoriesApi = {
 
     assertUniqueName(categories, wallet.id, parentId, request.name);
 
-    const now = new Date().toISOString();
-    const category: GuestCategory = {
-      id: newLocalId(),
+    const category = newGuestCategory({
       walletId: wallet.id,
       parentId,
       name: request.name,
       type: request.type,
       icon: request.icon ?? null,
       color: request.color ?? null,
-      status: CategoryStatus.ACTIVE,
-      createdAt: now,
-      updatedAt: now,
-    };
+    });
 
     await guestStore.mutate((current) => ({ ...current, categories: [...current.categories, category] }));
     return toCategoryResponse(category, 0);

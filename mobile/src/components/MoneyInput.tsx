@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, TextInput, View } from 'react-native';
 
-import { formatCurrencyInput, formatMoney, formatMoneyCompact } from '@sora/contracts';
+import { formatMoney } from '@sora/contracts';
 
 import { useTheme } from '@/app/providers';
-import { hasOperator, spaceExpression, tryEvaluate } from '@/utils';
+import { hasOperator, tryEvaluate } from '@/utils';
 import { CalculatorKeypad } from './CalculatorKeypad.tsx';
 import { useKeyboardDock } from './KeyboardDockProvider.tsx';
+import { useCalculatorExpression } from './useCalculatorExpression.ts';
 import { Text } from './Text.tsx';
 
 export interface MoneyInputProps {
@@ -33,20 +34,14 @@ export function MoneyInput({ value, onChangeValue, label, error, placeholder = '
   const idRef = useRef(testID ?? `money-input-${(instanceCounter += 1)}`);
   const inputRef = useRef<TextInput>(null);
 
-  const [expression, setExpression] = useState(value);
+  const { expression, setExpression, expressionRef, evaluated, display: displayValue } = useCalculatorExpression(value);
   const [focused, setFocused] = useState(false);
-  // Read by CalculatorKeypad's key-press handling without forcing its key grid to re-render on
-  // every keystroke — see the comment on CalculatorKeypadProps.expressionRef.
-  const expressionRef = useRef(expression);
-  expressionRef.current = expression;
   // Same ref pattern as expressionRef, so CalculatorKeypadProps.onConfirmRef's identity stays
   // stable across renders even though what it does depends on the field's current focus/ref.
   const onConfirmRef = useRef(() => inputRef.current?.blur());
   onConfirmRef.current = () => inputRef.current?.blur();
   const message = Array.isArray(error) ? error[0] : error;
   const hasError = message !== undefined && message.length > 0;
-
-  const evaluated = useMemo(() => tryEvaluate(expression), [expression]);
 
   // Tracks the value this component itself last emitted, so a parent-driven reset of `value`
   // (e.g. a modal clearing its form on reopen without unmounting) can be told apart from our own
@@ -93,20 +88,6 @@ export function MoneyInput({ value, onChangeValue, label, error, placeholder = '
       setExpression(value);
     }
   }, [value]);
-
-  const displayValue = useMemo(() => {
-    if (expression.trim() === '') return '';
-    // An operator expression echoes exactly what was typed until Done evaluates it — a live
-    // running total here would show a wrong intermediate result while an operand is still mid-entry.
-    if (hasOperator(expression)) return spaceExpression(expression);
-    if (evaluated === null) return expression;
-    // formatCurrencyInput strips anything but digits/'.', so a negative amount (the signed
-    // initialBalance field, VL-04) needs its sign re-applied after formatting the magnitude.
-    const negative = evaluated < 0n;
-    const magnitude = negative ? -evaluated : evaluated;
-    const formatted = formatCurrencyInput(formatMoneyCompact(magnitude, 0), true);
-    return negative ? `-${formatted}` : formatted;
-  }, [evaluated, expression]);
 
   // Android's back button, while this field owns the dock, closes the keypad before it can reach
   // a modal/screen's own back handling — the same order a real keyboard would resolve back in.

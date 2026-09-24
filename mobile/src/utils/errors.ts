@@ -43,72 +43,44 @@ function isErrorBody(value: unknown): value is ApiErrorBody {
   return typeof (candidate.error as { code?: unknown }).code === 'string';
 }
 
+/**
+ * Phrases transports use when no response arrived at all. Deliberately not bare "fetch" or
+ * "connection": a server message such as "Account connection lost" is a response, not an outage,
+ * and treating it as offline switches the app to its local guest data.
+ */
+const NO_RESPONSE_PHRASES = [
+  'network',
+  'cannot reach',
+  'failed to fetch',
+  'offline',
+  'internet',
+  'timeout',
+  'timed out',
+  'econnrefused',
+] as const;
+const NO_RESPONSE_CODES = new Set(['ERR_NETWORK', 'ECONNABORTED', 'ETIMEDOUT', 'ECONNREFUSED']);
+const NO_RESPONSE_STATUSES = new Set<unknown>([0, 'FETCH_ERROR', 'TIMEOUT_ERROR']);
+
+function describesNoResponse(message: string): boolean {
+  const lower = message.toLowerCase();
+  return NO_RESPONSE_PHRASES.some((phrase) => lower.includes(phrase));
+}
+
+/** True only when the request got no response — an HTTP status of any kind means the server was reached. */
 export function isNetworkError(error: unknown): boolean {
   if (!error) return false;
-  if (isApiError(error)) {
-    if (error.status === 0) return true;
-    const msg = error.message.toLowerCase();
-    return (
-      msg.includes('network') ||
-      msg.includes('cannot reach') ||
-      msg.includes('fetch') ||
-      msg.includes('failed to fetch') ||
-      msg.includes('offline') ||
-      msg.includes('internet') ||
-      msg.includes('connection') ||
-      msg.includes('timeout')
-    );
-  }
-  if (error instanceof Error) {
-    const msg = error.message.toLowerCase();
-    return (
-      msg.includes('network') ||
-      msg.includes('cannot reach') ||
-      msg.includes('fetch') ||
-      msg.includes('failed to fetch') ||
-      msg.includes('offline') ||
-      msg.includes('internet') ||
-      msg.includes('connection') ||
-      msg.includes('timeout')
-    );
-  }
-  if (typeof error === 'object') {
-    const err = error as Record<string, unknown>;
-    if (err.status === 0 || err.status === 'FETCH_ERROR' || err.status === 'TIMEOUT_ERROR') return true;
-    if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED') return true;
-    const msg =
-      typeof err.message === 'string'
-        ? err.message.toLowerCase()
-        : typeof err.error === 'string'
-          ? err.error.toLowerCase()
-          : '';
-    if (
-      msg.includes('network') ||
-      msg.includes('cannot reach') ||
-      msg.includes('fetch') ||
-      msg.includes('failed to fetch') ||
-      msg.includes('offline') ||
-      msg.includes('internet') ||
-      msg.includes('connection') ||
-      msg.includes('timeout')
-    ) {
-      return true;
-    }
-  }
-  if (typeof error === 'string') {
-    const msg = error.toLowerCase();
-    return (
-      msg.includes('network') ||
-      msg.includes('cannot reach') ||
-      msg.includes('fetch') ||
-      msg.includes('failed to fetch') ||
-      msg.includes('offline') ||
-      msg.includes('internet') ||
-      msg.includes('connection') ||
-      msg.includes('timeout')
-    );
-  }
-  return false;
+  // toApiError gives every transport failure status 0; anything else carries a real server status.
+  if (isApiError(error)) return error.status === 0;
+  if (typeof error === 'string') return describesNoResponse(error);
+  if (typeof error !== 'object') return false;
+
+  const err = error as Record<string, unknown>;
+  if (NO_RESPONSE_STATUSES.has(err.status)) return true;
+  if (typeof err.code === 'string' && NO_RESPONSE_CODES.has(err.code)) return true;
+  if (typeof err.response === 'object' && err.response !== null) return false;
+
+  const message = typeof err.message === 'string' ? err.message : typeof err.error === 'string' ? err.error : '';
+  return describesNoResponse(message);
 }
 
 /** Turn whatever the transport produced into an ApiError, never throwing itself. */

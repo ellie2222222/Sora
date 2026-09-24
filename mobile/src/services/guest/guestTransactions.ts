@@ -252,8 +252,9 @@ export const guestTransactionsApi = {
       throw guestError('TRANSFER_CURRENCY_MISMATCH');
     }
 
-    if (request.type === TransactionType.INCOME || request.type === TransactionType.EXPENSE) {
-      const category = findCategory(categories, request.categoryId);
+    const categoryId = request.categoryId ?? null;
+    if (categoryId !== null) {
+      const category = findCategory(categories, categoryId);
       if (category.type !== request.type) throw guestError('CATEGORY_WRONG_TYPE');
       if (category.walletId !== wallet.id) throw guestError('CATEGORY_WRONG_WALLET');
     }
@@ -270,7 +271,7 @@ export const guestTransactionsApi = {
       reference: request.reference ?? null,
       fromAccountId: request.type === TransactionType.INCOME ? null : request.fromAccountId,
       toAccountId: request.type === TransactionType.EXPENSE ? null : request.toAccountId,
-      categoryId: request.type === TransactionType.TRANSFER ? null : request.categoryId,
+      categoryId,
       createdAt: now,
       updatedAt: now,
     };
@@ -294,8 +295,9 @@ export const guestTransactionsApi = {
     if (!existing) throw guestError('TRANSACTION_NOT_FOUND');
     if (existing.status === TransactionStatus.DELETED) throw guestError('TRANSACTION_ALREADY_DELETED');
 
-    if (patch.categoryId !== undefined) {
-      if (existing.type === TransactionType.TRANSFER) throw guestError('CATEGORY_WRONG_TYPE');
+    if (patch.categoryId === null) {
+      if (existing.type !== TransactionType.TRANSFER) throw guestError('CATEGORY_WRONG_TYPE');
+    } else if (patch.categoryId !== undefined) {
       const category = findCategory(categories, patch.categoryId);
       if (category.type !== existing.type) throw guestError('CATEGORY_WRONG_TYPE');
       if (category.walletId !== wallet.id) throw guestError('CATEGORY_WRONG_WALLET');

@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import { formatMoney } from '@sora/contracts';
 
-import { CalculatorError, evaluateExpression, hasOperator, hasTrailingOperator, insertToken, spaceExpression, tryEvaluate } from './calculatorEngine.ts';
+import { CalculatorError, evaluateExpression, formatExpressionDisplay, hasOperator, hasTrailingOperator, insertToken, spaceExpression, tryEvaluate } from './calculatorEngine.ts';
 
 function evalToString(expression: string): string {
   return formatMoney(evaluateExpression(expression));
@@ -141,5 +141,25 @@ describe('spaceExpression', () => {
 
   it('never changes what the expression evaluates to', () => {
     assert.equal(tryEvaluate(spaceExpression('100+50×2')), tryEvaluate('100+50×2'));
+  });
+});
+
+describe('formatExpressionDisplay', () => {
+  it('shows the empty text the caller chose for a blank field', () => {
+    assert.equal(formatExpressionDisplay('', null), '');
+    assert.equal(formatExpressionDisplay('  ', null, '0'), '0');
+  });
+
+  it('echoes an operator expression as typed (spaced), never a running total', () => {
+    assert.equal(formatExpressionDisplay('100+5', tryEvaluate('100+5')), '100 + 5');
+  });
+
+  it('keeps the sign of a negative plain amount', () => {
+    const shown = formatExpressionDisplay('-1500', tryEvaluate('-1500'));
+    assert.ok(shown.startsWith('-') && shown.includes('1'), shown);
+  });
+
+  it('echoes an expression that does not evaluate yet', () => {
+    assert.equal(formatExpressionDisplay('12.', null), '12.');
   });
 });

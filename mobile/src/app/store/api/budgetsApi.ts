@@ -1,12 +1,12 @@
 import { BudgetStatus, type BudgetResponse, type CreateBudgetRequest, type UpdateBudgetRequest } from '@sora/contracts';
 
 import { budgetsApi as budgetsHttp, type BudgetListQuery } from '@/services/api';
-import { ensureSeeded, guestBudgetsApi } from '@/services/guest';
-import { buildOptimisticBudget, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '@/utils';
+import { guestBudgetsApi } from '@/services/guest';
+import { buildOptimisticBudget, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
+import { readWithGuestFallback } from './guestFallback.ts';
 
 export type { BudgetListQuery } from '@/services/api';
 
@@ -18,44 +18,26 @@ export const budgetsApiSlice = apiSlice.injectEndpoints({
     listBudgets: builder.query<BudgetResponse[], BudgetListQuery>({
       queryFn: (query, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(async () => {
-          if (isGuest || !isCurrentlyOnline()) {
-            await ensureSeeded();
-            return guestBudgetsApi.list(query);
-          }
-          try {
-            return await budgetsHttp.list(query);
-          } catch (err) {
-            if (isNetworkError(err)) {
-              setCurrentlyOnline(false);
-              await ensureSeeded();
-              return guestBudgetsApi.list(query);
-            }
-            throw err;
-          }
-        });
+        return toQueryFnResult(() =>
+          readWithGuestFallback(
+            isGuest,
+            () => budgetsHttp.list(query),
+            () => guestBudgetsApi.list(query),
+          ),
+        );
       },
       providesTags: ['Budget'],
     }),
     getBudget: builder.query<BudgetResponse, string>({
       queryFn: (budgetId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(async () => {
-          if (isGuest || !isCurrentlyOnline()) {
-            await ensureSeeded();
-            return guestBudgetsApi.detail(budgetId);
-          }
-          try {
-            return await budgetsHttp.detail(budgetId);
-          } catch (err) {
-            if (isNetworkError(err)) {
-              setCurrentlyOnline(false);
-              await ensureSeeded();
-              return guestBudgetsApi.detail(budgetId);
-            }
-            throw err;
-          }
-        });
+        return toQueryFnResult(() =>
+          readWithGuestFallback(
+            isGuest,
+            () => budgetsHttp.detail(budgetId),
+            () => guestBudgetsApi.detail(budgetId),
+          ),
+        );
       },
       providesTags: ['Budget'],
     }),

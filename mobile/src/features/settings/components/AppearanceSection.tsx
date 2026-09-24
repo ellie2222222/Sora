@@ -35,6 +35,7 @@ export function AppearanceSection({
   const { themeName, themeMode, setThemeName, setThemeMode } = useThemeControl();
   // `style` can never be a function here — see CLAUDE.md Part 7 rule 15.
   const [pressedName, setPressedName] = useState<ThemeName | null>(null);
+  const [modeRowPressed, setModeRowPressed] = useState(false);
 
   const appearanceSubtitle = `${themeMode === 'dark' ? t('settings.modes.dark') : t('settings.modes.light')} · ${t(`settings.themeNames.${themeName}`)}`;
 
@@ -47,7 +48,19 @@ export function AppearanceSection({
       isOpen={isOpen}
       onToggle={onToggle}
     >
-      <View className="flex-row items-center gap-md py-xs">
+      <Pressable
+        testID="settings-row-dark-mode"
+        onPress={() => void setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
+        onPressIn={() => setModeRowPressed(true)}
+        onPressOut={() => setModeRowPressed(false)}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: themeMode === 'dark' }}
+        className="flex-row items-center gap-md py-xs"
+        style={{
+          borderRadius: theme.radius.sm,
+          backgroundColor: modeRowPressed ? theme.colors.surfaceMuted : 'transparent',
+        }}
+      >
         {themeMode === 'dark' ? (
           <Moon size={22} color={theme.colors.primary} strokeWidth={2} />
         ) : (
@@ -68,7 +81,7 @@ export function AppearanceSection({
           value={themeMode === 'dark'}
           onValueChange={(isDark) => void setThemeMode(isDark ? 'dark' : 'light')}
         />
-      </View>
+      </Pressable>
 
       <SettingsDivider />
 

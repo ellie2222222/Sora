@@ -121,5 +121,6 @@ export async function seedFixture(): Promise<void> {
     goals: [],
     contributions: [],
     uploadProgress: null,
+    starterCategoriesVersion: 0,
   }));
 }

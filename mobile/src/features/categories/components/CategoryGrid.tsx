@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { CategoryResponse, CategoryType } from '@sora/contracts';
@@ -6,13 +6,18 @@ import type { CategoryResponse, CategoryType } from '@sora/contracts';
 import { Text } from '@/components';
 import { useTheme } from '@/app/providers';
 import { useListCategoriesQuery } from '@/app/store';
+import { useDefaultToFirst } from '@/hooks';
 import { categoryIconFor } from '@/utils';
+
+import { CATEGORY_TYPE_LABEL_KEY } from './categoryTypeLabel.ts';
 
 export interface CategoryGridProps {
   walletId: string;
   type: CategoryType;
   value: string | null;
-  onChange: (categoryId: string) => void;
+  onChange: (categoryId: string | null) => void;
+  /** No auto-pick, and tapping the selected category clears it — for a transfer, where one is optional. */
+  optional?: boolean;
   error?: string;
   testID?: string;
 }
@@ -24,19 +29,14 @@ const COLUMNS = 4;
  * icon grid rather than `CategoryPicker`'s tap-to-open sheet, since this screen's own scroll
  * region already holds it alongside the account/date fields (no nested sheet needed).
  */
-export function CategoryGrid({ walletId, type, value, onChange, error, testID }: CategoryGridProps) {
+export function CategoryGrid({ walletId, type, value, onChange, optional = false, error, testID }: CategoryGridProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const categories = useListCategoriesQuery({ walletId, type, status: 'ACTIVE' });
 
-  // Same default-to-first-category shortcut as CategoryPicker.
-  useEffect(() => {
-    const list = categories.data;
-    if ((value === null || value === undefined || value === '') && list !== undefined && list.length > 0) {
-      const first = list[0];
-      if (first !== undefined) onChange(first.id);
-    }
-  }, [categories.data, value, onChange]);
+  useDefaultToFirst(categories.data, value, (first) => onChange(first.id), !optional);
+  const typeLabel = t(CATEGORY_TYPE_LABEL_KEY[type]).toLowerCase();
+
 
   return (
     <View style={{ gap: theme.spacing.xs }} testID={testID}>
@@ -49,13 +49,13 @@ export function CategoryGrid({ walletId, type, value, onChange, error, testID }:
             key={category.id}
             category={category}
             selected={category.id === value}
-            onPress={() => onChange(category.id)}
+            onPress={() => onChange(optional && category.id === value ? null : category.id)}
           />
         ))}
       </View>
       {categories.data !== undefined && categories.data.length === 0 ? (
         <Text tone="faint" style={{ padding: theme.spacing.md, textAlign: 'center' }}>
-          {t('categories.noCategoriesYet', { type: type.toLowerCase(), defaultValue: `No ${type.toLowerCase()} categories yet.` })}
+          {t('categories.noCategoriesYet', { type: typeLabel })}
         </Text>
       ) : null}
       {error !== undefined ? (

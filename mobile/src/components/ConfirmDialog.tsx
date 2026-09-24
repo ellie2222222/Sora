@@ -82,14 +82,14 @@ export function ConfirmDialog({
   const iconColor = {
     danger: theme.colors.danger,
     warning: theme.colors.warning,
-    info: theme.colors.primary,
+    info: theme.colors.info,
     primary: theme.colors.primary,
   }[resolvedVariant];
 
   const iconBgColor = {
     danger: theme.colors.dangerMuted,
     warning: theme.colors.warningMuted,
-    info: theme.colors.primaryMuted,
+    info: theme.colors.infoMuted,
     primary: theme.colors.primaryMuted,
   }[resolvedVariant];
 

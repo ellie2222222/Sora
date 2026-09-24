@@ -1,97 +1,40 @@
 import { forwardRef } from 'react';
-import {
-  ScrollView,
-  View,
-  type GestureResponderEvent,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-  type ScrollViewProps,
-} from 'react-native';
+import type { ScrollView, ScrollViewProps } from 'react-native';
+import Animated from 'react-native-reanimated';
 
-import { PullToRefreshIndicator } from './PullToRefreshIndicator.tsx';
+import { PullToRefreshContainer } from './PullToRefreshContainer.tsx';
 import { usePullToRefresh } from './usePullToRefresh.ts';
 
-export interface RefreshableScrollViewProps extends ScrollViewProps {
+export interface RefreshableScrollViewProps extends Omit<ScrollViewProps, 'onScroll'> {
+  // onScroll is omitted: the wrapper owns it, as a UI-thread handler that tracks the offset for the pull.
   refreshing: boolean;
   onRefresh: () => Promise<void> | void;
   threshold?: number;
+  maxPullDistance?: number;
   indicatorTestID?: string;
 }
 
 export const RefreshableScrollView = forwardRef<ScrollView, RefreshableScrollViewProps>(
   function RefreshableScrollView(
-    {
-      refreshing,
-      onRefresh,
-      threshold,
-      onScroll,
-      onScrollEndDrag,
-      onTouchStart,
-      onTouchMove,
-      onTouchEnd,
-      indicatorTestID,
-      children,
-      style,
-      ...scrollViewProps
-    },
+    { children, refreshing, onRefresh, threshold, maxPullDistance, indicatorTestID, style, ...scrollViewProps },
     ref
   ) {
-    const ptr = usePullToRefresh({
-      refreshing,
-      onRefresh,
-      threshold,
-    });
-
-    const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      ptr.handleScroll(event);
-      onScroll?.(event);
-    };
-
-    const handleScrollEndDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      ptr.handleScrollEndDrag(event);
-      onScrollEndDrag?.(event);
-    };
-
-    const handleTouchStart = (e: GestureResponderEvent) => {
-      ptr.handleTouchStart(e);
-      onTouchStart?.(e);
-    };
-
-    const handleTouchMove = (e: GestureResponderEvent) => {
-      ptr.handleTouchMove(e);
-      onTouchMove?.(e);
-    };
-
-    const handleTouchEnd = (e: GestureResponderEvent) => {
-      ptr.handleTouchEnd();
-      onTouchEnd?.(e);
-    };
+    const ptr = usePullToRefresh({ refreshing, onRefresh, threshold, maxPullDistance });
 
     return (
-      <View
-        className="flex-1 overflow-hidden"
-        style={style}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        <PullToRefreshIndicator
-          refreshing={refreshing}
-          onRefresh={ptr.triggerRefresh}
-          indicatorAnimatedStyle={ptr.animatedIndicatorStyle}
-          iconAnimatedStyle={ptr.animatedIconStyle}
-          testID={indicatorTestID}
-        />
-        <ScrollView
+      <PullToRefreshContainer ptr={ptr} refreshing={refreshing} style={style} indicatorTestID={indicatorTestID}>
+        <Animated.ScrollView
           ref={ref}
           scrollEventThrottle={16}
-          onScroll={handleScroll}
-          onScrollEndDrag={handleScrollEndDrag}
+          onScroll={ptr.scrollHandler}
+          // Overscroll would drag the content down with the pull; only the indicator may move.
+          bounces={false}
+          overScrollMode="never"
           {...scrollViewProps}
         >
           {children}
-        </ScrollView>
-      </View>
+        </Animated.ScrollView>
+      </PullToRefreshContainer>
     );
   }
 );

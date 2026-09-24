@@ -257,6 +257,7 @@ export function WalletMembersScreen({
           {canAct ? (
             <Pressable
               testID={`wallet-member-actions-${member.id}`}
+              hitSlop={12}
               onPress={onOpenActions}
             >
               <MoreVertical size={18} color={theme.colors.textMuted} />
@@ -294,6 +295,7 @@ export function WalletMembersScreen({
           </View>
           <Pressable
             testID={`wallet-invitation-revoke-${invitation.id}`}
+            hitSlop={12}
             onPress={onRevoke}
           >
             <X size={18} color={theme.colors.danger} />

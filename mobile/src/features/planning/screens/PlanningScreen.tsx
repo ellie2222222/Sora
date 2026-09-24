@@ -96,7 +96,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
         ListHeaderComponent={
           permissions.canWrite ? (
             <View className="flex-row justify-end" style={{ marginBottom: theme.spacing.sm }}>
-              <Pressable testID="budgets-add" onPress={() => openModal('AddBudget')}>
+              <Pressable testID="budgets-add" hitSlop={12} onPress={() => openModal('AddBudget')}>
                 <Plus size={20} color={theme.colors.primary} />
               </Pressable>
             </View>
@@ -159,7 +159,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
         ListHeaderComponent={
           permissions.canWrite ? (
             <View className="flex-row justify-end" style={{ marginBottom: theme.spacing.sm }}>
-              <Pressable testID="goals-add" onPress={() => openModal('AddGoal')}>
+              <Pressable testID="goals-add" hitSlop={12} onPress={() => openModal('AddGoal')}>
                 <Plus size={20} color={theme.colors.primary} />
               </Pressable>
             </View>
