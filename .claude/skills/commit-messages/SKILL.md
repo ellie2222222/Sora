@@ -21,8 +21,8 @@ PR-body style.
 ## Mode: draft vs. commit
 
 - **Default: draft only.** Produce the grouped plan and messages as text; do not run `git add`/`git
-  commit`. This matches the standing rule (see the main system prompt's Git Safety Protocol) that commits
-  only happen when explicitly requested.
+  commit`. This matches the standing rule (this repo's conventions doc, Git section) that commits only
+  happen when explicitly requested.
 - **Only stage + commit** when the user's own words ask for it directly ("commit these", "make the
   commits", "create the commits") — not implied by "generate commit messages" alone, which is a request
   for the text, not the action.
@@ -31,7 +31,9 @@ PR-body style.
   next. Write each message via HEREDOC as the main git-commit instructions describe, but **omit their
   attribution trailers entirely** — no `Co-Authored-By`, no "Generated with", no model name. This repo's
   conventions doc forbids them and overrides that default; a commit message records what changed, not
-  what wrote it.
+  what wrote it. Never pass `--no-verify`; if a hook fails, fix the cause and commit again.
+- **Push only when separately asked** ("and push") — asking for commits does not imply it. Push the
+  current branch to its tracked upstream (`git push`), never `--force`, and report the pushed range.
 
 ## Phase 0 — Scope
 
@@ -91,5 +93,6 @@ PR-body style.
 
 Show the grouped plan as a numbered list, each entry: the file list, then the drafted message. If in draft
 mode, stop there — don't run any `git` command that mutates state. If committing, execute group-by-group
-per the Mode section above, then report what actually landed, following whatever response format this
+per the Mode section above, confirm `git status` shows only what was deliberately excluded, then report
+what actually landed (`git log --oneline` of the new commits), following whatever response format this
 repo/session otherwise expects for a change that touches files.

@@ -21,7 +21,7 @@ In `.claude/skills/`. Reach for these instead of improvising the same sweep by h
 |---|---|
 | `double-check` | Codebase health + pre-completion verification, ending in a written report. The default before calling any non-trivial change done |
 | `commit-messages` | Reads the working tree, groups changes into cohesive commits, drafts a message each in this repo's style. **The only sanctioned path to a commit** — see Git below |
-| `comment-audit` | Comment-only sweep for "what" comments, stale rationale, commented-out code, untracked `TODO`s. Never changes logic |
+| `comment-audit` | Comment-only sweep: removes "what" comments, stale rationale, commented-out code, untracked `TODO`s, and adds a missing "why" where non-obvious code has none. Never changes logic |
 | `restructure` | Where files live: misplaced or orphaned files, naming drift, layout that no longer matches the documented architecture |
 | `infra-audit` | Whether the system's design and operational posture still fit its scale — distinct from `double-check` (bugs in what exists) |
 | `brainstorm-features` | Feature suggestions grounded in this repo's actual current patterns, discovered live |
@@ -319,7 +319,7 @@ finance/
 │   ├── migrations/            # raw SQL, forward-only, immutable once applied
 │   └── tests/                 # psql constraint probes against a real Postgres
 ├── scripts/                   # check-contract-parity.mjs, migrate.mjs
-├── .github/workflows/ci.yml   # contracts → database → server + mobile
+├── .github/workflows/ci.yml   # contracts → database → server; contracts → mobile
 ├── docs/API_SPECIFICATION.md
 ├── SRS.md  SDS.md
 ├── plans/
@@ -336,8 +336,10 @@ the removed sharing model; they were deleted in the pivot. Nothing should refere
 The documented, always-available path is local Postgres and npm (rule 10) — a compose file existed
 for the deleted stack and was removed rather than rewritten (see the README). The root
 `docker-compose.yml` and `server/Dockerfile` are an **optional** addition on top of that, covering
-only `server/` and Postgres (`docker compose up -d`, needs `JWT_SECRET`/`GOOGLE_CLIENT_ID` set in
-`.env` first) — not `mobile/` (needs LAN/USB device access) and not the parked `webpage/`.
+only `server/` and Postgres (`docker compose up -d --build`, needs `JWT_SECRET`/`GOOGLE_CLIENT_ID`
+set in `.env` first; a one-shot `migrate` service applies `db/migrations` before `server` starts,
+and pgAdmin/Adminer are opt-in via `--profile gui`) — not `mobile/` (needs LAN/USB device access)
+and not the parked `webpage/`.
 Postgres's container defaults to host port 5432 — the same port the host Postgres above uses —
 so override `POSTGRES_HOST_PORT` in `.env` before bringing this stack up if a host Postgres is
 already running, or the two will collide. Debugging either container: plain
@@ -349,7 +351,7 @@ npm install                                   # root; links every package
 
 npm run build -w @sora/contracts           # contracts must build before the API typechecks
 npm test                                      # every package that defines a test script
-npm test -w @sora/contracts                # money/derivation math, 63 tests
+npm test -w @sora/contracts                # money/derivation math and schemas
 npm test -w @sora/server                   # asserts every ROUTES path is mounted
 npm run typecheck                             # every package
 
@@ -357,8 +359,6 @@ node scripts/check-contract-parity.mjs        # contract ↔ schema ↔ API spec
 
 npm run db:migrate                            # apply db/migrations/*.sql in order
 npm run db:test                               # apply, then run db/tests/*.sql probes
-# By hand, and the fallback while the runner is being written:
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/001_initial_wallet_schema.sql
 
 npm run setup                                 # install + build contracts + migrate, one shot
 npm run dev:server                            # server: build, then watch + auto-restart
@@ -369,8 +369,8 @@ npm run build -w @sora/server && npm start -w @sora/server
 ```
 
 CI (`.github/workflows/ci.yml`) runs contracts alone first, then the migrations against a real
-PostgreSQL 17 — applied, probed, then applied **again** to prove idempotence — then server and
-mobile in parallel. Passing migrations only prove the DDL parses; `db/tests/*.sql` is what
+PostgreSQL 17 — applied, probed, then applied **again** to prove idempotence. Server waits on both
+contracts and the database job; mobile needs only contracts and runs alongside the database job. Passing migrations only prove the DDL parses; `db/tests/*.sql` is what
 proves the rules are enforced, which is why both run.
 
 ### Service URLs
@@ -693,7 +693,9 @@ No ORM and no query builder beyond Kysely: every aggregate the dashboard and bal
 derivations need is SQL, and an ORM's abstraction over `GROUP BY` costs more than it saves here.
 
 **Mobile** — Expo, React Native, TypeScript, React Navigation, Redux Toolkit + RTK Query, React
-Hook Form + Zod, `expo-secure-store`, `lucide-react-native`, dark mode default.
+Hook Form + Zod, `expo-secure-store`, `lucide-react-native`, `react-native-reanimated` +
+`react-native-gesture-handler` (a direct dependency; the app root is a `GestureHandlerRootView`),
+dark mode default.
 
 **Local environment** — PostgreSQL 17 installed on the host, npm; no container runtime in the
 documented workflow (rule 10). `docker-compose.yml`/`server/Dockerfile` at the repo root are an
@@ -705,13 +707,17 @@ optional alternative for `server/` + Postgres, not a replacement for this path.
 anything missing or unusable — a `JWT_SECRET` that reads as configured but is 8 characters
 authenticates nothing while looking fine.
 
-`DATABASE_URL`, `DATABASE_POOL_MAX`, `JWT_SECRET` (≥32 chars), `JWT_ISSUER`,
-`ACCESS_TOKEN_TTL_SECONDS` (900), `REFRESH_TOKEN_TTL_DAYS` (7), `INVITATION_TTL_DAYS` (7),
-`AUTH_RATE_LIMIT_PER_MINUTE` (10), `LOGIN_FAILURE_LIMIT` (5), `LOGIN_LOCKOUT_MINUTES` (15),
-`PORT`, `NODE_ENV`, `APP_VERSION`, `MIGRATIONS_DIR`.
+`DATABASE_URL`, `DATABASE_POOL_MAX` (10), `DATABASE_STATEMENT_TIMEOUT_MS` (15000),
+`DATABASE_CONNECTION_TIMEOUT_MS` (5000), `DATABASE_IDLE_TIMEOUT_MS` (30000), `JWT_SECRET`
+(≥32 chars), `JWT_ISSUER`, `ACCESS_TOKEN_TTL_SECONDS` (900), `REFRESH_TOKEN_TTL_DAYS` (7),
+`INVITATION_TTL_DAYS` (7), `AUTH_RATE_LIMIT_PER_MINUTE` (10), `LOGIN_FAILURE_LIMIT` (5),
+`LOGIN_LOCKOUT_MINUTES` (15), `GOOGLE_CLIENT_ID`, `EXCHANGE_RATE_API_URL`,
+`EXCHANGE_RATE_TIMEOUT_SECONDS` (5), `EXCHANGE_RATE_CACHE_TTL_MINUTES` (720), `CORS_ORIGINS`
+(comma list; unset allows any origin outside production and none in it), `PORT`, `NODE_ENV`,
+`APP_VERSION`, `MIGRATIONS_DIR`.
 
-The local `.env` still carries variables from the deleted stack (SMTP, exchange-rate provider,
-`NEXT_PUBLIC_*`). Nothing reads them. Add a variable to `env.ts` first — a value present only in
+The local `.env` may still carry variables from the deleted stack (SMTP, `NEXT_PUBLIC_*`).
+Nothing reads them. Add a variable to `env.ts` first — a value present only in
 `.env` or `.env.example` is not configuration, it is a comment.
 
 ### Data Safety
@@ -988,3 +994,9 @@ rewriting it.
     ))}
     ```
 
+16. **A swallowed error inside a Postgres transaction still aborts it.** `AuditService.record()`
+    never throws, but inside `db.transaction()` a failed insert leaves the transaction in the
+    aborted state, so the caller's `COMMIT` silently becomes a rollback — the financial write it
+    was auditing disappears with no error. `record()` therefore wraps its insert in a `SAVEPOINT`
+    when handed a transaction. Any other best-effort write run inside a caller's transaction needs
+    the same shape, or must run outside it.
