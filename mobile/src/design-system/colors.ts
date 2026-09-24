@@ -1,5 +1,5 @@
 /**
- * Semantic colour tokens and 100/300/600/900 palette ramps across five themes.
+ * Semantic colour tokens and 100/300/600/900 palette ramps for every theme in `THEME_NAMES`.
  *
  * Each theme palette (Obsidian, Quartz, Sage, Terracotta, Violet) supports both
  * Light Mode and Dark Mode, adhering to the 60-30-10 rule:

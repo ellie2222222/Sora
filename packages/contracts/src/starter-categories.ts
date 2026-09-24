@@ -19,7 +19,6 @@ export interface StarterCategory {
 }
 
 export const STARTER_CATEGORIES: readonly StarterCategory[] = [
-  // EXPENSE
   { name: 'Food', type: 'EXPENSE', icon: 'utensils', color: '#F97316' },
   { name: 'Transportation', type: 'EXPENSE', icon: 'bus', color: '#0EA5E9' },
   { name: 'Shopping', type: 'EXPENSE', icon: 'shopping-bag', color: '#A855F7' },
@@ -43,7 +42,6 @@ export const STARTER_CATEGORIES: readonly StarterCategory[] = [
   { name: 'Drinks', type: 'EXPENSE', icon: 'cup-soda', color: '#0891B2' },
   { name: 'Fees', type: 'EXPENSE', icon: 'credit-card', color: '#7C3AED' },
   { name: 'Other Expense', type: 'EXPENSE', icon: 'circle-ellipsis', color: '#64748B' },
-  // INCOME
   { name: 'Salary', type: 'INCOME', icon: 'banknote', color: '#22C55E' },
   { name: 'Freelance', type: 'INCOME', icon: 'briefcase', color: '#10B981' },
   { name: 'Investment', type: 'INCOME', icon: 'trending-up', color: '#059669' },
@@ -54,7 +52,6 @@ export const STARTER_CATEGORIES: readonly StarterCategory[] = [
   { name: 'Refund', type: 'INCOME', icon: 'undo-2', color: '#4D7C0F' },
   { name: 'Part Time', type: 'INCOME', icon: 'clock', color: '#0D9488' },
   { name: 'Other Income', type: 'INCOME', icon: 'hand-coins', color: '#A16207' },
-  // TRANSFER
   { name: 'Savings', type: 'TRANSFER', icon: 'piggy-bank', color: '#0EA5E9' },
   { name: 'Debt Repayment', type: 'TRANSFER', icon: 'handshake', color: '#6366F1' },
   { name: 'Credit Card Payment', type: 'TRANSFER', icon: 'credit-card', color: '#64748B' },
