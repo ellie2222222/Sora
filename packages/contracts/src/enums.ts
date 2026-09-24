@@ -49,11 +49,12 @@ export const AccountStatus = {
   ARCHIVED: 'ARCHIVED',
 } as const;
 
-export const CATEGORY_TYPES = ['INCOME', 'EXPENSE'] as const;
+export const CATEGORY_TYPES = ['INCOME', 'EXPENSE', 'TRANSFER'] as const;
 export type CategoryType = (typeof CATEGORY_TYPES)[number];
 export const CategoryType = {
   INCOME: 'INCOME',
   EXPENSE: 'EXPENSE',
+  TRANSFER: 'TRANSFER',
 } as const;
 
 export const CATEGORY_STATUSES = ['ACTIVE', 'ARCHIVED'] as const;

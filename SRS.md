@@ -45,7 +45,7 @@ The product answers one question repeatedly, for one person at a time: *where di
 - **Wallets** — one person's finances — created by any signed-in user, with a starter wallet created at registration so nobody lands on an unusable first screen.
 - **Sharing** — granting another real user a role on a wallet, invited by email address, labelled with the subjective relationship the inviter uses for them ("Girlfriend", "Mom").
 - Accounts: the places a wallet's money sits, each in a single currency.
-- Categories: an income/expense classification tree, per wallet.
+- Categories: an income/expense/transfer classification tree, per wallet.
 - Transactions: income, expense and transfer — including **transfers between two different wallets**, which is a first-class feature, not an edge case.
 - Budgets: planned spend for one category over a date window, with spend derived from history.
 - Saving goals and their contribution history.
@@ -85,7 +85,7 @@ The product answers one question repeatedly, for one person at a time: *where di
 | **Relation label** | The inviter's subjective name for a relationship ("Girlfriend", "Mom"). Descriptive; it grants nothing. |
 | **Invitation** | A single-use, expiring offer of membership addressed to an email address. |
 | **Account** | Where a wallet's money physically sits (a bank account, cash, an e-wallet, a credit card). Holds one currency. |
-| **Category** | An income or expense classification, arranged as a tree, scoped to one wallet. |
+| **Category** | An income, expense or transfer classification, arranged as a tree, scoped to one wallet. |
 | **Transaction** | A recorded movement of money: income, expense, or transfer. Always a positive amount; direction comes from its type and from which account side it names. |
 | **Transfer** | A movement between two accounts, whether in the same wallet or across two wallets. **Never spending and never income.** |
 | **Cross-wallet transfer** | A transfer whose two accounts belong to different wallets — paying a partner back, or funding a parent's account. |
@@ -195,7 +195,7 @@ Two shapes in that diagram carry most of the model's meaning:
 | **WalletMember** | A user's role on a wallet, plus the relation label. | Created by accepting an invitation, or alongside the wallet for its creator; role changed by the owner; revoked rather than deleted, so a former member's past entries still name a person instead of going anonymous. |
 | **WalletInvitation** | An offer of EDITOR or VIEWER addressed to an email address. | Created by the owner and shown its single-use credential exactly once; accepted, revoked, or left to expire after seven days. At most one live invitation per wallet and email at a time. |
 | **Account** | Where money sits, in one currency. | Created by an editor; its currency, type and opening amount are fixed for life; archived when closed, keeping its history and every transfer it is a side of. |
-| **Category** | An income or expense classification, optionally nested under a parent of the same wallet and the same type. | Seeded at registration, extended by editors; type and parent are fixed once transactions classify against it; archived, with its children, and cannot be archived while an active budget still plans for it. |
+| **Category** | An income, expense or transfer classification, optionally nested under a parent of the same wallet and the same type. | Seeded at registration, extended by editors; type and parent are fixed once transactions classify against it; archived, with its children, and cannot be archived while an active budget still plans for it. |
 | **Transaction** | A recorded movement of money: INCOME, EXPENSE or TRANSFER, always a positive amount. | Recorded by an editor; only its description, date, category and reference are ever correctable; cancelled rather than deleted, so a mistake and its correction are both visible. |
 | **Budget** | A planned amount for one category over one inclusive window. | Created by an editor; its category, window and period type are fixed, because moving a window changes which history it ever covered and is therefore a different budget; archived, which releases its slot in the no-overlap rule. |
 | **Goal** | A savings target, optionally dated. | Created by an editor; completed when reached, or cancelled — and cancelling keeps the contributions, which record money that really was set aside. |
@@ -212,7 +212,7 @@ Two shapes in that diagram carry most of the model's meaning:
 | Wallet | holds | Account | 1:N | An account belongs to exactly one wallet for life |
 | Wallet | classifies with | Category | 1:N | A category belongs to one wallet; a parent must be in the same wallet and of the same type |
 | Account | is a side of | Transaction | 1:N per side | A transaction names one or two accounts depending on its type; **the two accounts of a transfer may belong to different wallets** |
-| Category | classifies | Transaction | 1:N | Required on income and expense, forbidden on a transfer — a transfer is not a spending or earning event to classify |
+| Category | classifies | Transaction | 1:N | Required on income and expense, optional on a transfer — where a transfer-typed category only labels the movement ("Savings", "Debt Repayment") |
 | Category | is planned for | Budget | 1:N | At most one active budget per category per overlapping window |
 | Goal | is funded by | GoalContribution | 1:N | Progress is the sum of contributions, never a stored running total |
 | GoalContribution | may be backed by | Transaction | 0..1 : 1 | A transaction backs at most one contribution |
@@ -275,10 +275,10 @@ Field-level rules. Each is a requirement on what the system accepts and refuses,
 | --- | --- | --- | --- |
 | FR-25 | Type | INCOME, EXPENSE or TRANSFER | Three types, not seven. Refund, loan, debt and investment were modelled as types in the previous revision; each is expressible as an income or expense against an appropriate category, and each extra type multiplied the direction rules every report had to reason about |
 | FR-26 | Amount | Required, strictly positive, exact to four decimal places | Direction never lives in the sign, so no reader has to know a convention to interpret a figure |
-| FR-27 | Shape | Income: destination account and a category, no source. Expense: source account and a category, no destination. Transfer: two **different** accounts and **no** category | A transfer classified under a category would be counted by every category report as spending or earning |
+| FR-27 | Shape | Income: destination account and a category, no source. Expense: source account and a category, no destination. Transfer: two **different** accounts and an **optional** transfer-typed category | A transfer takes only a transfer category, so no income or expense category report can ever count it as earning or spending |
 | FR-28 | Currency | Must equal the currency of every account named | Recording an amount in a currency the account does not hold makes its balance meaningless |
 | FR-29 | Transfer currency | The two accounts must share a currency | Converting between them requires a rate, which is out of scope for v1 ([§1.6](#16-out-of-scope)) |
-| FR-30 | Category agreement | An income transaction takes an income category, an expense an expense category, and the category must belong to the wallet of the account named | Otherwise a category tree cannot be summed, and one wallet's classification would leak into another's reports |
+| FR-30 | Category agreement | An income transaction takes an income category, an expense an expense category, a transfer (if categorised) a transfer category; the category must belong to the wallet of the account named — for a transfer, the source account | Otherwise a category tree cannot be summed, and one wallet's classification would leak into another's reports |
 | FR-31 | Status | Pending, completed or cancelled. **Only completed transactions count** toward any derived figure | Pending records an intention and cancelled records a mistake; counting either makes the app disagree with the bank |
 | FR-32 | Correctable fields | Description, date, category and reference only | See [BR-08](#4-business-rules) |
 | FR-33 | Immutable fields | Amount, type, source account, destination account | A recorded movement of money is a historical fact |
@@ -326,7 +326,7 @@ Paying a partner back, or funding a parent's account, is one transaction between
 > **This rule reverses the previous revision, deliberately.** v1 stated that transfers between accounts in different sharing boundaries were *not permitted*. That rule is withdrawn: it is the exact operation the product now exists to support. Do not reinstate it. The safeguard against abuse is the dual-role requirement, not a prohibition: read-only access to someone's wallet must never let you push money into it, and being an editor on your own wallet must never let you pull money out of someone else's. Requiring EDITOR or above on **both** sides is therefore strictly stricter than a same-wallet transfer, not a loosening.
 
 **BR-04: A transfer is never spending, and never income.**
-This is the most consequential rule in the product. A transfer must not appear in any expense total, any income total, any budget's spend, or any dashboard income/expense/net figure, and it carries no category precisely so that no category report can pick it up. A wallet that moved 2,000,000 from a bank account to cash has neither earned nor spent anything; a system that reports otherwise makes every other number it shows untrustworthy. Where transfers matter — an account's own detail view — they are reported as their own figures, separately from income and expense, never folded into them.
+This is the most consequential rule in the product. A transfer must not appear in any expense total, any income total, any budget's spend, or any dashboard income/expense/net figure, and it can only carry a transfer-typed category, so no income or expense category report can pick it up. A wallet that moved 2,000,000 from a bank account to cash has neither earned nor spent anything; a system that reports otherwise makes every other number it shows untrustworthy. Where transfers matter — an account's own detail view — they are reported as their own figures, separately from income and expense, never folded into them.
 
 **BR-05: A wallet a user has no membership on is indistinguishable from one that does not exist.**
 Reading, or attempting to act on, a wallet-scoped thing without a membership is answered as *not found* (`WALLET_NOT_FOUND`, `ACCOUNT_NOT_FOUND`, …) — never as a refusal. A refusal would confirm the thing exists, which tells a stranger whether a given wallet or account identifier is real. `FORBIDDEN` is reserved for the genuinely different case: the caller **is** a member, and their role is too low for what they asked. That distinction is observable and testable, and it is a requirement rather than an implementation nicety.
@@ -617,7 +617,7 @@ Ranks are cumulative: a required role is satisfied by any role of at least that 
 
 1. The member chooses transfer and picks a source account and a destination account. The picker offers accounts from **every** wallet they can reach, so a cross-wallet transfer is an ordinary selection rather than a special mode.
 2. The system detects that the two accounts sit in different wallets and requires EDITOR or above on **both**, refusing otherwise.
-3. The system validates that the accounts differ, share a currency, and are both active; and that no category was supplied, because a transfer carries none.
+3. The system validates that the accounts differ, share a currency, and are both active; and that any category supplied is a transfer category of the source account's wallet — optional, since a transfer is neither income nor expense.
 4. The system records **one** transaction naming both accounts, and audits it against **both** wallets so it appears in both trails.
 5. Both accounts' balances move on the next read: one down, one up.
 6. Neither wallet's income, expense or net changes. No budget's spend changes. ([BR-04](#4-business-rules))

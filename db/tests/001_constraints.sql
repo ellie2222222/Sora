@@ -6,13 +6,16 @@
 -- rule enforced only in a service layer is one import script away from being
 -- bypassed.
 --
--- Run against a database that has had 001_initial_wallet_schema.sql applied:
+-- Run against a database with every migration applied:
 --   psql -d <db> -v ON_ERROR_STOP=1 -f db/tests/001_constraints.sql
 --
--- Every probe prints PASS or aborts the run.
+-- Every probe prints PASS or aborts the run. The whole suite rolls back, so its fixed-id seed
+-- data never persists and the suite can run again on the same database.
 
 \set ON_ERROR_STOP on
 SET client_min_messages = NOTICE;
+
+BEGIN;
 
 CREATE OR REPLACE FUNCTION expect_reject(stmt TEXT, label TEXT) RETURNS void AS $$
 BEGIN
@@ -60,7 +63,8 @@ INSERT INTO accounts (id, wallet_id, name, type, currency, initial_balance) VALU
 
 INSERT INTO categories (id, wallet_id, name, type) VALUES
     ('c0000001-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Food',   'EXPENSE'),
-    ('c0000002-0000-0000-0000-000000000002', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Salary', 'INCOME');
+    ('c0000002-0000-0000-0000-000000000002', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Salary', 'INCOME'),
+    ('c0000003-0000-0000-0000-000000000003', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Savings', 'TRANSFER');
 
 -- ---------------------------------------------------------------------------
 -- users
@@ -214,10 +218,12 @@ SELECT expect_reject($$
             'EXPENSE', 1000, 'VND', NOW())
 $$, 'transactions: an EXPENSE with no category');
 
-SELECT expect_reject($$
+-- The category is optional on a transfer (005_transfer_categories.sql); that it is a
+-- TRANSFER-typed one is a service check, like INCOME/EXPENSE matching.
+SELECT expect_accept($$
     INSERT INTO transactions (created_by_user_id, from_account_id, to_account_id, category_id, type, amount, currency, transaction_date)
     VALUES ('11111111-1111-1111-1111-111111111111', 'a0000001-0000-0000-0000-000000000001',
-            'a0000002-0000-0000-0000-000000000002', 'c0000001-0000-0000-0000-000000000001',
+            'a0000002-0000-0000-0000-000000000002', 'c0000003-0000-0000-0000-000000000003',
             'TRANSFER', 1000, 'VND', NOW())
 $$, 'transactions: a TRANSFER carrying a category');
 
@@ -358,8 +364,7 @@ SELECT
     (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE type = 'EXPENSE'  AND status = 'COMPLETED') AS total_expense,
     (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE type = 'TRANSFER' AND status = 'COMPLETED') AS total_transfer;
 
-DROP FUNCTION expect_reject(TEXT, TEXT);
-DROP FUNCTION expect_accept(TEXT, TEXT);
+ROLLBACK;
 
 \echo ''
 \echo 'All constraint probes passed.'

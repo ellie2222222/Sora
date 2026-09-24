@@ -9,6 +9,7 @@ import {
   inviteMemberSchema,
   registerSchema,
   transactionQuerySchema,
+  updateTransactionSchema,
 } from '../src/schemas.ts';
 
 /** The field paths a failed parse complained about. */
@@ -171,6 +172,17 @@ describe('createTransactionSchema — per-type shape', () => {
       transactionDate: '2026-08-22 12:30:00',
     });
     assert.equal(result.success, false);
+  });
+});
+
+describe('updateTransactionSchema — category', () => {
+  it('accepts a category id, or null to remove one (the service allows null only on a transfer)', () => {
+    assert.equal(updateTransactionSchema.safeParse({ categoryId: CATEGORY }).success, true);
+    assert.equal(updateTransactionSchema.safeParse({ categoryId: null }).success, true);
+  });
+
+  it('still rejects a malformed id', () => {
+    assert.deepEqual(issuePaths(updateTransactionSchema.safeParse({ categoryId: 'nope' })), ['categoryId']);
   });
 });
 

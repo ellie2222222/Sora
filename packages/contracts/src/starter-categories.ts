@@ -1,10 +1,9 @@
 /**
- * The category tree a new wallet is seeded with (§5.1).
+ * The category tree a new wallet is seeded with (§5.1), grouped by type.
  *
- * "Other" is EXPENSE-typed and appears once: `uq_category_name_per_parent` is
- * unique over (wallet_id, parent, LOWER(name)) and does **not** include `type`,
- * so an "Other" under both INCOME and EXPENSE would be rejected by the database
- * rather than by anything in this file.
+ * Names must be unique across types, not just within one: `uq_category_name_per_parent`
+ * is unique over (wallet_id, parent, LOWER(name)) and does **not** include `type`, which
+ * is why the catch-alls are "Other Expense" and "Other Income" rather than two "Other"s.
  *
  * Shared between the server (`auth.service.ts`'s `seedWallet`) and the mobile
  * app's guest-mode local seed, so both produce an identical starting wallet.
@@ -20,6 +19,7 @@ export interface StarterCategory {
 }
 
 export const STARTER_CATEGORIES: readonly StarterCategory[] = [
+  // EXPENSE
   { name: 'Food', type: 'EXPENSE', icon: 'utensils', color: '#F97316' },
   { name: 'Transportation', type: 'EXPENSE', icon: 'bus', color: '#0EA5E9' },
   { name: 'Shopping', type: 'EXPENSE', icon: 'shopping-bag', color: '#A855F7' },
@@ -42,6 +42,8 @@ export const STARTER_CATEGORIES: readonly StarterCategory[] = [
   { name: 'Snacks', type: 'EXPENSE', icon: 'cookie', color: '#C2410C' },
   { name: 'Drinks', type: 'EXPENSE', icon: 'cup-soda', color: '#0891B2' },
   { name: 'Fees', type: 'EXPENSE', icon: 'credit-card', color: '#7C3AED' },
+  { name: 'Other Expense', type: 'EXPENSE', icon: 'circle-ellipsis', color: '#64748B' },
+  // INCOME
   { name: 'Salary', type: 'INCOME', icon: 'banknote', color: '#22C55E' },
   { name: 'Freelance', type: 'INCOME', icon: 'briefcase', color: '#10B981' },
   { name: 'Investment', type: 'INCOME', icon: 'trending-up', color: '#059669' },
@@ -51,9 +53,11 @@ export const STARTER_CATEGORIES: readonly StarterCategory[] = [
   { name: 'Bonus', type: 'INCOME', icon: 'award', color: '#65A30D' },
   { name: 'Refund', type: 'INCOME', icon: 'undo-2', color: '#4D7C0F' },
   { name: 'Part Time', type: 'INCOME', icon: 'clock', color: '#0D9488' },
-  { name: 'Other', type: 'EXPENSE', icon: 'circle-ellipsis', color: '#64748B' },
-  // Distinct name from the EXPENSE "Other" above: uq_category_name_per_parent (see file header)
-  // is unique on (wallet_id, parent, LOWER(name)) and ignores type, so a same-named "Other" here
-  // would collide with it in the database.
   { name: 'Other Income', type: 'INCOME', icon: 'hand-coins', color: '#A16207' },
+  // TRANSFER
+  { name: 'Savings', type: 'TRANSFER', icon: 'piggy-bank', color: '#0EA5E9' },
+  { name: 'Debt Repayment', type: 'TRANSFER', icon: 'handshake', color: '#6366F1' },
+  { name: 'Credit Card Payment', type: 'TRANSFER', icon: 'credit-card', color: '#64748B' },
+  { name: 'Top Up', type: 'TRANSFER', icon: 'wallet', color: '#14B8A6' },
+  { name: 'Cash Withdrawal', type: 'TRANSFER', icon: 'landmark', color: '#78716C' },
 ];

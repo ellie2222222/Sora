@@ -260,6 +260,8 @@ export const createTransferSchema = z
     type: z.literal('TRANSFER'),
     fromAccountId: uuidSchema,
     toAccountId: uuidSchema,
+    // Optional, unlike income/expense: a transfer is neither (BR-06), so labelling one is a choice.
+    categoryId: uuidSchema.nullish(),
     ...transactionCommon,
   })
   .refine((value) => value.fromAccountId !== value.toAccountId, {
@@ -293,7 +295,8 @@ export const updateTransactionSchema = z
   .object({
     description: z.string().trim().max(500).nullish(),
     transactionDate: isoDateTimeSchema.optional(),
-    categoryId: uuidSchema.optional(),
+    // null removes a transfer's category; the service refuses it for income and expense.
+    categoryId: uuidSchema.nullable().optional(),
     reference: z.string().trim().max(100).nullish(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update');

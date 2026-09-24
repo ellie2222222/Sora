@@ -38,6 +38,7 @@ import { paginationMeta, parseSort } from '../common/pagination.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
 import { AccountAccess, WalletAccessService } from '../wallets/wallet-access.service.ts';
+import { assertCategoryFits, assertCategoryRemovable, categorisedAccountId } from './transaction-category.ts';
 
 export interface DeleteTransactionRequest {
   reason?: string;
@@ -77,7 +78,7 @@ interface TransactionRow {
 interface CategoryRow {
   id: string;
   wallet_id: string;
-  type: 'INCOME' | 'EXPENSE';
+  type: CategoryType;
   name: string;
   icon: string | null;
   color: string | null;
@@ -108,7 +109,7 @@ interface TransactionJoinRow {
   to_wallet_name: string | null;
   category_id: string | null;
   category_name: string | null;
-  category_type: 'INCOME' | 'EXPENSE' | null;
+  category_type: CategoryType | null;
   category_icon: string | null;
   category_color: string | null;
 }
@@ -208,8 +209,12 @@ export class TransactionsService {
     return [...new Set([...accessMap.values()].map((access) => access.walletId))];
   }
 
-  /** Audited once per wallet the transaction touches (LA-02), so a cross-wallet transfer appears in both trails. */
+  /**
+   * Audited once per wallet the transaction touches (LA-02), so a cross-wallet transfer appears in both
+   * trails — inside the write's own transaction, so the change and its record commit together.
+   */
   private async auditTransaction(
+    trx: Transaction<DB>,
     event: (typeof AUDIT_EVENTS)[keyof typeof AUDIT_EVENTS],
     entityId: string,
     actorId: string,
@@ -218,15 +223,18 @@ export class TransactionsService {
     note?: string | null,
   ): Promise<void> {
     for (const walletId of walletIds) {
-      await this.audit.record({
-        event,
-        entityType: ENTITY_TYPES.TRANSACTION,
-        entityId,
-        actorId,
-        walletId,
-        ip,
-        note: note ?? null,
-      });
+      await this.audit.record(
+        {
+          event,
+          entityType: ENTITY_TYPES.TRANSACTION,
+          entityId,
+          actorId,
+          walletId,
+          ip,
+          note: note ?? null,
+        },
+        trx,
+      );
     }
   }
 
@@ -311,39 +319,45 @@ export class TransactionsService {
       throw new AppError('TRANSFER_CURRENCY_MISMATCH');
     }
 
-    if (request.type === TransactionType.INCOME || request.type === TransactionType.EXPENSE) {
-      const namedAccess = request.type === TransactionType.INCOME ? toAccess! : fromAccess!;
-      const category = await this.categoryRow(request.categoryId);
-      if (!category) throw new AppError('CATEGORY_NOT_FOUND');
-      if (category.type !== request.type) throw new AppError('CATEGORY_WRONG_TYPE');
-      if (category.wallet_id !== namedAccess.walletId) throw new AppError('CATEGORY_WRONG_WALLET');
+    const categoryId = request.categoryId ?? null;
+    if (categoryId !== null) {
+      const namedAccountId = categorisedAccountId(
+        request.type,
+        'fromAccountId' in request ? request.fromAccountId : null,
+        'toAccountId' in request ? request.toAccountId : null,
+      );
+      assertCategoryFits(await this.categoryRow(categoryId), request.type, accessMap.get(namedAccountId)!.walletId);
     }
 
-    const row = await this.database.db
-      .insertInto('transactions')
-      .values({
-        created_by_user_id: user.id,
-        from_account_id: request.type === TransactionType.INCOME ? null : request.fromAccountId,
-        to_account_id: request.type === TransactionType.EXPENSE ? null : request.toAccountId,
-        category_id: request.type === TransactionType.TRANSFER ? null : request.categoryId,
-        type: request.type,
-        amount: request.amount,
-        currency: request.currency,
-        description: request.description ?? null,
-        transaction_date: request.transactionDate,
-        status: request.status,
-        reference: request.reference ?? null,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    const row = await this.database.db.transaction().execute(async (trx) => {
+      const inserted = await trx
+        .insertInto('transactions')
+        .values({
+          created_by_user_id: user.id,
+          from_account_id: request.type === TransactionType.INCOME ? null : request.fromAccountId,
+          to_account_id: request.type === TransactionType.EXPENSE ? null : request.toAccountId,
+          category_id: categoryId,
+          type: request.type,
+          amount: request.amount,
+          currency: request.currency,
+          description: request.description ?? null,
+          transaction_date: request.transactionDate,
+          status: request.status,
+          reference: request.reference ?? null,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
 
-    await this.auditTransaction(
-      AUDIT_EVENTS.TRANSACTION_CREATED,
-      row.id,
-      user.id,
-      this.walletIdsTouched(accessMap),
-      ip,
-    );
+      await this.auditTransaction(
+        trx,
+        AUDIT_EVENTS.TRANSACTION_CREATED,
+        inserted.id,
+        user.id,
+        this.walletIdsTouched(accessMap),
+        ip,
+      );
+      return inserted;
+    });
 
     return this.toResponse(row.id);
   }
@@ -391,41 +405,38 @@ export class TransactionsService {
 
     const accessMap = await this.access.requireAccountsWritable(user.id, accountIdsOfRow(row));
 
-    if (body.categoryId !== undefined) {
-      if (row.type === TransactionType.TRANSFER) {
-        throw new AppError('CATEGORY_WRONG_TYPE', 'A transfer does not have a category');
-      }
-      const category = await this.categoryRow(body.categoryId);
-      if (!category) throw new AppError('CATEGORY_NOT_FOUND');
-      if (category.type !== row.type) throw new AppError('CATEGORY_WRONG_TYPE');
-
-      const namedAccountId = row.type === TransactionType.INCOME ? row.to_account_id! : row.from_account_id!;
-      const walletId = accessMap.get(namedAccountId)!.walletId;
-      if (category.wallet_id !== walletId) throw new AppError('CATEGORY_WRONG_WALLET');
+    if (body.categoryId === null) {
+      assertCategoryRemovable(row.type);
+    } else if (body.categoryId !== undefined) {
+      const namedAccountId = categorisedAccountId(row.type, row.from_account_id, row.to_account_id);
+      assertCategoryFits(await this.categoryRow(body.categoryId), row.type, accessMap.get(namedAccountId)!.walletId);
     }
 
     const changedFields = Object.keys(body);
 
-    await this.database.db
-      .updateTable('transactions')
-      .set({
-        ...(body.description !== undefined ? { description: body.description } : {}),
-        ...(body.transactionDate !== undefined ? { transaction_date: body.transactionDate } : {}),
-        ...(body.categoryId !== undefined ? { category_id: body.categoryId } : {}),
-        ...(body.reference !== undefined ? { reference: body.reference } : {}),
-        updated_at: new Date(),
-      })
-      .where('id', '=', transactionId)
-      .execute();
+    await this.database.db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable('transactions')
+        .set({
+          ...(body.description !== undefined ? { description: body.description } : {}),
+          ...(body.transactionDate !== undefined ? { transaction_date: body.transactionDate } : {}),
+          ...(body.categoryId !== undefined ? { category_id: body.categoryId } : {}),
+          ...(body.reference !== undefined ? { reference: body.reference } : {}),
+          updated_at: new Date(),
+        })
+        .where('id', '=', transactionId)
+        .execute();
 
-    await this.auditTransaction(
-      AUDIT_EVENTS.TRANSACTION_UPDATED,
-      transactionId,
-      user.id,
-      this.walletIdsTouched(accessMap),
-      ip,
-      changedFields.join(', '),
-    );
+      await this.auditTransaction(
+        trx,
+        AUDIT_EVENTS.TRANSACTION_UPDATED,
+        transactionId,
+        user.id,
+        this.walletIdsTouched(accessMap),
+        ip,
+        changedFields.join(', '),
+      );
+    });
 
     return this.toResponse(transactionId);
   }
@@ -450,16 +461,17 @@ export class TransactionsService {
 
       // A deleted payment must stop crediting whatever goal it was backing (§11.5).
       await trx.deleteFrom('goal_contributions').where('transaction_id', '=', transactionId).execute();
-    });
 
-    await this.auditTransaction(
-      AUDIT_EVENTS.TRANSACTION_DELETED,
-      transactionId,
-      user.id,
-      this.walletIdsTouched(accessMap),
-      ip,
-      body.reason ?? null,
-    );
+      await this.auditTransaction(
+        trx,
+        AUDIT_EVENTS.TRANSACTION_DELETED,
+        transactionId,
+        user.id,
+        this.walletIdsTouched(accessMap),
+        ip,
+        body.reason ?? null,
+      );
+    });
 
     return this.toResponse(transactionId);
   }

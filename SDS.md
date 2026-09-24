@@ -230,7 +230,7 @@ erDiagram
         uuid created_by_user_id FK
         uuid from_account_id FK "nullable"
         uuid to_account_id FK "nullable"
-        uuid category_id FK "nullable — null on TRANSFER"
+        uuid category_id FK "nullable — optional on TRANSFER"
         string type "INCOME | EXPENSE | TRANSFER"
         decimal amount "always positive"
         string currency
@@ -817,7 +817,7 @@ not referenced by `check-contract-parity.mjs`, since it backs a computed respons
 | --- | --- | --- |
 | `uq_wallet_single_owner` | `wallet_members` | Two `ACTIVE` `OWNER` rows on one wallet, even momentarily — see [CLAUDE.md](CLAUDE.md) Part 7, rule 3 on why ownership transfer must demote before it promotes |
 | `excl_budget_overlap` (GIST) | `budgets` | Two `ACTIVE` budgets for one category with overlapping `daterange(start_date, end_date, '[]')` — a plain unique index cannot express "overlap," only "identical" |
-| `chk_transaction_shape` | `transactions` | A row whose account/category combination doesn't match its `type` (e.g. a `TRANSFER` with a `category_id`, or an `INCOME` with a `from_account_id`) |
+| `chk_transaction_shape` | `transactions` | A row whose account/category combination doesn't match its `type` (e.g. an `EXPENSE` with no `category_id`, or an `INCOME` with a `from_account_id`) |
 | `uq_wallet_invitation_open` | `wallet_invitations` | Two live (unaccepted, unrevoked) invitations for the same wallet+email |
 | `chk_user_has_credential` | `users` | A row with neither a password nor a Google identity — unable to authenticate through any path |
 | `uq_exchange_rate_snapshot_date_currency` | `exchange_rate_snapshots` | Two snapshot rows for the same date and base currency — the invariant the daily-upsert relies on |

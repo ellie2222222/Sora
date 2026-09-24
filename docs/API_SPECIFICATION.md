@@ -252,7 +252,7 @@ Mutating endpoints accept an optional `Idempotency-Key` header. A replay with th
 
 1. Creates the `users` row (password hashed with Argon2id).
 2. Creates a **default wallet** named after `displayName` plus an `OWNER` membership row — a user with no wallet cannot record anything, so registration that left them empty-handed would strand them on an unusable first screen.
-3. Seeds that wallet with a starter category tree (Food, Transportation, Shopping, Bills, Salary, Other).
+3. Seeds that wallet with the starter categories in `packages/contracts/src/starter-categories.ts` — expense, income and transfer.
 4. Issues and stores a refresh-token hash.
 5. Audit: `USER_REGISTERED`.
 
@@ -703,7 +703,7 @@ Archives.
 |---|---|
 | **Auth** | Bearer · **Min role** `VIEWER` |
 
-**Query** — `?walletId=uuid` (required), `?type=INCOME|EXPENSE`, `?status=`, `?tree=true`
+**Query** — `?walletId=uuid` (required), `?type=INCOME|EXPENSE|TRANSFER`, `?status=`, `?tree=true`
 
 **Response `200`** — `CategoryResponse[]`, each carrying `transactionCount` — how many transactions (any status) point at it. The app reads this before offering to delete a category: non-zero means "delete" must mean archive, not permanent removal (§10.4). With `tree=true`, roots carry populated `children`, each with its own `transactionCount`.
 
@@ -771,7 +771,7 @@ The central entity. Direction is expressed by `type` plus which account side is 
 |---|---|---|---|
 | `INCOME` | `null` | **required** | **required**, must be `INCOME` |
 | `EXPENSE` | **required** | `null` | **required**, must be `EXPENSE` |
-| `TRANSFER` | **required** | **required**, ≠ from | `null` |
+| `TRANSFER` | **required** | **required**, ≠ from | optional; if set, must be `TRANSFER` and belong to the `fromAccountId` wallet |
 
 Enforced three times, deliberately: by the `createTransactionSchema` discriminated union (client + server), in the service layer (currency and cross-wallet role checks that need database lookups), and by `chk_transaction_shape` in Postgres (the backstop that holds for any writer, including a migration script).
 
@@ -823,11 +823,13 @@ Results are restricted to transactions touching an account in a wallet the calle
 | `currency` equals every named account's currency | `422 ACCOUNT_CURRENCY_MISMATCH` |
 | Transfer: both accounts share one currency | `422 TRANSFER_CURRENCY_MISMATCH` — cross-currency transfer needs a conversion rate and is out of scope for v1 |
 | Category type matches transaction type | `422 CATEGORY_WRONG_TYPE` |
-| Category belongs to the account's wallet | `403 CATEGORY_WRONG_WALLET` |
+| Category belongs to the account's wallet (a transfer's: the `fromAccountId` wallet) | `403 CATEGORY_WRONG_WALLET` |
 | No account is `ARCHIVED` | `409 ACCOUNT_ARCHIVED` |
 | `EDITOR` on **both** wallets for a cross-wallet transfer | `403 FORBIDDEN` |
 
 **Response `201`** — `TransactionResponse`.
+
+A `TRANSFER` category only labels the movement; the transfer still never counts toward `income`, `expense`, `spendingByCategory` or budget `spent` (BR-06).
 
 **Side effects** — inserts one row. No balance is written: balances are derived, so nothing to update and nothing that can drift. Audit `TRANSACTION_CREATED` (for a cross-wallet transfer, once against each wallet, so it appears in both audit trails). Clients should invalidate their cached transactions, accounts, dashboard and budgets.
 
@@ -847,11 +849,11 @@ Results are restricted to transactions touching an account in a wallet the calle
 |---|---|
 | **Auth** | Bearer · **Min role** `EDITOR` |
 
-**Request** — `updateTransactionSchema`: `{ "description"?, "transactionDate"?, "categoryId"?, "reference"? }`
+**Request** — `updateTransactionSchema`: `{ "description"?, "transactionDate"?, "categoryId"? (uuid or null), "reference"? }`
 
 **Validation** — `amount`, `type`, `fromAccountId` and `toAccountId` are **immutable**. A recorded movement of money is a historical fact; rewriting one silently changes every balance, budget figure and goal total derived from it. Correcting a real mistake means §11.5 then a fresh create, which leaves both rows visible. Attempting to change an immutable field returns `409 TRANSACTION_IMMUTABLE`. A `DELETED` transaction cannot be edited at all.
 
-A changed `categoryId` must keep the same `type` and wallet.
+A changed `categoryId` must keep the same `type` and wallet. `"categoryId": null` removes a transfer's category; on an income or expense it is refused with `422 CATEGORY_WRONG_TYPE`, since those always carry one.
 
 **Response `200`** — `TransactionResponse`.
 

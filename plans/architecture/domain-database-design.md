@@ -251,7 +251,7 @@ Rules:
 - Parent and child categories must belong to the same wallet.
 - A category cannot be its own parent.
 - Expense transactions use expense categories; income transactions use income categories.
-- Transfers normally have no category.
+- Transfer transactions may optionally use a transfer category; they never count as income or expense.
 
 ---
 

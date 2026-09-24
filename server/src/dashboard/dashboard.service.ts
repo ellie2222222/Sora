@@ -34,6 +34,7 @@ import {
   TransactionType,
   type BudgetResponse,
   type CategorySpendSlice,
+  type CategoryType,
   type ConvertedValuation,
   type CurrencyTotal,
   type DashboardQuery,
@@ -352,7 +353,7 @@ export class DashboardService {
             ? {
                 id: row.category_id,
                 name: row.category_name as string,
-                type: row.category_type as 'INCOME' | 'EXPENSE',
+                type: row.category_type as CategoryType,
                 icon: row.category_icon,
                 color: row.category_color,
               }
