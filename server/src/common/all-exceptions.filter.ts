@@ -13,12 +13,13 @@ import {
   type ArgumentsHost,
   type ExceptionFilter,
 } from '@nestjs/common';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import { ZodError } from 'zod';
 
 import { ERROR_STATUS, HTTP_STATUS, type ApiErrorBody, type ErrorCode } from '@sora/contracts';
 
 import { AppError } from './app-error.ts';
+import { pathOf, type RequestWithId } from './request-logging.ts';
 
 /**
  * Statuses Nest itself raises for things no service authored — a malformed JSON
@@ -41,7 +42,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
     const response = http.getResponse<Response>();
-    const request = http.getRequest<Request & { user?: { id: string } }>();
+    const request = http.getRequest<RequestWithId & { user?: { id: string } }>();
 
     const { code, message, status, fields, params, internal } = classify(exception);
 
@@ -50,7 +51,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // where no membership resolved at all — a 401, or a 404 standing in for one
     // (AC-01) — which is itself the fact worth recording.
     const actor = request.user?.id ?? 'anonymous';
-    const target = `${request.method} ${request.originalUrl}`;
+    const target = `${request.method} ${pathOf(request)} rid=${request.requestId ?? 'none'}`;
     if (status === HTTP_STATUS.UNAUTHORIZED || status === HTTP_STATUS.FORBIDDEN) {
       const role = exception instanceof AppError ? (exception.resolvedRole ?? 'none') : 'none';
       this.logger.warn(`${code} actor=${actor} role=${role} target=${target}`);

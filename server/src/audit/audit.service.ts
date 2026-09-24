@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { Kysely, Transaction } from 'kysely';
+import { sql, type Kysely, type Transaction } from 'kysely';
 
 import type { AuditLogResponse, WalletRole } from '@sora/contracts';
 
@@ -61,7 +61,11 @@ export class AuditService {
       `${entry.event} result=${entry.result ?? 'SUCCESS'} actor=${entry.actorId ?? 'anonymous'} wallet=${entry.walletId ?? '-'} entity=${entry.entityType}:${entry.entityId ?? '-'}`,
     );
 
+    // Inside a caller's transaction a failed insert would abort the whole transaction, and Postgres
+    // turns the caller's COMMIT into a silent ROLLBACK. The savepoint confines a failure to this row.
+    const inTransaction = db.isTransaction;
     try {
+      if (inTransaction) await sql`SAVEPOINT audit_record`.execute(db);
       await db
         .insertInto('audit_logs')
         .values({
@@ -76,7 +80,9 @@ export class AuditService {
           ip: entry.ip ?? null,
         })
         .execute();
+      if (inTransaction) await sql`RELEASE SAVEPOINT audit_record`.execute(db);
     } catch (error) {
+      if (inTransaction) await sql`ROLLBACK TO SAVEPOINT audit_record`.execute(db).catch(() => {});
       this.logger.error(`Failed to write audit row for ${entry.event}: ${(error as Error).message}`);
     }
   }

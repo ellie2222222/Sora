@@ -118,17 +118,28 @@ async function reset() {
   console.log('  schema public recreated\n');
 }
 
+const TRAILING_COMMIT = /COMMIT;\s*$/i;
+
 async function apply(filename) {
   const sql = readFileSync(join(MIGRATIONS_DIR, filename), 'utf8');
   const sum = checksum(sql);
 
-  // The migration files carry their own BEGIN/COMMIT, so the bookkeeping row is
-  // recorded in a second statement rather than wrapped around the file.
-  await client.query(sql);
-  await client.query(
-    'INSERT INTO schema_migrations (filename, checksum) VALUES ($1, $2) ON CONFLICT (filename) DO NOTHING',
-    [filename, sum],
-  );
+  // Each file opens its own BEGIN and ends in COMMIT. Holding that COMMIT back until the bookkeeping
+  // row is inserted makes the two one unit: a crash in between re-runs nothing that already committed.
+  if (!TRAILING_COMMIT.test(sql)) {
+    throw new Error(`${filename} must end with COMMIT; (migrations wrap themselves in BEGIN … COMMIT).`);
+  }
+  try {
+    await client.query(sql.replace(TRAILING_COMMIT, ''));
+    await client.query(
+      'INSERT INTO schema_migrations (filename, checksum) VALUES ($1, $2) ON CONFLICT (filename) DO NOTHING',
+      [filename, sum],
+    );
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  }
 
   console.log(`  applied ${filename} (${sum})`);
 }
@@ -160,6 +171,8 @@ async function runConstraintSuites() {
     } catch (error) {
       console.error(`  FAIL  ${file} — ${error.message}`);
       allPassed = false;
+      // A suite runs inside its own BEGIN; a failure leaves it aborted, which would fail the next suite too.
+      await client.query('ROLLBACK').catch(() => {});
     }
   }
 

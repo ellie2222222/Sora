@@ -18,6 +18,9 @@ export class DatabaseService implements OnApplicationShutdown {
     this.pool = new pg.Pool({
       connectionString: config.DATABASE_URL,
       max: config.DATABASE_POOL_MAX,
+      statement_timeout: config.DATABASE_STATEMENT_TIMEOUT_MS,
+      connectionTimeoutMillis: config.DATABASE_CONNECTION_TIMEOUT_MS,
+      idleTimeoutMillis: config.DATABASE_IDLE_TIMEOUT_MS,
     });
 
     this.db = new Kysely<DB>({

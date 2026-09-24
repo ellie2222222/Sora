@@ -86,7 +86,8 @@ jobs:
   server:
     name: Server (types, tests)
     runs-on: ubuntu-latest
-    needs: contracts
+    # A server that passes against a schema whose own probes fail has proven nothing.
+    needs: [contracts, database]
 
     services:
       postgres:

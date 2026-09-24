@@ -9,7 +9,7 @@
     "mobile"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18"
   },
   "scripts": {
     "build": "npm run build --workspace @sora/contracts && npm run build --workspace @sora/server",
@@ -30,10 +30,6 @@
   },
   "dependencies": {
     "pg": "^8.23.0"
-  },
-  "overrides": {
-    "react-native-gesture-handler": "~2.32.0",
-    "react-native-worklets": "0.10.1"
   },
   "allowScripts": {
     "argon2@0.41.1": true

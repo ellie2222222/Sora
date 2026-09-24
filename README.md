@@ -70,7 +70,7 @@ db/migrations/        Raw SQL, forward-only, immutable once applied.
 db/tests/             psql probes proving the constraints reject what they should.
 docs/API_SPECIFICATION.md   The authoritative 52-endpoint contract.
 scripts/check-contract-parity.mjs   Proves contract ↔ schema ↔ spec agreement.
-.github/workflows/ci.yml    Contracts → database → server + mobile.
+.github/workflows/ci.yml    Contracts → database → server; contracts → mobile.
 ```
 
 Design and requirements: [`SRS.md`](SRS.md) (what the system does and why), [`SDS.md`](SDS.md)
@@ -120,13 +120,11 @@ npm run db:migrate                    # applies db/migrations/*.sql in order
 npm run db:test                       # applies them, then runs db/tests/*.sql
 ```
 
-Equivalent by hand, and the fallback if the runner is not present in your checkout yet:
+The runner records a checksum per file in `schema_migrations` and commits each file together with
+its bookkeeping row, so a failed file leaves nothing half-applied. Don't apply files by hand with
+`psql -f`: the database would then disagree with `schema_migrations`.
 
-```bash
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/001_initial_wallet_schema.sql
-```
-
-The migration creates the `pgcrypto` and `btree_gist` extensions itself, so the role needs
+The first migration creates the `pgcrypto` and `btree_gist` extensions itself, so the role needs
 permission to — grant it, or run the file once as a superuser.
 
 **5. Build the shared contract**, which both the API and the app typecheck against:
@@ -222,7 +220,13 @@ root are an **optional** addition covering only `server/` and Postgres:
 cp .env.example .env   # fill in JWT_SECRET and GOOGLE_CLIENT_ID at minimum
 docker compose up -d --build
 curl http://localhost:3000/api/v1/health
+docker compose --profile gui up -d   # optional: pgAdmin + Adminer
 ```
+
+Startup order is `postgres` (healthy) → `migrate` (a one-shot `node scripts/migrate.mjs`, must exit
+0) → `server`. The GUI tools reach whichever Postgres you point them at through
+`host.docker.internal`. Set `CORS_ORIGINS` for any browser origin in production; unset, production
+allows none.
 
 Postgres's container publishes to host port **5432** by default — the same port the host
 Postgres above uses — so override `POSTGRES_HOST_PORT` in `.env` first if a host Postgres is

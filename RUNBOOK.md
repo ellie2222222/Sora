@@ -57,7 +57,12 @@ npm start --workspace @sora/server  # or: npm run start:dev for watch mode
 cp .env.example .env   # fill in at least JWT_SECRET and GOOGLE_CLIENT_ID
 docker compose up -d --build
 curl http://localhost:3000/api/v1/health
+docker compose --profile gui up -d   # optional: pgAdmin + Adminer
 ```
+
+`server` starts only after the one-shot `migrate` service exits 0 — if it never comes up, check
+`rtk proxy docker compose logs migrate` first. The image's `HEALTHCHECK` probes
+`/api/v1/health`, so `docker compose ps` shows `healthy` only once the database is reachable.
 
 Postgres's container publishes to host port **5432** by default — the same port a host Postgres
 would use — so override `POSTGRES_HOST_PORT` in `.env` first if something's already listening on

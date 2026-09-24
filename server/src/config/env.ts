@@ -15,6 +15,25 @@ const envSchema = z.object({
 
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
+  /** Server-side cap per statement, so one runaway query cannot hold a pooled connection forever. */
+  DATABASE_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(1).default(15_000),
+  /** How long a request waits for a free pooled connection before failing instead of queueing unbounded. */
+  DATABASE_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1).default(5_000),
+  DATABASE_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1).default(30_000),
+
+  /**
+   * Browser origins allowed to call the API, comma-separated (the Expo web export). Native apps send
+   * no Origin and are unaffected. Unset: any origin outside production, none in production.
+   */
+  CORS_ORIGINS: z
+    .string()
+    .optional()
+    .transform((value) =>
+      (value ?? '')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter((origin) => origin.length > 0),
+    ),
 
   /**
    * 32 characters is the shortest secret that makes HS256 brute force

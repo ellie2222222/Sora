@@ -6,6 +6,9 @@
 # workflow (Postgres 17 run directly on the host) also uses. Override
 # POSTGRES_HOST_PORT in .env before bringing this stack up if a host Postgres
 # is already running, or the two will collide on the port.
+#
+# `docker compose up -d --build` starts postgres → migrate (one-shot) → server.
+# The database GUIs are opt-in: `docker compose --profile gui up -d pgadmin adminer`.
 services:
   postgres:
     image: postgres:17
@@ -24,14 +27,32 @@ services:
       timeout: 5s
       retries: 10
 
+  migrate:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: sora-server:local
+    container_name: sora-migrate
+    command: ['node', 'scripts/migrate.mjs']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sora}:${POSTGRES_PASSWORD:-sora}@postgres:5432/${POSTGRES_DB:-sora_dev}
+    # The image's HEALTHCHECK probes the API, which this one-shot container never serves.
+    healthcheck:
+      disable: true
+    restart: 'no'
+
   server:
     build:
       context: .
       dockerfile: server/Dockerfile
+    image: sora-server:local
     container_name: sora-server
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-sora}:${POSTGRES_PASSWORD:-sora}@postgres:5432/${POSTGRES_DB:-sora_dev}
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
@@ -50,31 +71,39 @@ services:
       LOGIN_LOCKOUT_MINUTES: ${LOGIN_LOCKOUT_MINUTES:-15}
       APP_VERSION: ${APP_VERSION:-0.1.0}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      EXCHANGE_RATE_API_URL: ${EXCHANGE_RATE_API_URL:-https://open.er-api.com/v6/latest}
+      EXCHANGE_RATE_TIMEOUT_SECONDS: ${EXCHANGE_RATE_TIMEOUT_SECONDS:-5}
+      EXCHANGE_RATE_CACHE_TTL_MINUTES: ${EXCHANGE_RATE_CACHE_TTL_MINUTES:-720}
     ports:
       - '${API_HOST_PORT:-3000}:3000'
 
+  # GUIs reach either the container (`postgres:5432`) or a host Postgres
+  # (`host.docker.internal:5432`), so they don't depend on the postgres service.
   pgadmin:
-    image: dpage/pgadmin4:latest
+    image: dpage/pgadmin4:9
     container_name: sora-pgadmin
+    profiles: ['gui']
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@sora.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?set PGADMIN_DEFAULT_PASSWORD in .env}
+      # Not `:?` — compose resolves every service's variables even when its profile is off, which would
+      # block the default `up`. pgAdmin itself refuses to start with an empty password.
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-}
     ports:
       - '${PGADMIN_HOST_PORT:-5050}:80'
     volumes:
       - sora_pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      postgres:
-        condition: service_healthy
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
 
   adminer:
-    image: adminer:latest
+    image: adminer:6
     container_name: sora-adminer
+    profiles: ['gui']
     ports:
       - '${ADMINER_HOST_PORT:-8080}:8080'
-    depends_on:
-      postgres:
-        condition: service_healthy
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
 
 volumes:
   sora_postgres_data:
