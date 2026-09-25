@@ -48,6 +48,8 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
   const selected = accounts.data?.find((a) => a.id === value);
   const walletNameOf = (id: string): string => wallets.find((w) => w.id === id)?.name ?? '';
   const AccountTypeIcon = selected !== undefined ? ACCOUNT_ICON[selected.type] : Banknote;
+  const selectedLabel = selected?.name ?? t('accounts.selectAccount', { defaultValue: 'Select an account' });
+  const fieldAccessibilityLabel = label.length > 0 ? `${label}, ${selectedLabel}` : selectedLabel;
 
   return (
     <View style={compact ? undefined : { gap: theme.spacing.xs }}>
@@ -56,8 +58,10 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
           <Pressable
             testID={testID}
             onPress={() => setOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={fieldAccessibilityLabel}
             className="flex-row items-center"
-            style={{ gap: theme.spacing.xs }}
+            style={{ gap: theme.spacing.xs, minHeight: 44 }}
           >
             <View
               style={{
@@ -94,11 +98,13 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
           <Pressable
             testID={testID}
             onPress={() => setOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={fieldAccessibilityLabel}
             style={{
               height: 48,
               borderRadius: theme.radius.md,
               borderWidth: 1,
-              borderColor: error !== undefined ? theme.colors.danger : theme.colors.border,
+              borderColor: error !== undefined ? theme.colors.danger : theme.colors.borderControl,
               backgroundColor: theme.colors.surface,
               paddingHorizontal: theme.spacing.md,
               justifyContent: 'center',
@@ -169,12 +175,15 @@ function AccountRow({
 
   return (
     <Pressable
-      testID={`account-picker-item-${account.id}`}
+      testID={`option-account-${account.id}`}
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
+        minHeight: 48,
         paddingVertical: theme.spacing.sm,
         paddingHorizontal: theme.spacing.sm,
         borderRadius: theme.radius.md,

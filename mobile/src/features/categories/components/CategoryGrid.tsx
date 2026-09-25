@@ -5,6 +5,7 @@ import type { CategoryResponse, CategoryType } from '@sora/contracts';
 
 import { Text } from '@/components';
 import { useTheme } from '@/app/providers';
+import { ensureContrast } from '@/design-system';
 import { useListCategoriesQuery } from '@/app/store';
 import { useDefaultToFirst } from '@/hooks';
 import { categoryIconFor } from '@/utils';
@@ -79,11 +80,13 @@ function CategoryCell({
   const theme = useTheme();
   const [pressed, setPressed] = useState(false);
   const Icon = categoryIconFor(category.icon);
-  const tint = category.color ?? theme.colors.primary;
+  const storedTint = category.color ?? theme.colors.primary;
+  const iconTint = ensureContrast(storedTint, theme.colors.surfaceMuted, 3, theme.colors.text);
+  const letterTint = ensureContrast(storedTint, theme.colors.surfaceMuted, 4.5, theme.colors.text);
 
   return (
     <Pressable
-      testID={`category-grid-item-${category.id}`}
+      testID={`option-category-${category.id}`}
       onPress={onPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
@@ -95,7 +98,7 @@ function CategoryCell({
         gap: theme.spacing.xxs,
         paddingVertical: theme.spacing.sm,
         borderRadius: theme.radius.md,
-        backgroundColor: pressed ? theme.colors.surfaceMuted : 'transparent',
+        backgroundColor: pressed ? theme.colors.surfacePressed : 'transparent',
       }}
     >
       <View
@@ -111,9 +114,9 @@ function CategoryCell({
         }}
       >
         {Icon !== null ? (
-          <Icon size={20} color={tint} strokeWidth={2} />
+          <Icon size={20} color={iconTint} strokeWidth={2} />
         ) : (
-          <Text weight="semibold" style={{ color: tint }}>
+          <Text weight="semibold" style={{ color: letterTint }}>
             {category.name.slice(0, 1).toUpperCase()}
           </Text>
         )}

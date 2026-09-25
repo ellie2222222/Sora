@@ -20,7 +20,9 @@ export interface ButtonProps extends Omit<PressableProps, 'children'> {
   testID?: string;
 }
 
-const SIZE_HEIGHT: Record<ButtonSize, number> = { sm: 30, md: 38, lg: 46 };
+const SIZE_HEIGHT: Record<ButtonSize, number> = { sm: 30, md: 44, lg: 46 };
+// `sm` stays visually compact; the slop brings its touch area to the 44pt minimum.
+const SIZE_HIT_SLOP: Record<ButtonSize, number> = { sm: 7, md: 0, lg: 0 };
 const SIZE_PADDING_VERTICAL: Record<ButtonSize, number> = { sm: 4, md: 6, lg: 8 };
 const SIZE_PADDING_HORIZONTAL: Record<ButtonSize, number> = { sm: 12, md: 16, lg: 20 };
 
@@ -37,6 +39,7 @@ export function Button({
   style,
   onPressIn,
   onPressOut,
+  hitSlop,
   ...pressableProps
 }: ButtonProps) {
   const theme = useTheme();
@@ -115,6 +118,7 @@ export function Button({
     <Pressable
       {...pressableProps}
       testID={testID}
+      hitSlop={hitSlop ?? SIZE_HIT_SLOP[size]}
       disabled={isDisabled}
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled, busy: loading }}

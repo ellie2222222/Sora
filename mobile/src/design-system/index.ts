@@ -34,6 +34,7 @@ export function buildTheme(name: ThemeName, mode: ThemeMode = 'dark'): Theme {
 }
 
 export * from './colors.ts';
+export * from './contrast.ts';
 export * from './radius.ts';
 export * from './shadows.ts';
 export * from './spacing.ts';

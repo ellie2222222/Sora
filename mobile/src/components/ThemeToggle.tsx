@@ -1,13 +1,15 @@
 import { useEffect, useRef } from 'react';
-import { Pressable } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Animated, {
   Easing,
-  interpolateColor,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
 import { Moon, Sun } from 'lucide-react-native';
+
+import { useTheme } from '@/app/providers';
 
 export interface ThemeToggleProps {
   testID?: string;
@@ -22,6 +24,8 @@ const DIMENSIONS = {
   lg: { trackWidth: 70, trackHeight: 36, thumbSize: 30, padding: 3, iconSize: 18 },
 };
 
+const MIN_TOUCH_TARGET = 44;
+
 const TIMING_CONFIG = {
   duration: 380,
   easing: Easing.bezier(0.4, 0, 0.2, 1),
@@ -33,7 +37,10 @@ export function ThemeToggle({
   onValueChange,
   size = 'md',
 }: ThemeToggleProps) {
+  const theme = useTheme();
   const dim = DIMENSIONS[size];
+  const verticalSlop = Math.max(0, (MIN_TOUCH_TARGET - dim.trackHeight) / 2);
+  const { t } = useTranslation();
   const travelDistance = dim.trackWidth - dim.thumbSize - dim.padding * 2;
 
   const slideProgress = useSharedValue(value ? 1 : 0);
@@ -52,40 +59,9 @@ export function ThemeToggle({
     animateTo(value ? 1 : 0);
   }, [value]);
 
-  // Track colors update synchronously with the app's theme change
-  const trackStyle = {
-    backgroundColor: value ? '#1E293B' : '#E2E8F0',
-    borderColor: value ? '#334155' : '#CBD5E1',
-  };
-  const trackAnimatedStyle = useAnimatedStyle(() => {
-    const backgroundColor = interpolateColor(
-      slideProgress.value,
-      [0, 1],
-      ['#E2E8F0', '#1E293B'],
-    );
-    const borderColor = interpolateColor(
-      slideProgress.value,
-      [0, 1],
-      ['#CBD5E1', '#334155'],
-    );
-    return {
-      backgroundColor,
-      borderColor,
-    };
-  });
-
-  const thumbAnimatedStyle = useAnimatedStyle(() => {
-    const translateX = slideProgress.value * travelDistance;
-    const backgroundColor = interpolateColor(
-      slideProgress.value,
-      [0, 1],
-      ['#FFFFFF', '#312E81'],
-    );
-    return {
-      transform: [{ translateX }],
-      backgroundColor,
-    };
-  });
+  const thumbAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: slideProgress.value * travelDistance }],
+  }));
 
   const sunAnimatedStyle = useAnimatedStyle(() => {
     const rotate = `${slideProgress.value * 90}deg`;
@@ -119,22 +95,22 @@ export function ThemeToggle({
       }}
       accessibilityRole="switch"
       accessibilityState={{ checked: value }}
-      accessibilityLabel="Toggle night mode"
+      accessibilityLabel={t('settings.darkMode', 'Dark Theme')}
+      hitSlop={{ top: verticalSlop, bottom: verticalSlop }}
       style={{ borderRadius: dim.trackHeight / 2 }}
     >
-      <Animated.View
-        style={[
-          {
-            width: dim.trackWidth,
-            height: dim.trackHeight,
-            borderRadius: dim.trackHeight / 2,
-            borderWidth: 1,
-            padding: dim.padding,
-            justifyContent: 'center',
-          },
-          trackStyle,
-          trackAnimatedStyle,
-        ]}
+      <View
+        style={{
+          width: dim.trackWidth,
+          height: dim.trackHeight,
+          borderRadius: dim.trackHeight / 2,
+          borderWidth: 1,
+          padding: dim.padding,
+          justifyContent: 'center',
+          // Track and thumb follow the theme, which flips in the same tick as `value`.
+          backgroundColor: theme.colors.surfaceMuted,
+          borderColor: theme.colors.borderControl,
+        }}
       >
         <Animated.View
           style={[
@@ -142,10 +118,10 @@ export function ThemeToggle({
               width: dim.thumbSize,
               height: dim.thumbSize,
               borderRadius: dim.thumbSize / 2,
-              backgroundColor: value ? '#312E81' : '#FFFFFF',
+              backgroundColor: theme.colors.primary,
               alignItems: 'center',
               justifyContent: 'center',
-              shadowColor: '#000',
+              shadowColor: theme.colors.shadow,
               shadowOffset: { width: 0, height: 2 },
               shadowOpacity: 0.2,
               shadowRadius: 3,
@@ -166,7 +142,7 @@ export function ThemeToggle({
           >
             <Sun
               size={dim.iconSize}
-              color="#D97706"
+              color={theme.colors.onPrimary}
               strokeWidth={2.5}
             />
           </Animated.View>
@@ -183,12 +159,12 @@ export function ThemeToggle({
           >
             <Moon
               size={dim.iconSize}
-              color="#C084FC"
+              color={theme.colors.onPrimary}
               strokeWidth={2.5}
             />
           </Animated.View>
         </Animated.View>
-      </Animated.View>
+      </View>
     </Pressable>
   );
 }

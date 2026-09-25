@@ -83,7 +83,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
               ? theme.colors.danger
               : isFocused
               ? theme.colors.primary
-              : theme.colors.border,
+              : theme.colors.borderControl,
             backgroundColor: theme.colors.surface,
             paddingHorizontal: theme.spacing.md,
             color: theme.colors.text,

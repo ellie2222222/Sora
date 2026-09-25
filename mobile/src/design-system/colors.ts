@@ -10,6 +10,8 @@
  * Ramp keys name a role, not an exact shade: a slot holds whichever shade meets contrast for it.
  */
 
+import { mixHex } from './contrast.ts';
+
 export const THEME_NAMES = ['obsidian', 'quartz', 'sage', 'terracotta', 'violet'] as const;
 export type ThemeName = (typeof THEME_NAMES)[number];
 
@@ -63,6 +65,10 @@ export interface ColorTokens {
   surfaceMuted: string;
   border: string;
   borderStrong: string;
+  /** Boundary of an interactive control (input, field, checkbox, switch track): ≥3:1 on every surface. */
+  borderControl: string;
+  /** Pressed key/cell fill: visibly distinct from `surfaceElevated`, which `surfaceMuted` is not. */
+  surfacePressed: string;
   text: string;
   textMuted: string;
   textFaint: string;
@@ -158,13 +164,6 @@ const SEMANTIC_MUTED_LIGHT = {
   dangerMuted: '#FEF2F2',
 } as const;
 
-/** Linear blend of two `#RRGGBB` colours; `amount` 0 = `from`, 1 = `to`. */
-function mixHex(from: string, to: string, amount: number): string {
-  const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
-  const mixed = [0, 1, 2].map((i) => Math.round(channel(from, i) * (1 - amount) + channel(to, i) * amount));
-  return `#${mixed.map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
-}
-
 // Selected rows put muted captions on the primary tint; the raw 100/900 shades are too saturated
 // for 4.5:1 there, so the tint sits halfway toward the surface.
 const PRIMARY_TINT_TOWARD_SURFACE = 0.5;
@@ -184,6 +183,8 @@ export function getThemeColors(name: ThemeName, mode: ThemeMode = 'dark'): Color
       surfaceMuted: '#1B1B20',
       border: '#27272A',
       borderStrong: '#3F3F46',
+      borderControl: '#6B6B74',
+      surfacePressed: '#3F3F46',
       text: '#FAFAFA',
       textMuted: '#A1A1AA',
       textFaint: '#84848D',
@@ -222,6 +223,8 @@ export function getThemeColors(name: ThemeName, mode: ThemeMode = 'dark'): Color
     surfaceMuted: '#F1F5F9',
     border: '#E2E8F0',
     borderStrong: '#CBD5E1',
+    borderControl: '#7C8799',
+    surfacePressed: '#CBD5E1',
     text: '#0F172A',
     textMuted: '#475569',
     textFaint: '#627085',

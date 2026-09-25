@@ -49,6 +49,8 @@ export function PullToRefreshIndicator({
         accessibilityHint={t('common.pullToRefreshHint', 'Double tap to refresh')}
         accessibilityState={{ busy: refreshing || spinnerVisible }}
         onPress={onRefresh}
+        // The 36pt circle plus 4pt each side reaches the 44pt minimum touch target.
+        hitSlop={4}
         className="w-full h-full items-center justify-center"
       >
         <Animated.View style={iconAnimatedStyle}>

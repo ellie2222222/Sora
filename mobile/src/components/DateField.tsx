@@ -1,6 +1,7 @@
 import { Calendar, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { formatDay, today } from '@/utils';
@@ -27,6 +28,7 @@ export interface DateFieldProps {
  */
 export function DateField({ label, value, onChange, onClear, placeholder, error, testID }: DateFieldProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   return (
@@ -42,7 +44,7 @@ export function DateField({ label, value, onChange, onClear, placeholder, error,
         className="h-[48px] flex-row items-center justify-between border"
         style={{
           borderRadius: theme.radius.md,
-          borderColor: error !== undefined ? theme.colors.danger : theme.colors.border,
+          borderColor: error !== undefined ? theme.colors.danger : theme.colors.borderControl,
           backgroundColor: theme.colors.surface,
           paddingHorizontal: theme.spacing.md,
         }}
@@ -55,9 +57,9 @@ export function DateField({ label, value, onChange, onClear, placeholder, error,
             <Pressable
               testID={testID !== undefined ? `${testID}-clear` : undefined}
               onPress={onClear}
-              hitSlop={8}
+              style={{ width: 44, height: 44, marginRight: -theme.spacing.sm, alignItems: 'center', justifyContent: 'center' }}
               accessibilityRole="button"
-              accessibilityLabel="Clear date"
+              accessibilityLabel={t('common.clearDate', 'Clear date')}
             >
               <X size={16} color={theme.colors.textMuted} />
             </Pressable>

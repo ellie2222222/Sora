@@ -11,40 +11,7 @@ import {
   type ThemeMode,
   type ThemeName,
 } from './colors.ts';
-
-function hexToRgb(hex: string): [number, number, number] {
-  const cleaned = hex.replace('#', '');
-  if (cleaned.length === 3) {
-    const r = cleaned.charAt(0);
-    const g = cleaned.charAt(1);
-    const b = cleaned.charAt(2);
-    return [parseInt(r + r, 16), parseInt(g + g, 16), parseInt(b + b, 16)];
-  }
-  return [
-    parseInt(cleaned.substring(0, 2), 16),
-    parseInt(cleaned.substring(2, 4), 16),
-    parseInt(cleaned.substring(4, 6), 16),
-  ];
-}
-
-function relativeLuminance([r, g, b]: [number, number, number]): number {
-  const toLinear = (c: number) => {
-    const s = c / 255;
-    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  };
-  const rs = toLinear(r);
-  const gs = toLinear(g);
-  const bs = toLinear(b);
-  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
-}
-
-function contrastRatio(hex1: string, hex2: string): number {
-  const l1 = relativeLuminance(hexToRgb(hex1));
-  const l2 = relativeLuminance(hexToRgb(hex2));
-  const brighter = Math.max(l1, l2);
-  const darker = Math.min(l1, l2);
-  return (brighter + 0.05) / (darker + 0.05);
-}
+import { contrastRatio } from './contrast.ts';
 
 describe('Design System - Disabled Button Tokens', () => {
   const themes: ThemeName[] = [...THEME_NAMES];
@@ -248,7 +215,35 @@ const RENDERED_PAIRS: { label: string; fg: keyof ColorTokens; bg: keyof ColorTok
     })),
   ),
   { label: 'danger-outline border against surface', fg: 'danger', bg: 'surface', min: 3 },
+  ...(['background', 'surface', 'surfaceElevated', 'surfaceMuted'] as const).map((bg) => ({
+    label: `control boundary (input/field/checkbox/switch track) on ${bg}`,
+    fg: 'borderControl' as const,
+    bg,
+    min: 3,
+  })),
+  { label: 'theme switch thumb on its track', fg: 'primary', bg: 'surfaceMuted', min: 3 },
+  { label: 'theme switch icon on its thumb', fg: 'onPrimary', bg: 'primary', min: 3 },
+  { label: 'keypad disabled confirm icon', fg: 'buttonPrimaryDisabledText', bg: 'buttonPrimaryDisabledBackground', min: 3 },
+  { label: 'pressed keypad digit', fg: 'text', bg: 'surfacePressed', min: 4.5 },
+  { label: 'pressed keypad operator glyph', fg: 'primary', bg: 'surfacePressed', min: 3 },
 ];
+
+/** WCAG sets no ratio for a transient pressed fill; 1.4:1 is where it stops being lost on the elevated key surface. */
+const PRESSED_FILL_MIN = 1.4;
+
+describe('Design System - Pressed feedback', () => {
+  it(`surfacePressed differs from the surfaces it is pressed on by >= ${PRESSED_FILL_MIN}:1`, () => {
+    for (const themeName of THEME_NAMES) {
+      for (const mode of THEME_MODES) {
+        const colors = getThemeColors(themeName, mode);
+        for (const bg of [colors.surface, colors.surfaceElevated]) {
+          const ratio = contrastRatio(colors.surfacePressed, bg);
+          assert.ok(ratio >= PRESSED_FILL_MIN, `surfacePressed on ${bg} = ${ratio.toFixed(2)}:1, theme=${themeName}, mode=${mode}`);
+        }
+      }
+    }
+  });
+});
 
 describe('Design System - Text hierarchy', () => {
   it('keeps text > textMuted > textFaint in contrast on every surface, so the three levels stay distinct', () => {
