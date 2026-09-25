@@ -23,7 +23,7 @@ import {
 import { ClientIp, CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
 import type { Enveloped } from '../common/envelope.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';
-import { TransactionsService } from './transactions.service.ts';
+import { rejectImmutableFieldsPipe, TransactionsService } from './transactions.service.ts';
 
 @Controller()
 export class TransactionsController {
@@ -58,15 +58,10 @@ export class TransactionsController {
   update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') transactionId: string,
-    @Body(zodPipe(updateTransactionSchema)) body: z.infer<typeof updateTransactionSchema>,
-    // Unvalidated alongside `body`: amount/type/fromAccountId/toAccountId aren't
-    // in updateTransactionSchema at all, so only the raw object still carries
-    // them — the pipe would silently strip them before BR-03's check could see
-    // that a client actually attempted to change one.
-    @Body() rawBody: Record<string, unknown>,
+    @Body(rejectImmutableFieldsPipe, zodPipe(updateTransactionSchema)) body: z.infer<typeof updateTransactionSchema>,
     @ClientIp() ip: string | null,
   ): Promise<TransactionResponse> {
-    return this.transactions.update(user, transactionId, body, rawBody, ip);
+    return this.transactions.update(user, transactionId, body, ip);
   }
 
   @HttpCode(HttpStatus.OK)

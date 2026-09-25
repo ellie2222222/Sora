@@ -116,7 +116,7 @@ Ranks compare (`roleSatisfies()`): OWNER ⊇ EDITOR ⊇ VIEWER. Everything under
 
 ### 2.7 Error codes
 
-`UPPER_SNAKE_CASE`, resource-prefixed. The full list and its status mapping is `ERROR_CODES` / `ERROR_STATUS` in [`responses.ts`](../packages/contracts/src/responses.ts) — that map is the single source; this document does not restate it.
+`UPPER_SNAKE_CASE`, resource-prefixed. The full list and its status mapping is `ERROR_CODES` / `ERROR_STATUS` in [`responses.ts`](../packages/contracts/src/responses.ts) — that map is the single source; this document does not restate it. A path no route matches returns `404 ROUTE_NOT_FOUND`, never a resource code such as `WALLET_NOT_FOUND`: the resource was not looked up.
 
 ### 2.8 Pagination, filtering, sorting
 
@@ -289,7 +289,7 @@ Mutating endpoints accept an optional `Idempotency-Key` header. A replay with th
 
 **Errors** — `401 TOKEN_INVALID` · `401 TOKEN_EXPIRED`
 
-**Side effects** — **rotation**: the presented token is revoked and a new one issued. If an already-revoked token is presented, the entire token family for that user is revoked and the event audited — that pattern means a token was replayed, i.e. stolen, and the safe response is to end every session rather than to serve the replay.
+**Side effects** — **rotation**: the presented token is revoked and a new one issued. If an already-revoked token is presented, the entire token family for that user is revoked and the event audited — that pattern means a token was replayed, i.e. stolen, and the safe response is to end every session rather than to serve the replay. Two concurrent requests presenting the same token count the same way: the revoke is conditional on the row still being live, so only one request rotates and the other is treated as a replay.
 
 ### 5.4 POST /auth/logout
 
@@ -303,7 +303,7 @@ Mutating endpoints accept an optional `Idempotency-Key` header. A replay with th
 
 **Errors** — `401 UNAUTHENTICATED`
 
-**Side effects** — revokes the refresh token; audit `USER_LOGOUT`. Idempotent: logging out twice still returns `204`.
+**Side effects** — revokes the refresh token, only if it belongs to the caller; audit `USER_LOGOUT`. Idempotent: logging out twice still returns `204`.
 
 ### 5.5 GET /auth/me
 
@@ -547,7 +547,7 @@ Invitations are addressed to an **email**, not a user id, so you can invite some
 | `role` | `EDITOR` or `VIEWER` only — `INVITABLE_ROLES`. Inviting straight to `OWNER` is rejected by both the schema and the `chk_invitation_role` constraint |
 | `relationLabel` | ≤ 50 characters, optional |
 
-Rejected when the email already belongs to an `ACTIVE` member, or when an open invitation for this `(wallet, email)` already exists — `uq_wallet_invitation_open` enforces the latter in the database, so re-inviting must revoke first rather than stacking up tokens that all still work.
+Rejected when the email already belongs to an `ACTIVE` member, or when an open invitation for this `(wallet, email)` already exists — `uq_wallet_invitation_open` enforces the latter in the database, so re-inviting must revoke first rather than stacking up tokens that all still work. An *expired* open invitation is not live: creating a new one revokes it in the same transaction (audited `INVITATION_REVOKED`), so its old token then answers `404` rather than `410`.
 
 **Response `201`** — `WalletInvitationCreatedResponse`, the one response carrying `token`.
 
@@ -725,7 +725,7 @@ Archives.
 
 **Response `201`** — `CategoryResponse`.
 
-**Errors** — `409 CATEGORY_DUPLICATE_NAME` · `422 CATEGORY_WRONG_TYPE` · `403 CATEGORY_WRONG_WALLET` · `422 CATEGORY_CYCLE` · `404 CATEGORY_NOT_FOUND` (unknown parent)
+**Errors** — `409 CATEGORY_DUPLICATE_NAME` · `422 CATEGORY_WRONG_TYPE` · `403 CATEGORY_WRONG_WALLET` · `422 CATEGORY_CYCLE` · `404 CATEGORY_NOT_FOUND` (unknown parent, or one in a wallet the caller cannot see — AC-01)
 
 **Side effects** — audit `CATEGORY_CREATED`.
 
@@ -823,6 +823,7 @@ Results are restricted to transactions touching an account in a wallet the calle
 | `currency` equals every named account's currency | `422 ACCOUNT_CURRENCY_MISMATCH` |
 | Transfer: both accounts share one currency | `422 TRANSFER_CURRENCY_MISMATCH` — cross-currency transfer needs a conversion rate and is out of scope for v1 |
 | Category type matches transaction type | `422 CATEGORY_WRONG_TYPE` |
+| Category exists and the caller can see its wallet | `404 CATEGORY_NOT_FOUND` — checked first, so a hidden category is indistinguishable from a made-up id (AC-01) |
 | Category belongs to the account's wallet (a transfer's: the `fromAccountId` wallet) | `403 CATEGORY_WRONG_WALLET` |
 | No account is `ARCHIVED` | `409 ACCOUNT_ARCHIVED` |
 | `EDITOR` on **both** wallets for a cross-wallet transfer | `403 FORBIDDEN` |
@@ -913,7 +914,7 @@ A changed `categoryId` must keep the same `type` and wallet. `"categoryId": null
 |---|---|
 | `amount > 0` | `422` |
 | `endDate >= startDate` | `422` (`chk_budget_dates`) |
-| Category is `EXPENSE` and belongs to `walletId` | `422 CATEGORY_WRONG_TYPE` / `403 CATEGORY_WRONG_WALLET` |
+| Category is `EXPENSE` and belongs to `walletId` | `422 CATEGORY_WRONG_TYPE` / `403 CATEGORY_WRONG_WALLET`; `404 CATEGORY_NOT_FOUND` when the category's wallet is not visible to the caller (AC-01) |
 | No **overlapping active** budget for the same category | `409 BUDGET_PERIOD_OVERLAP` |
 
 > The overlap rule is enforced by a GIST exclusion constraint (`excl_budget_overlap`) over `daterange(start_date, end_date, '[]')`, not by a unique index — two budgets can overlap without sharing either endpoint, which no unique index can express. Archived budgets are excluded from the constraint, so last August's budget does not block this August's.
@@ -1010,6 +1011,8 @@ Min role `VIEWER`. Paginated. `200` — `ContributionResponse[]`.
 | Account belongs to the goal's wallet | `403 FORBIDDEN` |
 | `currency` matches both goal and account | `422 ACCOUNT_CURRENCY_MISMATCH` |
 | `categoryId` required and `EXPENSE`-typed when `recordAsTransaction` is true | `422 VALIDATION_FAILED` |
+| Wallet not archived when `recordAsTransaction` is true | `409 WALLET_ARCHIVED` |
+| Account not archived when `recordAsTransaction` is true | `409 ACCOUNT_ARCHIVED` |
 
 **Response `201`** — `ContributionResponse`.
 

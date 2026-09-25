@@ -12,10 +12,12 @@
 import { Injectable } from '@nestjs/common';
 
 import {
+  AccountStatus,
   CategoryType,
   GoalStatus,
   TransactionStatus,
   TransactionType,
+  WalletStatus,
   type ContributionResponse,
   type CreateContributionRequest,
 } from '@sora/contracts';
@@ -68,6 +70,8 @@ export class GoalContributionsService {
         .selectAll()
         .where('goal_id', '=', goalId)
         .orderBy('contribution_date', 'desc')
+        // A date tie would otherwise let offset paging repeat or skip a row between pages.
+        .orderBy('id', 'desc')
         .limit(query.pageSize)
         .offset(offset)
         .execute(),
@@ -105,6 +109,9 @@ export class GoalContributionsService {
     }
 
     if (request.recordAsTransaction) {
+      // The backing EXPENSE is a transaction like any other, so it meets §11.2's account rules too.
+      if (account.status === WalletStatus.ARCHIVED) throw new AppError('WALLET_ARCHIVED');
+      if (account.accountStatus === AccountStatus.ARCHIVED) throw new AppError('ACCOUNT_ARCHIVED');
       if (!request.categoryId) {
         throw new AppError('VALIDATION_FAILED', undefined, {
           categoryId: ['Required when recording as a transaction'],

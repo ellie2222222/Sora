@@ -13,7 +13,7 @@
  * two account ids was the problem (the cross-wallet transfer rule, §2.5).
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, type PipeTransform } from '@nestjs/common';
 import type { Kysely, Transaction } from 'kysely';
 
 import {
@@ -38,7 +38,7 @@ import { paginationMeta, parseSort } from '../common/pagination.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
 import { AccountAccess, WalletAccessService } from '../wallets/wallet-access.service.ts';
-import { assertCategoryFits, assertCategoryRemovable, categorisedAccountId } from './transaction-category.ts';
+import { assertCategoryFits, assertCategoryRemovable, categorisedAccountId, type CategoryFacts } from './transaction-category.ts';
 
 export interface DeleteTransactionRequest {
   reason?: string;
@@ -51,6 +51,25 @@ type Executor = Kysely<DB> | Transaction<DB>;
  * caught against the raw body before Zod strips them silently (BR-03).
  */
 const IMMUTABLE_FIELDS = ['amount', 'type', 'fromAccountId', 'toAccountId'] as const;
+
+/**
+ * BR-03, checked on the raw body ahead of the schema pipe: the schema strips these fields,
+ * so after it an attempted change would read as an empty update (422) instead of 409.
+ */
+export const rejectImmutableFieldsPipe: PipeTransform = {
+  transform(value: unknown) {
+    const raw = (value ?? {}) as Record<string, unknown>;
+    const attempted = IMMUTABLE_FIELDS.filter((field) => field in raw);
+    if (attempted.length > 0) {
+      throw new AppError(
+        'TRANSACTION_IMMUTABLE',
+        undefined,
+        Object.fromEntries(attempted.map((field) => [field, ['Cannot be changed after creation']])),
+      );
+    }
+    return value;
+  },
+};
 
 const SORT_ALLOWLIST: Record<string, string> = {
   transactionDate: 'transactions.transaction_date',
@@ -205,6 +224,12 @@ export class TransactionsService {
       .executeTakeFirst();
   }
 
+  private async categoryFacts(categoryId: string, userId: string): Promise<CategoryFacts | undefined> {
+    const row = await this.categoryRow(categoryId);
+    if (!row) return undefined;
+    return { ...row, visibleToCaller: (await this.access.roleOn(userId, row.wallet_id)) !== null };
+  }
+
   private walletIdsTouched(accessMap: Map<string, AccountAccess>): string[] {
     return [...new Set([...accessMap.values()].map((access) => access.walletId))];
   }
@@ -289,6 +314,8 @@ export class TransactionsService {
     for (const key of sortKeys) {
       listQuery = listQuery.orderBy(this.database.db.dynamic.ref(key.column), key.direction);
     }
+    // A tie on every requested key would otherwise let offset paging repeat or skip a row between pages.
+    listQuery = listQuery.orderBy('transactions.id', 'desc');
     listQuery = listQuery.limit(filters.pageSize).offset((filters.page - 1) * filters.pageSize);
 
     const rows = await listQuery.execute();
@@ -326,7 +353,7 @@ export class TransactionsService {
         'fromAccountId' in request ? request.fromAccountId : null,
         'toAccountId' in request ? request.toAccountId : null,
       );
-      assertCategoryFits(await this.categoryRow(categoryId), request.type, accessMap.get(namedAccountId)!.walletId);
+      assertCategoryFits(await this.categoryFacts(categoryId, user.id), request.type, accessMap.get(namedAccountId)!.walletId);
     }
 
     const row = await this.database.db.transaction().execute(async (trx) => {
@@ -388,18 +415,8 @@ export class TransactionsService {
     user: AuthenticatedUser,
     transactionId: string,
     body: UpdateTransactionRequest,
-    rawBody: Record<string, unknown>,
     ip: string | null,
   ): Promise<TransactionResponse> {
-    const attempted = IMMUTABLE_FIELDS.filter((field) => field in rawBody);
-    if (attempted.length > 0) {
-      throw new AppError(
-        'TRANSACTION_IMMUTABLE',
-        undefined,
-        Object.fromEntries(attempted.map((field) => [field, ['Cannot be changed after creation']])),
-      );
-    }
-
     const row = await this.plainRow(transactionId);
     if (row.status === TransactionStatus.DELETED) throw new AppError('TRANSACTION_ALREADY_DELETED');
 
@@ -409,7 +426,7 @@ export class TransactionsService {
       assertCategoryRemovable(row.type);
     } else if (body.categoryId !== undefined) {
       const namedAccountId = categorisedAccountId(row.type, row.from_account_id, row.to_account_id);
-      assertCategoryFits(await this.categoryRow(body.categoryId), row.type, accessMap.get(namedAccountId)!.walletId);
+      assertCategoryFits(await this.categoryFacts(body.categoryId, user.id), row.type, accessMap.get(namedAccountId)!.walletId);
     }
 
     const changedFields = Object.keys(body);

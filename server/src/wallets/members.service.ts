@@ -164,6 +164,13 @@ export class MembersService {
         const currentOwner = members.find((member) => member.role === WalletRole.OWNER);
         const incoming = members.find((member) => member.user_id === toUserId);
 
+        // Re-checked under the lock: the OWNER check above ran before it, so a concurrent
+        // transfer may already have demoted this caller, who must not hand ownership on again.
+        if (currentOwner?.user_id !== user.id) {
+          const callerRole = members.find((member) => member.user_id === user.id)?.role ?? WalletRole.VIEWER;
+          throw AppError.forbidden(callerRole);
+        }
+
         if (!incoming) throw new AppError('MEMBER_NOT_FOUND');
         if (incoming.role === WalletRole.OWNER) {
           throw new AppError('VALIDATION_FAILED', 'That member already owns this wallet', {

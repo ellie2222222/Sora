@@ -318,7 +318,8 @@ SELECT expect_reject($$
 $$, 'goal_contributions: the same transaction linked twice');
 
 -- ---------------------------------------------------------------------------
--- Derived reads: the balance / spent / progress formulas the API will serve.
+-- Derived reads: printed for a human reading the run, not asserted. The API's own balance,
+-- spent and dashboard SQL is asserted over HTTP in server/test/integration.{ledger,planning}.test.ts.
 -- ---------------------------------------------------------------------------
 
 \echo ''

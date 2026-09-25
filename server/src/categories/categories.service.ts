@@ -88,7 +88,11 @@ export class CategoriesService {
 
     if (request.parentId) {
       const parent = await this.categoryRow(request.parentId);
-      if (parent.wallet_id !== request.walletId) throw new AppError('CATEGORY_WRONG_WALLET');
+      if (parent.wallet_id !== request.walletId) {
+        // AC-01: a parent in a wallet the caller can't see reads as missing, not as someone else's.
+        if ((await this.access.roleOn(user.id, parent.wallet_id)) === null) throw new AppError('CATEGORY_NOT_FOUND');
+        throw new AppError('CATEGORY_WRONG_WALLET');
+      }
       if (parent.type !== request.type) throw new AppError('CATEGORY_WRONG_TYPE');
       await this.assertNoCycle(parent.id);
     }

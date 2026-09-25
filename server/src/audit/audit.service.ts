@@ -107,6 +107,8 @@ export class AuditService {
     const rows = await query
       .selectAll()
       .orderBy('created_at', 'desc')
+      // A timestamp tie would otherwise let offset paging repeat or skip a row between pages.
+      .orderBy('id', 'desc')
       .limit(filter.pageSize)
       .offset((filter.page - 1) * filter.pageSize)
       .execute();

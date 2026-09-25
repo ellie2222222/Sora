@@ -108,23 +108,53 @@ export class InvitationsService {
       Date.now() + this.config.INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000,
     );
 
-    // uq_wallet_invitation_open is what actually rejects a second live invitation
-    // for the same (wallet, email); a pre-check could pass and still race.
-    const created = await translatingPgErrors(() =>
-      this.database.db
-        .insertInto('wallet_invitations')
-        .values({
-          wallet_id: access.walletId,
-          invited_email: request.email,
-          role: request.role,
-          relation_label: request.relationLabel ?? null,
-          token_hash: this.tokens.hashToken(token),
-          expires_at: expiresAt,
-          created_by_user_id: user.id,
-        })
-        .returning(['id', 'created_at'])
-        .executeTakeFirstOrThrow(),
-    );
+    const created = await this.database.db.transaction().execute(async (trx) => {
+      // An expired offer is no longer live (BR-08) but still holds uq_wallet_invitation_open,
+      // which cannot test expiry itself (now() is not immutable), so retire it here.
+      const retired = await trx
+        .updateTable('wallet_invitations')
+        .set({ revoked_at: new Date() })
+        .where('wallet_id', '=', access.walletId)
+        .where((eb) => eb(eb.fn('lower', ['invited_email']), '=', request.email.toLowerCase()))
+        .where('accepted_at', 'is', null)
+        .where('revoked_at', 'is', null)
+        .where('expires_at', '<=', new Date())
+        .returning(['id'])
+        .execute();
+      for (const { id } of retired) {
+        await this.audit.record(
+          {
+            event: AUDIT_EVENTS.INVITATION_REVOKED,
+            entityType: ENTITY_TYPES.WALLET_INVITATION,
+            entityId: id,
+            actorId: user.id,
+            walletId: access.walletId,
+            actorRole: access.role,
+            note: 'Expired; replaced by a new invitation',
+            ip,
+          },
+          trx,
+        );
+      }
+
+      // uq_wallet_invitation_open is what actually rejects a second live invitation
+      // for the same (wallet, email); a pre-check could pass and still race.
+      return translatingPgErrors(() =>
+        trx
+          .insertInto('wallet_invitations')
+          .values({
+            wallet_id: access.walletId,
+            invited_email: request.email,
+            role: request.role,
+            relation_label: request.relationLabel ?? null,
+            token_hash: this.tokens.hashToken(token),
+            expires_at: expiresAt,
+            created_by_user_id: user.id,
+          })
+          .returning(['id', 'created_at'])
+          .executeTakeFirstOrThrow(),
+      );
+    });
 
     await this.audit.record({
       event: AUDIT_EVENTS.MEMBER_INVITED,
