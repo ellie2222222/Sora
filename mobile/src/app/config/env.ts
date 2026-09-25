@@ -9,6 +9,8 @@
  * the device's own loopback, not the developer's machine, which is why
  * .env.example spells out using the LAN address there.
  */
+import { assertSecureApiUrl } from './apiUrlPolicy.ts';
+
 const DEFAULT_API_BASE_URL = 'http://localhost:3000';
 const DEFAULT_TIMEOUT_MS = 15000;
 
@@ -23,7 +25,11 @@ function numberFrom(value: string | undefined, fallback: number): number {
 }
 
 export const env = {
-  apiBaseUrl: trimTrailingSlashes(process.env.EXPO_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL),
+  apiBaseUrl: assertSecureApiUrl(
+    trimTrailingSlashes(process.env.EXPO_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL),
+    __DEV__,
+    process.env.EXPO_PUBLIC_ALLOW_INSECURE_API === 'true',
+  ),
   requestTimeoutMs: numberFrom(process.env.EXPO_PUBLIC_API_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
   defaultCurrency: process.env.EXPO_PUBLIC_DEFAULT_CURRENCY ?? 'VND',
   defaultLocale: process.env.EXPO_PUBLIC_LOCALE ?? 'vi-VN',

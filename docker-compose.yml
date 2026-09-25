@@ -15,10 +15,11 @@ services:
     container_name: sora-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-sora}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-sora_dev}
+    # Loopback by default: the database has no business being reachable from the LAN.
     ports:
-      - '${POSTGRES_HOST_PORT:-5432}:5432'
+      - '${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_HOST_PORT:-5432}:5432'
     volumes:
       - sora_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -38,7 +39,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-sora}:${POSTGRES_PASSWORD:-sora}@postgres:5432/${POSTGRES_DB:-sora_dev}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sora}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-sora_dev}
     # The image's HEALTHCHECK probes the API, which this one-shot container never serves.
     healthcheck:
       disable: true
@@ -54,7 +55,7 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-sora}:${POSTGRES_PASSWORD:-sora}@postgres:5432/${POSTGRES_DB:-sora_dev}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sora}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-sora_dev}
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
       PORT: 3000
       NODE_ENV: production

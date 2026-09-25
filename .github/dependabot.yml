@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      nestjs:
+        patterns: ['@nestjs/*']
+      react-navigation:
+        patterns: ['@react-navigation/*']
+      expo:
+        patterns: ['expo', 'expo-*', '@expo/*']
+    ignore:
+      # Expo SDK and React Native versions move together; bump them with `npx expo install --fix`.
+      - dependency-name: react-native
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
