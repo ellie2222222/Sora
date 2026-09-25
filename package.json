@@ -22,7 +22,8 @@
     "setup": "npm install && npm run build --workspace @sora/contracts && npm run db:migrate",
     "dev": "concurrently -k -n server,mobile -c blue,magenta \"npm:dev:server\" \"npm:dev:mobile\"",
     "dev:server": "npm run start:dev --workspace @sora/server",
-    "dev:mobile": "npm start --workspace @sora/mobile"
+    "dev:mobile": "npm start --workspace @sora/mobile",
+    "dev:mobile:clear": "npm run clear --workspace @sora/mobile"
   },
   "devDependencies": {
     "concurrently": "^10.0.5",
