@@ -7,7 +7,7 @@
  * range/precision rules the server enforces. Only the arithmetic (multiply/divide/power, which
  * `@sora/contracts` has no use for outside this UI) is written here.
  */
-import { formatCurrencyInput, formatMoneyCompact, MONEY_SCALE, parseMoney, type Scaled } from '@sora/contracts';
+import { formatCurrencyInput, formatMoney, formatMoneyCompact, MONEY_SCALE, parseMoney, type Scaled } from '@sora/contracts';
 
 export class CalculatorError extends Error {}
 
@@ -247,6 +247,20 @@ export function formatExpressionDisplay(expression: string, evaluated: Scaled | 
   const negative = evaluated < 0n;
   const formatted = formatCurrencyInput(formatMoneyCompact(negative ? -evaluated : evaluated, 0), true);
   return negative ? `-${formatted}` : formatted;
+}
+
+export type ConfirmOutcome = { submit: string } | { edit: string } | null;
+
+/**
+ * What one confirm tap does on a sheet whose keypad submits the form: a plain number submits
+ * (`''` when blank), while an operator expression is first trimmed of a dangling operator or
+ * evaluated in place (`edit`) so the result can be reviewed. `null` means keep editing.
+ */
+export function confirmExpression(expression: string, evaluated: Scaled | null): ConfirmOutcome {
+  const trimmed = expression.trim();
+  if (!hasOperator(trimmed)) return { submit: trimmed !== '' && evaluated !== null ? formatMoney(evaluated) : '' };
+  if (hasTrailingOperator(trimmed)) return { edit: trimmed.slice(0, -1) };
+  return evaluated !== null ? { edit: formatMoney(evaluated) } : null;
 }
 
 function isOperatorGlyph(ch: string): boolean {

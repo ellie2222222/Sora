@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Banknote } from 'lucide-react-native';
-import { formatMoney, TransactionType } from '@sora/contracts';
+import { TransactionType } from '@sora/contracts';
 
 import {
   BottomSheetModal,
   Button,
   CalculatorKeypad,
   DatePickerModal,
+  IconChip,
   Input,
+  KeypadSheetFooter,
+  SheetFormHeader,
+  SheetScrollArea,
   Text,
   useCalculatorExpression,
 } from '@/components';
@@ -33,11 +37,8 @@ import {
   setPrimaryAccount,
   switchType,
   validateDraft,
-  hasTrailingOperator,
 } from '@/utils';
 import { useCreateTransactionMutation } from '@/app/store';
-
-const HEADER_SIDE_WIDTH = 64;
 
 export interface AddTransactionModalProps {
   visible: boolean;
@@ -52,8 +53,7 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
   const [createTransaction, { isLoading: isSubmitting }] = useCreateTransactionMutation();
 
   const [draft, setDraft] = useState(() => emptyDraft({ currency: 'VND', transactionDate: nowInstant() }));
-  const { expression, setExpression, expressionRef, evaluated, hasOperator, display: displayAmount } =
-    useCalculatorExpression('', '0');
+  const { setExpression, expressionRef, display: displayAmount, confirm } = useCalculatorExpression('', '0');
   const [toAccountWalletId, setToAccountWalletId] = useState<string | undefined>(undefined);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -79,10 +79,6 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
       setDatePickerOpen(false);
     }
   }, [visible, walletId]);
-
-  // Mirrors MoneyInput's own rule: an operator expression only becomes a real amount once it's
-  // evaluated (see handleConfirm below), so it contributes nothing here while still mid-typing.
-  const committedAmount = !hasOperator && evaluated !== null ? formatMoney(evaluated) : '';
 
   const crossWallet =
     draft.type === TransactionType.TRANSFER && toAccountWalletId !== undefined && toAccountWalletId !== walletId;
@@ -138,50 +134,20 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
     }
   }
 
-  /**
-   * Two-stage: an operator expression is evaluated (or, if it ends in a dangling operator, just
-   * trimmed back to its last complete term) on the first tap and the sheet stays open so the
-   * result can be reviewed — only a plain, already-complete number submits and closes it. Each
-   * tap performs exactly one of strip/evaluate/submit, never two in sequence.
-   */
   function handleConfirm() {
-    const trimmed = expression.trim();
-    if (trimmed === '' || !hasOperator) {
-      void handleSubmit(trimmed === '' ? '' : committedAmount);
-      return;
-    }
-    if (hasTrailingOperator(trimmed)) {
-      setExpression(trimmed.slice(0, -1));
-      return;
-    }
-    if (evaluated === null) return; // incomplete (e.g. unmatched parenthesis) — keep editing
-    setExpression(formatMoney(evaluated));
+    const amount = confirm();
+    if (amount !== null) void handleSubmit(amount);
   }
 
   return (
     <BottomSheetModal visible={visible} onClose={onClose}>
-      <View className="flex-row items-center" style={{ flexShrink: 0, marginBottom: theme.spacing.xs }}>
-        <Pressable
-          testID="transaction-cancel"
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.cancel', { defaultValue: 'Cancel' })}
-          style={{ minWidth: HEADER_SIDE_WIDTH, minHeight: 44, justifyContent: 'center' }}
-        >
-          <Text tone="muted">{t('common.cancel', { defaultValue: 'Cancel' })}</Text>
-        </Pressable>
-        <Text variant="title" numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
-          {t('home.addTransaction')}
-        </Text>
-        {/* Mirrors the Cancel target's width so the title stays centred. */}
-        <View style={{ width: HEADER_SIDE_WIDTH }} />
-      </View>
+      <SheetFormHeader title={t('home.addTransaction')} onCancel={onClose} entity="transaction" />
 
       <View className="flex-row" style={{ flexShrink: 0, gap: theme.spacing.sm, marginBottom: theme.spacing.md }}>
         {TYPES.map(({ type, label }) => (
           <Button
             key={type}
-            testID={`transaction-type-${type}`}
+            testID={`btn-transaction-type-${type}`}
             label={label}
             variant={draft.type === type ? 'primary' : 'secondary'}
             onPress={() => setDraft((current) => switchType(current, type))}
@@ -190,18 +156,11 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
         ))}
       </View>
 
-      <View style={{ flexShrink: 1, minHeight: 0 }}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          // Not flex: 1 — the sheet is content-sized, so a zero flex-basis collapses this to 0px tall.
-          style={{ flexGrow: 0, flexShrink: 1 }}
-          contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.sm }}
-        >
+      <SheetScrollArea>
           {draft.type === TransactionType.TRANSFER ? (
             <>
               <AccountPicker
-                testID="transaction-from-account"
+                testID="picker-from-account"
                 label={t('transactions.fromLabel', { defaultValue: 'From' })}
                 walletId={walletId}
                 value={draft.fromAccountId}
@@ -209,7 +168,7 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
                 error={fieldErrors.fromAccountId}
               />
               <AccountPicker
-                testID="transaction-to-account"
+                testID="picker-to-account"
                 label={t('transactions.toLabel', { defaultValue: 'To' })}
                 value={draft.toAccountId}
                 onChange={(accountId, pickedWalletId) => {
@@ -238,7 +197,7 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
 
           {fields.category && walletId !== undefined ? (
             <CategoryGrid
-              testID="transaction-category"
+              testID="picker-category"
               walletId={walletId}
               type={categoryTypeFor(draft.type)}
               optional={draft.type === TransactionType.TRANSFER}
@@ -247,63 +206,32 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
               error={fieldErrors.categoryId}
             />
           ) : null}
-        </ScrollView>
-      </View>
+      </SheetScrollArea>
 
-      <View
-        style={{
-          flexShrink: 0,
-          gap: theme.spacing.sm,
-          marginTop: theme.spacing.sm,
-          paddingTop: theme.spacing.md,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border,
-        }}
-      >
-        <View className="flex-row items-end justify-between">
-          {draft.type === TransactionType.TRANSFER ? (
-            <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
-              <View
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: theme.radius.pill,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: theme.colors.warningMuted,
-                }}
-              >
-                <Banknote size={16} color={theme.colors.warning} strokeWidth={2} />
-              </View>
-              <Text tone="muted">{draft.currency}</Text>
-            </View>
+      <KeypadSheetFooter
+        leading={
+          draft.type === TransactionType.TRANSFER ? (
+            <IconChip icon={Banknote} label={draft.currency} testID="transaction-currency" />
           ) : (
             <AccountPicker
               compact
-              testID="transaction-account"
+              testID="picker-account"
               label={t('accounts.accountLabel', { defaultValue: 'Account' })}
               walletId={walletId}
               value={primaryAccount}
               onChange={(accountId) => setDraft((current) => setPrimaryAccount(current, accountId))}
             />
-          )}
-          <Text variant="heading" numeric weight="bold" testID="transaction-amount-display">
-            {displayAmount}
-          </Text>
-        </View>
-        {draft.type !== TransactionType.TRANSFER && (fieldErrors.fromAccountId ?? fieldErrors.toAccountId) !== undefined ? (
-          <Text variant="caption" tone="danger">
-            {fieldErrors.fromAccountId ?? fieldErrors.toAccountId}
-          </Text>
-        ) : null}
-        {fieldErrors.amount !== undefined ? (
-          <Text variant="caption" tone="danger">
-            {fieldErrors.amount}
-          </Text>
-        ) : null}
-
+          )
+        }
+        amount={displayAmount}
+        amountTestID="transaction-amount-display"
+        errors={[
+          draft.type !== TransactionType.TRANSFER ? (fieldErrors.fromAccountId ?? fieldErrors.toAccountId) : undefined,
+          fieldErrors.amount,
+        ]}
+      >
         <Input
-          testID="transaction-description"
+          testID="input-transaction-description"
           placeholder={t('transactions.notePlaceholder', { defaultValue: 'Enter a note...' })}
           value={draft.description}
           onChangeText={(text) => setDraft((current) => ({ ...current, description: text }))}
@@ -319,9 +247,9 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
           onQuickDateRef={onQuickDateRef}
           dateLabel={dateLabel}
           dateAccessibilityLabel={dateAccessibilityLabel}
-          testID="transaction-amount-keypad"
+          testID="keypad-transaction"
         />
-      </View>
+      </KeypadSheetFooter>
 
       <DatePickerModal
         visible={datePickerOpen}

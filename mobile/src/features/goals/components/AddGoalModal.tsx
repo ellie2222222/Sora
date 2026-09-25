@@ -1,11 +1,23 @@
-import { useEffect, useState } from 'react';
-import { ScrollView } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Flag } from 'lucide-react-native';
+import { createGoalSchema } from '@sora/contracts';
 
-import { BottomSheetModal, Button, DateField, Input, MoneyInput, StateView, Text } from '@/components';
-import { useTheme, useToast, useWallets } from '@/app/providers';
+import {
+  BottomSheetModal,
+  CalculatorKeypad,
+  DatePickerModal,
+  IconChip,
+  Input,
+  KeypadSheetFooter,
+  SheetFormHeader,
+  StateView,
+  Text,
+  useCalculatorExpression,
+} from '@/components';
+import { useToast, useWallets } from '@/app/providers';
 import { useCreateGoalMutation } from '@/app/store';
-import { messageOf } from '@/utils';
+import { formatDay, formatShortDay, issueMessagesByPath, messageOf, today, type CalendarDay } from '@/utils';
 
 export interface AddGoalModalProps {
   visible: boolean;
@@ -13,25 +25,35 @@ export interface AddGoalModalProps {
 }
 
 export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
-  const theme = useTheme();
   const { t } = useTranslation();
   const { showToast } = useToast();
   const { activeWallet } = useWallets();
   const [createGoal, { isLoading: isCreating }] = useCreateGoalMutation();
 
+  const { setExpression, expressionRef, display: displayAmount, confirm } = useCalculatorExpression('', '0');
   const [name, setName] = useState('');
-  const [targetAmount, setTargetAmount] = useState('');
-  const [targetDate, setTargetDate] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [targetDate, setTargetDate] = useState<CalendarDay | null>(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible) {
+      setExpression('');
       setName('');
-      setTargetAmount('');
       setTargetDate(null);
-      setError(null);
+      setDatePickerOpen(false);
+      setFieldErrors({});
+      setSubmitError(null);
     }
   }, [visible]);
+
+  // Ref pattern (see CalculatorKeypadProps.onConfirmRef): keeps the keypad grid's identity stable.
+  // Declared before the early returns so every render calls the same hooks.
+  const onConfirmRef = useRef(handleConfirm);
+  onConfirmRef.current = handleConfirm;
+  const onQuickDateRef = useRef(() => {});
+  onQuickDateRef.current = () => setDatePickerOpen(true);
 
   if (!visible) return null;
 
@@ -43,59 +65,90 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
     );
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(targetAmount: string) {
+    setSubmitError(null);
     if (activeWallet === null) return;
 
-    setError(null);
+    const parsed = createGoalSchema.safeParse({
+      walletId: activeWallet.id,
+      name,
+      targetAmount,
+      currency: activeWallet.balances[0]?.currency ?? 'VND',
+      targetDate,
+    });
+    if (!parsed.success) {
+      setFieldErrors(issueMessagesByPath(parsed.error.issues));
+      return;
+    }
+
+    setFieldErrors({});
     try {
-      await createGoal({
-        walletId: activeWallet.id,
-        name,
-        targetAmount,
-        currency: activeWallet.balances[0]?.currency ?? 'VND',
-        targetDate,
-      }).unwrap();
+      await createGoal(parsed.data).unwrap();
       onClose();
       showToast(t('toast.goalCreated', { defaultValue: 'Goal created' }), 'success');
-    } catch (submitError) {
-      setError(messageOf(submitError, t));
+    } catch (error) {
+      setSubmitError(messageOf(error, t));
     }
   }
 
+  function handleConfirm() {
+    const amount = confirm();
+    if (amount !== null) void handleSubmit(amount);
+  }
+
+  const deadlineLabel = t('goals.deadline', { defaultValue: 'Deadline' });
+  const targetDateText = targetDate !== null ? formatDay(targetDate) : t('goals.noTargetDate', { defaultValue: 'Not set' });
+
   return (
-    <BottomSheetModal visible={visible} onClose={onClose} title={t('goals.newGoal')}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.xl }}
+    <BottomSheetModal visible={visible} onClose={onClose}>
+      <SheetFormHeader title={t('goals.newGoal')} onCancel={onClose} entity="goal" />
+
+      <KeypadSheetFooter
+        divider={false}
+        leading={
+          <IconChip
+            icon={Flag}
+            label={targetDateText}
+            placeholder={targetDate === null}
+            accessibilityLabel={`${deadlineLabel}, ${targetDateText}`}
+            onPress={() => setDatePickerOpen(true)}
+            onClear={targetDate !== null ? () => setTargetDate(null) : undefined}
+            clearAccessibilityLabel={t('common.clear')}
+            testID="input-goal-target-date"
+          />
+        }
+        amount={displayAmount}
+        amountTestID="add-goal-amount-display"
+        errors={[fieldErrors.targetAmount]}
       >
-        <Input testID="add-goal-name" label={t('categories.name', { defaultValue: 'Name' })} placeholder={t('goals.namePlaceholder', 'e.g. New Laptop')} value={name} onChangeText={setName} />
-        <MoneyInput
-          testID="add-goal-target"
-          label={t('goals.targetAmount', { defaultValue: 'Target amount' })}
-          value={targetAmount}
-          onChangeValue={setTargetAmount}
-        />
-        <DateField
-          testID="add-goal-date"
-          label={t('goals.targetDateOptional', { defaultValue: 'Target date (optional)' })}
-          placeholder={t('goals.noTargetDate', { defaultValue: 'Not set' })}
-          value={targetDate}
-          onChange={setTargetDate}
-          onClear={() => setTargetDate(null)}
+        <Input
+          testID="input-goal-name"
+          placeholder={t('goals.namePlaceholder', 'e.g. New Laptop')}
+          value={name}
+          onChangeText={setName}
+          error={fieldErrors.name}
         />
 
-        {error !== null ? <Text tone="danger">{error}</Text> : null}
+        {submitError !== null ? <Text tone="danger">{submitError}</Text> : null}
 
-        <Button
-          testID="add-goal-submit"
-          label={t('common.create')}
-          onPress={handleSubmit}
-          loading={isCreating}
-          disabled={name.trim().length === 0}
-          fullWidth
+        <CalculatorKeypad
+          expressionRef={expressionRef}
+          onExpressionChange={setExpression}
+          onConfirmRef={onConfirmRef}
+          confirmDisabled={isCreating}
+          onQuickDateRef={onQuickDateRef}
+          dateLabel={targetDate !== null ? formatShortDay(targetDate) : deadlineLabel}
+          dateAccessibilityLabel={`${deadlineLabel}, ${targetDateText}`}
+          testID="keypad-goal"
         />
-      </ScrollView>
+      </KeypadSheetFooter>
+
+      <DatePickerModal
+        visible={datePickerOpen}
+        selectedDay={targetDate ?? today()}
+        onSelectDay={setTargetDate}
+        onClose={() => setDatePickerOpen(false)}
+      />
     </BottomSheetModal>
   );
 }

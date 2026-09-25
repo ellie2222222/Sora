@@ -173,6 +173,7 @@ export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
   GOAL_NOT_ACTIVE: 'errors.goalNotActive',
   CONTRIBUTION_NOT_FOUND: 'errors.contributionNotFound',
   RATE_LIMITED: 'errors.rateLimited',
+  ROUTE_NOT_FOUND: 'errors.routeNotFound',
   INTERNAL_ERROR: 'errors.internalError',
   GOOGLE_TOKEN_INVALID: 'errors.googleTokenInvalid',
   VALUATION_UNAVAILABLE: 'errors.valuationUnavailable',
@@ -212,4 +213,16 @@ export function isUnauthenticated(error: unknown): boolean {
     error.code === 'TOKEN_EXPIRED' ||
     error.code === 'TOKEN_INVALID'
   );
+}
+
+/** One message per field from a failed schema parse, keyed by dotted path — what a form shows beside each field. */
+export function issueMessagesByPath(
+  issues: readonly { path: readonly PropertyKey[]; message: string }[],
+): Record<string, string> {
+  const byPath: Record<string, string> = {};
+  for (const issue of issues) {
+    const path = issue.path.map(String).join('.');
+    byPath[path] ??= issue.message;
+  }
+  return byPath;
 }

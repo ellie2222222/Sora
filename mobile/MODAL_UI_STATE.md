@@ -8,6 +8,13 @@
 > from-source-of-truth review — see `verifications/2026-09-16-modal-form-consistency-review.md`. The
 > currency-picker and multi-category-budget suggestions were reviewed and deliberately **not**
 > implemented (no domain/schema support). Left as historical record below rather than rewritten.
+>
+> **2026-09-24 update:** `AddTransactionModal`, `AddBudgetModal` and `AddGoalModal` now share one
+> layout: `SheetFormHeader` (Cancel + title), an always-open `CalculatorKeypad` whose confirm key
+> submits, the amount shown above it beside an `IconChip` summary, and the keypad's date key opening
+> `DatePickerModal` (transaction date / budget start / goal deadline). No `MoneyInput` or `DateField`
+> to tap first. Budget: period buttons + inline `CategoryGrid`, end date via the window chip. The
+> rows below for these three modals predate this.
 
 ---
 

@@ -1,6 +1,7 @@
 import { Calendar, Check, Delete } from 'lucide-react-native';
-import { memo, useState, type RefObject } from 'react';
+import { memo, useState, type ReactNode, type RefObject } from 'react';
 import { Platform, Pressable, View, type ViewProps } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { insertToken } from '@/utils';
@@ -20,8 +21,8 @@ export interface CalculatorKeypadProps {
    * submit from the current expression), so passing it directly would defeat `memo` below. */
   onConfirmRef: RefObject<() => void>;
   confirmDisabled?: boolean;
-  /** Omitted where there's no date to set (e.g. a generic `MoneyInput` field) — row 1 then renders
-   * as plain 3-wide digits instead of reserving a 4th, empty cell. */
+  /** Omitted where there's no date to set (e.g. a generic `MoneyInput` field) — the confirm key
+   * then takes the whole action column instead of sharing it. */
   onQuickDateRef?: RefObject<() => void>;
   /** The selected day, short enough for one key ("Sep 24"). Only meaningful with `onQuickDateRef`. */
   dateLabel?: string;
@@ -38,24 +39,30 @@ const preventInputBlur: ViewProps =
     : {};
 
 type DigitKey = { label: string; insert: string };
+type KeyRow = { digits: DigitKey[]; operator: string };
 
-const ROW_789: DigitKey[] = [
-  { label: '7', insert: '7' },
-  { label: '8', insert: '8' },
-  { label: '9', insert: '9' },
+const DIGIT_ROWS: KeyRow[] = [
+  { digits: [{ label: '7', insert: '7' }, { label: '8', insert: '8' }, { label: '9', insert: '9' }], operator: '+' },
+  { digits: [{ label: '4', insert: '4' }, { label: '5', insert: '5' }, { label: '6', insert: '6' }], operator: '−' },
+  { digits: [{ label: '1', insert: '1' }, { label: '2', insert: '2' }, { label: '3', insert: '3' }], operator: '×' },
 ];
-const ROW_456: DigitKey[] = [
-  { label: '4', insert: '4' },
-  { label: '5', insert: '5' },
-  { label: '6', insert: '6' },
+const LAST_ROW_DIGITS: DigitKey[] = [
+  { label: '.', insert: '.' },
+  { label: '0', insert: '0' },
 ];
-const ROW_123: DigitKey[] = [
-  { label: '1', insert: '1' },
-  { label: '2', insert: '2' },
-  { label: '3', insert: '3' },
-];
+const LAST_ROW_OPERATOR = '÷';
 
-const KEY_HEIGHT = 46;
+const KEY_HEIGHT = 48;
+const DIGIT_BLOCK_COLUMNS = 4;
+
+/**
+ * One of the digit block's four equal columns. Width comes from this border- and padding-free box,
+ * never from the key inside it: flex shares space only after subtracting each item's own padding
+ * and border, so a padded or borderless key given `flex: 1` directly comes out a different width.
+ */
+function KeyColumn({ children }: { children: ReactNode }) {
+  return <View style={{ flex: 1 }}>{children}</View>;
+}
 
 export const CalculatorKeypad = memo(function CalculatorKeypad({
   expressionRef,
@@ -68,65 +75,105 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
   testID,
 }: CalculatorKeypadProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [pressedKey, setPressedKey] = useState<string | null>(null);
+  const gap = theme.spacing.xs;
 
   const insert = (token: string) => onExpressionChange(insertToken(expressionRef.current, token));
   const backspace = () => onExpressionChange(expressionRef.current.slice(0, -1));
 
+  const keyFill = (key: string) => (pressedKey === key ? theme.colors.surfacePressed : theme.colors.surfaceElevated);
+
   const digitCell = (key: DigitKey) => (
-    <Pressable
-      key={key.label}
-      testID={testID !== undefined ? `${testID}-key-${key.label}` : undefined}
-      accessibilityRole="button"
-      accessibilityLabel={key.label}
-      onPress={() => insert(key.insert)}
-      onPressIn={() => setPressedKey(key.label)}
-      onPressOut={() => setPressedKey(null)}
-      style={{
-        flex: 1,
-        height: KEY_HEIGHT,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: pressedKey === key.label ? theme.colors.surfaceMuted : theme.colors.surfaceElevated,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-      }}
-    >
-      <Text variant="title" weight="semibold" numeric style={{ color: theme.colors.text }}>
-        {key.label}
-      </Text>
-    </Pressable>
+    <KeyColumn key={key.label}>
+      <Pressable
+        testID={testID !== undefined ? `${testID}-key-${key.label}` : undefined}
+        accessibilityRole="button"
+        accessibilityLabel={key.label}
+        onPress={() => insert(key.insert)}
+        onPressIn={() => setPressedKey(key.label)}
+        onPressOut={() => setPressedKey(null)}
+        style={{
+          height: KEY_HEIGHT,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: keyFill(key.label),
+          borderWidth: 1,
+          borderColor: theme.colors.border,
+        }}
+      >
+        <Text variant="title" weight="semibold" numeric style={{ color: theme.colors.text }}>
+          {key.label}
+        </Text>
+      </Pressable>
+    </KeyColumn>
   );
 
   const operatorCell = (glyph: string) => (
-    <Pressable
-      key={glyph}
-      testID={testID !== undefined ? `${testID}-key-${glyph}` : undefined}
-      accessibilityRole="button"
-      accessibilityLabel={glyph}
-      onPress={() => insert(glyph)}
-      onPressIn={() => setPressedKey(glyph)}
-      onPressOut={() => setPressedKey(null)}
-      style={{
-        flex: 1,
-        height: KEY_HEIGHT,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: pressedKey === glyph ? theme.colors.surfaceMuted : theme.colors.surfaceElevated,
-        borderWidth: 1,
-        borderColor: theme.colors.primary,
-      }}
-    >
-      <Text variant="body" weight="semibold" numeric style={{ color: theme.colors.primary }}>
-        {glyph}
-      </Text>
-    </Pressable>
+    <KeyColumn key={glyph}>
+      <Pressable
+        testID={testID !== undefined ? `${testID}-key-${glyph}` : undefined}
+        accessibilityRole="button"
+        accessibilityLabel={glyph}
+        onPress={() => insert(glyph)}
+        onPressIn={() => setPressedKey(glyph)}
+        onPressOut={() => setPressedKey(null)}
+        style={{
+          height: KEY_HEIGHT,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: keyFill(glyph),
+          borderWidth: 1,
+          borderColor: theme.colors.primary,
+        }}
+      >
+        <Text variant="body" weight="semibold" numeric style={{ color: theme.colors.primary }}>
+          {glyph}
+        </Text>
+      </Pressable>
+    </KeyColumn>
   );
 
+  const rowStyle = { flexDirection: 'row', gap } as const;
+
   return (
-    <View testID={testID} style={{ gap: theme.spacing.xs }} {...preventInputBlur}>
-      <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
-        {ROW_789.map(digitCell)}
+    <View testID={testID} style={rowStyle} {...preventInputBlur}>
+      {/* flexBasis carries the block's inner gaps, so its four columns and the action column
+          below all resolve to the same width. */}
+      <View style={{ flexGrow: DIGIT_BLOCK_COLUMNS, flexShrink: 1, flexBasis: gap * (DIGIT_BLOCK_COLUMNS - 1), gap }}>
+        {DIGIT_ROWS.map((row) => (
+          <View key={row.operator} style={rowStyle}>
+            {row.digits.map(digitCell)}
+            {operatorCell(row.operator)}
+          </View>
+        ))}
+        <View style={rowStyle}>
+          {LAST_ROW_DIGITS.map(digitCell)}
+          <KeyColumn>
+            <Pressable
+              testID={testID !== undefined ? `${testID}-key-backspace` : undefined}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.backspace', 'Backspace')}
+              onPress={backspace}
+              onPressIn={() => setPressedKey('backspace')}
+              onPressOut={() => setPressedKey(null)}
+              style={{
+                height: KEY_HEIGHT,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: keyFill('backspace'),
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+              }}
+            >
+              <Delete size={20} color={theme.colors.text} strokeWidth={1.75} />
+            </Pressable>
+          </KeyColumn>
+          {operatorCell(LAST_ROW_OPERATOR)}
+        </View>
+      </View>
+
+      <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, gap }}>
         {onQuickDateRef !== undefined ? (
           <Pressable
             testID={testID !== undefined ? `${testID}-key-date` : undefined}
@@ -137,8 +184,6 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
             onPressOut={() => setPressedKey(null)}
             style={{
               flex: 1,
-              height: KEY_HEIGHT,
-              flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
               gap: theme.spacing.xxs,
@@ -149,80 +194,44 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
               borderColor: theme.colors.primary,
             }}
           >
-            <Calendar size={15} color={theme.colors.onPrimary} strokeWidth={2.25} />
+            <Calendar size={16} color={theme.colors.onPrimary} strokeWidth={2.25} />
             {dateLabel !== undefined ? (
               <Text
                 variant="label"
                 weight="semibold"
                 numeric
-                numberOfLines={1}
-                style={{ color: theme.colors.onPrimary, flexShrink: 1 }}
+                numberOfLines={2}
+                style={{ color: theme.colors.onPrimary, textAlign: 'center' }}
               >
                 {dateLabel}
               </Text>
             ) : null}
           </Pressable>
         ) : null}
-      </View>
-
-      <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
-        {ROW_456.map(digitCell)}
-        <View style={{ flex: 1, flexDirection: 'row', gap: theme.spacing.xxs }}>
-          {operatorCell('+')}
-          {operatorCell('−')}
-        </View>
-      </View>
-
-      <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
-        {ROW_123.map(digitCell)}
-        <View style={{ flex: 1, flexDirection: 'row', gap: theme.spacing.xxs }}>
-          {operatorCell('×')}
-          {operatorCell('÷')}
-        </View>
-      </View>
-
-      <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
-        {digitCell({ label: '.', insert: '.' })}
-        {digitCell({ label: '0', insert: '0' })}
-        <Pressable
-          testID={testID !== undefined ? `${testID}-key-backspace` : undefined}
-          accessibilityRole="button"
-          accessibilityLabel="Backspace"
-          onPress={backspace}
-          onPressIn={() => setPressedKey('backspace')}
-          onPressOut={() => setPressedKey(null)}
-          style={{
-            flex: 1,
-            height: KEY_HEIGHT,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: pressedKey === 'backspace' ? theme.colors.surfaceMuted : theme.colors.surfaceElevated,
-            borderWidth: 1,
-            borderColor: theme.colors.border,
-          }}
-        >
-          <Delete size={20} color={theme.colors.text} strokeWidth={1.75} />
-        </Pressable>
         <Pressable
           testID={testID !== undefined ? `${testID}-key-confirm` : undefined}
           disabled={confirmDisabled}
           accessibilityRole="button"
-          accessibilityLabel="Confirm"
+          accessibilityLabel={t('common.confirm', 'Confirm')}
+          accessibilityState={{ disabled: confirmDisabled }}
           onPress={() => onConfirmRef.current()}
           onPressIn={() => setPressedKey('confirm')}
           onPressOut={() => setPressedKey(null)}
           style={{
             flex: 1,
-            height: KEY_HEIGHT,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: theme.colors.primary,
-            opacity: confirmDisabled ? 0.5 : pressedKey === 'confirm' ? 0.85 : 1,
+            backgroundColor: confirmDisabled ? theme.colors.buttonPrimaryDisabledBackground : theme.colors.primary,
+            opacity: !confirmDisabled && pressedKey === 'confirm' ? 0.85 : 1,
             borderWidth: 1,
-            borderColor: theme.colors.primary,
+            borderColor: confirmDisabled ? theme.colors.buttonPrimaryDisabledBorder : theme.colors.primary,
           }}
         >
-          <Check size={20} color={theme.colors.onPrimary} strokeWidth={2.5} />
+          <Check
+            size={20}
+            color={confirmDisabled ? theme.colors.buttonPrimaryDisabledText : theme.colors.onPrimary}
+            strokeWidth={2.5}
+          />
         </Pressable>
       </View>
     </View>

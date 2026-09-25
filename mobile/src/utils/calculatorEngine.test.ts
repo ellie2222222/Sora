@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import { formatMoney } from '@sora/contracts';
 
-import { CalculatorError, evaluateExpression, formatExpressionDisplay, hasOperator, hasTrailingOperator, insertToken, spaceExpression, tryEvaluate } from './calculatorEngine.ts';
+import { CalculatorError, confirmExpression, evaluateExpression, formatExpressionDisplay, hasOperator, hasTrailingOperator, insertToken, spaceExpression, tryEvaluate } from './calculatorEngine.ts';
 
 function evalToString(expression: string): string {
   return formatMoney(evaluateExpression(expression));
@@ -161,5 +161,24 @@ describe('formatExpressionDisplay', () => {
 
   it('echoes an expression that does not evaluate yet', () => {
     assert.equal(formatExpressionDisplay('12.', null), '12.');
+  });
+});
+
+describe('confirmExpression', () => {
+  it('submits a plain number, or an empty amount for a blank field', () => {
+    assert.deepEqual(confirmExpression('1500', tryEvaluate('1500')), { submit: '1500.0000' });
+    assert.deepEqual(confirmExpression('  ', null), { submit: '' });
+  });
+
+  it('trims a dangling operator before evaluating anything', () => {
+    assert.deepEqual(confirmExpression('100+', tryEvaluate('100+')), { edit: '100' });
+  });
+
+  it('evaluates an operator expression in place instead of submitting it', () => {
+    assert.deepEqual(confirmExpression('100+5', tryEvaluate('100+5')), { edit: '105.0000' });
+  });
+
+  it('keeps editing when the expression cannot evaluate yet', () => {
+    assert.equal(confirmExpression('(1+2', tryEvaluate('(1+2')), null);
   });
 });
