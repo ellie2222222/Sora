@@ -22,15 +22,16 @@ safety, destructive-command and test-data-cleanup rules. They govern every step 
 
 ## Non-negotiable constraints
 
-- **Never touch a database or container this run did not create.** Before starting, list what's
-  running (`docker ps`) and note every existing name and published port; the scratch instance must
-  collide with none of them. Finding someone else's container is a reason to leave it alone, not to
-  reuse it.
+- **Never touch a database or container this run did not create.** Before starting, record
+  `docker ps -a` (every existing name and published port) and `docker volume ls -qf dangling=true`;
+  the scratch instance must collide with none of them. Finding someone else's container is a reason
+  to leave it alone, not to reuse it.
 - **Unique names everywhere.** Container `scratch-<slug>-<4 hex>`, database `scratch_<slug>_<4 hex>`,
   probe users `probe+<uuid>@example.invalid`, entity names `scratch-<uuid>`.
-- **Cleanup by exact name only.** `docker rm -f <that container>` — never `prune`, never a wildcard,
-  never "everything created today". Stop the server by the PID listening on the port this run chose,
-  after confirming it's the node process this run started.
+- **Cleanup by exact name only.** `docker rm -f -v <that container>` — never `prune`, never a wildcard,
+  never "everything created today". The `-v` matters: the postgres image declares a data volume, and
+  without it every run leaves an orphaned ~50 MB anonymous volume behind. Stop the server by the PID
+  listening on the port this run chose, after confirming it's the node process this run started.
 - **No consequential external calls.** Leave paths that reach a third-party API (e.g. exchange rates)
   unexercised unless that call is mocked or the user has explicitly agreed to it.
 - **Probe scripts live in the scratchpad, never in the repo.**
@@ -65,8 +66,9 @@ and any side effect (audit rows, derived figures). Take them from the diff and t
 
 ## Phase 3 — Tear down and confirm
 
-Stop the server, remove the container by its exact name, then run `docker ps` again. The list should
-match the one recorded in Phase 1, minus nothing that was already there.
+Stop the server, remove the container and its volume by its exact name (`docker rm -f -v`), then
+re-run both listings recorded before starting. Each should match its baseline exactly: nothing this
+run created left behind, nothing that was already there gone.
 
 ## Phase 4 — Report
 
