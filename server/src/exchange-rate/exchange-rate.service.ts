@@ -137,7 +137,6 @@ export class ExchangeRateService {
       return { rates: cached.rates, timestamp: cached.timestamp, status: ValuationStatus.STALE };
     }
 
-    // Check database snapshot table
     if (this.databaseService) {
       try {
         const snapshot = await this.databaseService.db
@@ -269,7 +268,6 @@ export class ExchangeRateService {
       };
     }
 
-    // Collect all foreign currencies that have a non-zero balance
     const contributingForeignCurrencies = Array.from(
       new Set(
         totals

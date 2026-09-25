@@ -97,7 +97,7 @@ function refreshEverything(store: AppStore): void {
   store.dispatch(apiSlice.util.invalidateTags([...API_TAG_TYPES]));
 }
 
-/** For pull-to-refresh and the banner's "Try again" — a manual, on-demand pass. */
+/** A manual, on-demand pass, for the sync status's "Try again". */
 export async function requestSyncNow(store: AppStore): Promise<void> {
   const adapters = await defaultEntityAdapters();
   await runSyncPass(offlineQueue, adapters, {

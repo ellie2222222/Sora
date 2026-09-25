@@ -14,9 +14,8 @@ import { WalletsService } from './wallets.service.ts';
  * Imports AuthModule for TokenService (invitations mint their own tokens) —
  * safe because AuthModule does not import WalletsModule back.
  *
- * RequireWalletRoleGuard is already provided/exported by WalletAccessModule;
- * imported here (not re-provided) purely so WalletsController's
- * `@UseGuards(RequireWalletRoleGuard)` resolves it.
+ * RequireWalletRoleGuard comes from WalletAccessModule's exports, so it is not
+ * re-provided here for WalletsController's `@UseGuards`.
  */
 @Module({
   imports: [WalletAccessModule, BalanceModule, AuthModule],

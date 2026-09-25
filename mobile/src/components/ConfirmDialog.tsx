@@ -46,9 +46,7 @@ const VARIANT_DEFAULT_ICON: Record<ConfirmDialogVariant, LucideIcon> = {
 };
 
 /**
- * Shared bottom-sheet confirmation modal.
- * Uses the primary `BottomSheetModal` component as its foundation for consistent
- * slide-up spring bounce physics, zero-gap bottom anchoring, safe area, and drag gestures.
+ * Built on `BottomSheetModal` so it shares that sheet's motion, anchoring, safe area and drag gestures.
  */
 export function ConfirmDialog({
   visible,

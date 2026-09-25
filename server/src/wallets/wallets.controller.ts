@@ -56,9 +56,6 @@ import { WalletsService } from './wallets.service.ts';
  * The contracts package covers what both sides validate; these are list filters
  * and one body the app does not validate client-side, so they are declared where
  * they are consumed rather than added to the shared package for a single use.
- * `transferOwnershipSchema` is the arguable one — §7.4 defines the body and the
- * app will eventually post it, so it belongs in contracts; noted rather than
- * silently duplicated.
  */
 const walletListQuerySchema = z.object({
   status: z.enum(WALLET_STATUSES).default(WalletStatus.ACTIVE),

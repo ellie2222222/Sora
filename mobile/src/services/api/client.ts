@@ -83,7 +83,7 @@ export interface PageQuery {
 
 /**
  * Every response is wrapped (API spec §2.1), so the unwrap happens once here
- * rather than at each of the fifty call sites.
+ * rather than at each call site.
  */
 export async function getOne<T>(path: string, params?: unknown): Promise<T> {
   const response = await http.get<ApiEnvelope<T>>(path, { params });

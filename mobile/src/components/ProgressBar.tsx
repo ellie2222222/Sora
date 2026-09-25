@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useTheme } from '@/app/providers';
 
 export interface ProgressBarProps {
-  /** 0-100+; values above 100 render as a full, danger-coloured bar. */
+  /** 0-100+; the bar caps at full width above 100. */
   percentage: number;
   tone?: 'primary' | 'income' | 'expense';
   danger?: boolean;
@@ -12,7 +12,7 @@ export interface ProgressBarProps {
 
 /**
  * `percentage` is allowed to exceed 100 — a budget that's over must be able to
- * say so (CLAUDE.md: "you are 400,000 over" is the figure that matters). The
+ * say so (SRS FR-40: "you are 400,000 over" is the figure that matters). The
  * bar itself still visually caps at full width; `danger` is what actually
  * signals the overspend, not a bar that would overflow its own track.
  */

@@ -255,7 +255,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
   );
 }
 
-/** Matches what the Accounts and Dashboard tabs show without a wallet, rather than a third wording. */
+/** Reuses the Accounts tab's no-wallet copy rather than adding another wording. */
 function NoWalletState({ onManage }: { onManage: () => void }) {
   const { t } = useTranslation();
 

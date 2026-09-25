@@ -73,7 +73,7 @@ export interface AnimatedThemeRootHandle {
  * via the injected stylesheet above — this overlay is native-only).
  *
  * `beginTransition` lets `setThemeMode`/`setThemeName` start that fade synchronously, in the same
- * tick as the press — before the ~90-call-site re-render (perceptible on its own) even begins, so
+ * tick as the press — before the re-render of every `useTheme()` call site (perceptible on its own) even begins, so
  * that cost stays hidden behind the overlay instead of gating the animation's start.
  * `pendingImperativeTrigger` stops the `useLayoutEffect` fallback below (for a theme change not
  * driven through those setters, e.g. initial hydration) from firing a second, duplicate fade.

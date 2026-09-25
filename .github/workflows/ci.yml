@@ -13,9 +13,8 @@ env:
   NODE_VERSION: '22'
 
 jobs:
-  # The shared contract is checked on its own and first: every other job depends
-  # on it, so a break here should report as one clear failure rather than as a
-  # confusing cascade in the server and mobile jobs.
+  # The shared contract is checked on its own and first: server and mobile depend on
+  # it, so a break here reports as one clear failure rather than a cascade in both.
   contracts:
     name: Contracts (types, tests, parity)
     runs-on: ubuntu-latest
@@ -225,6 +224,7 @@ jobs:
           PORT: '3000'
           # The flows sign in several times from one address within a minute.
           AUTH_RATE_LIMIT_PER_MINUTE: '1000'
+          # Unreachable on purpose: the run must never call the real rates provider.
           EXCHANGE_RATE_API_URL: http://127.0.0.1:9/no-network
         run: |
           nohup node dist/src/main.js > "$RUNNER_TEMP/api.log" 2>&1 &

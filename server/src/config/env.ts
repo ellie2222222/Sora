@@ -52,7 +52,7 @@ const envSchema = z.object({
 
   APP_VERSION: z.string().min(1).default('0.1.0'),
 
-  /** Where the SQL migration runner looks. Defaults to the repo's db/migrations. */
+  /** Accepted but read by nothing: scripts/migrate.mjs always uses db/migrations. */
   MIGRATIONS_DIR: z.string().optional(),
 
   /**

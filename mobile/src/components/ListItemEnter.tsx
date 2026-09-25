@@ -3,8 +3,8 @@ import { type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 
 /**
- * Reanimated's declarative `entering`/`layout` props fire this exactly once,
- * on initial mount, with no manual shared-value bookkeeping.
+ * Reanimated's declarative `entering` prop fires exactly once, on initial mount,
+ * with no manual shared-value bookkeeping.
  */
 const DEFAULT_ENTERING = FadeInDown.duration(280)
   .springify()

@@ -263,7 +263,7 @@ export class DashboardService {
       });
   }
 
-  /** Last 10 transactions touching any of this wallet's accounts, newest first. */
+  /** The latest `RECENT_TRANSACTIONS_LIMIT` transactions touching this wallet's accounts, newest first. */
   private async recentTransactions(accountIds: readonly string[]): Promise<TransactionResponse[]> {
     if (accountIds.length === 0) return [];
 

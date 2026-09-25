@@ -21,7 +21,6 @@ const transparentModalOptions = {
 };
 
 /**
- * Main application navigation stack.
  * Uses JS Stack Navigator (@react-navigation/stack) so transparentModal routes
  * do not detach or hide the underlying main tab screen in the DOM.
  */

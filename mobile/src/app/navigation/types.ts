@@ -18,12 +18,11 @@ export type MainTabParamList = {
 
 /**
  * Screens reachable from anywhere in the signed-in app, layered over the tab
- * bar. Kept in one root stack rather than nested per tab, since a transaction's
- * detail is opened from Home, Transactions AND a budget/goal detail alike.
+ * bar. Kept in one root stack rather than nested per tab, since a budget or goal
+ * detail opens from both Planning and Dashboard, and Transactions from more than one tab.
  */
 export type AppStackParamList = {
-  // Typed with NavigatorScreenParams so a caller can deep-link straight into a
-  // tab (e.g. AccountDetail linking to Transactions filtered by this account)
+  // Typed with NavigatorScreenParams so a caller can deep-link straight into a tab
   // instead of only ever landing on whichever tab was last active.
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   WalletList: undefined;

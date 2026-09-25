@@ -6,8 +6,7 @@
  * writing a matching pair is what makes "frontend and backend validation agree"
  * a property of the build instead of a review checklist item.
  *
- * These schemas mirror the CHECK constraints in
- * db/migrations/001_initial_wallet_schema.sql. The database is the backstop, not
+ * These schemas mirror the CHECK constraints in db/migrations/. The database is the backstop, not
  * the duplicate: it is what still holds when a migration script or a psql
  * session writes without going through the API.
  */
@@ -272,6 +271,8 @@ export const createTransferSchema = z
 export const createTransactionSchema = z.discriminatedUnion('type', [
   createIncomeSchema,
   createExpenseSchema,
+  // A discriminated union takes only plain objects, and .innerType() drops the
+  // transfer's own-accounts refine, so it is checked again below.
   createTransferSchema.innerType(),
 ]).superRefine((value, ctx) => {
   if (value.type === TransactionType.TRANSFER && value.fromAccountId === value.toAccountId) {

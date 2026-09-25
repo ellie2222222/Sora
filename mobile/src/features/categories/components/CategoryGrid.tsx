@@ -26,9 +26,8 @@ export interface CategoryGridProps {
 const COLUMNS = 4;
 
 /**
- * The inline, always-visible category chooser for the add-transaction screen — a scrollable
- * icon grid rather than `CategoryPicker`'s tap-to-open sheet, since this screen's own scroll
- * region already holds it alongside the account/date fields (no nested sheet needed).
+ * The inline, always-visible category chooser — a scrollable icon grid rather than
+ * `CategoryPicker`'s tap-to-open sheet, for a form whose own scroll region already holds it.
  */
 export function CategoryGrid({ walletId, type, value, onChange, optional = false, error, testID }: CategoryGridProps) {
   const theme = useTheme();

@@ -2,7 +2,7 @@
  * Token storage.
  *
  * expo-secure-store is Keychain-backed on iOS and Keystore-backed on Android
- * (plan §6). AsyncStorage is deliberately not used: it is a plain unencrypted
+ * (MB-04). AsyncStorage is deliberately not used: it is a plain unencrypted
  * file, so a refresh token in it is readable on a rooted device or from a
  * filesystem backup.
  *

@@ -1,6 +1,4 @@
 /**
- * Runtime configuration.
- *
  * Only `EXPO_PUBLIC_*` names are inlined into the bundle by Expo, so any value
  * the app reads at runtime must carry that prefix — a plain `API_BASE_URL`
  * silently becomes `undefined` in a release build.

@@ -213,7 +213,7 @@ export class BalanceService {
       totalExpense: formatMoney(totalExpense),
       transferredIn: formatMoney(transferredIn),
       transferredOut: formatMoney(transferredOut),
-      // Counts every row on the ledger, cancelled included: a cancelled entry is
+      // Counts every row on the ledger, deleted included: a deleted entry is
       // still a visible record of what happened (§16.3).
       transactionCount: rows.length,
     };

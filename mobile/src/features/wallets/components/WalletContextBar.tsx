@@ -7,9 +7,8 @@ import { WalletSwitcher } from './WalletSwitcher';
 import { ConnectionSyncStatus } from '@/components';
 
 /**
- * Thin wrapper so every screen that shows money renders the same wallet-
- * context row Home already does — SRS §6.2: the wallet in context must be
- * visible everywhere, never inferred from memory.
+ * Thin wrapper so every screen that shows money renders the same wallet-context
+ * row — SRS §6.2: the wallet in context must be visible everywhere, never inferred from memory.
  *
  * Connection/sync status is communicated only via the small icons on the
  * far right — no banner, toast, or full-screen state for normal
@@ -33,7 +32,7 @@ export function WalletContextBar({
         className="flex-row justify-between items-center"
         style={{
           paddingHorizontal: theme.spacing.md,
-          // MainTabNavigator has `headerShown: false`, so this bar must clear the status bar itself.
+          // The tab screens render no header, so this bar clears the status bar itself.
           paddingTop: insets.top + theme.spacing.sm,
           paddingBottom: theme.spacing.sm,
         }}

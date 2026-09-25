@@ -19,7 +19,7 @@ import { isNetworkError, isUnauthenticated } from '@/utils';
 import { apiSlice, setIsGuest as setIsGuestInStore, useAppDispatch } from '@/app/store';
 
 /**
- * `restoring` exists so the root navigator can render nothing until the stored
+ * `restoring` exists so the root navigator can show a spinner until the stored
  * session (and the guest-mode flag) has been read. Without it the app mounts
  * the auth stack first and a signed-in — or guest — user sees the login
  * screen flash before being redirected.

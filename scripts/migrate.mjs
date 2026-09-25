@@ -42,14 +42,8 @@ try {
   process.exit(1);
 }
 
-/**
- * Return NUMERIC and BIGINT as strings.
- *
- * node-postgres parses both to JS numbers by default, which silently rounds
- * every DECIMAL(19,4) it reads. A migration runner does not do arithmetic, but
- * the constraint suite prints balances, and a figure that disagrees with the
- * database would send someone hunting a bug that only exists in the driver.
- */
+// node-postgres would otherwise parse NUMERIC and BIGINT to JS numbers, rounding any
+// DECIMAL(19,4) this runner reads (CLAUDE.md Part 7 rule 1).
 pg.types.setTypeParser(1700, (value) => value);
 pg.types.setTypeParser(20, (value) => value);
 

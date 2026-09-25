@@ -36,7 +36,7 @@ export function assertCategoryFits(
   if (category.type !== transactionType) throw new AppError('CATEGORY_WRONG_TYPE');
 }
 
-/** Only a transfer may be left uncategorised; income and expense always carry one (BR-06). */
+/** Only a transfer may be left uncategorised; income and expense always carry one (`chk_transaction_shape`). */
 export function assertCategoryRemovable(transactionType: TransactionType): void {
   if (transactionType !== TransactionType.TRANSFER) {
     throw new AppError('CATEGORY_WRONG_TYPE', 'Only a transfer can have no category');

@@ -149,7 +149,7 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
             );
           });
         } catch {
-          // Offline `enqueueOffline` cannot itself reject — nothing to undo.
+          // Nothing was applied to the cache yet — nothing to undo.
         }
       },
       invalidatesTags: (_result, _error, { transactionId }) => (isStillQueued(transactionId) ? [] : TRANSACTION_TAGS),
@@ -196,7 +196,7 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
             );
           });
         } catch {
-          // Offline `enqueueOffline` cannot itself reject — nothing to undo.
+          // Nothing was applied to the cache yet — nothing to undo.
         }
       },
       invalidatesTags: (_result, _error, { transactionId }) => (isStillQueued(transactionId) ? [] : TRANSACTION_TAGS),

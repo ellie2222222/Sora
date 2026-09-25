@@ -137,8 +137,8 @@ export type HttpStatusCode = (typeof HTTP_STATUS)[keyof typeof HTTP_STATUS];
 /**
  * HTTP status each error code maps to, per the API's status conventions.
  *
- * `scripts/check-contract-parity.mjs` reads this map as text, so each entry
- * must stay one `CODE: HTTP_STATUS.NAME` pair per line for it to parse.
+ * `scripts/check-contract-parity.mjs` reads this map as text, up to the first
+ * `}`, so its body must not contain one.
  */
 export const ERROR_STATUS: Record<ErrorCode, HttpStatusCode> = {
   VALIDATION_FAILED: HTTP_STATUS.UNPROCESSABLE_ENTITY,

@@ -1,7 +1,7 @@
 /**
  * The one transaction form's type-switching rules, as pure functions.
  *
- * Plan §12 asks for a single form whose fields change with the type. The awkward
+ * There is a single form whose fields change with the type. The awkward
  * part is not showing and hiding inputs, it is what happens to what the user
  * already typed: an EXPENSE names its account in `fromAccountId` and an INCOME
  * names the same account in `toAccountId`, so a naive toggle either loses the

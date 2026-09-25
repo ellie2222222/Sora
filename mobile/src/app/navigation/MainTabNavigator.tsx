@@ -147,7 +147,6 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   );
 }
 
-/** Home | Account | Planning | Dashboard | Settings */
 export function MainTabNavigator() {
   const theme = useTheme();
   const { t } = useTranslation();

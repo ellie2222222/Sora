@@ -1,6 +1,6 @@
 import type { TranslationResource } from './en.ts';
 
-/** Vietnamese strings. Keys must mirror en.ts exactly — checked by i18n/index.ts's dev-mode assertion. */
+/** Vietnamese strings. Keys must mirror en.ts exactly — enforced by `TranslationResource` and localeParity.test.ts. */
 const vi: TranslationResource = {
   common: {
     save: 'Lưu',

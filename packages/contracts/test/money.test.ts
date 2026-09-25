@@ -95,7 +95,6 @@ describe('arithmetic', () => {
       parseMoney('1000000'),
       parseMoney('500000'),
     );
-    // The same figure db/tests/001_constraints.sql produces for Vietcombank.
     assert.equal(formatMoneyCompact(balance), '14350000');
   });
 

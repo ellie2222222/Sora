@@ -11,12 +11,8 @@ import { AppModule } from '../src/app.module.ts';
  * Every path in ROUTES must resolve to a handler the running app actually
  * mounted.
  *
- * Nothing else checks this: check-contract-parity.mjs compares ROUTES against
- * the specification as text, so it passes whether or not a controller exists,
- * and passes whether or not the module holding that controller was ever
- * imported. Both of those failed silently at once — 22 endpoints answered 404
- * while parity reported 31/31 — so the assertion has to come from a booted DI
- * graph rather than from source text.
+ * check-contract-parity.mjs compares ROUTES against the specification as text, so it
+ * passes with a missing controller or an unimported module; only a booted DI graph can tell.
  */
 
 /** Param names differ per controller (`:id` vs `:accountId`), so compare shapes. */
@@ -102,8 +98,7 @@ describe('mounted routes', () => {
   });
 
   it('mounts at least one route per resource group', () => {
-    // Guards against the failure that hid for a whole feature set: a module
-    // missing from AppModule takes its entire group down at once, which a
+    // A module missing from AppModule takes its entire group down at once, which a
     // per-path assertion reports as a wall of noise rather than one cause.
     const groups = ['wallets', 'accounts', 'categories', 'transactions', 'budgets', 'goals', 'invitations', 'auth', 'dashboard', 'health'];
 

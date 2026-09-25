@@ -17,7 +17,7 @@ export interface TransactionRowProps {
   syncStatus?: QueueStatus;
 }
 
-/** The one row shape for a transaction, shared by Home's timeline and the Transactions list. */
+/** The one row shape for a transaction. */
 export function TransactionRow({ transaction, onPress, testID, syncStatus }: TransactionRowProps) {
   const theme = useTheme();
   const category = transaction.category;

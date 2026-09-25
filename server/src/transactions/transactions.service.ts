@@ -8,9 +8,8 @@
  *
  * Authorization for every write goes through
  * `WalletAccessService#requireAccountsWritable` rather than a bespoke check —
- * it already resolves EDITOR-or-above on every named account's wallet, and
- * resolves both sides before judging either so a caller cannot learn which of
- * two account ids was the problem (the cross-wallet transfer rule, §2.5).
+ * it already resolves EDITOR-or-above on every named account's wallet (the
+ * cross-wallet transfer rule, §2.5).
  */
 
 import { Injectable, type PipeTransform } from '@nestjs/common';

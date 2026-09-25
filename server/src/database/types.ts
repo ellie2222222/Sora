@@ -1,5 +1,5 @@
 /**
- * Kysely's view of db/migrations/001_initial_wallet_schema.sql.
+ * Kysely's view of the schema db/migrations/ builds.
  *
  * Hand-written rather than generated, and deliberately so: the schema's CHECK
  * constraints, partial unique indexes and the GIST exclusion constraint are
@@ -205,7 +205,6 @@ export interface ExchangeRateSnapshotsTable {
   created_at: Timestamp;
 }
 
-/** Bookkeeping for the SQL migration runner; not part of the domain schema. */
 export interface DB {
   users: UsersTable;
   refresh_tokens: RefreshTokensTable;

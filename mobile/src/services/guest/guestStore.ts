@@ -3,7 +3,7 @@
  *
  * In guest mode there is no server, so this store plays the role Postgres
  * plays for an authenticated user — the one place guest data lives, not a
- * cache of something else (MB-02's "don't mirror API data into Zustand" does
+ * cache of something else (MB-02's rule against mirroring API data does
  * not apply: there is no API to mirror). Mirrors `SessionManager`'s shape
  * (subscribe/current/hydrate/clear) for the same reason that shape works
  * there — a long-lived singleton with no React dependency, directly
@@ -246,10 +246,8 @@ export class GuestStore {
     return this.data.wallet !== null;
   }
 
-  /** Reads whatever the last run persisted. A later call is a no-op once
-   * hydration has already happened, so it is safe to call from more than
-   * one place on startup. */
-  /** Single-flight: AuthProvider and ensureSeeded both call it, and a second read landing late would discard a change. */
+  /** Reads whatever the last run persisted, once. Single-flight: it is called from more than
+   * one place on startup, and a second read landing late would discard a change. */
   hydrate(): Promise<GuestData> {
     if (this.hydrated) return Promise.resolve(this.data);
     this.hydrating ??= this.load().finally(() => {

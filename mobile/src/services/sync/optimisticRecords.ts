@@ -4,7 +4,7 @@
  * (account balance, budget usage, goal progress, a transaction's resolved
  * account/category refs) are filled from whatever's already cached or with a
  * neutral placeholder — an accepted approximation, not a bug: the pending
- * indicator (§ UI) marks the record as provisional, and the real value
+ * indicator marks the record as provisional, and the real value
  * lands within one sync pass. RTK Query's cache stays the read path; this
  * never writes anywhere but the optimistic patch itself.
  */

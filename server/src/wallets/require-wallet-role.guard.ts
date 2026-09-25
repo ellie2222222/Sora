@@ -58,9 +58,7 @@ export class RequireWalletRoleGuard implements CanActivate {
     if (!userId) throw new AppError('UNAUTHENTICATED');
 
     const walletId = walletIdFrom(request, source);
-    // No wallet id at all cannot be an authorization pass. On the routes where
-    // walletId is optional (GET /accounts across every wallet), the handler
-    // filters by accessibleWalletIds instead of declaring a required role.
+    // No wallet id at all cannot be an authorization pass.
     if (!walletId) throw new AppError('WALLET_NOT_FOUND');
 
     request[WALLET_ACCESS_KEY] = await this.access.require(userId, walletId, required);

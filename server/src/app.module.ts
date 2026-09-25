@@ -28,9 +28,8 @@ import { WalletsModule } from './wallets/wallets.module.ts';
  * TokenService; EnvelopeInterceptor needs Reflector) would have to be wired by
  * hand instead of resolved automatically.
  *
- * Order matters for guards and interceptors of the same kind: Nest runs them
- * in registration order, so JwtAuthGuard (only one guard here) runs before any
- * route-level guard added via `@UseGuards`, and EnvelopeInterceptor wraps
+ * Global guards run before route-level `@UseGuards` ones, so JwtAuthGuard authenticates
+ * first; interceptors run in registration order, so EnvelopeInterceptor wraps
  * whatever IdempotencyInterceptor's `next.handle()` eventually resolves to.
  */
 @Module({

@@ -138,7 +138,7 @@ export function minOf(a: Scaled, b: Scaled): Scaled {
 }
 
 /**
- * `part` as a percentage of `whole`, rounded half-up to `decimals` places and
+ * `part` as a percentage of `whole`, rounded half away from zero to `decimals` places and
  * returned as a JS number because a percentage is a display value, not money.
  *
  * Returns 0 when `whole` is zero: a budget or goal of zero has no meaningful

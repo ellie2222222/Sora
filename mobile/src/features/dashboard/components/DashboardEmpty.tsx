@@ -16,8 +16,6 @@ export interface DashboardEmptyProps {
 }
 
 /**
- * The dashboard with nothing to plot.
- *
  * Each reason gets its own copy and its own next step: a wallet with no
  * accounts, a wallet that has never recorded anything, and a window that simply
  * has nothing in it are three different situations, and one shared "no data"

@@ -9,7 +9,7 @@ import { AppNavigator } from './AppNavigator.tsx';
 import { AuthNavigator } from './AuthNavigator.tsx';
 
 /**
- * `restoring` keeps this on a blank screen until the stored session has been
+ * `restoring` keeps this on a spinner until the stored session has been
  * read (or found absent). Rendering AuthNavigator first would flash the login
  * screen at an already-signed-in user for one frame on every cold start.
  */

@@ -1,5 +1,5 @@
 /**
- * Day-grouped lists (plan §13).
+ * Day-grouped lists.
  *
  * Groups consecutive same-day rows rather than bucketing into a map, so the
  * server's `sortBy` ordering is preserved exactly — re-sorting on the client

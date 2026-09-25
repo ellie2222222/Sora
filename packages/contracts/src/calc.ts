@@ -31,7 +31,7 @@ export interface BalanceRelevantTransaction {
 
 /**
  * Only COMPLETED transactions move a balance. A PENDING transaction is a record
- * of an intention and a CANCELLED one is a record of a mistake; counting either
+ * of an intention and a DELETED one is a record of a mistake; counting either
  * would make the app's balance disagree with the bank's.
  */
 export function affectsBalance(transaction: { status: TransactionStatus }): boolean {
@@ -62,8 +62,6 @@ export function calculateAccountBalance(
 }
 
 /**
- * A wallet's total balance is the sum of its accounts' balances.
- *
  * Callers must pass accounts from ONE wallet and only that wallet's currency:
  * summing a VND account and a USD account produces a number that means nothing.
  * Multi-currency totalling needs conversion and is deliberately not done here.
@@ -89,8 +87,6 @@ export interface SpendRelevantTransaction {
 }
 
 /**
- * Completed EXPENSE transactions in the budget's category within its window.
- *
  * TRANSFER is excluded by the type test, which is the whole "a transfer is not
  * spending" rule: moving 2,000,000 from a bank account to cash, or to a
  * partner's wallet, must not consume a food budget.

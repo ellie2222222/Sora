@@ -22,9 +22,8 @@ import { TransactionStatus, TransactionType } from '../src/enums.ts';
 import { formatMoneyCompact, parseMoney } from '../src/money.ts';
 
 /**
- * The same fixture db/tests/001_constraints.sql builds, so these assertions and
- * the SQL suite are two independent computations of one set of figures. If the
- * TypeScript and the database ever disagree, one of the two suites goes red.
+ * Modelled on the fixture db/tests/001_constraints.sql seeds, without the rows its
+ * constraint probes add; that suite prints its derived figures rather than asserting them.
  */
 const VIETCOMBANK = 'a0000001';
 const CASH = 'a0000002';
@@ -359,6 +358,7 @@ describe('budget and goal edges a mutation run found untested', () => {
     type,
     status: TransactionStatus.COMPLETED,
     amount: parseMoney('2000000'),
+    currency: 'VND',
     categoryId,
     transactionDate: '2026-08-15',
   });

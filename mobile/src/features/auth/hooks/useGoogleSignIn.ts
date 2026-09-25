@@ -5,8 +5,7 @@
  * signing keys (never trusting the client's own reading of the token).
  *
  * Not usable until real client ids are configured (env.googleClientId*,
- * from .env.example) — see mobile/GAPS.md. Untestable in this environment,
- * since exercising it needs a real Google Cloud OAuth client.
+ * from .env.example) — see mobile/GAPS.md.
  */
 
 import * as AuthSession from 'expo-auth-session';

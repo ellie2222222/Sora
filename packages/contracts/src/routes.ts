@@ -40,7 +40,6 @@ export const ROUTES = {
   },
 
   invitations: {
-    /** Preview an invitation by token before accepting it. */
     preview: () => '/invitations/preview',
     accept: () => '/invitations/accept',
   },
@@ -97,7 +96,6 @@ export const ROUTES = {
   },
 } as const;
 
-/** Prefix a route with the version base path. */
 export function apiUrl(path: string): string {
   return `${API_PREFIX}${path}`;
 }

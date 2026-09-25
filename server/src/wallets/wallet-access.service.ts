@@ -140,9 +140,8 @@ export class WalletAccessService {
   /**
    * Resolve an account and the caller's role on its wallet.
    *
-   * `notFound` defaults to ACCOUNT_NOT_FOUND so a caller with no membership sees
-   * the account as simply absent — the same reasoning as rule 1 above, applied
-   * one level down.
+   * A caller with no membership gets ACCOUNT_NOT_FOUND, seeing the account as simply
+   * absent — the same reasoning as rule 1 above, applied one level down.
    */
   async requireAccount(
     userId: string,
@@ -202,8 +201,7 @@ export class WalletAccessService {
    *
    * This is the cross-wallet transfer rule (§2.5), and it is deliberately
    * stricter than a same-wallet transfer: read-only access to a partner's wallet
-   * must not let you push money into it. Both sides are resolved before either
-   * is judged, so the caller cannot learn which of the two ids was the problem.
+   * must not let you push money into it.
    */
   async requireAccountsWritable(
     userId: string,

@@ -1,6 +1,6 @@
 # Optional containerized path, alongside (not replacing) the documented npm +
-# host-Postgres workflow in CLAUDE.md/README — see the "Docker" section there
-# for when to reach for this instead.
+# host-Postgres workflow — see README.md's "Docker" section for when to reach
+# for this instead.
 #
 # Postgres's host port defaults to 5432 — the same port the documented host
 # workflow (Postgres 17 run directly on the host) also uses. Override

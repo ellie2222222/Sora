@@ -1,5 +1,5 @@
 /**
- * Per-IP limiting for the unauthenticated auth routes (§2.9).
+ * Per-IP, per-route limiting for the unauthenticated auth routes (§2.9).
  *
  * Sets `Retry-After` before raising, because a client that is told only "429"
  * has no basis for a backoff and will usually retry immediately.

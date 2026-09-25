@@ -1,11 +1,6 @@
 /**
- * Shared control flow for an offline-capable RTK Query mutation's optimistic
- * cache update — the first use of `onQueryStarted` in this codebase.
- *
- * Each entity's cache shape differs (a paginated list, a bare array, a
- * single-record cache), so the cache-patch recipes stay per entity; this is
- * only the apply → await → reconcile-or-undo shape, written once instead of
- * five times.
+ * The apply → await → reconcile-or-undo shape of an optimistic cache update. Each
+ * entity's cache shape differs, so the cache-patch recipes stay with the caller.
  */
 
 export interface OptimisticHandle {

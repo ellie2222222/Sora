@@ -1,7 +1,7 @@
 /**
  * Guest-mode wallets repository — the local mirror of `walletsApi`, scoped
- * to `list()`/`detail()` only. Guest mode is single-wallet by scope decision
- * (HANDOFF.md): no create/update/archive, and no real membership to manage
+ * to `list()`/`detail()` only. Guest mode is single-wallet by scope decision:
+ * no create/update/archive, and no real membership to manage
  * since the wallet has exactly one (fabricated) member.
  */
 

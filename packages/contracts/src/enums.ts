@@ -2,7 +2,7 @@
  * Domain enumerations.
  *
  * Every member string is byte-identical to the value the corresponding CHECK
- * constraint in db/migrations/001_initial_wallet_schema.sql allows. A mismatch
+ * constraint in db/migrations/ allows. A mismatch
  * here surfaces as a 500 from Postgres rather than a validation error, so
  * scripts/check-contract-parity.mjs asserts the two agree.
  */
@@ -112,11 +112,8 @@ export const ValuationStatus = {
 } as const;
 
 /**
- * User-preference enums. Lowercase (unlike every domain enum above) because
- * these are display slugs, not a CHECK constraint's value list authored in
- * upper-snake-case — added in db/migrations/002_google_auth_and_preferences.sql,
- * which check-contract-parity.mjs does not read (it's scoped to 001), so these
- * two are not in ENUM_TO_CONSTRAINT there.
+ * Lowercase display slugs, not upper-snake-case like the domain enums, so
+ * check-contract-parity.mjs (which matches only upper-snake-case values) doesn't check them.
  */
 export const THEME_NAMES = ['obsidian', 'quartz', 'sage', 'terracotta', 'violet'] as const;
 export type ThemeName = (typeof THEME_NAMES)[number];
@@ -151,6 +148,5 @@ export const REQUIRED_ROLE = {
   ADMINISTER: 'OWNER',
 } as const satisfies Record<string, WalletRole>;
 
-/** Shared pagination limits. */
 export const DEFAULT_PAGE_SIZE = 25;
 export const MAX_PAGE_SIZE = 200;

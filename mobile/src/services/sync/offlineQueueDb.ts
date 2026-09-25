@@ -211,7 +211,7 @@ class SqliteQueueDb implements QueueDb {
     return result.changes;
   }}
 
-/** Web fallback when SQLite/SharedArrayBuffer is unavailable in browser workers. */
+/** The web build's queue: SQLite needs SharedArrayBuffer, which browser workers may lack. */
 class MemoryQueueDb implements QueueDb {
   private rows = new Map<string, QueuedMutation>();
 

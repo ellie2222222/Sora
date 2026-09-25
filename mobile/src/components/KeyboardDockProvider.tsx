@@ -40,8 +40,7 @@ export function KeyboardDockProvider({
   const [node, setNode] = useState<ReactNode | null>(null);
 
   // Stable across renders — a consumer's effect depends on this, and a fresh reference every
-  // render (the original bug here) re-fires that effect forever while a field stays focused,
-  // since each fire hands the provider a referentially-new element and never lets React bail out.
+  // render would re-fire that effect forever while a field stays focused.
   const setDockedKeypad = useCallback((id: string, next: ReactNode | null) => {
     if (next === null) {
       if (ownerIdRef.current === id) {
@@ -60,8 +59,8 @@ export function KeyboardDockProvider({
     <KeyboardDockContext.Provider value={contextValue}>
       {/* flexShrink/minHeight: 0 so this area actually shrinks to make room for the docked keypad
        * below it instead of overflowing past the ancestor's maxHeight — web's real CSS flexbox
-       * defaults min-height to `auto` on a flex item (refusing to shrink below content size) where
-       * native Yoga doesn't have that quirk, which is why this only showed up on web. */}
+       * defaults min-height to `auto` on a flex item (refusing to shrink below content size), and
+       * native Yoga doesn't. */}
       <View style={{ flexShrink: 1, minHeight: 0 }}>{children}</View>
       {node !== null ? (
         <Animated.View

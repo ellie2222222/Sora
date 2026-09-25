@@ -17,8 +17,6 @@ export interface DashboardKpisProps {
 }
 
 /**
- * The period's headline figures.
- *
  * Transfers get their own row rather than sitting beside income/expense: they
  * are a different kind of number (BR-06 keeps them out of both), and putting
  * them in the same row invites reading them as a third component of net.

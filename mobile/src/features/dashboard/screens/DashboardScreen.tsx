@@ -137,9 +137,7 @@ function DashboardEmptyForWallet({
 }
 
 /**
- * One window's figures, plus the window before it for the change indicators —
- * the same two-query shape the month-over-month insights already used, now
- * driven by whichever granularity is selected.
+ * One window's figures, plus the window before it for the change indicators.
  */
 function PeriodReport({
   walletId,

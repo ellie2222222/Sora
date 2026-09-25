@@ -238,9 +238,7 @@ export function CategoryListScreen({
     );
   }
 
-  /**
-   * The delete-choice dialog (API spec §10.4).
-   */
+  /** API spec §10.4. */
   function CategoryDeleteDialog({
     category,
     onClose,

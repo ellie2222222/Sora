@@ -1,19 +1,10 @@
 #!/usr/bin/env node
 /**
- * Asserts the shared contract and the database schema agree.
+ * Asserts the contract agrees with the schema (enum tuples vs CHECK constraints, both
+ * ways), the API specification (every route documented) and itself (every error code
+ * has a status). An enum drift surfaces as a 500 from Postgres, not a validation error.
  *
- * Three things can drift apart silently, and each drift shows up as a 500 from
- * Postgres rather than a validation error, which is the worst possible place to
- * discover it:
- *
- *   1. An enum member in packages/contracts/src/enums.ts that no CHECK constraint
- *      allows -- the API accepts the value and the INSERT then fails.
- *   2. A CHECK constraint value the contract does not know about -- a legal state
- *      the app can never produce or display.
- *   3. A route in routes.ts that the API specification does not document.
- *
- * Reads the migration SQL as text rather than querying a live database, so this
- * runs in CI with no services.
+ * Reads the migration SQL as text, so it runs in CI with no database.
  *
  * Usage: node scripts/check-contract-parity.mjs
  */
@@ -24,10 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-// Concatenated in the same filename order the real migrator applies them, so
-// a later migration's ALTER of a constraint a table's own CREATE defined
-// (e.g. renaming an allowed status value) is reflected too — constraintValues()
-// below takes the *last* definition of a given constraint name, not the first.
+// In the migrator's filename order, so constraintValues() sees a later redefinition last.
 const MIGRATIONS_DIR = join(ROOT, 'db/migrations');
 const SCHEMA_SQL = readdirSync(MIGRATIONS_DIR)
   .filter((name) => name.endsWith('.sql'))

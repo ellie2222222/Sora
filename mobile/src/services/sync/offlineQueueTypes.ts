@@ -29,7 +29,7 @@ export interface QueuedMutation {
   localId: string;
   /** Filled in once a `create` round-trips, or already known for `update`/`cancel`/`archive`. */
   serverId: string | null;
-  /** Minted once at enqueue time, reused on every retry (BR — no duplicate money movement). */
+  /** Minted once at enqueue time, reused on every retry, so a retry never moves money twice. */
   idempotencyKey: string;
   /** The validated request body (already Zod-parsed client-side, VL-01). */
   payload: unknown;
