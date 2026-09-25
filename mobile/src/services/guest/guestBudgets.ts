@@ -89,7 +89,7 @@ function toBudgetResponse(budget: GuestBudget): BudgetResponse {
   const category = categories.find((candidate) => candidate.id === budget.categoryId);
   const amount = parseMoney(budget.amount);
   const spent = calculateBudgetSpent(
-    { categoryId: budget.categoryId, startDate: budget.startDate, endDate: budget.endDate },
+    { categoryId: budget.categoryId, currency: budget.currency, startDate: budget.startDate, endDate: budget.endDate },
     transactions.map(toSpendRelevant),
   );
   const remaining = calculateBudgetRemaining(amount, spent);

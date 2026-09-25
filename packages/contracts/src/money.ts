@@ -62,9 +62,9 @@ function numberToDecimalString(value: number): string {
   if (!Number.isFinite(value)) {
     throw new MoneyError(`Not a valid amount: ${value}`);
   }
-  // toFixed is safe here only because the caller is a UI field, not a stored
-  // balance; anything already exact should arrive as a string.
-  return value.toFixed(MONEY_SCALE);
+  // String, not toFixed: toFixed would round 1.23456 to 1.2346, the silent digit loss the
+  // string path rejects. An exponent form (1e-7, 1e21) then fails MONEY_PATTERN as well.
+  return String(value);
 }
 
 /** Render scaled minor units back to a fixed-scale decimal string. */

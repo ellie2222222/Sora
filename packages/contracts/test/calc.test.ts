@@ -149,6 +149,7 @@ const spending: SpendRelevantTransaction[] = [
     type: TransactionType.EXPENSE,
     status: TransactionStatus.COMPLETED,
     amount: parseMoney('150000'),
+    currency: 'VND',
     categoryId: FOOD,
     transactionDate: '2026-08-22T12:30:00Z',
   },
@@ -156,6 +157,7 @@ const spending: SpendRelevantTransaction[] = [
     type: TransactionType.EXPENSE,
     status: TransactionStatus.COMPLETED,
     amount: parseMoney('1000000'),
+    currency: 'VND',
     categoryId: FOOD,
     transactionDate: '2026-08-10T09:00:00Z',
   },
@@ -163,6 +165,7 @@ const spending: SpendRelevantTransaction[] = [
     type: TransactionType.TRANSFER,
     status: TransactionStatus.COMPLETED,
     amount: parseMoney('2000000'),
+    currency: 'VND',
     categoryId: null,
     transactionDate: '2026-08-15T09:00:00Z',
   },
@@ -170,6 +173,7 @@ const spending: SpendRelevantTransaction[] = [
     type: TransactionType.EXPENSE,
     status: TransactionStatus.DELETED,
     amount: parseMoney('700000'),
+    currency: 'VND',
     categoryId: FOOD,
     transactionDate: '2026-08-12T09:00:00Z',
   },
@@ -177,6 +181,7 @@ const spending: SpendRelevantTransaction[] = [
     type: TransactionType.EXPENSE,
     status: TransactionStatus.COMPLETED,
     amount: parseMoney('300000'),
+    currency: 'VND',
     categoryId: FOOD,
     transactionDate: '2026-09-02T09:00:00Z',
   },
@@ -184,12 +189,13 @@ const spending: SpendRelevantTransaction[] = [
     type: TransactionType.INCOME,
     status: TransactionStatus.COMPLETED,
     amount: parseMoney('15000000'),
+    currency: 'VND',
     categoryId: SALARY,
     transactionDate: '2026-08-01T09:00:00Z',
   },
 ];
 
-const augustFood = { categoryId: FOOD, startDate: '2026-08-01', endDate: '2026-08-31' };
+const augustFood = { categoryId: FOOD, currency: 'VND', startDate: '2026-08-01', endDate: '2026-08-31' };
 
 describe('calculateBudgetSpent', () => {
   it('matches the SQL suite: 1,150,000 spent of the August food budget', () => {
@@ -214,11 +220,17 @@ describe('calculateBudgetSpent', () => {
         type: 'EXPENSE',
         status: 'COMPLETED',
         amount: parseMoney('1000'),
+        currency: 'VND',
         categoryId: FOOD,
         transactionDate: '2026-08-31T23:59:59Z',
       },
     ];
     assert.equal(formatMoneyCompact(calculateBudgetSpent(augustFood, lastMoment)), '1000');
+  });
+
+  it('ignores an expense in another currency, even in the same category and window (BR-07)', () => {
+    const usd: SpendRelevantTransaction = { ...spending[0]!, currency: 'USD', amount: parseMoney('20') };
+    assert.equal(formatMoneyCompact(calculateBudgetSpent(augustFood, [...spending, usd])), '1150000');
   });
 });
 
@@ -339,5 +351,33 @@ describe('transferDirection', () => {
     const deleted = { type: TransactionType.TRANSFER, status: TransactionStatus.DELETED, fromAccountId: VIETCOMBANK, toAccountId: TECHCOMBANK };
     assert.equal(transferDirection(pending, ownAccounts), null);
     assert.equal(transferDirection(deleted, ownAccounts), null);
+  });
+});
+
+describe('budget and goal edges a mutation run found untested', () => {
+  const inAugust = (type: TransactionType, categoryId: string): SpendRelevantTransaction => ({
+    type,
+    status: TransactionStatus.COMPLETED,
+    amount: parseMoney('2000000'),
+    categoryId,
+    transactionDate: '2026-08-15',
+  });
+
+  it('excludes a transfer or income that carries the budget category itself (BR-06)', () => {
+    assert.equal(formatMoneyCompact(calculateBudgetSpent(augustFood, [inAugust(TransactionType.TRANSFER, FOOD)])), '0');
+    assert.equal(formatMoneyCompact(calculateBudgetSpent(augustFood, [inAugust(TransactionType.INCOME, FOOD)])), '0');
+  });
+
+  it('excludes an expense in another category inside the window', () => {
+    assert.equal(formatMoneyCompact(calculateBudgetSpent(augustFood, [inAugust(TransactionType.EXPENSE, 'other')])), '0');
+  });
+
+  it('is not over budget at exactly the limit, and a goal is reached at exactly its target', () => {
+    assert.equal(isOverBudget(parseMoney('100'), parseMoney('100')), false);
+    assert.equal(isGoalReached(parseMoney('100'), parseMoney('100')), true);
+  });
+
+  it('compares the full calendar day, not just the month', () => {
+    assert.equal(isWithinPeriod('2026-08-15T10:00:00Z', '2026-08-20', '2026-08-31'), false);
   });
 });

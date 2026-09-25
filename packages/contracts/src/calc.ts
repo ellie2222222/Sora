@@ -74,6 +74,7 @@ export function calculateWalletBalance(accountBalances: readonly Scaled[]): Scal
 
 export interface BudgetSpendInput {
   categoryId: string;
+  currency: string;
   startDate: string;
   endDate: string;
 }
@@ -82,6 +83,7 @@ export interface SpendRelevantTransaction {
   type: TransactionType;
   status: TransactionStatus;
   amount: Scaled;
+  currency: string;
   categoryId: string | null;
   transactionDate: string;
 }
@@ -103,6 +105,8 @@ export function calculateBudgetSpent(
     if (transaction.type !== TransactionType.EXPENSE) continue;
     if (transaction.status !== TransactionStatus.COMPLETED) continue;
     if (transaction.categoryId !== budget.categoryId) continue;
+    // BR-07: a category can hold expenses in several currencies, and summing them is meaningless.
+    if (transaction.currency !== budget.currency) continue;
     if (!isWithinPeriod(transaction.transactionDate, budget.startDate, budget.endDate)) continue;
     spent = add(spent, transaction.amount);
   }

@@ -9,7 +9,11 @@ import {
   formatMoney,
   formatMoneyCompact,
   isNegative,
+  isPositive,
+  isZero,
   maxOf,
+  minOf,
+  negate,
   parseMoney,
   percentageOf,
   stripCurrencyInput,
@@ -157,5 +161,65 @@ describe('formatCurrencyInput and stripCurrencyInput', () => {
 
   it('strips commas via stripCurrencyInput', () => {
     assert.equal(stripCurrencyInput('1,500,000.50'), '1500000.50');
+  });
+});
+
+describe('boundaries a mutation run found untested', () => {
+  it('rejects a leading plus, a bare trailing dot and surrounding junk, but trims whitespace', () => {
+    assert.throws(() => parseMoney('+1'), MoneyError);
+    assert.throws(() => parseMoney('1.'), MoneyError);
+    assert.equal(parseMoney(' 1.5 '), 15_000n);
+  });
+
+  it('keeps every digit of a four-decimal number input', () => {
+    assert.equal(parseMoney(1.2345), 12_345n);
+  });
+
+  it('pads a fraction with leading zeros', () => {
+    assert.equal(formatMoney(5n), '0.0005');
+  });
+
+  it('rounds a negative percentage half away from zero', () => {
+    assert.equal(percentageOf(parseMoney('-1'), parseMoney('16')), -6.3);
+  });
+
+  it('treats zero as neither positive nor negative', () => {
+    assert.equal(isPositive(0n), false);
+    assert.equal(isNegative(0n), false);
+    assert.equal(isZero(0n), true);
+    assert.equal(isZero(1n), false);
+  });
+
+  it('picks the smaller of two amounts', () => {
+    assert.equal(minOf(3n, 5n), 3n);
+    assert.equal(minOf(5n, 3n), 3n);
+  });
+
+  it('collapses a second decimal point, and drops the point when decimals are off', () => {
+    assert.equal(formatCurrencyInput('1.2.3'), '1.2');
+    assert.equal(formatCurrencyInput('1500.5', false), '15,005');
+    assert.equal(formatCurrencyInput('1234567', false), '1,234,567');
+  });
+});
+
+describe('number input and negation', () => {
+  it(
+    'rejects a number with more than four decimals rather than rounding it',
+    () => {
+      assert.throws(() => parseMoney(1.23456), MoneyError);
+    },
+  );
+
+  it('rejects NaN and infinities instead of producing an amount', () => {
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      assert.throws(() => parseMoney(bad), MoneyError, `should reject ${bad}`);
+    }
+  });
+
+  it('negates without ever producing a signed zero', () => {
+    assert.equal(negate(0n), 0n);
+    assert.equal(formatMoney(negate(0n)), '0.0000');
+    assert.equal(formatMoney(parseMoney('-0')), '0.0000');
+    assert.equal(negate(parseMoney('-2000000')), parseMoney('2000000'));
   });
 });

@@ -103,7 +103,7 @@ export class BudgetsService {
     ip: string | null,
   ): Promise<BudgetResponse> {
     await this.access.requireWritable(user.id, request.walletId, 'EDITOR');
-    await this.assertBudgetableCategory(request.walletId, request.categoryId);
+    await this.assertBudgetableCategory(user.id, request.walletId, request.categoryId);
 
     const row = await translatingPgErrors(() =>
       this.database.db
@@ -248,15 +248,19 @@ export class BudgetsService {
     return { row, walletId: row.wallet_id, role: member_role };
   }
 
-  private async assertBudgetableCategory(walletId: string, categoryId: string): Promise<void> {
+  private async assertBudgetableCategory(userId: string, walletId: string, categoryId: string): Promise<void> {
     const category = await this.database.db
       .selectFrom('categories')
       .select(['id', 'wallet_id', 'type'])
       .where('id', '=', categoryId)
       .executeTakeFirst();
 
+    // AC-01: another wallet's category reads as missing unless the caller can see that wallet.
     if (!category) throw new AppError('CATEGORY_NOT_FOUND');
-    if (category.wallet_id !== walletId) throw new AppError('CATEGORY_WRONG_WALLET');
+    if (category.wallet_id !== walletId) {
+      if ((await this.access.roleOn(userId, category.wallet_id)) === null) throw new AppError('CATEGORY_NOT_FOUND');
+      throw new AppError('CATEGORY_WRONG_WALLET');
+    }
     if (category.type !== CategoryType.EXPENSE) throw new AppError('CATEGORY_WRONG_TYPE');
   }
 
@@ -274,7 +278,7 @@ export class BudgetsService {
       const category = categories.get(row.category_id);
       const amount = parseMoney(row.amount);
       const spent = calculateBudgetSpent(
-        { categoryId: row.category_id, startDate: row.start_date, endDate: row.end_date },
+        { categoryId: row.category_id, currency: row.currency, startDate: row.start_date, endDate: row.end_date },
         spentByCategory.get(row.category_id) ?? [],
       );
       const remaining = calculateBudgetRemaining(amount, spent);
@@ -311,15 +315,15 @@ export class BudgetsService {
 
   /**
    * Every EXPENSE transaction for these categories, any status or date —
-   * `calculateBudgetSpent` is what filters to COMPLETED and the budget's own
-   * window, so the SQL side only narrows to the type that can ever count.
+   * `calculateBudgetSpent` is what filters to COMPLETED, the budget's currency
+   * and its window, so the SQL side only narrows to the type that can ever count.
    */
   private async spendableTransactionsByCategory(
     categoryIds: readonly string[],
   ): Promise<Map<string, SpendRelevantTransaction[]>> {
     const rows = await this.database.db
       .selectFrom('transactions')
-      .select(['type', 'status', 'amount', 'category_id', 'transaction_date'])
+      .select(['type', 'status', 'amount', 'currency', 'category_id', 'transaction_date'])
       .where('category_id', 'in', categoryIds)
       .where('type', '=', TransactionType.EXPENSE)
       .execute();
@@ -332,6 +336,7 @@ export class BudgetsService {
         type: row.type,
         status: row.status,
         amount: parseMoney(row.amount),
+        currency: row.currency,
         categoryId,
         transactionDate: row.transaction_date.toISOString(),
       });

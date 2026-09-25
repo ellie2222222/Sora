@@ -7,8 +7,12 @@ import {
   createContributionSchema,
   createTransactionSchema,
   inviteMemberSchema,
+  loginSchema,
+  positiveAmountSchema,
   registerSchema,
+  signedAmountSchema,
   transactionQuerySchema,
+  updatePreferencesSchema,
   updateTransactionSchema,
 } from '../src/schemas.ts';
 
@@ -314,5 +318,72 @@ describe('transactionQuerySchema', () => {
   it('caps pageSize so a client cannot ask for the whole ledger', () => {
     const result = transactionQuerySchema.safeParse({ pageSize: '5000' });
     assert.equal(result.success, false);
+  });
+
+  it('accepts pageSize up to the maximum and rejects zero, fractions and a page below 1', () => {
+    assert.equal(transactionQuerySchema.safeParse({ pageSize: '200' }).success, true);
+    for (const query of [{ pageSize: '201' }, { pageSize: '0' }, { pageSize: '2.5' }, { page: '0' }]) {
+      assert.equal(transactionQuerySchema.safeParse(query).success, false, JSON.stringify(query));
+    }
+  });
+
+  it('rejects a zero amount filter, since amounts are always positive', () => {
+    assert.deepEqual(issuePaths(transactionQuerySchema.safeParse({ minAmount: '0' })), ['minAmount']);
+  });
+});
+
+describe('positiveAmountSchema and signedAmountSchema', () => {
+  it(
+    'rejects a positive number with more than four decimals rather than passing it on',
+    () => {
+      assert.equal(positiveAmountSchema.safeParse(1.23456).success, false);
+    },
+  );
+
+  it(
+    'rejects a signed number with more than four decimals rather than passing it on',
+    () => {
+      assert.equal(signedAmountSchema.safeParse(-1.23456).success, false);
+    },
+  );
+
+  it('rejects NaN and infinities', () => {
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      assert.equal(positiveAmountSchema.safeParse(bad).success, false, `positive ${bad}`);
+      assert.equal(signedAmountSchema.safeParse(bad).success, false, `signed ${bad}`);
+    }
+  });
+
+  it('strips thousands separators from the returned string, so a comma never reaches the database', () => {
+    assert.equal(positiveAmountSchema.parse('1,500,000.50'), '1500000.50');
+    assert.equal(signedAmountSchema.parse('-2,000,000'), '-2000000');
+  });
+});
+
+describe('loginSchema', () => {
+  it('trims and lowercases the email, so the per-email lockout counts one address however it is typed', () => {
+    const result = loginSchema.safeParse({ email: '  TAM@Example.COM ', password: 'x' });
+    assert.equal(result.success, true, JSON.stringify(issuePaths(result)));
+    assert.equal(result.data?.email, 'tam@example.com');
+  });
+});
+
+describe('update schemas', () => {
+  it('reject an empty body as nothing to update', () => {
+    assert.equal(updateTransactionSchema.safeParse({}).success, false);
+    assert.equal(updatePreferencesSchema.safeParse({}).success, false);
+  });
+
+  it('drop the immutable transaction fields, so they can never reach an update (BR-03)', () => {
+    const result = updateTransactionSchema.safeParse({
+      amount: '5',
+      type: 'INCOME',
+      fromAccountId: ACCOUNT_A,
+      toAccountId: ACCOUNT_B,
+      description: 'Lunch',
+    });
+    assert.equal(result.success, true, JSON.stringify(issuePaths(result)));
+    assert.deepEqual(result.data, { description: 'Lunch' });
+    assert.equal(updateTransactionSchema.safeParse({ amount: '5' }).success, false);
   });
 });

@@ -62,6 +62,7 @@ export function toSpendRelevant(transaction: GuestTransaction): SpendRelevantTra
     type: transaction.type,
     status: transaction.status,
     amount: parseMoney(transaction.amount),
+    currency: transaction.currency,
     categoryId: transaction.categoryId,
     transactionDate: transaction.transactionDate,
   };

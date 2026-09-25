@@ -194,7 +194,7 @@ describe('guestBudgetsApi — spend (BR-06)', () => {
     const created = await guestBudgetsApi.create(budget);
 
     const spent = calculateBudgetSpent(
-      { categoryId: EXPENSE_CATEGORY_ID, startDate: budget.startDate, endDate: budget.endDate },
+      { categoryId: EXPENSE_CATEGORY_ID, currency: budget.currency, startDate: budget.startDate, endDate: budget.endDate },
       guestStore.current().transactions.map(toSpendRelevant),
     );
 

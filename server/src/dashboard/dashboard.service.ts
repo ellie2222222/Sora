@@ -397,7 +397,7 @@ export class DashboardService {
     const categoryIds = [...new Set(budgets.map((budget) => budget.category_id))];
     const expenseRows = await this.database.db
       .selectFrom('transactions')
-      .select(['status', 'amount', 'category_id', 'transaction_date'])
+      .select(['status', 'amount', 'currency', 'category_id', 'transaction_date'])
       .where('type', '=', TransactionType.EXPENSE)
       .where('category_id', 'in', categoryIds)
       .execute();
@@ -409,13 +409,14 @@ export class DashboardService {
           type: TransactionType.EXPENSE,
           status: row.status,
           amount: parseMoney(row.amount),
+          currency: row.currency,
           categoryId: row.category_id as string,
           transactionDate: row.transaction_date.toISOString(),
         }));
 
       const amount = parseMoney(budget.amount);
       const spent = calculateBudgetSpent(
-        { categoryId: budget.category_id, startDate: budget.start_date, endDate: budget.end_date },
+        { categoryId: budget.category_id, currency: budget.currency, startDate: budget.start_date, endDate: budget.end_date },
         relevant,
       );
 
