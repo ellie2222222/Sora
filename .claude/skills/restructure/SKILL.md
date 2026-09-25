@@ -6,8 +6,9 @@ description: >-
   no longer matches documented architecture), and produces a concrete move/rename/merge plan for user
   approval via EnterPlanMode before executing anything. Use when asked to "clean up the project
   structure", "reorganize the codebase/folders", "audit the file layout", or similar structural requests
-  -- distinct from `double-check` (code-logic/correctness health) and `infra-audit`
-  (architecture/reliability of running services), neither of which touches where files actually live.
+  -- distinct from `double-check` (code-logic/correctness health), `extract-modules` (splits code out of
+  files rather than moving whole files) and `infra-audit`
+  (architecture/reliability of running services), none of which moves where files actually live.
 ---
 
 # Restructure

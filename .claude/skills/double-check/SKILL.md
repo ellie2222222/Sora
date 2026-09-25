@@ -7,7 +7,9 @@ description: >-
   with a written report. Use whenever asked to double check, review, or audit this codebase, or before
   calling any non-trivial change done. Deliberately not named "verify" -- that collides with a bundled
   built-in skill of the same name that takes over the /verify command; invoke this one explicitly by name
-  via the Skill tool, or by asking to double check, review, or audit.
+  via the Skill tool, or by asking to double check, review, or audit. Hands off to `extract-modules` to
+  carry out decomposition/duplication extractions its sweep flags, and to `scratch-probe` to exercise a
+  changed server path against a disposable database.
 ---
 
 # Double-Check

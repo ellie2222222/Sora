@@ -1,254 +1,125 @@
 # AIF-SDLC Review Checklist
 
-**Personal & Family Finance Management System**
+**Sora — shared-wallet finance tracker (NestJS API + Expo app)**
 
-Use this checklist to verify that each feature (user story group) meets the Definition of Done before merging to main.
-
----
-
-## Pre-Implementation
-
-### □ Spec Review
-- [ ] User story exists in SRS §7 with clear acceptance criteria
-- [ ] Story is traceable to SRS §2 CDM or §5 Business Flow
-- [ ] Story prefix and numbering follow conventions (e.g., AUTH-US-01)
-- [ ] SDS §6 Feature Implementation Mapping is updated
-- [ ] No conflicts with existing stories or business rules (SRS §3)
-
-### □ Design Review
-- [ ] API endpoint(s) defined in SDS §4 with request/response examples
-- [ ] Database tables and relationships documented in SDS §5
-- [ ] Role-based authorization defined in SDS §2.2 and CLAUDE.md AC-01
-- [ ] Error codes defined (UPPER_SNAKE_CASE in API spec)
-- [ ] Audit logging events identified (what/who/when/why)
+The item-by-item form of CLAUDE.md Part 5 → Definition of Done. Run it for each feature (a user-story
+group) before merging to `main`. Where this file and CLAUDE.md disagree, CLAUDE.md wins — fix this file.
 
 ---
 
-## Implementation
+## 1. Traceable
 
-### Backend
+- [ ] The user story exists in `SRS.md` §9, with acceptance criteria and its prefix (e.g. `BUD-US-01`)
+- [ ] It traces to the CDM (`SRS.md` §2) or a business flow (§8), and conflicts with no business rule (§4, BR-01…BR-16)
+- [ ] Its endpoint(s) are in `docs/API_SPECIFICATION.md` (auth, role, validation, errors, side effects)
+- [ ] `SDS.md` §8 Feature Implementation Mapping names the real controller/service/screen
 
-#### Code Quality
-- [ ] Controllers are thin: only HTTP binding, role checks, service delegation
-- [ ] Services contain all business logic (BR-01 through BR-10)
-- [ ] Repositories are pure data access (no business logic)
-- [ ] DTOs map correctly between HTTP and domain
-- [ ] All inputs validated at service layer
-- [ ] Database constraints match business rules (unique indexes, foreign keys, check constraints)
+## 2. Contract-first
 
-#### Database
-- [ ] SQL migration added under `db/migrations/` and applied locally via `node scripts/migrate.mjs`
-- [ ] Migration is forward-only and immutable once applied — the runner checksums each file and refuses to re-run a changed one, so a mistake needs a new migration, not an edit
-- [ ] Soft-delete columns added where applicable (`deleted_at`)
-- [ ] Indexes created on frequently queried columns (foreign keys, status, date)
-- [ ] Schema reviewed against SDS §5
+- [ ] Enums, Zod schemas, response types, error codes and route paths live in `packages/contracts/src/`, defined once
+- [ ] New error codes are `UPPER_SNAKE_CASE`, resource-prefixed, and in both `ERROR_CODES` and `ERROR_STATUS`
+- [ ] Routes come from `ROUTES`, never a literal string
+- [ ] Money crosses the wire as a string and is computed as scaled `bigint` (`money.ts`, `calc.ts`), never `Number(amount)`
+- [ ] `node scripts/check-contract-parity.mjs` passes
 
-#### Authorization & Audit
-- [ ] NestJS guards or service-level role checks on all protected endpoints
-- [ ] Wallet scoping validated (no cross-wallet data access without the required role on both sides)
-- [ ] Audit log created for all state-changing operations
-- [ ] Audit log format follows CLAUDE.md LA-02
-- [ ] Error responses include appropriate HTTP status and error code
+## 3. Authorized
 
-#### Testing
-- [ ] Happy path integration test (uses real DB via Testcontainers)
-- [ ] Error cases tested: invalid input, missing entity, wrong role, conflict
-- [ ] Authorization tests confirm `403` for disallowed roles, `401` for unauthenticated
-- [ ] Tests cover all acceptance criteria from SRS §7
+- [ ] The minimum role is enforced server-side through `roleSatisfies()`; hiding a button is not a control (AC-02)
+- [ ] No membership row → **404**; member with too low a role → **403** (AC-01)
+- [ ] A cross-wallet write checks `EDITOR` on **every** wallet it touches (AC-03, BR-02)
+- [ ] Financial mutations and membership/role changes write an `audit_logs` row (LA-02) inside the write's own transaction, with a savepoint so an audit failure can't roll the write back (CLAUDE.md Part 7 rule 16)
+- [ ] 401/403 are logged at WARN with actor, role and target (LA-03); no secrets in logs (LA-01)
 
-### Frontend
+## 4. Validated
 
-#### Code Quality
-- [ ] All components are TypeScript; no `any` types without comment
-- [ ] Form validation via Zod matches backend DTO validation
-- [ ] Components use shadcn/ui primitives; no custom components unless necessary
-- [ ] Icons from Lucide React only
-- [ ] State management (Zustand for client state, TanStack Query for server state) properly typed and initialized
+- [ ] Zod from `@sora/contracts` at the edge, on both the server and the mobile form (MB-03, VL-01)
+- [ ] Service checks for anything that needs a lookup: 404 missing, 409 archived/deleted (VL-03)
+- [ ] A database constraint (`chk_`/`uq_`/`excl_`) backs every rule that must hold for any writer (Part 7 rule 4)
+- [ ] Uniqueness: an index is the guarantee, the service check produces the clean 409 (VL-02)
 
-#### UI & UX
-- [ ] All interactive elements have stable `id` attributes (per CLAUDE.md NC-04)
-- [ ] Forms display inline validation errors on blur/submit
-- [ ] Form-level error summary at top when multiple errors
-- [ ] Loading states during API submission
-- [ ] Success toast or redirect confirmation on completion
-- [ ] Dark mode and light mode both tested
-- [ ] i18n strings defined for VI and EN (even if VI translations TBD)
+## 5. Derived, not stored
 
-#### Testing
-- [ ] Happy path scenario works end-to-end
-- [ ] Form validation rejects invalid inputs with clear error messages
-- [ ] Role-based UI hiding: controls not visible to disallowed roles
-- [ ] API errors handled and displayed to user
-- [ ] No console errors or warnings in browser
+- [ ] No new column caches a balance, spent, remaining or progress figure (BR-05)
+- [ ] Transfers are excluded from income/expense/budget figures (BR-06)
+- [ ] Nothing is summed across currencies (BR-07)
+- [ ] Nothing financial is hard-deleted — archive, `DELETED` status or revoke instead
 
-#### Integration
-- [ ] Frontend calls backend API endpoints correctly (base path `/api/v1/...`)
-- [ ] No hardcoded localhost:9090 or other backend URLs
-- [ ] JWT tokens stored and sent in Authorization headers
-- [ ] API proxy configured (if needed)
+## 6. Tested
+
+- [ ] Contracts: `npm test -w @sora/contracts` covers new schema/money/calc logic
+- [ ] Server: `npm test -w @sora/server` (boots the DI graph, no database), plus a unit test per new pure helper
+- [ ] Database: new constraints get a probe in `db/tests/`; `npm run db:test` passes
+- [ ] Live path: every new/changed endpoint exercised against a disposable Postgres with synthetic data (`scratch-probe` skill), including each documented error and the 404-vs-403 boundary
+- [ ] Mobile: `npm test -w @sora/mobile` covers new utils; `npx tsc --noEmit` is clean; `npx expo export --platform android` bundles
+- [ ] `npm run typecheck` is clean across every package
+
+## 7. Specs updated
+
+- [ ] `docs/API_SPECIFICATION.md` matches what was built
+- [ ] `SRS.md` §9 acceptance criteria and `SDS.md` §7 (schema) / §8 (mapping) are updated in the same change
+- [ ] The plan's phase checkboxes (`plans/…`) reflect reality
 
 ---
 
-## Specification Alignment
+## Database migrations
 
-### SRS Synchronization
-- [ ] SRS §7 acceptance criteria match implemented behavior
-- [ ] If implementation revealed edge cases, SRS §7 updated in same PR
-- [ ] SRS §2 CDM and SDS §2.1 traceability table in sync
-- [ ] SRS §2 and SDS §2 "Last synced" timestamps updated if any entity changed
+- [ ] A new file under `db/migrations/` — never an edit to an applied one (the runner checksums them)
+- [ ] It ends in `COMMIT;` (the runner commits it together with its `schema_migrations` row)
+- [ ] Constraint names use the load-bearing prefixes (`chk_`, `uq_`, `idx_`, `excl_`) the parity check reads
+- [ ] A new constraint on a populated table uses `NOT VALID` + `VALIDATE CONSTRAINT` to avoid a full-table lock
+- [ ] Applied twice on a disposable database (`node scripts/migrate.mjs`, then `--status`); the second run is a no-op
 
-### SDS Synchronization
-- [ ] SDS §4 API specification includes actual request/response (not templates)
-- [ ] SDS §5 database schema matches the SQL files under `db/migrations/`
-- [ ] SDS §6 feature mapping updated with actual controller/service/repository names
-- [ ] Error codes in SDS §4 API responses match implementation
+## Mobile
 
-### Cross-Document Consistency
-- [ ] Domain terminology (CDM entity names) used consistently in code, API, database, UI
-- [ ] API paths follow kebab-case plural naming (e.g., `/api/v1/saving-goals`)
-- [ ] Database columns follow snake_case naming
-- [ ] DTOs/enums use PascalCase (e.g., `BudgetStatus`, `TransactionType`)
-- [ ] Role names match enum values (ADMIN, MEMBER)
+- [ ] TypeScript `strict`; no `any` without a comment saying why (MB-01)
+- [ ] Server state through RTK Query slices; no copy in plain Redux; no `zustand` (MB-02)
+- [ ] `testID`s follow NC-04 (`screen-…`, `input-…`, `btn-…`, `sheet-…`)
+- [ ] Icons from `lucide-react-native` (MB-05); colours from design tokens, dark and light both checked (MB-06)
+- [ ] Loading, empty, error and success states all handled (MB-07)
+- [ ] Money rendered via `<Money>` / `formatMoneyString` (MB-08)
+- [ ] Every new string is in `en.ts` **and** `vi.ts`, at full parity; inactive locales untouched (MB-09, rule 13)
+- [ ] Cross-directory imports go through `@/…` barrels, siblings relative (MB-10, rule 14)
+- [ ] No function `style` on a `Pressable` (rule 15)
+- [ ] `docs/DESIGN_GUIDELINES.md` Part 4 check run (MB-11)
 
----
+## Code review
 
-## Definition of Done Verification
-
-### 1. SRS/SDS Traceability
-- [ ] Feature is traceable to ≥1 SRS user story
-- [ ] User story ID and acceptance criteria are in SRS §7
-- [ ] SDS §6 Feature Implementation Mapping entry exists with actual code locations
-- [ ] SDS §4 API specification includes this feature's endpoints
-
-### 2. API Contract Documented
-- [ ] Endpoint(s) listed in SDS §4 API Index (§4.2–§4.10)
-- [ ] Request DTO shown with sample JSON
-- [ ] Response DTO shown with sample JSON (both success and errors)
-- [ ] HTTP status codes documented (200, 201, 400, 401, 403, 404, 409, 422, 500)
-- [ ] Error codes documented (e.g., `WALLET_NOT_FOUND`, `PERMISSION_DENIED`)
-
-### 3. Authorization Verified
-- [ ] Role validation implemented (service layer, not just controller)
-- [ ] Wallet membership validated (user holds an `ACTIVE` role on the wallet)
-- [ ] Test confirms `403` for disallowed roles
-- [ ] Test confirms `401` for unauthenticated requests
-- [ ] Audit log created for critical operations (state changes, access denials)
-- [ ] CSRF protection in place for POST/PUT/DELETE (if using cookies; JWT doesn't require CSRF)
-
-### 4. Validation Implemented
-- [ ] Required fields validated (both frontend Zod and backend DTOs)
-- [ ] Business rules enforced (e.g., BR-01–BR-10 from SRS §3)
-- [ ] Uniqueness constraints enforced (e.g., duplicate category name)
-- [ ] Referential integrity validated (e.g., account exists, is active)
-- [ ] Amount/date/status validation in place
-
-### 5. Frontend/Backend Sync
-- [ ] Frontend Zod schema matches backend DTO field names and types
-- [ ] Validation rules align (min/max, enum values, format)
-- [ ] If DTO changes, both frontend and backend updated in same commit
-
-### 6. Test Coverage
-- [ ] ≥1 happy-path integration test
-- [ ] ≥2 error-case tests (invalid input, missing entity, conflict, wrong role, etc.)
-- [ ] All acceptance criteria from SRS §7 covered by tests
-- [ ] Tests pass locally and in CI
-
-### 7. Specs Updated
-- [ ] SRS §7 acceptance criteria finalized (edge cases added if discovered)
-- [ ] SDS §5 (database schema) updated with actual table/column names
-- [ ] SDS §6 (feature mapping) includes actual controller/service/repo method names
-- [ ] SDS §2 and SRS §2 "Last synced" dates updated if any entity changed
+- [ ] Controllers are thin (HTTP binding and guards); business rules live in services; Kysely queries are parameterized
+- [ ] List endpoints paginate (API-05); no N+1 — aggregates in SQL
+- [ ] No hard-coded config: every variable is read through `server/src/config/env.ts`
+- [ ] Comments explain *why*, never *what*; no untracked `TODO` (rule 11)
+- [ ] Terminology matches CLAUDE.md's table (Wallet, Member, Account, Transaction, Budget, Saving Goal)
 
 ---
 
-## Code Review Checklist
+## Pre-merge
 
-When reviewing a PR, verify:
-
-### Architecture
-- [ ] No business logic in controllers
-- [ ] No database queries in services (all via repositories)
-- [ ] No hard-coded values; use config/environment variables
-- [ ] No circular imports or tight coupling
-
-### Security
-- [ ] No SQL injection risks (using parameterized queries)
-- [ ] No sensitive data in logs (passwords, tokens, account numbers)
-- [ ] Passwords hashed (Argon2)
-- [ ] JWT tokens short-lived (15 min), refresh tokens long-lived (7 days)
-- [ ] CORS properly configured (frontend origin whitelisted)
-
-### Performance
-- [ ] N+1 queries avoided (eager loading or batching)
-- [ ] Indexes on foreign keys and frequently queried columns
-- [ ] Pagination enforced on list endpoints (no unbounded queries)
-- [ ] No blocking I/O in request path (email async if possible)
-
-### Testing
-- [ ] Integration tests use real DB (Testcontainers)
-- [ ] No mocks of repository layer
-- [ ] Tests are isolated (setup/teardown clean DB state)
-- [ ] Test names are descriptive (not `test1`, `test2`)
-
-### Documentation
-- [ ] API endpoint documented in SDS §4
-- [ ] Error codes documented
-- [ ] Business logic justified in comments (WHY, not WHAT)
-- [ ] Complex queries documented
-
-### Compliance
-- [ ] Code follows CLAUDE.md conventions
-- [ ] Naming matches SRS terminology
-- [ ] Constitution rules (BR-01–BR-10) enforced
-- [ ] Definition of Done verified
-
----
-
-## Pre-Merge Checklist
-
-Before approving the PR:
-
-- [ ] All tests passing (local + CI)
-- [ ] Code review approved
-- [ ] SRS/SDS/code are in sync
-- [ ] No merge conflicts
+- [ ] All checks above pass locally, and CI is green
 - [ ] Commits were drafted by the `commit-messages` skill, not hand-written — see CLAUDE.md's Git section
 - [ ] No `Co-Authored-By: Claude ...`, "Generated with Claude Code", or model name anywhere in the commit messages, PR body, code comments, or docs
-- [ ] Migration tested against a disposable database (`node scripts/migrate.mjs --status` before/after) — never `docker compose down -v` or any other command that wipes real data; see CLAUDE.md's Data Safety section
-- [ ] If this PR included a verification/double-check/audit pass, it produced a `verifications/YYYY-MM-DD-slug.md` report — see CLAUDE.md's Verification Reports section
-- [ ] All Definition of Done items verified
+- [ ] Migration tested against a disposable database only — never `docker compose down -v` or anything else that wipes real data; see CLAUDE.md's Data Safety section
+- [ ] Any verification/double-check/audit pass produced a `verifications/YYYY-MM-DD-slug.md` report
+
+## Post-merge
+
+- [ ] `node scripts/migrate.mjs` against the target, then `GET /api/v1/health` reports `"database": "up"`
+- [ ] Smoke-test the happy path; confirm audit rows are written
+- [ ] `RUNBOOK.md` updated if an operational step changed
 
 ---
 
-## Post-Merge Deployment
-
-- [ ] Run migrations on staging: `node scripts/migrate.mjs`
-- [ ] Smoke test: happy path works end-to-end
-- [ ] Verify audit logs are being generated
-- [ ] Monitor error rates on dashboard
-- [ ] Update RUNBOOK.md if new steps/commands needed
-
----
-
-## Common Failures & Remediation
+## Common failures
 
 | Failure | Cause | Fix |
-|---------|-------|-----|
-| Tests pass locally but fail in CI | DB schema drift; migrations not applied | Run migrations; reset local DB |
-| API returns 403 but user should have access | Wallet membership check missing | Add wallet membership/role validation in service |
-| API returns 403 for a wallet the user has no access to at all | Should be 404 — a 403 confirms the id is real (see CLAUDE.md AC-01) | Return 404 when there's no membership row; reserve 403 for "member, but role too low" |
-| Field appears in API response but SDS omits it | Docs out of sync with code | Update SDS §4 response schema |
-| Duplicate error code across endpoints | No coordination; ad-hoc error codes | Define error codes centrally in SDS §4 |
-| Frontend form validation passes but backend rejects | Zod schema mismatched with DTO | Sync both in same commit |
-| N+1 query in transaction list | Eager loading not configured | Add `joinedload` or batch query |
-| Audit log missing for critical operation | Service doesn't call audit log function | Add audit log call to service method |
+|---|---|---|
+| 403 for a wallet the user has no access to at all | Should be 404 — a 403 confirms the id is real (AC-01) | 404 with no membership row; 403 only for "member, role too low" |
+| A balance off by a fraction nobody can trace | An amount went through a JS number (rule 1) | Scaled `bigint` via `money.ts`; keep the `pg-types.ts` parsers |
+| A write "succeeds" but the row is gone | A swallowed error inside the transaction turned `COMMIT` into a rollback (rule 16) | Savepoint the best-effort write, or run it outside the transaction |
+| Server returns 500 on a valid-looking enum | Enum tuple and `CHECK` constraint disagree | Fix at the contract; `check-contract-parity.mjs` |
+| Mobile form passes, server rejects | The form wasn't validated with the contract schema | `schema.safeParse` from `@sora/contracts` (MB-03) |
+| A `Pressable` loses its background/padding | Function `style` under NativeWind interop (rule 15) | Track pressed state; pass a plain object |
+| A require cycle warning after adding an export | A barrel re-exports an orchestrator (rule 14) | Deep-import the orchestrator; keep it out of the barrel |
+| Green CI that tested nothing | A job-level `hashFiles()` guard (rule 8) | Guard at step level, or use `needs:` |
 
----
-
-## Notes
-
-- This checklist is a guide, not a prison. Exceptions are OK with documented reason in PR description.
-- Use it to build muscle memory for what "done" means.
-- Update it as you discover gaps (e.g., "we forgot to test X").
-- Template repo uses this in all PRs; no exceptions without explicit team approval.
-
+Exceptions are fine with the reason written in the PR description. When a checklist item turns out to be
+missing, add it here, and add the rule to CLAUDE.md first if it's a new standing rule.
