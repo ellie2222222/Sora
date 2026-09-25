@@ -8,7 +8,7 @@ import { useTheme } from '@/app/providers';
 import { BottomSheetModal } from './BottomSheetModal';
 import { Button } from './Button';
 import { Text } from './Text';
-import { addMonths, monthGrid, monthName, parseDay, today } from '@/utils';
+import { addMonths, monthGrid, monthName, parseDay, today, withYear } from '@/utils';
 
 export interface DatePickerModalProps {
   visible: boolean;
@@ -26,7 +26,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
   const [viewMode, setViewMode] = useState<'days' | 'years'>('days');
   // `style` can never be a function here — see CLAUDE.md Part 7 rule 15.
   const [yearTogglePressed, setYearTogglePressed] = useState(false);
-  const { year, month, date } = parseDay(viewDay || today());
+  const { year, month } = parseDay(viewDay || today());
 
   const grid = monthGrid(viewDay || today());
   const weekdayInitials = useMemo(() => {
@@ -50,9 +50,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
   const handleNextMonth = () => setViewDay(addMonths(viewDay, 1));
 
   const handleSelectYear = (targetYear: number) => {
-    const formattedMonth = String(month).padStart(2, '0');
-    const formattedDate = String(date).padStart(2, '0');
-    setViewDay(`${targetYear}-${formattedMonth}-${formattedDate}`);
+    setViewDay(withYear(viewDay, targetYear));
     setViewMode('days');
   };
 
@@ -73,10 +71,10 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
 
   return (
     <BottomSheetModal visible={visible} onClose={onClose}>
-      <View style={{ gap: theme.spacing.md }}>
+      <View testID="sheet-date-picker" style={{ gap: theme.spacing.md }}>
         <View className="flex-row justify-between items-center">
           <Text variant="title">{t('common.selectDate', { defaultValue: 'Select Date' })}</Text>
-          <Pressable onPress={onClose} hitSlop={8} className="p-xs">
+          <Pressable testID="btn-cancel-date-picker" onPress={onClose} hitSlop={8} className="p-xs">
             <X size={20} color={theme.colors.textMuted} />
           </Pressable>
         </View>
@@ -91,10 +89,11 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
         >
           {viewMode === 'days' ? (
             <>
-              <Pressable onPress={handlePrevMonth} hitSlop={8} className="p-xs">
+              <Pressable testID="btn-previous-month" onPress={handlePrevMonth} hitSlop={8} className="p-xs">
                 <ChevronLeft size={20} color={theme.colors.text} />
               </Pressable>
               <Pressable
+                testID="btn-select-year"
                 onPress={() => setViewMode('years')}
                 onPressIn={() => setYearTogglePressed(true)}
                 onPressOut={() => setYearTogglePressed(false)}
@@ -113,7 +112,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
                 </Text>
                 <CalendarIcon size={14} color={theme.colors.primary} />
               </Pressable>
-              <Pressable onPress={handleNextMonth} hitSlop={8} className="p-xs">
+              <Pressable testID="btn-next-month" onPress={handleNextMonth} hitSlop={8} className="p-xs">
                 <ChevronRight size={20} color={theme.colors.text} />
               </Pressable>
             </>
@@ -123,6 +122,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
                 {t('common.selectYear', { defaultValue: 'Select Year' })}
               </Text>
               <Pressable
+                testID="btn-select-days"
                 onPress={() => setViewMode('days')}
                 className="px-[10px] py-xs"
                 style={{ borderRadius: theme.radius.sm, backgroundColor: theme.colors.primary }}
@@ -156,6 +156,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
                     return (
                       <Pressable
                         key={cell.day}
+                        testID={`option-day-${cell.day}`}
                         onPress={() => handleSelectDayInternal(cell.day)}
                         className="w-[36px] h-[36px] items-center justify-center"
                         style={{
@@ -198,6 +199,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
               return (
                 <Pressable
                   key={y}
+                  testID={`option-year-${y}`}
                   onPress={() => handleSelectYear(y)}
                   className="w-[22%] py-[10px] items-center justify-center"
                   style={{
@@ -229,6 +231,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
           }}
         >
           <Button
+            testID="btn-select-today"
             label={t('common.today', { defaultValue: 'Today' })}
             variant="secondary"
             size="sm"

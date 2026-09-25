@@ -64,6 +64,7 @@ finance/
 ├── server/                    # @sora/server — NestJS 11 ESM, Kysely typed SQL, pg
 │   └── src/                   # auth/, wallets/, accounts/, categories/, transactions/, budgets/, goals/
 ├── mobile/                    # @sora/mobile — Expo React Native, Redux Toolkit + RTK Query
+│   ├── e2e/                   # Maestro flows + API seed; app.config.js adds the E2E build switch
 │   └── src/                   # app/, features/, components/, design-system/, services/
 ├── db/
 │   ├── migrations/            # Raw SQL forward-only migrations (immutable once applied)
@@ -109,6 +110,7 @@ npm run db:migrate                             # Run SQL migrations
 npm run db:test                                # Run database constraint probes
 npm run dev:server                             # Start server in watch mode
 npm run dev:mobile                             # Start Expo mobile app
+npm run dev:mobile:clear                       # Same, with Metro's cache cleared
 ```
 
 ---

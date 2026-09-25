@@ -20,6 +20,13 @@ config.resolver.extraNodeModules = {
   '@sora/contracts': path.resolve(workspaceRoot, 'packages/contracts'),
 };
 config.resolver.unstable_enablePackageExports = true;
+// Gradle builds each native library in place (node_modules/<pkg>/android/build, .cxx): tens of
+// thousands of files that Metro would otherwise index and watch through the workspace root.
+config.resolver.blockList = [
+  ...[config.resolver.blockList].flat().filter(Boolean),
+  /[\\/]android[\\/](build|\.cxx|\.gradle)[\\/].*/,
+  /[\\/]android[\\/]app[\\/](build|\.cxx)[\\/].*/,
+];
 
 module.exports = withNativeWind(config, { input: './global.css' })
 

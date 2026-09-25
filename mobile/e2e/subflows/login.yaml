@@ -1,0 +1,22 @@
+# Fresh install state, then signs in as the seeded probe user (E2E_EMAIL / E2E_PASSWORD from seed.mts).
+appId: com.sora.app
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "screen-login"
+    timeout: 60000
+- tapOn:
+    id: "input-login-email"
+- inputText: ${E2E_EMAIL}
+- tapOn:
+    id: "input-login-password"
+- inputText: ${E2E_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "btn-submit-login"
+- extendedWaitUntil:
+    visible:
+      id: "screen-home"
+    timeout: 30000

@@ -29,7 +29,7 @@ export function SettingsBottomActions() {
         {!isGuest ? (
           <>
             <Button
-              testID="settings-logout"
+              testID="btn-logout"
               label={t('settings.logout')}
               variant="secondary"
               onPress={() => setConfirmingLogout(true)}

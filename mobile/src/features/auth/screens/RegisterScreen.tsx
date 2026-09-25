@@ -43,7 +43,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
   });
 
   return (
-    <AnimatedScreen style={{ backgroundColor: theme.colors.background }}>
+    <AnimatedScreen testID="screen-register" style={{ backgroundColor: theme.colors.background }}>
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -67,7 +67,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
             name="displayName"
             render={({ field }) => (
               <Input
-                testID="register-name"
+                testID="input-register-name"
                 label={t('auth.displayNameLabel')}
                 value={field.value}
                 onChangeText={field.onChange}
@@ -81,7 +81,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
             name="email"
             render={({ field }) => (
               <Input
-                testID="register-email"
+                testID="input-register-email"
                 label={t('auth.emailLabel')}
                 autoCapitalize="none"
                 autoComplete="email"
@@ -98,7 +98,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
             name="password"
             render={({ field }) => (
               <Input
-                testID="register-password"
+                testID="input-register-password"
                 label={t('auth.passwordLabel')}
                 secureTextEntry
                 autoCapitalize="none"
@@ -116,7 +116,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
           ) : null}
 
           <Button
-            testID="register-submit"
+            testID="btn-submit-register"
             label={t('auth.registerButton')}
             onPress={onSubmit}
             loading={isSubmitting}

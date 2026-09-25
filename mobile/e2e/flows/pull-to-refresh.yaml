@@ -1,0 +1,31 @@
+appId: com.sora.app
+name: Pull to refresh shows an expense recorded elsewhere
+tags:
+  - transactions
+---
+- runFlow: ../subflows/login.yaml
+# Unique per run, so a rerun against the same user can't match an earlier run's row.
+- evalScript: ${output.description = 'E2E refreshed expense ' + Date.now()}
+- extendedWaitUntil:
+    visible:
+      id: "list-transactions"
+    timeout: 15000
+
+- runScript:
+    file: ../scripts/api-login.js
+# Recorded through the API after the list loaded, so only a refetch can bring it onto the screen.
+- runScript:
+    file: ../scripts/record-expense.js
+    env:
+      DESCRIPTION: ${output.description}
+- assertNotVisible:
+    text: ${output.description}
+
+- swipe:
+    start: 50%, 35%
+    end: 50%, 85%
+    duration: 800
+- extendedWaitUntil:
+    visible:
+      text: ${output.description}
+    timeout: 15000

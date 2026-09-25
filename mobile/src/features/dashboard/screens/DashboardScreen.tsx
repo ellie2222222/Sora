@@ -59,7 +59,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
     <AnimatedScreen>
       <WalletContextBar onManage={onManage}>
         <RefreshableScrollView
-          testID="dashboard-screen"
+          testID="screen-dashboard"
           // flexGrow lets an empty state centre itself in the leftover height; with
           // real content to scroll it has no effect.
           contentContainerStyle={{ flexGrow: 1, padding: theme.spacing.md, gap: theme.spacing.lg }}

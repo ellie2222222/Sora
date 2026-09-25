@@ -68,7 +68,7 @@ export function CategoryListScreen({
 
     return (
       <FlatList
-        testID="category-list"
+        testID="list-categories"
         data={sections}
         keyExtractor={(section) => section.title}
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
@@ -122,6 +122,7 @@ export function CategoryListScreen({
     onDelete: () => void;
   }) {
     const theme = useTheme();
+    const { t } = useTranslation();
     const syncStatus = useSelector(
       selectQueueEntryFor("category", category.id),
     )?.status;
@@ -144,9 +145,11 @@ export function CategoryListScreen({
         <SyncStatusDot status={syncStatus} />
         {canDelete ? (
           <Pressable
-            testID={`category-delete-${category.id}`}
+            testID={`btn-delete-category-${category.id}`}
             onPress={onDelete}
-            hitSlop={8}
+            hitSlop={14}
+            accessibilityRole="button"
+            accessibilityLabel={t("categories.deleteCategoryA11y", { name: category.name })}
           >
             <Trash2 size={16} color={theme.colors.textFaint} />
           </Pressable>
@@ -193,7 +196,7 @@ export function CategoryListScreen({
       >
         <View style={{ gap: theme.spacing.md }}>
           <Input
-            testID="create-category-name"
+            testID="input-category-name"
             label={t("categories.name")}
             value={name}
             onChangeText={setName}
@@ -223,7 +226,7 @@ export function CategoryListScreen({
           </View>
           {error !== null ? <Text tone="danger">{error}</Text> : null}
           <Button
-            testID="create-category-submit"
+            testID="btn-submit-category"
             label={t("categories.create")}
             onPress={handleCreate}
             loading={isCreating}
@@ -316,7 +319,7 @@ export function CategoryListScreen({
         {category === null ? null : mode === "rename" ? (
           <View style={{ gap: theme.spacing.md }}>
             <Input
-              testID="category-rename-name"
+              testID="input-category-new-name"
               label={t("categories.name")}
               value={name}
               onChangeText={setName}
@@ -330,7 +333,7 @@ export function CategoryListScreen({
                 style={{ flex: 1 }}
               />
               <Button
-                testID="category-rename-submit"
+                testID="btn-submit-category-rename"
                 label={t("common.save")}
                 onPress={handleRename}
                 loading={isRenaming}
@@ -353,14 +356,14 @@ export function CategoryListScreen({
             </Text>
 
             <DeleteOption
-              testID="category-delete-rename"
+              testID="btn-rename-category"
               icon={<Pencil size={18} color={theme.colors.text} />}
               label={t("categories.renameCategory")}
               description={t("categories.renameDescription")}
               onPress={() => setMode("rename")}
             />
             <DeleteOption
-              testID="category-delete-archive"
+              testID="btn-archive-category"
               icon={<Archive size={18} color={theme.colors.text} />}
               label={t("categories.archiveCategory")}
               description={t("categories.archiveDescription")}
@@ -368,7 +371,7 @@ export function CategoryListScreen({
               loading={isArchiving}
             />
             <DeleteOption
-              testID="category-delete-permanent"
+              testID="btn-delete-permanent-category"
               icon={
                 <Trash2
                   size={18}

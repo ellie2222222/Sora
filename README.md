@@ -66,11 +66,12 @@ packages/contracts/   @sora/contracts — enums, Zod schemas, response types,
                       Imported by both sides; redefined by neither.
 server/               NestJS 11 + Kysely + pg. TypeScript ESM.
 mobile/               Expo + React Native, React Navigation, Redux Toolkit + RTK Query.
+                      mobile/e2e/ holds the Maestro journeys.
 db/migrations/        Raw SQL, forward-only, immutable once applied.
 db/tests/             psql probes proving the constraints reject what they should.
 docs/API_SPECIFICATION.md   The authoritative 52-endpoint contract.
 scripts/check-contract-parity.mjs   Proves contract ↔ schema ↔ spec agreement.
-.github/workflows/ci.yml    Contracts → database → server; contracts → mobile.
+.github/workflows/ci.yml    Contracts → database → server; contracts → mobile; then e2e.
 ```
 
 Design and requirements: [`SRS.md`](SRS.md) (what the system does and why), [`SDS.md`](SDS.md)
@@ -149,6 +150,7 @@ parsing beyond the status code.
 
 ```bash
 npm run dev:mobile                 # or: npm start -w @sora/mobile / cd mobile && npx expo start
+npm run dev:mobile:clear           # same, with Metro's cache cleared — use when the bundle serves stale code
 ```
 
 Set `EXPO_PUBLIC_API_URL` to a host **the device** can reach. On a physical phone `localhost`
@@ -195,8 +197,8 @@ only in a service layer is one import script away from being bypassed.
 CI runs the same things: contracts first and alone (every other job depends on it, so a break
 there reports as one failure rather than a cascade), then the migrations against a real
 PostgreSQL 17 — applied, probed, then **applied again** to prove they are idempotent — then the
-API and the app in parallel. There is no emulator in CI, so a successful Expo bundle export is
-the strongest available evidence that every import resolves and the app would start.
+API and the app in parallel, and finally the Maestro journeys on an Android emulator against a
+release build and a real API (`mobile/e2e/README.md`).
 
 ## Money
 

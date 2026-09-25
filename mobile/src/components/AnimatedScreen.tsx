@@ -7,6 +7,7 @@ export interface AnimatedScreenProps {
   style?: StyleProp<ViewStyle>;
   slideDistance?: number;
   duration?: number;
+  testID?: string;
 }
 
 // `useIsFocused` re-fires this on every tab switch and stack pop back to this
@@ -16,6 +17,7 @@ export function AnimatedScreen({
   style,
   slideDistance = 20,
   duration = 280,
+  testID,
 }: AnimatedScreenProps) {
   const isFocused = useIsFocused();
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -49,6 +51,7 @@ export function AnimatedScreen({
 
   return (
     <Animated.View
+      testID={testID}
       style={[
         { flex: 1, opacity: opacityAnim, transform: [{ translateY: translateYAnim }] },
         style,

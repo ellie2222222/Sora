@@ -130,7 +130,7 @@ export function ConfirmDialog({
               {matchTextLabel ?? t('common.matchConfirmPrompt', { word: matchText })}
             </Text>
             <Input
-              testID="confirm-dialog-match-input"
+              testID="input-confirm-dialog-match"
               value={inputText}
               onChangeText={setInputText}
               placeholder={matchTextPlaceholder ?? matchText}
@@ -143,7 +143,7 @@ export function ConfirmDialog({
         <View className="flex-row" style={{ gap: theme.spacing.md, marginTop: theme.spacing.xs }}>
           <Button label={resolvedCancelLabel} variant="secondary" onPress={onCancel} style={{ flex: 1 }} />
           <Button
-            testID="confirm-dialog-confirm-button"
+            testID="btn-confirm-dialog"
             label={confirmLabel}
             variant={confirmBtnVariant}
             loading={loading}

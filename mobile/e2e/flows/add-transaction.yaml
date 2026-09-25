@@ -1,0 +1,67 @@
+appId: com.sora.app
+name: Add an expense through the sheet, with the calculator keypad and the date picker
+tags:
+  - transactions
+---
+- runFlow: ../subflows/login.yaml
+# Unique per run, so a rerun against the same user can't match an earlier run's row.
+- evalScript: ${output.description = 'E2E sheet expense ' + Date.now()}
+- tapOn:
+    id: "btn-add-transaction"
+- extendedWaitUntil:
+    visible:
+      id: "sheet-transaction"
+    timeout: 10000
+- tapOn:
+    id: "btn-transaction-type-EXPENSE"
+- tapOn:
+    id: "option-category-.*"
+    index: 0
+
+- tapOn:
+    id: "keypad-transaction-key-2"
+- tapOn:
+    id: "keypad-transaction-key-5"
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          id: "keypad-transaction-key-0"
+
+- tapOn:
+    id: "input-transaction-description"
+- inputText: ${output.description}
+# Not hideKeyboard: on Android that sends Back, which closes the sheet.
+- pressKey: Enter
+
+# The 15th of last month: a date the sheet does not default to.
+- tapOn:
+    id: "keypad-transaction-key-date"
+- extendedWaitUntil:
+    visible:
+      id: "sheet-date-picker"
+    timeout: 10000
+- tapOn:
+    id: "btn-previous-month"
+- tapOn:
+    id: "option-day-\\d{4}-\\d{2}-15"
+- extendedWaitUntil:
+    notVisible:
+      id: "sheet-date-picker"
+    timeout: 10000
+
+- tapOn:
+    id: "keypad-transaction-key-confirm"
+- extendedWaitUntil:
+    notVisible:
+      id: "sheet-transaction"
+    timeout: 15000
+
+- runScript:
+    file: ../scripts/api-login.js
+- runScript:
+    file: ../scripts/find-transaction.js
+    env:
+      DESCRIPTION: ${output.description}
+- assertTrue: ${output.amount == '25000.0000'}
+- assertTrue: ${output.day.slice(8) == '15'}

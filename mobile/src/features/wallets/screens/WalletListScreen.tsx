@@ -30,7 +30,7 @@ export function WalletListScreen({ navigation }: AppStackScreenProps<'WalletList
 
     return (
       <FlatList
-        testID="wallet-list"
+        testID="list-wallets"
         data={[...own, ...shared]}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.sm }}
@@ -39,7 +39,7 @@ export function WalletListScreen({ navigation }: AppStackScreenProps<'WalletList
             <Text variant="title">{t('wallets.title')}</Text>
             {!isGuest ? (
               <Button
-                testID="wallet-list-create"
+                testID="btn-add-wallet"
                 label={t('wallets.newWallet')}
                 size="sm"
                 onPress={() => setCreating(true)}
@@ -73,7 +73,7 @@ function WalletRow({ wallet, onPress }: { wallet: WalletResponse; onPress: () =>
   const { t } = useTranslation();
 
   return (
-    <Pressable testID={`wallet-list-item-${wallet.id}`} onPress={onPress}>
+    <Pressable testID={`row-wallet-${wallet.id}`} onPress={onPress}>
       <Card>
         <View className="flex-row justify-between items-start">
           <View className="flex-row flex-1" style={{ gap: theme.spacing.sm }}>
@@ -126,7 +126,7 @@ function CreateWalletModal({ visible, onClose }: { visible: boolean; onClose: ()
     <BottomSheetModal visible={visible} onClose={onClose} title={t('wallets.newWallet')}>
       <View style={{ gap: theme.spacing.md }}>
         <Input
-          testID="create-wallet-name"
+          testID="input-wallet-name"
           label={t('categories.name', { defaultValue: 'Name' })}
           placeholder={t('wallets.walletNamePlaceholder')}
           value={name}
@@ -134,7 +134,7 @@ function CreateWalletModal({ visible, onClose }: { visible: boolean; onClose: ()
         />
         {error !== null ? <Text tone="danger">{error}</Text> : null}
         <Button
-          testID="create-wallet-submit"
+          testID="btn-submit-wallet"
           label={t('common.create')}
           onPress={handleCreate}
           loading={isCreating}

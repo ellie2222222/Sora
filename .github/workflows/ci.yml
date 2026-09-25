@@ -41,6 +41,10 @@ jobs:
       - name: Contract/schema parity
         run: node scripts/check-contract-parity.mjs
 
+      # High, not moderate: the remaining moderates are expo's `uuid` chain, whose only npm fix is an Expo downgrade.
+      - name: Dependency audit (runtime deps)
+        run: npm audit --omit=dev --audit-level=high
+
   database:
     name: Database (migrations, constraints)
     runs-on: ubuntu-latest
@@ -154,8 +158,126 @@ jobs:
       - name: Tests
         run: npm run test --workspace @sora/mobile
 
-      # No emulator runs in CI, so a successful bundle is the strongest
-      # available evidence that every import resolves and the app would start.
+      # Cheap first signal that every import resolves; the e2e job below runs the real app.
       - name: Export bundle
         working-directory: mobile
         run: npx expo export --platform web --output-dir /tmp/expo-export
+
+  # Critical journeys on an Android emulator (plans/mobile/e2e-framework-decision.md). The app is a
+  # release build pointed at a real API on a disposable database, so a pass means the pieces connect.
+  e2e:
+    name: Mobile E2E (Maestro, Android emulator)
+    runs-on: ubuntu-latest
+    needs: [server, mobile]
+    timeout-minutes: 60
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: sora
+          POSTGRES_PASSWORD: sora
+          POSTGRES_DB: sora_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://sora:sora@localhost:5432/sora_e2e
+      E2E_API_URL: http://127.0.0.1:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci
+
+      - name: Build contracts and server
+        run: |
+          npm run build --workspace @sora/contracts
+          npm run build --workspace @sora/server
+
+      - name: Migrate
+        run: node scripts/migrate.mjs
+
+      - name: Start API
+        working-directory: server
+        env:
+          JWT_SECRET: ci-only-secret-not-used-anywhere-else
+          JWT_ISSUER: sora-e2e
+          GOOGLE_CLIENT_ID: e2e.apps.googleusercontent.com
+          NODE_ENV: development
+          APP_VERSION: 0.0.0-e2e
+          PORT: '3000'
+          # The flows sign in several times from one address within a minute.
+          AUTH_RATE_LIMIT_PER_MINUTE: '1000'
+          EXCHANGE_RATE_API_URL: http://127.0.0.1:9/no-network
+        run: |
+          nohup node dist/src/main.js > "$RUNNER_TEMP/api.log" 2>&1 &
+          for attempt in $(seq 1 30); do curl -fs "$E2E_API_URL/api/v1/health" && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/api.log"; exit 1
+
+      - name: Seed probe user
+        run: node mobile/e2e/seed.mts "$GITHUB_ENV"
+
+      # SORA_E2E_BUILD lets this release build reach the local API over plain HTTP (app.config.js).
+      - name: Build E2E APK
+        working-directory: mobile
+        env:
+          SORA_E2E_BUILD: '1'
+          EXPO_PUBLIC_API_BASE_URL: http://localhost:3000
+          EXPO_PUBLIC_ALLOW_INSECURE_API: 'true'
+          NODE_ENV: production
+        run: |
+          npx expo prebuild --platform android --no-install
+          # The emulator is x86_64; building only that ABI skips three quarters of the native compile.
+          cd android && ./gradlew assembleRelease --console=plain -PreactNativeArchitectures=x86_64
+
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run flows
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          MAESTRO_CLI_NO_ANALYTICS: '1'
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            adb reverse tcp:3000 tcp:3000
+            adb install mobile/android/app/build/outputs/apk/release/app-release.apk
+            maestro test mobile/e2e -e E2E_API_BASE="$E2E_API_BASE" -e E2E_EMAIL="$E2E_EMAIL" -e E2E_PASSWORD="$E2E_PASSWORD" -e E2E_WALLET_ID="$E2E_WALLET_ID" --format junit --output "$RUNNER_TEMP/maestro-report.xml"
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-e2e
+          path: |
+            ~/.maestro/tests
+            ${{ runner.temp }}/maestro-report.xml
+            ${{ runner.temp }}/api.log

@@ -194,7 +194,7 @@ export function GuestUploadScreen() {
             <View className="flex-row justify-between items-center">
               <Text weight="semibold">{wallet.name === 'Guest Wallet' ? t('wallets.guestWallet') : wallet.name}</Text>
               <Button
-                testID={`guest-upload-use-${wallet.id}`}
+                testID={`btn-use-wallet-${wallet.id}`}
                 label={t('guest.upload.useThisWallet')}
                 size="sm"
                 onPress={() => setTargetWalletId(wallet.id)}
@@ -207,13 +207,13 @@ export function GuestUploadScreen() {
       <View style={{ gap: theme.spacing.sm }}>
         <Text variant="title">{t('guest.upload.createNew')}</Text>
         <Input
-          testID="guest-upload-new-wallet-name"
+          testID="input-wallet-name"
           placeholder={t('guest.upload.newWalletPlaceholder')}
           value={newWalletName}
           onChangeText={setNewWalletName}
         />
         <Button
-          testID="guest-upload-create-and-use"
+          testID="btn-submit-wallet"
           label={t('guest.upload.createAndUse')}
           onPress={() => void handleCreateWallet()}
           loading={creating}

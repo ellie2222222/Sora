@@ -214,7 +214,7 @@ export function WalletDetailScreen({
               ) : null}
               {canLeave ? (
                 <Pressable
-                  testID="wallet-detail-leave"
+                  testID="btn-leave-wallet"
                   onPress={() => {
                     setActionError(null);
                     setPendingAction("leave");
@@ -228,7 +228,7 @@ export function WalletDetailScreen({
               ) : null}
               {canShare ? (
                 <Pressable
-                  testID="wallet-detail-archive"
+                  testID="btn-archive-wallet"
                   onPress={() => {
                     setActionError(null);
                     setPendingAction("archive");

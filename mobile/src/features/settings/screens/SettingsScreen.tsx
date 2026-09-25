@@ -38,7 +38,7 @@ export function SettingsScreen({ navigation: _navigation }: MainTabScreenProps<'
   return (
     <AnimatedScreen>
       <ScrollView
-        testID="settings-screen"
+        testID="screen-settings"
         className="flex-1"
         style={{ backgroundColor: theme.colors.background }}
         contentContainerStyle={{

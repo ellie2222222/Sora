@@ -56,7 +56,7 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
         </Text>
 
         <Input
-          testID="invite-email"
+          testID="input-invitation-email"
           label={t('auth.emailLabel')}
           autoCapitalize="none"
           keyboardType="email-address"
@@ -69,7 +69,7 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
             {t('invitations.howDoYouKnow')}
           </Text>
           <Input
-            testID="invite-relation-label"
+            testID="input-invitation-relation-label"
             placeholder={t('invitations.relationPlaceholder')}
             value={relationLabel}
             onChangeText={setRelationLabel}
@@ -78,7 +78,7 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
             {SUGGESTED_LABELS.map((label) => (
               <Button
                 key={label}
-                testID={`invite-relation-chip-${label}`}
+                testID={`btn-invitation-relation-${label}`}
                 label={label}
                 size="sm"
                 variant={relationLabel === label ? 'primary' : 'secondary'}
@@ -95,7 +95,7 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
           {INVITABLE.map((candidate) => (
             <Button
               key={candidate}
-              testID={`invite-role-${candidate}`}
+              testID={`btn-invitation-role-${candidate}`}
               label={`${getRoleLabel(candidate, t)} — ${getRoleDescription(candidate, t)}`}
               variant={role === candidate ? 'primary' : 'secondary'}
               onPress={() => setRole(candidate)}
@@ -107,7 +107,7 @@ export function InviteMemberScreen({ route, navigation }: AppStackScreenProps<'I
         {error !== null ? <Text tone="danger">{error}</Text> : null}
 
         <Button
-          testID="invite-submit"
+          testID="btn-submit-invitation"
           label={t('invitations.sendInvitation')}
           onPress={handleSubmit}
           loading={isInviting}

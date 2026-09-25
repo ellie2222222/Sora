@@ -87,7 +87,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
 
     return (
       <RefreshableFlatList
-        testID="budgets-list"
+        testID="list-budgets"
         data={items}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
@@ -96,7 +96,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
         ListHeaderComponent={
           permissions.canWrite ? (
             <View className="flex-row justify-end" style={{ marginBottom: theme.spacing.sm }}>
-              <Pressable testID="budgets-add" hitSlop={12} onPress={() => openModal('AddBudget')}>
+              <Pressable testID="btn-add-budget" hitSlop={12} onPress={() => openModal('AddBudget')}>
                 <Plus size={20} color={theme.colors.primary} />
               </Pressable>
             </View>
@@ -150,7 +150,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
 
     return (
       <RefreshableFlatList
-        testID="goals-list"
+        testID="list-goals"
         data={items}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
@@ -159,7 +159,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
         ListHeaderComponent={
           permissions.canWrite ? (
             <View className="flex-row justify-end" style={{ marginBottom: theme.spacing.sm }}>
-              <Pressable testID="goals-add" hitSlop={12} onPress={() => openModal('AddGoal')}>
+              <Pressable testID="btn-add-goal" hitSlop={12} onPress={() => openModal('AddGoal')}>
                 <Plus size={20} color={theme.colors.primary} />
               </Pressable>
             </View>
@@ -178,7 +178,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
   };
 
   return (
-    <AnimatedScreen>
+    <AnimatedScreen testID="screen-planning">
       <WalletContextBar onManage={onManage}>
         <View
           style={{
@@ -278,7 +278,7 @@ function BudgetCard({ budget, onPress }: { budget: BudgetResponse; onPress: () =
   const syncStatus = useSelector(selectQueueEntryFor('budget', budget.id))?.status;
 
   return (
-    <Card testID={`budget-card-${budget.id}`} onTouchEnd={onPress}>
+    <Card testID={`row-budget-${budget.id}`} onTouchEnd={onPress}>
       <View className="flex-row items-center justify-between" style={{ marginBottom: theme.spacing.xs }}>
         <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
           <Text weight="semibold">{budget.name}</Text>
@@ -315,7 +315,7 @@ function GoalCard({ goal, onPress }: { goal: GoalResponse; onPress: () => void }
   const syncStatus = useSelector(selectQueueEntryFor('goal', goal.id))?.status;
 
   return (
-    <Card testID={`goal-card-${goal.id}`} onTouchEnd={onPress}>
+    <Card testID={`row-goal-${goal.id}`} onTouchEnd={onPress}>
       <View className="flex-row items-center" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.xs }}>
         <Text weight="semibold">{goal.name}</Text>
         <SyncStatusDot status={syncStatus} />

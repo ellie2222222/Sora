@@ -23,6 +23,9 @@ In `.claude/skills/`. Reach for these instead of improvising the same sweep by h
 | `commit-messages` | Reads the working tree, groups changes into cohesive commits, drafts a message each in this repo's style. **The only sanctioned path to a commit** — see Git below |
 | `comment-audit` | Comment-only sweep: removes "what" comments, stale rationale, commented-out code, untracked `TODO`s, and adds a missing "why" where non-obvious code has none. Never changes logic |
 | `restructure` | Where files live: misplaced or orphaned files, naming drift, layout that no longer matches the documented architecture |
+| `extract-modules` | Splits code out of screens into dedicated files — duplicated/oversized inline components, label maps, shared types, pure helpers, hooks — and re-points callers |
+| `i18n-audit` | Translation catalog: orphaned/missing keys, en/vi parity and untranslated copies, drifted `defaultValue`s, hardcoded UI text |
+| `scratch-probe` | Runs a changed server path against a disposable Postgres + freshly built API with probe data, then tears down by exact name |
 | `infra-audit` | Whether the system's design and operational posture still fit its scale — distinct from `double-check` (bugs in what exists) |
 | `brainstorm-features` | Feature suggestions grounded in this repo's actual current patterns, discovered live |
 | `skill-audit` | Audits the skill files themselves — frozen path references, trigger collisions, advice with no observable check |
@@ -305,26 +308,28 @@ finance/
 │   │   ├── auth/  wallets/  accounts/  categories/
 │   │   ├── transactions/  budgets/  goals/  dashboard/  audit/
 │   │   └── main.ts
-│   └── test/                  # node --test; boots the DI graph, no database
+│   └── test/                  # node --test; unit tests boot the DI graph, integration.*.test.ts also a real Postgres
 ├── mobile/                    # @sora/mobile — Expo + React Native
+│   ├── app.config.js           # app.json as-is, except SORA_E2E_BUILD=1 allows cleartext for the E2E build
+│   ├── e2e/                    # Maestro flows, API seed and helper scripts (see its README)
 │   └── src/
 │       ├── App.tsx
 │       ├── app/                # config/, i18n/, navigation/, providers/, store/ (Redux Toolkit + RTK Query)
 │       ├── features/           # one directory per domain feature, each with its own barrel
 │       ├── components/         # shared UI primitives, barrel-exported
 │       ├── design-system/      # colors, spacing, radius, shadows, theme tokens
-│       ├── services/           # api/, auth/, guest/ (local-first guest mode), storage/, sync/ (offline queue)
+│       ├── services/           # api/, auth/, guest/ (local-first guest mode), storage/, sync/ (offline queue, per-account read cache)
 │       ├── stores/  hooks/  utils/  types/
 ├── db/
 │   ├── migrations/            # raw SQL, forward-only, immutable once applied
 │   └── tests/                 # psql constraint probes against a real Postgres
 ├── scripts/                   # check-contract-parity.mjs, migrate.mjs
-├── .github/workflows/ci.yml   # contracts → database → server; contracts → mobile
+├── .github/workflows/ci.yml   # contracts → database → server; contracts → mobile; server + mobile → e2e
 ├── docs/API_SPECIFICATION.md
 ├── SRS.md  SDS.md
 ├── plans/
 │   ├── architecture/          # domain-database-design.md, multi-currency-plan.md, exchange-rate-resilience-plan.md
-│   └── mobile/offline-sync-plan.md              # offline mutation queue design
+│   └── mobile/                # offline-sync-plan.md (offline mutation queue), e2e-framework-decision.md
 └── aif-sdlc-checklist.md                       # per-feature pre-merge gate
 ```
 
@@ -363,15 +368,20 @@ npm run db:test                               # apply, then run db/tests/*.sql p
 npm run setup                                 # install + build contracts + migrate, one shot
 npm run dev:server                            # server: build, then watch + auto-restart
 npm run dev:mobile                            # mobile: expo start
+npm run dev:mobile:clear                      # mobile, Metro cache cleared (stale bundle after an edit)
 npm run dev                                   # both together
 # One-shot, no watch:
 npm run build -w @sora/server && npm start -w @sora/server
+
+# E2E (Maestro, Android emulator, disposable database): steps in mobile/e2e/README.md
+maestro test mobile/e2e -e E2E_API_BASE=… -e E2E_EMAIL=… -e E2E_PASSWORD=… -e E2E_WALLET_ID=…
 ```
 
 CI (`.github/workflows/ci.yml`) runs contracts alone first, then the migrations against a real
 PostgreSQL 17 — applied, probed, then applied **again** to prove idempotence. Server waits on both
 contracts and the database job; mobile needs only contracts and runs alongside the database job. Passing migrations only prove the DDL parses; `db/tests/*.sql` is what
-proves the rules are enforced, which is why both run.
+proves the rules are enforced, which is why both run. Last, `e2e` (after server and mobile) builds
+the E2E APK and runs `mobile/e2e` on an Android emulator against the API on its own database.
 
 ### Service URLs
 
@@ -563,9 +573,9 @@ FKs `<entity>_id`. Constraint prefixes are load-bearing because the parity check
 (`/transactions/{id}/delete`, `/wallets/{id}/transfer-ownership`).
 
 **NC-04 — React Native `testID`, not element IDs.**
-There is no DOM here; `testID` is the only stable selector Detox and React Native Testing
-Library can address, and an unset one leaves a component reachable only by its visible text,
-which breaks on any copy change or translation.
+There is no DOM here; `testID` is the only stable selector the E2E suite (Maestro, `id:`; see
+`plans/mobile/e2e-framework-decision.md`) can address, and an unset one leaves a component
+reachable only by its visible text, which breaks on any copy change or translation.
 
 | Element | Pattern | Example |
 |---|---|---|
@@ -578,6 +588,13 @@ which breaks on any copy change or translation.
 | List row | `row-[entity]-[id]` | `row-transaction-<uuid>` |
 | Picker | `picker-[entity]` | `picker-wallet` |
 | Bottom sheet / modal | `sheet-[entity]` | `sheet-transaction` |
+| Sheet's Cancel | `btn-cancel-[entity]` | `btn-cancel-transaction` |
+| Picker option | `option-[entity]-[id]` | `option-category-<uuid>` |
+| Segmented choice | `btn-[entity]-[field]-[value]` | `btn-transaction-type-EXPENSE` |
+| Calculator keypad | `keypad-[entity]`; keys `-key-<label>`, submit `-key-confirm` | `keypad-transaction-key-confirm` |
+
+`SheetFormHeader`'s `entity` prop sets both sheet ids. Screens that stay mounted together (tabs, a
+stack's lower screen) can share an id, so a flow checks its `screen-*` root before acting.
 
 ### Mobile Conventions
 
@@ -681,7 +698,7 @@ restating them.
 
 ## Part 6: Technology Stack
 
-**Shared** — `@sora/contracts`: TypeScript 5.7, Zod 3, `node --test`. No runtime dependency
+**Shared** — `@sora/contracts`: TypeScript 6.0, Zod 3, `node --test`. No runtime dependency
 beyond Zod, so the app bundles it without pulling server code in.
 
 **API** — Node 22+, NestJS 11, TypeScript ESM (`NodeNext`, `.ts` specifiers rewritten on emit),
@@ -1000,3 +1017,12 @@ rewriting it.
     was auditing disappears with no error. `record()` therefore wraps its insert in a `SAVEPOINT`
     when handed a transaction. Any other best-effort write run inside a caller's transaction needs
     the same shape, or must run outside it.
+
+17. **Device-local data belongs to one identity; never serve it to another.** The guest store is the
+    guest's ledger, so a signed-in read must never fall back to it when offline. It showed a "Guest
+    Wallet" in place of the user's data, and seeding it routed the user to guest upload. Signed-in
+    reads go through `readSignedIn`: on a network failure they rethrow, and RTK Query keeps the last
+    data, or the account's own saved copy. The same rule covers every device-local store across a
+    user switch. The in-memory cache is reset whenever the session ends. The SQLite read cache
+    and the queue rows are keyed by account, so another account's data stays on the device but
+    is never read.

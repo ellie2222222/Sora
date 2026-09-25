@@ -185,7 +185,7 @@ export function WalletMembersScreen({
           <Text variant="title">{t("wallets.members")}</Text>
           {isOwner ? (
             <Button
-              testID="wallet-members-invite"
+              testID="btn-add-invitation"
               label={t("members.invite")}
               size="sm"
               onPress={() => navigation.navigate("InviteMember", { walletId })}
@@ -237,7 +237,7 @@ export function WalletMembersScreen({
     const canAct = canManage && !isSelf && member.role !== WalletRole.OWNER;
 
     return (
-      <Card testID={`wallet-member-${member.id}`}>
+      <Card testID={`row-member-${member.id}`}>
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
             <UsersRound size={18} color={theme.colors.textMuted} />
@@ -256,8 +256,10 @@ export function WalletMembersScreen({
           </View>
           {canAct ? (
             <Pressable
-              testID={`wallet-member-actions-${member.id}`}
-              hitSlop={12}
+              testID={`btn-actions-member-${member.id}`}
+              hitSlop={13}
+              accessibilityRole="button"
+              accessibilityLabel={t("members.memberActions", { name: member.displayName })}
               onPress={onOpenActions}
             >
               <MoreVertical size={18} color={theme.colors.textMuted} />
@@ -279,7 +281,7 @@ export function WalletMembersScreen({
     const { t } = useTranslation();
 
     return (
-      <Card testID={`wallet-invitation-${invitation.id}`}>
+      <Card testID={`row-invitation-${invitation.id}`}>
         <View className="flex-row justify-between items-center">
           <View>
             <Text>{invitation.invitedEmail}</Text>
@@ -294,8 +296,11 @@ export function WalletMembersScreen({
             </Text>
           </View>
           <Pressable
-            testID={`wallet-invitation-revoke-${invitation.id}`}
-            hitSlop={12}
+            testID={`btn-revoke-invitation-${invitation.id}`}
+            hitSlop={13}
+            accessibilityRole="button"
+            accessibilityLabel={t("members.revokeInvitation")}
+            accessibilityHint={invitation.invitedEmail}
             onPress={onRevoke}
           >
             <X size={18} color={theme.colors.danger} />

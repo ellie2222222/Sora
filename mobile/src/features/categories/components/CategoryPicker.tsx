@@ -83,7 +83,7 @@ export function CategoryPicker({ walletId, type, value, onChange, onClear, error
         >
           {onClear !== undefined ? (
             <CategoryRow
-              testID="category-picker-item-none"
+              testID="option-category-none"
               label={noCategoryLabel}
               color={null}
               selected={value === null}
@@ -96,7 +96,7 @@ export function CategoryPicker({ walletId, type, value, onChange, onClear, error
           {(categories.data ?? []).map((category) => (
             <CategoryRow
               key={category.id}
-              testID={`category-picker-item-${category.id}`}
+              testID={`option-category-${category.id}`}
               label={category.name}
               color={category.color}
               selected={category.id === value}

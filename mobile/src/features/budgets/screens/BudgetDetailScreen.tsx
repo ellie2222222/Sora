@@ -106,7 +106,7 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
 
           {data.status === BudgetStatus.ARCHIVED ? (
             <Text tone="muted" weight="semibold" style={{ marginTop: theme.spacing.sm }}>
-              {t('common.archive', 'Archived')}
+              {t('common.archived', 'Archived')}
             </Text>
           ) : null}
         </Card>
@@ -116,9 +116,9 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
             <Text variant="label" tone="muted">
               {t('budgets.editBudget', 'Edit budget')}
             </Text>
-            <Input testID="budget-detail-name" label={t('categories.name', 'Name')} value={nameValue} onChangeText={setName} />
+            <Input testID="input-budget-name" label={t('categories.name', 'Name')} value={nameValue} onChangeText={setName} />
             <MoneyInput
-              testID="budget-detail-amount"
+              testID="input-budget-amount"
               label={t('transactions.amount', 'Amount')}
               value={amountValue}
               onChangeValue={setAmount}
@@ -127,7 +127,7 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
             {actionError !== null ? <Text tone="danger">{actionError}</Text> : null}
 
             <Button
-              testID="budget-detail-save"
+              testID="btn-submit-budget"
               label={t('common.save', 'Save')}
               onPress={() => void handleSave(data)}
               loading={isSaving}
@@ -135,7 +135,7 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
               fullWidth
             />
             <Button
-              testID="budget-detail-archive"
+              testID="btn-archive-budget"
               label={t('budgets.archiveBudget', 'Archive budget')}
               variant="danger"
               onPress={() => setArchiving(true)}

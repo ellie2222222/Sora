@@ -1,0 +1,15 @@
+appId: com.sora.app
+name: Signing in survives killing and relaunching the app
+tags:
+  - auth
+---
+- runFlow: ../subflows/login.yaml
+- stopApp
+# No clearState: the session saved in secure storage must bring the user straight back.
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "screen-home"
+    timeout: 30000
+- assertNotVisible:
+    id: "screen-login"

@@ -93,7 +93,7 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
     if (items.length === 0) {
       return (
         <RefreshableScrollView
-          testID="accounts-screen"
+          testID="screen-accounts"
           contentContainerStyle={{ flexGrow: 1, padding: theme.spacing.md }}
           refreshing={isRefreshing}
           onRefresh={handleRefresh}
@@ -131,7 +131,7 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
 
     return (
       <RefreshableScrollView
-        testID="accounts-screen"
+        testID="screen-accounts"
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.lg }}
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
@@ -210,7 +210,7 @@ export function AccountsScreen({ navigation }: MainTabScreenProps<'Account'>) {
             <Text variant="title">{t('accounts.accountsLabel')}</Text>
             {permissions.canWrite ? (
               <Pressable
-                testID="accounts-add-button"
+                testID="btn-add-account"
                 onPress={() => openModal('AddAccount', { walletId: activeWalletId ?? undefined })}
                 className="flex-row items-center gap-xs"
                 style={{
@@ -269,7 +269,7 @@ function AccountRow({ account, onPress }: { account: AccountResponse; onPress: (
 
   return (
     <Pressable
-      testID={`account-row-${account.id}`}
+      testID={`row-account-${account.id}`}
       onPress={onPress}
       className="flex-row items-center justify-between"
       style={{ paddingVertical: theme.spacing.sm }}

@@ -70,7 +70,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
   }
 
   return (
-    <AnimatedScreen style={{ backgroundColor: theme.colors.background }}>
+    <AnimatedScreen testID="screen-login" style={{ backgroundColor: theme.colors.background }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -88,7 +88,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
             name="email"
             render={({ field }) => (
               <Input
-                testID="login-email"
+                testID="input-login-email"
                 label={t('auth.emailLabel')}
                 autoCapitalize="none"
                 autoComplete="email"
@@ -105,7 +105,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
             name="password"
             render={({ field }) => (
               <Input
-                testID="login-password"
+                testID="input-login-password"
                 label={t('auth.passwordLabel')}
                 secureTextEntry
                 autoCapitalize="none"
@@ -124,7 +124,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
           ) : null}
 
           <Button
-            testID="login-submit"
+            testID="btn-submit-login"
             label={t('auth.loginButton')}
             onPress={onSubmit}
             loading={isSubmitting}

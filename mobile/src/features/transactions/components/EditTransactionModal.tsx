@@ -96,7 +96,7 @@ export function EditTransactionModal({
         >
           <StateView
             variant="error"
-            error={transaction.error ?? new Error("Transaction unavailable")}
+            error={transaction.error ?? new Error(t("transactions.unavailable", "Transaction unavailable"))}
             retryAction={() => void transaction.refetch()}
             testID="edit-transaction-missing"
           />
@@ -188,14 +188,14 @@ export function EditTransactionModal({
           </Text>
 
           <Input
-            testID="edit-transaction-description"
+            testID="input-transaction-description"
             label={t("transactions.note", { defaultValue: "Note" })}
             value={descriptionValue}
             onChangeText={setDescription}
           />
 
           <DateField
-            testID="edit-transaction-date"
+            testID="input-transaction-date"
             label={t("transactions.date", { defaultValue: "Date" })}
             value={dayValue}
             onChange={setDay}
@@ -203,7 +203,7 @@ export function EditTransactionModal({
 
           {categoryWalletId !== undefined ? (
             <CategoryPicker
-              testID="edit-transaction-category"
+              testID="picker-category"
               walletId={categoryWalletId}
               type={categoryTypeFor(data.type)}
               onClear={data.type === TransactionType.TRANSFER ? () => setCategoryId(null) : undefined}
@@ -213,7 +213,7 @@ export function EditTransactionModal({
           ) : null}
 
           <Input
-            testID="edit-transaction-reference"
+            testID="input-transaction-reference"
             label={t("transactions.reference", { defaultValue: "Reference" })}
             value={referenceValue}
             onChangeText={setReference}
@@ -224,7 +224,7 @@ export function EditTransactionModal({
           ) : null}
 
           <Button
-            testID="edit-transaction-submit"
+            testID="btn-submit-transaction"
             label={t("common.save", { defaultValue: "Save" })}
             onPress={() => void handleSubmit(data)}
             loading={isSaving}

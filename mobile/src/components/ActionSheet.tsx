@@ -50,7 +50,7 @@ export function ActionSheet({ visible, title, actions, cancelLabel, onCancel }: 
         ))}
 
         <Pressable
-          testID="action-sheet-cancel"
+          testID="btn-cancel-action-sheet"
           onPress={onCancel}
           className="border-t"
           style={{

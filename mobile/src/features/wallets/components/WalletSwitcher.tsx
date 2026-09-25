@@ -48,7 +48,7 @@ export function WalletSwitcher({ onManage }: { onManage?: () => void }) {
   return (
     <>
       <Pressable
-        testID="wallet-switcher-open"
+        testID="picker-wallet"
         onPress={() => setOpen(true)}
         className="flex-row items-center"
         style={{ gap: theme.spacing.xs }}
@@ -79,7 +79,7 @@ export function WalletSwitcher({ onManage }: { onManage?: () => void }) {
           ))}
           {onManage !== undefined ? (
             <Pressable
-              testID="wallet-switcher-manage"
+              testID="btn-manage-wallets"
               onPress={() => {
                 setOpen(false);
                 onManage();
@@ -112,7 +112,7 @@ function WalletRow({
 
   return (
     <Pressable
-      testID={`wallet-switcher-item-${wallet.id}`}
+      testID={`option-wallet-${wallet.id}`}
       onPress={onPress}
       className="flex-row items-center justify-between"
       style={{
