@@ -88,11 +88,12 @@ const MESSAGES: Record<ErrorCode, string> = {
   GOAL_NOT_ACTIVE: 'This goal is not active',
   CONTRIBUTION_NOT_FOUND: 'Contribution not found',
   RATE_LIMITED: 'Too many requests — try again shortly',
+  ROUTE_NOT_FOUND: 'No such endpoint',
   INTERNAL_ERROR: 'Something went wrong on our side',
   GOOGLE_TOKEN_INVALID: 'Google sign-in could not be verified',
   VALUATION_UNAVAILABLE: 'Converted valuation is unavailable right now',
 };
 
-function defaultMessage(code: ErrorCode): string {
+export function defaultMessage(code: ErrorCode): string {
   return MESSAGES[code];
 }

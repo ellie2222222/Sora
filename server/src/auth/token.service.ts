@@ -107,14 +107,20 @@ export class TokenService {
     return { token, expiresAt };
   }
 
-  async revokeToken(tokenHash: string, executor?: Executor): Promise<void> {
+  /**
+   * True only for the one caller whose update flipped the row, so two requests
+   * racing with the same token cannot both treat it as unspent.
+   */
+  async revokeToken(tokenHash: string, userId: string, executor?: Executor): Promise<boolean> {
     const db = executor ?? this.database.db;
-    await db
+    const result = await db
       .updateTable('refresh_tokens')
       .set({ revoked_at: new Date() })
       .where('token_hash', '=', tokenHash)
+      .where('user_id', '=', userId)
       .where('revoked_at', 'is', null)
-      .execute();
+      .executeTakeFirst();
+    return result.numUpdatedRows > 0n;
   }
 
   /**

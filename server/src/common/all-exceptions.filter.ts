@@ -13,12 +13,14 @@ import {
   type ArgumentsHost,
   type ExceptionFilter,
 } from '@nestjs/common';
+import { inspect } from 'node:util';
+
 import type { Response } from 'express';
 import { ZodError } from 'zod';
 
 import { ERROR_STATUS, HTTP_STATUS, type ApiErrorBody, type ErrorCode } from '@sora/contracts';
 
-import { AppError } from './app-error.ts';
+import { AppError, defaultMessage } from './app-error.ts';
 import { pathOf, type RequestWithId } from './request-logging.ts';
 
 /**
@@ -31,6 +33,7 @@ const FRAMEWORK_CODES: Record<number, ErrorCode> = {
   [HTTP_STATUS.BAD_REQUEST]: 'VALIDATION_FAILED',
   [HTTP_STATUS.UNAUTHORIZED]: 'UNAUTHENTICATED',
   [HTTP_STATUS.FORBIDDEN]: 'FORBIDDEN',
+  [HTTP_STATUS.NOT_FOUND]: 'ROUTE_NOT_FOUND',
   [HTTP_STATUS.UNPROCESSABLE_ENTITY]: 'VALIDATION_FAILED',
   [HTTP_STATUS.TOO_MANY_REQUESTS]: 'RATE_LIMITED',
 };
@@ -69,6 +72,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       meta: { timestamp: new Date().toISOString() },
     };
 
+    // §2.9: every 429 says when to retry. The per-IP guard sets the header itself; a service-raised limit passes the wait in params.
+    const retryAfter = params?.retryAfterSeconds;
+    if (status === HTTP_STATUS.TOO_MANY_REQUESTS && typeof retryAfter === 'number' && !response.getHeader('Retry-After')) {
+      response.setHeader('Retry-After', String(Math.max(1, Math.ceil(retryAfter))));
+    }
+
     response.status(status).json(body);
   }
 }
@@ -105,10 +114,16 @@ function classify(exception: unknown): Classified {
 
   if (exception instanceof HttpException) {
     const status = exception.getStatus();
+    const mapped = FRAMEWORK_CODES[status];
+    const code = mapped ?? 'INTERNAL_ERROR';
+    // Framework text quotes the caller's body or URL, and a 5xx from a library
+    // can carry anything, so only unmapped 4xx (e.g. 413 body too large) pass through.
+    const fixed = mapped !== undefined || status >= HTTP_STATUS.INTERNAL_SERVER_ERROR;
     return {
-      code: FRAMEWORK_CODES[status] ?? 'INTERNAL_ERROR',
+      code,
       status,
-      message: exception.message,
+      message: fixed ? defaultMessage(code) : exception.message,
+      internal: exception.message,
     };
   }
 
@@ -118,8 +133,8 @@ function classify(exception: unknown): Classified {
   return {
     code: 'INTERNAL_ERROR',
     status: ERROR_STATUS.INTERNAL_ERROR,
-    message: 'Unexpected error',
-    ...(exception instanceof Error ? { internal: exception.message } : {}),
+    message: defaultMessage('INTERNAL_ERROR'),
+    internal: exception instanceof Error ? exception.message : inspect(exception, { depth: 2 }),
   };
 }
 

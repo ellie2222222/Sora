@@ -143,6 +143,9 @@ export class AuthService {
       throw new AppError(
         'RATE_LIMITED',
         `Too many failed sign-in attempts. Try again in ${lockout.retryAfterSeconds}s`,
+        undefined,
+        undefined,
+        { retryAfterSeconds: lockout.retryAfterSeconds },
       );
     }
 
@@ -302,29 +305,16 @@ export class AuthService {
 
     if (!stored) throw new AppError('TOKEN_INVALID');
 
-    if (stored.revoked_at !== null) {
-      const revoked = await this.tokens.revokeFamily(stored.user_id);
-      this.logger.warn(
-        `Refresh token replay for user=${stored.user_id}; revoked ${revoked} live token(s)`,
-      );
-      await this.audit.record({
-        event: AUDIT_EVENTS.TOKEN_REPLAY_DETECTED,
-        entityType: ENTITY_TYPES.SESSION,
-        entityId: stored.token_id,
-        actorId: stored.user_id,
-        result: 'DENIED',
-        note: `Replayed refresh token; revoked ${revoked} live token(s) for this user`,
-        ip,
-      });
-      throw new AppError('TOKEN_INVALID');
-    }
+    if (stored.revoked_at !== null) return this.rejectReplay(stored.user_id, stored.token_id, ip);
 
     if (stored.expires_at.getTime() <= Date.now()) throw new AppError('TOKEN_EXPIRED');
 
     const rotated = await this.database.db.transaction().execute(async (trx) => {
-      await this.tokens.revokeToken(tokenHash, trx);
-      return this.tokens.issueRefreshToken(stored.user_id, trx);
+      const spent = await this.tokens.revokeToken(tokenHash, stored.user_id, trx);
+      return spent ? this.tokens.issueRefreshToken(stored.user_id, trx) : null;
     });
+    // Another request spent this token between the read above and the revoke.
+    if (rotated === null) return this.rejectReplay(stored.user_id, stored.token_id, ip);
 
     await this.audit.record({
       event: AUDIT_EVENTS.TOKEN_REFRESHED,
@@ -340,13 +330,28 @@ export class AuthService {
     );
   }
 
+  private async rejectReplay(userId: string, tokenId: string, ip: string | null): Promise<never> {
+    const revoked = await this.tokens.revokeFamily(userId);
+    this.logger.warn(`Refresh token replay for user=${userId}; revoked ${revoked} live token(s)`);
+    await this.audit.record({
+      event: AUDIT_EVENTS.TOKEN_REPLAY_DETECTED,
+      entityType: ENTITY_TYPES.SESSION,
+      entityId: tokenId,
+      actorId: userId,
+      result: 'DENIED',
+      note: `Replayed refresh token; revoked ${revoked} live token(s) for this user`,
+      ip,
+    });
+    throw new AppError('TOKEN_INVALID');
+  }
+
   /** Idempotent: logging out twice still succeeds. */
   async logout(
     user: AuthenticatedUser,
     refreshToken: string | undefined,
     ip: string | null,
   ): Promise<void> {
-    if (refreshToken) await this.tokens.revokeToken(this.tokens.hashToken(refreshToken));
+    if (refreshToken) await this.tokens.revokeToken(this.tokens.hashToken(refreshToken), user.id);
     else await this.tokens.revokeFamily(user.id);
 
     await this.audit.record({
