@@ -1,6 +1,8 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { ActivityIndicator, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
+import { ConfirmDialog } from '@/components';
 import { GuestUploadScreen } from '@/features/guest';
 import { WalletProvider, useAuth, useTheme } from '@/app/providers';
 import { AppNavigator } from './AppNavigator.tsx';
@@ -13,7 +15,9 @@ import { AuthNavigator } from './AuthNavigator.tsx';
  */
 export function RootNavigator() {
   const theme = useTheme();
-  const { isAuthenticated, isGuest, pendingGuestUpload, restoring } = useAuth();
+  const { t } = useTranslation();
+  const { isAuthenticated, isGuest, pendingGuestUpload, restoring, otherAccountNotice, dismissOtherAccountNotice, logout } =
+    useAuth();
 
   if (restoring) {
     return (
@@ -36,6 +40,16 @@ export function RootNavigator() {
       ) : (
         <AuthNavigator />
       )}
+      <ConfirmDialog
+        visible={isAuthenticated && otherAccountNotice !== null}
+        variant="info"
+        title={t('auth.otherAccountDataTitle')}
+        message={t('auth.otherAccountDataMessage', { accounts: otherAccountNotice?.join(', ') ?? '' })}
+        confirmLabel={t('auth.otherAccountDataContinue')}
+        cancelLabel={t('settings.logout')}
+        onConfirm={dismissOtherAccountNotice}
+        onCancel={() => void logout()}
+      />
     </NavigationContainer>
   );
 }

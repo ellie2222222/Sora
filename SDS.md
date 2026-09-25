@@ -462,7 +462,7 @@ exchange-rate provider in §4.5, and only when a dashboard request asks for a co
 
 **State-management note:** `mobile/package.json` does not depend on `zustand` — all real
 server-state fetching/mutation goes through Redux Toolkit's RTK Query (`apiSlice`, 9 resource
-slices, ~37 generated hooks: `useListTransactionsQuery`, `useCreateTransactionMutation`, etc.),
+slices, ~37 generated hooks: `useListTransactionsInfiniteQuery`, `useCreateTransactionMutation`, etc.),
 wired through a custom `axiosBaseQuery` so the existing bearer-attach/refresh-on-401 axios
 interceptors stay the one implementation. `@tanstack/react-query` is a real dependency and one
 `QueryClient` is provided app-wide (`QueryProvider`), but no screen calls its `useQuery`/
@@ -567,6 +567,54 @@ Backs the reliability requirement in [SRS.md §5](SRS.md#5-non-functional-consid
 mode (§4.3): this queues a **signed-in** user's mutations made while offline, for replay against
 the real API — it is not a second local dataset.
 
+- **Reads while offline:** the server is the source of truth; the device keeps a copy of what it
+  last said. Every successful signed-in read is saved to SQLite (`cached_responses` in the
+  sync database, via `LocalCache`), keyed by account, endpoint, argument and page. A read
+  that finds no network answers from that copy (`readSignedIn`), so screens stay populated
+  offline and after a restart. An offline write's in-place list patch is saved too
+  (`localCacheMiddleware`), so a queued row is still listed after a restart. The guest store is
+  never read for a signed-in user: it is a different ledger, and seeding it would route the user
+  to guest upload.
+- **Totals while offline:** a queued transaction create or delete, account create, or goal
+  contribution also moves the cached totals it affects: account balances and activity, wallet
+  balances, budget spent/remaining/usage, goal progress, and the dashboard's balance,
+  income/expense/net, transfer flow, category and member splits, recent list and active budgets
+  (`pendingTotals.ts`, the server's own aggregation rules on `@sora/contracts` money math). The
+  patched entries are saved like list patches. Once the row syncs, its entity's tags (the same set
+  the online mutation invalidates) replace every patched figure with the server's. Not moved: a
+  queued edit's category/date change, and caches not loaded when the write was made; both show
+  the server's last figure until the sync.
+- **Saved-copy note:** while any screen shows a saved copy instead of a fresh response, the wallet
+  header shows "Saved 14:32" (the oldest such copy's time) and the connection sheet explains it. Each
+  key clears when it is next answered fresh. On reconnect the first sync pass runs, then every
+  tag is invalidated so mounted screens refetch — after the pass, so the offline patches never
+  drop out ahead of the server having the writes.
+- **At rest:** the queue and the read cache share one database, `sora_sync_encrypted.db`, encrypted
+  with SQLCipher (`expo-sqlite`'s `useSQLCipher` plugin option) under a 256-bit key held in
+  `expo-secure-store`. An install with the older plain `sora_sync.db` is exported into it and the
+  plain file removed last, so an interrupted copy is redone. A lost key (keystore reset) makes the
+  file unreadable, so it is recreated empty; a stored key that fails to open it is an error, not a
+  reset. Builds without SQLCipher (Expo Go) are detected by `PRAGMA cipher_version` and keep the
+  plain file. Web keeps both in memory.
+- **Accounts on one device:** logout clears memory only; each account's saved copy and unsynced
+  writes stay on the device, readable only by that account. A login that finds another account's
+  data there (`device_accounts` plus the owners of cached rows and open queue rows) warns with
+  that account's masked email and offers to continue or sign out. Guest data keeps its own upload
+  flow (§4.3).
+- **What queues:** create/update/cancel/archive for transactions, accounts, budgets and categories;
+  goal create; goal contributions (payload carries `goalId`, so a contribution to a goal created
+  offline waits for that goal's server id); and a category's permanent delete (`op: 'delete'`).
+  Wallets, members and invitations are online-only.
+- **Ownership:** each queued row records the signed-in user (`ownerUserId`, the access token's
+  `sub`). Only that user's rows are shown or replayed, so a user switch never sends one person's
+  queued writes under another's token. Rows queued before ownership existed carry no owner. They go
+  to the account whose session was persisted when the app first started after the upgrade
+  (`resolvePreOwnershipRows`), never to a login made later. That first decision is recorded in app
+  preferences (`finance.sync.preOwnershipOwner.v1`, outside the sync database) before the queue is
+  touched, and every later launch reuses it, so a failed assignment is retried for the same owner.
+  With no such session, or a decision that can't be recorded or read, they take the
+  `ORPHANED_OWNER` marker: kept on the device, never shown, synced or claimed later, and logged
+  with their count only (LA-01).
 - **State mirror:** `offlineQueueSlice` (Redux) is a read-only reactive mirror of the queue's
   SQLite rows, not a second source of truth — the rows themselves live in `offlineQueueDb.ts`
   (`expo-sqlite`). Selectors include `selectPendingCount` and `selectQueueEntryFor(entity,
@@ -574,8 +622,8 @@ the real API — it is not a second local dataset.
   `AccountsScreen`).
 - **Lifecycle:** an `OfflineQueue` class (`services/sync/offlineQueue.ts`) enqueues a mutation as
   `pending`, transitions it through `syncing` → `synced`/`failed`/`conflict` as it's replayed.
-  `startSyncEngine(store)` runs from app startup and is re-triggered on reconnect
-  (`NetworkStatusProvider`'s retry callback).
+  `startSyncEngine(store)` runs from app startup and is re-triggered on reconnect (its own NetInfo
+  listener), on foreground, on a 45-second foreground interval, and by the status sheet's "Sync now".
 - **Aggregate status** (`selectSyncStatus`) prioritizes a live sync pass over a stale failure, and
   a failure over a merely-queued row — the ordering a user actually needs to see first.
 

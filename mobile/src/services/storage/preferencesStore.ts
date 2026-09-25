@@ -28,3 +28,5 @@ export const THEME_MODE_STORAGE_KEY = 'finance.preferences.themeMode.v1';
 export const LOCALE_STORAGE_KEY = 'finance.preferences.locale.v1';
 /** Presence (`'true'`) means the app should resume in guest mode on cold start. */
 export const GUEST_MODE_STORAGE_KEY = 'finance.preferences.guestMode.v1';
+/** Kept outside the sync database on purpose, so a failed write there can't lose the decision (`resolvePreOwnershipRows`). */
+export const PRE_OWNERSHIP_OWNER_STORAGE_KEY = 'finance.sync.preOwnershipOwner.v1';

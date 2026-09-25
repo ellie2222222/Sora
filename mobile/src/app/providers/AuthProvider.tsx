@@ -8,14 +8,15 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { GoogleAuthRequest, LoginRequest, RegisterRequest, UserResponse } from '@sora/contracts';
+import type { AuthTokens, GoogleAuthRequest, LoginRequest, RegisterRequest, UserResponse } from '@sora/contracts';
 
 import { authApi } from '@/services/api';
-import { session, type StoredSession } from '@/services/auth';
+import { session, userIdFromAccessToken, type StoredSession } from '@/services/auth';
 import { ensureSeeded, guestStore, uploadGuestData } from '@/services/guest';
-import { GUEST_MODE_STORAGE_KEY, preferencesStore } from '@/services/storage';
+import { GUEST_MODE_STORAGE_KEY, PRE_OWNERSHIP_OWNER_STORAGE_KEY, preferencesStore } from '@/services/storage';
+import { localCache, maskEmail, offlineQueue, ORPHANED_OWNER } from '@/services/sync';
 import { isNetworkError, isUnauthenticated } from '@/utils';
-import { setIsGuest as setIsGuestInStore, useAppDispatch } from '@/app/store';
+import { apiSlice, setIsGuest as setIsGuestInStore, useAppDispatch } from '@/app/store';
 
 /**
  * `restoring` exists so the root navigator can render nothing until the stored
@@ -44,9 +45,42 @@ interface AuthContextValue {
    */
   pendingGuestUpload: boolean;
   resolveGuestUpload: (walletId: string, onProgress?: (phase: string, completed: boolean) => void) => Promise<void>;
+  /** Masked emails of other accounts whose saved data is on this device, set by a login that found some. */
+  otherAccountNotice: string[] | null;
+  dismissOtherAccountNotice: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+/**
+ * Points the read cache and the offline queue at the session's account before any
+ * screen reads, so the first responses after a login are saved under it. From the
+ * token, not `/me`, because an offline start never loads the user.
+ */
+function adoptDeviceOwner(next: StoredSession | null): void {
+  const ownerId = next === null ? null : userIdFromAccessToken(next.accessToken);
+  localCache.setOwner(ownerId);
+  void offlineQueue.setOwner(ownerId);
+}
+
+/** Against the session persisted before this launch, never a login made during it (`resolvePreOwnershipRows`). */
+function resolvePreOwnershipQueue(restored: StoredSession | null): void {
+  const restoredUserId = restored === null ? null : userIdFromAccessToken(restored.accessToken);
+  const decisions = {
+    read: () => preferencesStore.get(PRE_OWNERSHIP_OWNER_STORAGE_KEY),
+    write: (owner: string) => preferencesStore.set(PRE_OWNERSHIP_OWNER_STORAGE_KEY, owner),
+  };
+  offlineQueue.resolvePreOwnershipRows(restoredUserId, decisions).then(
+    ({ owner, count }) => {
+      if (owner === ORPHANED_OWNER && count > 0) {
+        console.warn(`[offline-queue] ${count} change(s) queued before per-account ownership have no restored session to vouch for them; kept on this device, never synced.`);
+      }
+    },
+    () => {
+      console.warn('[offline-queue] Changes queued before per-account ownership could not be assigned this launch; they stay unsynced and keep this launch\'s owner.');
+    },
+  );
+}
 
 export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   const queryClient = useQueryClient();
@@ -56,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   const [restoring, setRestoring] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
   const [guestHasData, setGuestHasData] = useState(false);
+  const [otherAccountNotice, setOtherAccountNotice] = useState<string[] | null>(null);
 
   // Mirrored into Redux so RTK Query `queryFn` endpoints — which only see
   // Redux state — can branch guest vs. real the same way this context's
@@ -64,11 +99,26 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     dispatch(setIsGuestInStore(isGuest));
   }, [isGuest, dispatch]);
 
+  // RTK Query's apiSlice is the server-state cache that actually holds data (MB-02).
+  const clearServerCache = useCallback(() => {
+    dispatch(apiSlice.util.resetApiState());
+    queryClient.clear();
+  }, [dispatch, queryClient]);
+
+  // A failed refresh ends the session without going through logout().
+  useEffect(() => {
+    if (stored === null) clearServerCache();
+  }, [stored, clearServerCache]);
+
   useEffect(() => {
     // Subscribing before restoring means a refresh that fails during startup
     // (revoked token) still clears this state rather than leaving the app
     // believing it is signed in.
-    const unsubscribe = session.subscribe(setStored);
+    const unsubscribe = session.subscribe((next) => {
+      adoptDeviceOwner(next);
+      setStored(next);
+    });
+    adoptDeviceOwner(session.current());
     const unsubscribeGuest = guestStore.subscribe((data) => setGuestHasData(data.wallet !== null));
 
     let cancelled = false;
@@ -78,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         guestStore.hydrate(),
         preferencesStore.get(GUEST_MODE_STORAGE_KEY),
       ]);
+      resolvePreOwnershipQueue(restored);
       if (!cancelled) {
         setGuestHasData(guestData.wallet !== null);
         setIsGuest(guestFlag === 'true');
@@ -86,6 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       if (restored !== null) {
         try {
           const me = await authApi.me();
+          // Advisory, as in signIn: a local storage failure must not fail a restore that succeeded.
+          void localCache.rememberAccount({ userId: me.id, email: me.email }).catch(() => undefined);
           if (!cancelled) setUser(me);
         } catch (err: unknown) {
           if (isNetworkError(err)) {
@@ -120,9 +173,9 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     setIsGuest(false);
     // The guest and signed-in paths share query keys, so locally-served guest
     // entries must not survive into the real account's cache — the same
-    // reasoning as logout's clear().
-    queryClient.clear();
-  }, [queryClient]);
+    // reasoning as logout's reset.
+    clearServerCache();
+  }, [clearServerCache]);
 
   const resolveGuestUpload = useCallback(
     async (walletId: string, onProgress?: (phase: string, completed: boolean) => void) => {
@@ -130,31 +183,39 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       await guestStore.clear();
       // Anything cached under a guest local id is now stale: the same records
       // exist server-side under different ids.
-      queryClient.clear();
+      clearServerCache();
     },
-    [queryClient],
+    [clearServerCache],
   );
+
+  const signIn = useCallback(async (result: { user: UserResponse; tokens: AuthTokens }) => {
+    await session.adopt(result.tokens);
+    setUser(result.user);
+    try {
+      await localCache.rememberAccount({ userId: result.user.id, email: result.user.email });
+      const others = await localCache.otherAccountsWithData(result.user.id, await offlineQueue.ownersWithOpenRows());
+      if (others.length > 0) setOtherAccountNotice(others.map((account) => maskEmail(account.email)));
+    } catch {
+      // The notice is advisory; a local storage failure must not fail a login that succeeded.
+    }
+  }, []);
 
   const login = useCallback(
-    async (credentials: LoginRequest) => {
-      const result = await authApi.login(credentials);
-      await session.adopt(result.tokens);
-      setUser(result.user);
-    },
-    [],
+    async (credentials: LoginRequest) => signIn(await authApi.login(credentials)),
+    [signIn],
   );
 
-  const register = useCallback(async (details: RegisterRequest) => {
-    const result = await authApi.register(details);
-    await session.adopt(result.tokens);
-    setUser(result.user);
-  }, []);
+  const register = useCallback(
+    async (details: RegisterRequest) => signIn(await authApi.register(details)),
+    [signIn],
+  );
 
-  const loginWithGoogle = useCallback(async (body: GoogleAuthRequest) => {
-    const result = await authApi.google(body);
-    await session.adopt(result.tokens);
-    setUser(result.user);
-  }, []);
+  const loginWithGoogle = useCallback(
+    async (body: GoogleAuthRequest) => signIn(await authApi.google(body)),
+    [signIn],
+  );
+
+  const dismissOtherAccountNotice = useCallback(() => setOtherAccountNotice(null), []);
 
   const logout = useCallback(async () => {
     const refreshToken = session.current()?.refreshToken;
@@ -166,9 +227,11 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     }
     await session.clear();
     setUser(null);
-    // Another account's wallets must never be served from this cache.
-    queryClient.clear();
-  }, [queryClient]);
+    setOtherAccountNotice(null);
+    // Another account's wallets must never be served from this cache. The saved
+    // copy on disk stays; it is keyed to this account and read only by it.
+    clearServerCache();
+  }, [clearServerCache]);
 
   const value = useMemo(
     () => ({
@@ -184,6 +247,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       exitGuestModeToAuth,
       pendingGuestUpload: stored !== null && guestHasData,
       resolveGuestUpload,
+      otherAccountNotice,
+      dismissOtherAccountNotice,
     }),
     [
       user,
@@ -198,6 +263,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       exitGuestModeToAuth,
       guestHasData,
       resolveGuestUpload,
+      otherAccountNotice,
+      dismissOtherAccountNotice,
     ],
   );
 
