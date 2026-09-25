@@ -14,14 +14,14 @@
     "test": "npm run build && node --import ./dist/test/setup.js --test dist/test/*.test.js"
   },
   "dependencies": {
-    "@sora/contracts": "*",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@sora/contracts": "*",
     "argon2": "^0.41.1",
     "google-auth-library": "^11.0.2",
     "jsonwebtoken": "^9.0.2",
-    "kysely": "^0.27.5",
+    "kysely": "^0.28.17",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
