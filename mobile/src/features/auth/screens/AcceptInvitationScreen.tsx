@@ -68,7 +68,7 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
 
         {isAuthenticated ? (
           <Button
-            testID="accept-invitation-submit"
+            testID="btn-accept-invitation"
             label={t('invitations.acceptButton', 'Accept invitation')}
             onPress={handleAccept}
             loading={accepting}
@@ -79,9 +79,9 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
             <Text tone="muted" style={{ textAlign: 'center' }}>
               {t('invitations.loginPrompt', 'Log in or create an account with this email to accept.')}
             </Text>
-            <Button label={t('auth.signInLink', 'Log in')} onPress={() => navigation.navigate('Login')} fullWidth />
+            <Button label={t('auth.signInLink', 'Sign in')} onPress={() => navigation.navigate('Login')} fullWidth />
             <Button
-              label={t('auth.registerButton', 'Create an account')}
+              label={t('auth.registerButton', 'Create account')}
               variant="secondary"
               onPress={() => navigation.navigate('Register')}
               fullWidth

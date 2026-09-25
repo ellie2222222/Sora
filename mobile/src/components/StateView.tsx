@@ -78,7 +78,7 @@ export function StateView({
     empty: t('errors.nothingHereYet', 'Nothing here yet'),
     error: isNetworkError(error)
       ? t('errors.offlineTitle', 'No internet connection')
-      : t('errors.somethingWentWrong', 'Something went wrong'),
+      : t('errors.somethingWentWrong', 'Something went wrong. Please try again.'),
     'no-results': t('errors.noResultsFound', 'No results found'),
     informational: t('errors.nothingHereYet', 'Nothing here yet'),
   };

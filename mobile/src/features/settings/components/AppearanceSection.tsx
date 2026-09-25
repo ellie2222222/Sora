@@ -130,7 +130,7 @@ export function AppearanceSection({
 
       <View className="gap-xs py-xs">
         <Text variant="label" weight="semibold" tone="muted" style={{ fontSize: 11 }}>
-          {t('settings.preview', { defaultValue: 'Theme Preview' })}
+          {t('settings.preview', { defaultValue: 'Theme preview' })}
         </Text>
         <Text variant="heading" weight="bold" style={{ fontSize: 20 }}>
           ₫12,500,000

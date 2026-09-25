@@ -54,7 +54,7 @@ export function TransactionDetailModal({
 
   return (
     <>
-    <BottomSheetModal visible={visible} onClose={onClose} title={t('transactions.detailTitle', { defaultValue: 'Transaction Details' })}>
+    <BottomSheetModal visible={visible} onClose={onClose} title={t('transactions.detailTitle', { defaultValue: 'Transaction details' })}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.xl }}
@@ -117,7 +117,7 @@ export function TransactionDetailModal({
           {fromAcc !== null ? (
             <DetailRow
               icon={<CreditCard size={18} color={theme.colors.textMuted} />}
-              label={t('transactions.fromLabel', { defaultValue: 'From Account' })}
+              label={t('transactions.fromLabel', { defaultValue: 'From' })}
               value={`${fromAcc.name} (${fromAcc.walletName})`}
             />
           ) : null}
@@ -125,34 +125,36 @@ export function TransactionDetailModal({
           {toAcc !== null ? (
             <DetailRow
               icon={<CreditCard size={18} color={theme.colors.textMuted} />}
-              label={t('transactions.toLabel', { defaultValue: 'To Account' })}
+              label={t('transactions.toLabel', { defaultValue: 'To' })}
               value={`${toAcc.name} (${toAcc.walletName})`}
             />
           ) : null}
 
           <DetailRow
             icon={<Calendar size={18} color={theme.colors.textMuted} />}
-            label={t('transactions.transactionDateLabel', { defaultValue: 'Transaction Date' })}
+            label={t('transactions.transactionDateLabel', { defaultValue: 'Transaction date' })}
             value={`${formatDay(transaction.transactionDate.slice(0, 10))} ${formatTimeOfDay(transaction.transactionDate)}`}
           />
 
           <DetailRow
             icon={<Clock size={18} color={theme.colors.textMuted} />}
-            label={t('transactions.createdDateLabel', { defaultValue: 'Created Date' })}
+            label={t('transactions.createdDateLabel', { defaultValue: 'Created date' })}
             value={`${formatDay(transaction.createdAt.slice(0, 10))} ${formatTimeOfDay(transaction.createdAt)}`}
           />
 
           <DetailRow
             icon={<User size={18} color={theme.colors.textMuted} />}
-            label={t('transactions.recordedByLabel', { defaultValue: 'Recorded By' })}
+            label={t('transactions.recordedByLabel', { defaultValue: 'Recorded by' })}
             value={transaction.createdBy.displayName}
           />
 
           {transaction.isCrossWallet ? (
             <DetailRow
               icon={<UsersRound size={18} color={theme.colors.primary} />}
-              label={t('home.crossWallet', { defaultValue: 'Cross Wallet' })}
-              value={t('transactions.crossWalletNotice', { defaultValue: 'Cross-wallet transaction' })}
+              label={t('transactions.crossWalletLabel', { defaultValue: 'Cross-wallet' })}
+              value={t('transactions.crossWalletNotice', {
+                defaultValue: 'This moves money into another wallet. It will appear in their ledger too.',
+              })}
             />
           ) : null}
         </View>
@@ -163,7 +165,7 @@ export function TransactionDetailModal({
           <View style={{ gap: theme.spacing.sm }}>
             {onEdit ? (
               <Button
-                label={t('transactions.editTransaction', { defaultValue: 'Edit details' })}
+                label={t('transactions.editTransaction', { defaultValue: 'Edit transaction' })}
                 variant="secondary"
                 onPress={() => {
                   onClose();

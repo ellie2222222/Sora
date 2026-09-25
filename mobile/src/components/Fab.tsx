@@ -1,5 +1,6 @@
 import { Plus } from 'lucide-react-native';
 import { type PressableProps } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { AnimatedPressable } from './AnimatedPressable';
@@ -9,15 +10,16 @@ export interface FabProps extends Omit<PressableProps, 'children' | 'style'> {
   bottomOffset?: number;
 }
 
-export function Fab({ size = 48, bottomOffset = 0, testID = 'fab-add-transaction', ...pressableProps }: FabProps) {
+export function Fab({ size = 48, bottomOffset = 0, testID = 'btn-add-transaction', ...pressableProps }: FabProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <AnimatedPressable
       {...pressableProps}
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel="Add transaction"
+      accessibilityLabel={t('home.addTransaction')}
       scaleTo={0.92}
       style={{
         position: 'absolute',
