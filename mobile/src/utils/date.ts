@@ -79,6 +79,11 @@ export function addMonths(day: CalendarDay, delta: number): CalendarDay {
   )}`;
 }
 
+/** The same month and day in `year`, clamped: Feb 29 lands on Feb 28 in a non-leap year. */
+export function withYear(day: CalendarDay, year: number): CalendarDay {
+  return addMonths(day, (year - parseDay(day).year) * 12);
+}
+
 export function addDays(day: CalendarDay, delta: number): CalendarDay {
   const { year, month, date } = parseDay(day);
   const shifted = new Date(Date.UTC(year, month - 1, date + delta));
@@ -223,6 +228,15 @@ export function formatTimeOfDay(instant: Instant): string {
   const parsed = new Date(instant);
   if (Number.isNaN(parsed.getTime())) return '';
   return `${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+}
+
+/** `14:32` today, `Sep 24 14:32` on any other day, both in local time. */
+export function formatSavedAt(instant: Instant, locale: string = i18next.language || 'en', now: Date = new Date()): string {
+  const parsed = new Date(instant);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const time = formatTimeOfDay(instant);
+  const day = dayOfDate(parsed);
+  return day === dayOfDate(now) ? time : `${formatShortDay(day, locale)} ${time}`;
 }
 
 export interface MonthGridCell {

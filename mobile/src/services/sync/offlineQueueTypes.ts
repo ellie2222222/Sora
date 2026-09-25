@@ -7,11 +7,11 @@
 
 import type { ErrorCode } from '@sora/contracts';
 
-export const QUEUE_ENTITIES = ['transaction', 'account', 'budget', 'goal', 'category'] as const;
+export const QUEUE_ENTITIES = ['transaction', 'account', 'budget', 'goal', 'category', 'contribution'] as const;
 export type QueueEntity = (typeof QUEUE_ENTITIES)[number];
 
-/** Accounts/budgets/categories archive (status-based); transactions/goals cancel. */
-export type QueueOp = 'create' | 'update' | 'cancel' | 'archive';
+/** Accounts/budgets/categories archive (status-based); transactions/goals cancel; `delete` is a category's permanent removal. */
+export type QueueOp = 'create' | 'update' | 'cancel' | 'archive' | 'delete';
 
 export const QUEUE_STATUSES = ['pending', 'syncing', 'synced', 'failed', 'conflict'] as const;
 export type QueueStatus = (typeof QUEUE_STATUSES)[number];
@@ -38,9 +38,11 @@ export interface QueuedMutation {
   createdAt: string;
   updatedAt: string;
   attempts: number;
+  /** The signed-in user who queued it; `null` only on rows written before ownership existed. */
+  ownerUserId: string | null;
 }
 
 export type NewQueuedMutation = Omit<
   QueuedMutation,
-  'queueId' | 'status' | 'errorCode' | 'createdAt' | 'updatedAt' | 'attempts'
+  'queueId' | 'status' | 'errorCode' | 'createdAt' | 'updatedAt' | 'attempts' | 'ownerUserId'
 >;

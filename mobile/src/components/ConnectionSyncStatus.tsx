@@ -6,13 +6,24 @@ import { useTranslation } from 'react-i18next';
 
 import { useAuth, useTheme } from '@/app/providers';
 import { selectPendingCount, selectSyncStatus } from '@/app/store';
+import { formatSavedAt } from '@/utils';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { useSavedCopyTime } from '../hooks/useSavedCopyTime';
 import { AnimatedIcon } from './AnimatedIcon';
 import { BottomSheetModal } from './BottomSheetModal';
 import { Button } from './Button.tsx';
 import { Text } from './Text';
 
 type OpenSheet = 'connection' | 'sync' | null;
+
+const ICON_SIZE = 16;
+const TARGET_SIZE = 44;
+// Real 44pt boxes rather than hitSlop: slop around two icons this close together would overlap.
+const TARGET_STYLE = { width: TARGET_SIZE, height: TARGET_SIZE, alignItems: 'center', justifyContent: 'center' } as const;
+// Grows to fit the "Saved 14:32" note, which shares the connection icon's tap target.
+const SAVED_NOTE_TARGET_STYLE = { ...TARGET_STYLE, width: undefined, minWidth: TARGET_SIZE, flexDirection: 'row' } as const;
+// Pulls the last icon back to the header's edge, since its 44pt box is wider than the glyph.
+const ICON_INSET = (TARGET_SIZE - ICON_SIZE) / 2;
 
 /**
  * Wallet-header connection/sync indicator — two small icons, informational
@@ -28,10 +39,14 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
   const syncStatus = useSelector(selectSyncStatus);
   const pendingCount = useSelector(selectPendingCount);
   const [openSheet, setOpenSheet] = useState<OpenSheet>(null);
+  const savedAt = useSavedCopyTime();
+  const savedTime = savedAt === null ? null : formatSavedAt(savedAt);
 
   const syncing = syncStatus === 'syncing' || retryInFlight;
 
-  const connectionLabel = t(isOnline ? 'errors.connectionOnline' : 'errors.connectionOffline');
+  const connectionState = t(isOnline ? 'errors.connectionOnline' : 'errors.connectionOffline');
+  const savedNote = savedTime === null ? null : t('errors.savedCopyShort', { time: savedTime });
+  const connectionLabel = savedNote === null ? connectionState : `${connectionState}, ${savedNote}`;
   const connectionDetail = t(isOnline ? 'errors.connectionOnlineDetail' : 'errors.connectionOfflineDetail');
 
   const syncLabel = t(
@@ -65,18 +80,23 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
   const canRetry = !isGuest && isOnline && (syncStatus === 'pending' || syncStatus === 'failed');
 
   return (
-    <View className="flex-row items-center" style={{ gap: theme.spacing.sm }} testID={testID}>
+    <View className="flex-row items-center" style={{ marginRight: -ICON_INSET }} testID={testID}>
       <Pressable
         testID={`${testID}-connection`}
         accessibilityRole="button"
         accessibilityLabel={connectionLabel}
         onPress={() => setOpenSheet('connection')}
-        hitSlop={8}
+        style={savedNote === null ? TARGET_STYLE : SAVED_NOTE_TARGET_STYLE}
       >
+        {savedNote === null ? null : (
+          <Text variant="caption" tone="muted" testID={`${testID}-saved-at`} style={{ marginRight: theme.spacing.xs }}>
+            {savedNote}
+          </Text>
+        )}
         {isOnline ? (
-          <Wifi size={16} color={theme.colors.textMuted} />
+          <Wifi size={ICON_SIZE} color={theme.colors.textMuted} />
         ) : (
-          <WifiOff size={16} color={theme.colors.warning} />
+          <WifiOff size={ICON_SIZE} color={theme.colors.warning} />
         )}
       </Pressable>
 
@@ -85,28 +105,33 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
         accessibilityRole="button"
         accessibilityLabel={syncLabel}
         onPress={() => setOpenSheet('sync')}
-        hitSlop={8}
+        style={TARGET_STYLE}
       >
         {syncing ? (
-          <AnimatedIcon icon={RefreshCw} size={16} color={syncIconColor} animation="spin" />
+          <AnimatedIcon icon={RefreshCw} size={ICON_SIZE} color={syncIconColor} animation="spin" />
         ) : syncStatus === 'failed' ? (
-          <TriangleAlert size={16} color={syncIconColor} />
+          <TriangleAlert size={ICON_SIZE} color={syncIconColor} />
         ) : syncStatus === 'pending' ? (
-          <Clock size={16} color={syncIconColor} />
+          <Clock size={ICON_SIZE} color={syncIconColor} />
         ) : (
-          <RefreshCw size={16} color={syncIconColor} />
+          <RefreshCw size={ICON_SIZE} color={syncIconColor} />
         )}
       </Pressable>
 
       <BottomSheetModal
         visible={openSheet === 'connection'}
         onClose={() => setOpenSheet(null)}
-        title={connectionLabel}
+        title={connectionState}
         testID={`${testID}-connection-sheet`}
       >
         <Text variant="body" tone="muted" style={{ marginBottom: theme.spacing.md }}>
           {connectionDetail}
         </Text>
+        {savedTime === null ? null : (
+          <Text variant="body" tone="muted" style={{ marginBottom: theme.spacing.md }}>
+            {t('errors.savedCopyDetail', { time: savedTime })}
+          </Text>
+        )}
       </BottomSheetModal>
 
       <BottomSheetModal

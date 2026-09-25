@@ -5,15 +5,17 @@ import { guestDashboardApi } from '@/services/guest';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
-import { readWithGuestFallback } from './guestFallback.ts';
+import { cacheKeyOf } from '@/services/sync';
+import { readGuestOrApi } from './guestFallback.ts';
 
 export const dashboardApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     getDashboardSummary: builder.query<DashboardResponse, DashboardQuery>({
-      queryFn: (query, { getState }) => {
+      queryFn: (query, { getState, endpoint }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         return toQueryFnResult(() =>
-          readWithGuestFallback(
+          readGuestOrApi(
+            cacheKeyOf(endpoint, query),
             isGuest,
             () => dashboardHttp.summary(query),
             () => guestDashboardApi.summary(query),

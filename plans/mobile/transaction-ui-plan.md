@@ -31,30 +31,18 @@ Most of the review's specific complaints were addressed earlier in this pass. No
   category name to the subtitle when a user-written description exists as the title; otherwise the
   category *is* the title and the subtitle is just the account.
 - **"Date groups should read as sections, not divided by a border per row under a heading"** —
-  partially already true: [TransactionListSection.tsx](../../mobile/src/components/TransactionListSection.tsx)
-  already shows a day heading with `TransactionTotals` (income + expense, color-coded) beside it,
-  and the divider between the heading and the first row is real, not per-transaction. The
-  remaining piece is below.
+  done: `TransactionDayHeader` in [TransactionListSection.tsx](../../mobile/src/components/TransactionListSection.tsx)
+  shows a day heading with `TransactionTotals` (income + expense, color-coded) beside it,
+  and the only divider is the one between the heading and the first row (see below).
 
-## Open item 1 — remove the border between individual transaction rows
+## Done — removed the border between individual transaction rows
 
-The review's single biggest call, and the one still outstanding.
-[TransactionListSection.tsx:44-48](../../mobile/src/components/TransactionListSection.tsx#L44-L48)
-still draws `borderTopWidth: 1` between every row after the first, inside a day group:
-
-```tsx
-<View
-  key={transaction.id}
-  className="w-full"
-  style={rowIndex === 0 ? undefined : { borderTopWidth: 1, borderTopColor: theme.colors.border }}
->
-```
-
-**Change:** drop the `borderTopWidth`/`borderTopColor`, and use `theme.spacing.sm` (already the
-row's own `paddingVertical`, in `TransactionRow.tsx:55`) as the only separation between rows —
-whitespace instead of a rule. Keep the existing divider between the day heading and the first row
-(`border-t` on the group's outer `View`, line 40) — that's a section boundary, not a per-row one,
-and the review agrees that one's worth keeping.
+Rows inside a day group are separated by whitespace only (`TransactionRow`'s own
+`paddingVertical`). The one remaining rule is the section divider under the day heading —
+`border-t` in [TransactionListSection.tsx:42](../../mobile/src/components/TransactionListSection.tsx#L42)
+(`TransactionDayHeader`), which the review agreed to keep. Since 2026-09-24 the list renders
+through a virtualized `RefreshableSectionList` with `TransactionDayHeader` as the section header
+and the memoized `TransactionListRow` per row, instead of one `TransactionListSection` per day.
 
 ## Open item 2 — abbreviate the day/month summary totals
 
@@ -87,7 +75,7 @@ banners, everywhere `theme.colors.income`/`expense`/`success`/`danger` is read. 
 - **Retyping the row/icon/spacing pixel values as new tokens** — the review's spacing suggestions
   (12/16/3/28px) land close enough to the existing scale
   ([spacing.ts](../../mobile/src/design-system/spacing.ts): `xs=4, sm=8, md=12, lg=16, xl=24,
-  xxl=32`) that the two open items above are the only layout changes needed; nothing here
+  xxl=32`) that the open item above is the only layout change needed; nothing here
   justifies adding a new spacing token for a one-off value.
 
 ## Reference layout (current structure, token names instead of hex)
@@ -102,6 +90,6 @@ TODAY · 15 SEP                                    [income]+₫2.32M  [expense]�
                                              Cash → CC                              [colors.text, neutral]
 ```
 
-No border between the two rows above (open item 1); totals row uses `compact: true` (open item 2);
+No border between the two rows above (done); totals row uses `compact: true` (open item 2);
 row amounts stay full precision; transfer amount stays `theme.colors.text`, never colored as
 income.

@@ -11,7 +11,6 @@ export function memoryQueueDb(): QueueDb {
   const rows = new Map<string, QueuedMutation>();
 
   return {
-    async ensureSchema() {},
     async insert(row) {
       rows.set(row.queueId, { ...row });
     },
@@ -41,7 +40,15 @@ export function memoryQueueDb(): QueueDb {
     async remove(queueId) {
       rows.delete(queueId);
     },
-  };
+    async assignUnowned(ownerUserId) {
+      let count = 0;
+      for (const row of rows.values()) {
+        if (row.ownerUserId !== null) continue;
+        row.ownerUserId = ownerUserId;
+        count += 1;
+      }
+      return count;
+    },  };
 }
 
 let counter = 0;

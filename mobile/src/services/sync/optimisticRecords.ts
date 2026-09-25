@@ -18,6 +18,8 @@ import {
   type AccountResponse,
   type BudgetResponse,
   type CategoryResponse,
+  type ContributionResponse,
+  type CreateContributionRequest,
   type CreateAccountRequest,
   type CreateBudgetRequest,
   type CreateCategoryRequest,
@@ -51,6 +53,27 @@ function categoryRefOf(apiState: unknown, categoryId: string): TransactionRespon
   const category = findCachedById<CategoryResponse>(apiState, 'listCategories', categoryId);
   if (!category) return null;
   return { id: category.id, name: category.name, type: category.type, icon: category.icon, color: category.color };
+}
+
+/** `transactionId` stays null until sync: the backing transaction, if any, is created server-side. */
+export function buildOptimisticContribution(
+  goalId: string,
+  body: CreateContributionRequest,
+  localId: string,
+  apiState: unknown,
+): ContributionResponse {
+  return {
+    id: localId,
+    goalId,
+    accountId: body.accountId,
+    accountName: accountRefOf(apiState, body.accountId)?.name ?? '',
+    transactionId: null,
+    amount: body.amount,
+    currency: body.currency,
+    contributionDate: body.contributionDate,
+    note: body.note ?? null,
+    createdAt: new Date().toISOString(),
+  };
 }
 
 export function buildOptimisticTransaction(

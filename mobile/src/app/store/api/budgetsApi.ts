@@ -2,11 +2,11 @@ import { BudgetStatus, type BudgetResponse, type CreateBudgetRequest, type Updat
 
 import { budgetsApi as budgetsHttp, type BudgetListQuery } from '@/services/api';
 import { guestBudgetsApi } from '@/services/guest';
-import { buildOptimisticBudget, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
+import { buildOptimisticBudget, cacheKeyOf, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
-import { readWithGuestFallback } from './guestFallback.ts';
+import { readGuestOrApi } from './guestFallback.ts';
 
 export type { BudgetListQuery } from '@/services/api';
 
@@ -16,10 +16,11 @@ const BUDGET_TAGS = ['Budget', 'Dashboard'] as const;
 export const budgetsApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     listBudgets: builder.query<BudgetResponse[], BudgetListQuery>({
-      queryFn: (query, { getState }) => {
+      queryFn: (query, { getState, endpoint }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         return toQueryFnResult(() =>
-          readWithGuestFallback(
+          readGuestOrApi(
+            cacheKeyOf(endpoint, query),
             isGuest,
             () => budgetsHttp.list(query),
             () => guestBudgetsApi.list(query),
@@ -29,10 +30,11 @@ export const budgetsApiSlice = apiSlice.injectEndpoints({
       providesTags: ['Budget'],
     }),
     getBudget: builder.query<BudgetResponse, string>({
-      queryFn: (budgetId, { getState }) => {
+      queryFn: (budgetId, { getState, endpoint }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         return toQueryFnResult(() =>
-          readWithGuestFallback(
+          readGuestOrApi(
+            cacheKeyOf(endpoint, budgetId),
             isGuest,
             () => budgetsHttp.detail(budgetId),
             () => guestBudgetsApi.detail(budgetId),

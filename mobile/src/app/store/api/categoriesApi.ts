@@ -2,11 +2,11 @@ import { CategoryStatus, type CategoryResponse, type CreateCategoryRequest, type
 
 import { categoriesApi as categoriesHttp, type CategoryListQuery } from '@/services/api';
 import { guestCategoriesApi } from '@/services/guest';
-import { buildOptimisticCategory, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
+import { buildOptimisticCategory, cacheKeyOf, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
-import { readWithGuestFallback } from './guestFallback.ts';
+import { readGuestOrApi } from './guestFallback.ts';
 
 export type { CategoryListQuery } from '@/services/api';
 
@@ -15,10 +15,11 @@ const CATEGORY_TAGS = ['Category', 'Budget', 'Dashboard', 'Transaction'] as cons
 export const categoriesApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     listCategories: builder.query<CategoryResponse[], CategoryListQuery>({
-      queryFn: (query, { getState }) => {
+      queryFn: (query, { getState, endpoint }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         return toQueryFnResult(() =>
-          readWithGuestFallback(
+          readGuestOrApi(
+            cacheKeyOf(endpoint, query),
             isGuest,
             () => categoriesHttp.list(query),
             () => guestCategoriesApi.list(query),
@@ -125,11 +126,32 @@ export const categoriesApiSlice = apiSlice.injectEndpoints({
     deleteCategoryPermanently: builder.mutation<void, string>({
       queryFn: (categoryId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() =>
-          isGuest ? guestCategoriesApi.deletePermanently(categoryId) : categoriesHttp.deletePermanently(categoryId),
-        );
+        if (isGuest) return toQueryFnResult(() => guestCategoriesApi.deletePermanently(categoryId));
+        if (!isCurrentlyOnline()) {
+          return toQueryFnResult(async () => {
+            await enqueueOffline({ entity: 'category', op: 'delete', localId: categoryId, serverId: categoryId, payload: {} });
+          });
+        }
+        return toQueryFnResult(() => categoriesHttp.deletePermanently(categoryId));
       },
-      invalidatesTags: CATEGORY_TAGS,
+      onQueryStarted: async (categoryId, { dispatch, queryFulfilled, getState }) => {
+        try {
+          await queryFulfilled;
+          if (!isStillQueued(categoryId)) return;
+
+          forEachCachedQueryArgs(getState(), 'listCategories', (args) => {
+            dispatch(
+              categoriesApiSlice.util.updateQueryData('listCategories', args as CategoryListQuery, (draft) => {
+                const index = draft.findIndex((candidate) => candidate.id === categoryId);
+                if (index !== -1) draft.splice(index, 1);
+              }),
+            );
+          });
+        } catch {
+          // Nothing was applied to the cache yet — nothing to undo.
+        }
+      },
+      invalidatesTags: (_result, _error, categoryId) => (isStillQueued(categoryId) ? [] : CATEGORY_TAGS),
     }),
   }),
   overrideExisting: __DEV__,

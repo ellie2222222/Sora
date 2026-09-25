@@ -61,6 +61,9 @@ http.interceptors.response.use(
         config.headers.set('Authorization', `Bearer ${refreshed.accessToken}`);
         return http.request(config);
       }
+      // The refresh failed without the server rejecting the token, so the session was
+      // kept: report "no connection", not a 401 that callers would answer with sign-out.
+      if (session.current() !== null) throw toApiError(undefined, undefined, error.message);
     }
 
     throw toApiError(status, error.response?.data, error.message);
@@ -70,6 +73,12 @@ http.interceptors.response.use(
 export interface ListResult<T> {
   items: T[];
   pagination: PaginationMeta | undefined;
+}
+
+/** API-05 paging params for the list endpoints that honour them. */
+export interface PageQuery {
+  page: number;
+  pageSize: number;
 }
 
 /**

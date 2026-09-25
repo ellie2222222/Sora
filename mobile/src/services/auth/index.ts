@@ -12,6 +12,7 @@ import { API_PREFIX, ROUTES, apiUrl, type ApiEnvelope, type AuthTokens } from '@
 
 import { env } from '@/app/config';
 import { SESSION_STORAGE_KEY, secureStore } from '@/services/storage';
+import { isRefreshRejection } from './refreshRejection.ts';
 import { SessionManager, type SessionPersistence, type StoredSession } from './session.ts';
 
 function isStoredSession(value: unknown): value is StoredSession {
@@ -57,6 +58,7 @@ export const session = new SessionManager({
     );
     return response.data.data;
   },
+  isRefreshRejected: isRefreshRejection,
 });
 
 /** Paths the 401 interceptor must never retry — see the note above. */
@@ -66,4 +68,5 @@ export const AUTH_PATHS_WITHOUT_RETRY: readonly string[] = [
   `${API_PREFIX}${ROUTES.auth.register()}`,
 ];
 
+export * from './refreshRejection.ts';
 export * from './session.ts';

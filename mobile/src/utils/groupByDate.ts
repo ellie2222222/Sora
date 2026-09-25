@@ -1,5 +1,5 @@
 /**
- * Day-grouped transaction list (plan §13).
+ * Day-grouped lists (plan §13).
  *
  * Groups consecutive same-day rows rather than bucketing into a map, so the
  * server's `sortBy` ordering is preserved exactly — re-sorting on the client
@@ -7,7 +7,28 @@
  */
 
 import type { TransactionResponse } from '@sora/contracts';
-import { dayOfInstant, type CalendarDay } from './date.ts';
+import { dayOfInstant, type CalendarDay, type Instant } from './date.ts';
+
+export interface DayBucket<T> {
+  day: CalendarDay;
+  items: T[];
+}
+
+export function groupConsecutiveByDay<T>(items: readonly T[], instantOf: (item: T) => Instant): DayBucket<T>[] {
+  const groups: DayBucket<T>[] = [];
+
+  for (const item of items) {
+    const day = dayOfInstant(instantOf(item));
+    const current = groups[groups.length - 1];
+    if (current !== undefined && current.day === day) {
+      current.items.push(item);
+    } else {
+      groups.push({ day, items: [item] });
+    }
+  }
+
+  return groups;
+}
 
 export interface DayGroup {
   day: CalendarDay;
@@ -17,17 +38,8 @@ export interface DayGroup {
 export function groupTransactionsByDay(
   transactions: readonly TransactionResponse[],
 ): DayGroup[] {
-  const groups: DayGroup[] = [];
-
-  for (const transaction of transactions) {
-    const day = dayOfInstant(transaction.transactionDate);
-    const current = groups[groups.length - 1];
-    if (current !== undefined && current.day === day) {
-      current.transactions.push(transaction);
-    } else {
-      groups.push({ day, transactions: [transaction] });
-    }
-  }
-
-  return groups;
+  return groupConsecutiveByDay(transactions, (transaction) => transaction.transactionDate).map(({ day, items }) => ({
+    day,
+    transactions: items,
+  }));
 }

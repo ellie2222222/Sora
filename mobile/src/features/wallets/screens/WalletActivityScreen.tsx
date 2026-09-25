@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { History } from 'lucide-react-native';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AuditLogResponse } from '@sora/contracts';
 
-import { Card, RefreshableSectionList, SkeletonList, StateView, Text } from '@/components';
+import { Card, ListLoadMoreFooter, RefreshableSectionList, SkeletonList, StateView, Text } from '@/components';
 import { useTheme } from '@/app/providers';
-import { useListAuditLogsQuery } from '@/app/store';
-import { dayOfInstant, formatDayHeading, formatTimeOfDay, isNetworkError, getRoleLabel } from '@/utils';
+import { useListAuditLogsInfiniteQuery } from '@/app/store';
+import { canLoadMore, flattenPages, formatDayHeading, formatTimeOfDay, groupConsecutiveByDay, isNetworkError, getRoleLabel } from '@/utils';
 import type { AppStackScreenProps } from '@/app/navigation';
 
 /** WAL-US-13. OWNER-only (API spec §15.1) — this screen is only ever reached from a control already gated to the owner. */
@@ -17,12 +17,14 @@ export function WalletActivityScreen({ route }: AppStackScreenProps<'WalletActiv
   const { walletId } = route.params;
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const activity = useListAuditLogsQuery({ walletId, query: { pageSize: 50 } });
+  const activity = useListAuditLogsInfiniteQuery({ walletId });
+  const items = useMemo(() => flattenPages(activity.data?.pages), [activity.data]);
+  const sections = useMemo(() => groupByDay(items), [items]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await activity.refetch();
+      await activity.refetch({ refetchCachedPages: false });
     } finally {
       setIsRefreshing(false);
     }
@@ -36,15 +38,13 @@ export function WalletActivityScreen({ route }: AppStackScreenProps<'WalletActiv
         </View>
       );
     }
-    if (activity.isError && !isNetworkError(activity.error)) {
+    if (activity.isError && items.length === 0 && !isNetworkError(activity.error)) {
       return (
         <View style={{ padding: theme.spacing.md }}>
           <StateView variant="error" error={activity.error} retryAction={() => void activity.refetch()} testID="wallet-activity-error" />
         </View>
       );
     }
-
-    const items = activity.data?.items ?? [];
 
     if (items.length === 0) {
       return (
@@ -60,11 +60,9 @@ export function WalletActivityScreen({ route }: AppStackScreenProps<'WalletActiv
       );
     }
 
-    const sections = groupByDay(items);
-
     return (
       <RefreshableSectionList
-        testID="wallet-activity-list"
+        testID="list-activity"
         sections={sections}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.sm }}
@@ -78,6 +76,19 @@ export function WalletActivityScreen({ route }: AppStackScreenProps<'WalletActiv
           </View>
         )}
         renderItem={({ item }) => <ActivityRow entry={item} />}
+        onEndReached={() => {
+          if (canLoadMore(activity)) void activity.fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <ListLoadMoreFooter
+            isFetchingNextPage={activity.isFetchingNextPage}
+            hasNextPage={activity.hasNextPage}
+            isError={activity.isError}
+            onRetry={() => void activity.fetchNextPage()}
+            testID="wallet-activity-list-footer"
+          />
+        }
       />
     );
   };
@@ -89,15 +100,11 @@ export function WalletActivityScreen({ route }: AppStackScreenProps<'WalletActiv
   );
 }
 
-function groupByDay(items: AuditLogResponse[]): { title: string; data: AuditLogResponse[] }[] {
-  const byDay = new Map<string, AuditLogResponse[]>();
-  for (const item of items) {
-    const day = dayOfInstant(item.createdAt);
-    const bucket = byDay.get(day);
-    if (bucket !== undefined) bucket.push(item);
-    else byDay.set(day, [item]);
-  }
-  return Array.from(byDay.entries()).map(([day, data]) => ({ title: formatDayHeading(day), data }));
+function groupByDay(items: readonly AuditLogResponse[]): { title: string; data: AuditLogResponse[] }[] {
+  return groupConsecutiveByDay(items, (item) => item.createdAt).map(({ day, items: data }) => ({
+    title: formatDayHeading(day),
+    data,
+  }));
 }
 
 function humanizeEvent(event: string): string {
@@ -114,7 +121,7 @@ function ActivityRow({ entry }: { entry: AuditLogResponse }) {
   const failed = entry.result !== 'SUCCESS';
 
   return (
-    <Card testID={`wallet-activity-${entry.id}`}>
+    <Card testID={`row-activity-${entry.id}`}>
       <View className="flex-row justify-between items-start">
         <View className="flex-1 gap-xxs">
           <Text weight="semibold">{humanizeEvent(entry.event)}</Text>

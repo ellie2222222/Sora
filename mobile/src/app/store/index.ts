@@ -2,6 +2,7 @@ import { configureStore } from '@reduxjs/toolkit';
 
 import { apiSlice } from './api/apiSlice.ts';
 import authReducer from './authSlice.ts';
+import { localCacheMiddleware } from './localCacheMiddleware.ts';
 import offlineQueueReducer from './offlineQueueSlice.ts';
 
 export const store = configureStore({
@@ -18,7 +19,7 @@ export const store = configureStore({
       immutableCheck: {
         warnAfter: 128,
       },
-    }).concat(apiSlice.middleware),
+    }).concat(apiSlice.middleware, localCacheMiddleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

@@ -13,6 +13,7 @@ import type {
   CreateAccountRequest,
   CreateBudgetRequest,
   CreateCategoryRequest,
+  CreateContributionRequest,
   CreateGoalRequest,
   CreateTransactionRequest,
   UpdateAccountRequest,
@@ -30,16 +31,21 @@ export interface EntityAdapter {
   update(id: string, payload: unknown, idempotencyKey: string): Promise<void>;
   /** Transactions delete; goals cancel; accounts/budgets/categories archive — same slot either way. */
   cancelOrArchive(id: string, payload: unknown, idempotencyKey: string): Promise<void>;
+  /** Only categories can be removed outright; the other entities never queue a `delete`. */
+  deletePermanently?(id: string, idempotencyKey: string): Promise<void>;
 }
 
 export type EntityAdapters = Record<QueueEntity, EntityAdapter>;
+
+/** `goalId` sits beside the body, not in the URL, so the sync engine can remap a queued goal's local id. */
+export type ContributionPayload = CreateContributionRequest & { goalId: string };
 
 export interface AdapterApis {
   transactions: Pick<typeof transactionsApi, 'create' | 'update' | 'delete'>;
   accounts: Pick<typeof accountsApi, 'create' | 'update' | 'archive'>;
   budgets: Pick<typeof budgetsApi, 'create' | 'update' | 'archive'>;
-  goals: Pick<typeof goalsApi, 'create' | 'cancel'>;
-  categories: Pick<typeof categoriesApi, 'create' | 'update' | 'archive'>;
+  goals: Pick<typeof goalsApi, 'create' | 'cancel' | 'addContribution'>;
+  categories: Pick<typeof categoriesApi, 'create' | 'update' | 'archive' | 'deletePermanently'>;
 }
 
 async function defaultApis(): Promise<AdapterApis> {
@@ -116,6 +122,21 @@ export function buildEntityAdapters(apis: AdapterApis): EntityAdapters {
       },
       async cancelOrArchive(id, _payload, key) {
         await apis.categories.archive(id, key);
+      },
+      async deletePermanently(id, key) {
+        await apis.categories.deletePermanently(id, key);
+      },
+    },
+    contribution: {
+      async create(payload, key) {
+        const { goalId, ...body } = payload as ContributionPayload;
+        return apis.goals.addContribution(goalId, body, key);
+      },
+      async update() {
+        throw new Error('entityAdapters: contributions are never edited');
+      },
+      async cancelOrArchive() {
+        throw new Error('entityAdapters: contribution removal is not queued offline');
       },
     },
   };

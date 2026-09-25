@@ -1,5 +1,8 @@
 export * from './cacheLookup.ts';
 export * from './entityAdapters.ts';
+export * from './localCache.ts';
+export * from './localCacheDb.ts';
+export * from './localCacheInstance.ts';
 export * from './networkState.ts';
 export * from './offlineEnqueue.ts';
 export * from './offlineQueue.ts';
@@ -8,6 +11,7 @@ export * from './offlineQueueInstance.ts';
 export * from './offlineQueueTypes.ts';
 export * from './optimisticMutation.ts';
 export * from './optimisticRecords.ts';
+export * from './pendingTotals.ts';
 export * from './syncEngine.ts';
 export * from './syncEngineRuntime.ts';
 export * from './testSupport.ts';

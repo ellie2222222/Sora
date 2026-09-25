@@ -95,21 +95,23 @@ export async function toQueryFnResult<T>(
   }
 }
 
+export const API_TAG_TYPES = [
+  'Wallet',
+  'WalletMember',
+  'WalletInvitation',
+  'AuditLog',
+  'Account',
+  'Category',
+  'Transaction',
+  'Budget',
+  'Goal',
+  'GoalContribution',
+  'Dashboard',
+] as const;
+
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: axiosBaseQuery,
-  tagTypes: [
-    'Wallet',
-    'WalletMember',
-    'WalletInvitation',
-    'AuditLog',
-    'Account',
-    'Category',
-    'Transaction',
-    'Budget',
-    'Goal',
-    'GoalContribution',
-    'Dashboard',
-  ],
+  tagTypes: API_TAG_TYPES,
   endpoints: () => ({}),
 });

@@ -17,9 +17,20 @@ import type { NewQueuedMutation, QueueEntity, QueuedMutation, QueueStatus } from
 
 export type OfflineQueueListener = (rows: QueuedMutation[]) => void;
 
+/** Owner of pre-ownership rows no restored session vouched for. No account id has this shape, so they are never shown or synced. */
+export const ORPHANED_OWNER = 'orphaned:pre-ownership';
+
+/** Where the owner chosen for pre-ownership rows is kept across launches. */
+export interface PreOwnershipDecisions {
+  read(): Promise<string | null>;
+  write(owner: string): Promise<void>;
+}
+
 export class OfflineQueue {
   private db: QueueDb;
   private rows: QueuedMutation[] = [];
+  private owner: string | null = null;
+  private lastEnqueuedAt = 0;
   private readonly listeners = new Set<OfflineQueueListener>();
 
   constructor(db: QueueDb) {
@@ -41,22 +52,67 @@ export class OfflineQueue {
     return this.rows;
   }
 
+  ownerId(): string | null {
+    return this.owner;
+  }
+
+  /**
+   * Only the signed-in user's rows are visible or synced: replaying one user's
+   * queued writes under the next user's token would record them as that user.
+   */
+  async setOwner(userId: string | null): Promise<void> {
+    this.owner = userId;
+    await this.refresh();
+  }
+
+  /**
+   * Pre-ownership rows record no author, so only the session persisted across the upgrade can
+   * vouch for them — never a later login, or one person's writes could sync into another's
+   * account. The first launch's decision goes into `decisions` (kept apart from SQLite) before
+   * the queue is touched, and later launches reuse it, so a failed assignment is never redone
+   * for a different saved session. An unrecordable or unreadable decision orphans the rows:
+   * stranding them beats syncing them to the wrong person.
+   */
+  async resolvePreOwnershipRows(
+    restoredUserId: string | null,
+    decisions: PreOwnershipDecisions,
+  ): Promise<{ owner: string; count: number }> {
+    let owner: string;
+    try {
+      const recorded = await decisions.read();
+      owner = recorded ?? restoredUserId ?? ORPHANED_OWNER;
+      if (recorded === null) await decisions.write(owner);
+    } catch {
+      owner = ORPHANED_OWNER;
+    }
+
+    const count = await this.db.assignUnowned(owner);
+    if (count > 0) await this.refresh();
+    return { owner, count };
+  }
+
   async refresh(): Promise<QueuedMutation[]> {
-    this.rows = await this.db.listAll();
+    const owner = this.owner;
+    this.rows = owner === null ? [] : (await this.db.listAll()).filter((row) => row.ownerUserId === owner);
     this.emit();
     return this.rows;
   }
 
   async enqueue(entry: NewQueuedMutation): Promise<QueuedMutation> {
-    const now = new Date().toISOString();
+    if (this.owner === null) throw new Error('Offline queue has no signed-in owner');
+    // Strictly after the previous row, so FIFO order survives two enqueues in one millisecond.
+    this.lastEnqueuedAt = Math.max(Date.now(), this.lastEnqueuedAt + 1);
+    const now = new Date(this.lastEnqueuedAt).toISOString();
     const mutation: QueuedMutation = {
       ...entry,
-      queueId: `${entry.entity}-${entry.localId}-${now}`,
+      // The idempotency key, not the clock: an offline create and its first edit can share a millisecond.
+      queueId: `${entry.entity}-${entry.op}-${entry.idempotencyKey}`,
       status: 'pending',
       errorCode: null,
       createdAt: now,
       updatedAt: now,
       attempts: 0,
+      ownerUserId: this.owner,
     };
     await this.db.insert(mutation);
     return this.refresh().then(() => mutation);
@@ -103,11 +159,20 @@ export class OfflineQueue {
   }
 
   async findByLocalId(entity: QueueEntity, localId: string): Promise<QueuedMutation | null> {
-    return this.db.findByLocalId(entity, localId);
+    const row = await this.db.findByLocalId(entity, localId);
+    return row !== null && row.ownerUserId === this.owner ? row : null;
   }
 
   statusFor(entity: QueueEntity, localId: string): QueueStatus | undefined {
     return this.rows.find((row) => row.entity === entity && row.localId === localId)?.status;
+  }
+
+  /** Every account with writes still waiting here, whoever is signed in now. */
+  async ownersWithOpenRows(): Promise<string[]> {
+    const owners = (await this.db.listAll())
+      .filter((row) => row.status !== 'synced' && row.ownerUserId !== null && row.ownerUserId !== ORPHANED_OWNER)
+      .map((row) => row.ownerUserId as string);
+    return [...new Set(owners)];
   }
 
   pendingCount(): number {

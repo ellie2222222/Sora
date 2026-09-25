@@ -5,7 +5,8 @@ import { guestWalletsApi } from '@/services/guest';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
-import { readWithGuestFallback } from './guestFallback.ts';
+import { cacheKeyOf } from '@/services/sync';
+import { readGuestOrApi } from './guestFallback.ts';
 
 export type { WalletListQuery } from '@/services/api';
 
@@ -17,10 +18,11 @@ export type { WalletListQuery } from '@/services/api';
 export const walletsApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     listWallets: builder.query<WalletResponse[], WalletListQuery | void>({
-      queryFn: (query, { getState }) => {
+      queryFn: (query, { getState, endpoint }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         return toQueryFnResult(() =>
-          readWithGuestFallback(
+          readGuestOrApi(
+            cacheKeyOf(endpoint, query),
             isGuest,
             () => walletsHttp.list(query ?? {}),
             () => guestWalletsApi.list(query ?? {}),
@@ -30,10 +32,11 @@ export const walletsApiSlice = apiSlice.injectEndpoints({
       providesTags: ['Wallet'],
     }),
     getWallet: builder.query<WalletResponse, string>({
-      queryFn: (walletId, { getState }) => {
+      queryFn: (walletId, { getState, endpoint }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         return toQueryFnResult(() =>
-          readWithGuestFallback(
+          readGuestOrApi(
+            cacheKeyOf(endpoint, walletId),
             isGuest,
             () => walletsHttp.detail(walletId),
             () => guestWalletsApi.detail(walletId),

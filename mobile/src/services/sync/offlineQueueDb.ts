@@ -1,18 +1,14 @@
 /**
- * SQLite-backed persistence for the offline write queue.
- *
- * The only file in this feature that imports `expo-sqlite` — everything else
- * in `services/sync/` depends on the `QueueDb` interface, not this module
- * directly, the same seam `guestStorage.ts` gives `GuestStore`. Scope is
- * deliberately narrow: this table is the *entire* SQLite footprint of the
- * app. RTK Query's cache remains the read path for every entity; nothing
- * here mirrors account/transaction/etc. data.
+ * SQLite-backed persistence for the offline write queue, in the shared sync database
+ * (`syncDatabase.ts`). The rest of `services/sync/` depends on the `QueueDb` interface,
+ * not this module — the same seam `guestStorage.ts` gives `GuestStore`.
  */
 
 import { Platform } from 'react-native';
-import { openDatabaseSync, type SQLiteDatabase } from 'expo-sqlite';
+import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { QueueEntity, QueuedMutation, QueueStatus } from './offlineQueueTypes.ts';
+import { syncDatabase } from './syncDatabase.ts';
 
 interface QueueRow {
   queue_id: string;
@@ -27,6 +23,7 @@ interface QueueRow {
   created_at: string;
   updated_at: string;
   attempts: number;
+  owner_user_id: string | null;
 }
 
 function toRow(mutation: QueuedMutation): QueueRow {
@@ -43,6 +40,7 @@ function toRow(mutation: QueuedMutation): QueueRow {
     created_at: mutation.createdAt,
     updated_at: mutation.updatedAt,
     attempts: mutation.attempts,
+    owner_user_id: mutation.ownerUserId,
   };
 }
 
@@ -60,6 +58,7 @@ function fromRow(row: QueueRow): QueuedMutation {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     attempts: row.attempts,
+    ownerUserId: row.owner_user_id,
   };
 }
 
@@ -72,13 +71,14 @@ export interface QueueStatusPatch {
 }
 
 export interface QueueDb {
-  ensureSchema(): Promise<void>;
   insert(row: QueuedMutation): Promise<void>;
   updateStatus(queueId: string, patch: QueueStatusPatch): Promise<void>;
   listByStatus(statuses: QueueStatus[]): Promise<QueuedMutation[]>;
   listAll(): Promise<QueuedMutation[]>;
   findByLocalId(entity: QueueEntity, localId: string): Promise<QueuedMutation | null>;
   remove(queueId: string): Promise<void>;
+  /** Gives every ownerless (pre-ownership) row to `ownerUserId`; returns how many there were. */
+  assignUnowned(ownerUserId: string): Promise<number>;
 }
 
 const CREATE_TABLE_SQL = `
@@ -94,37 +94,45 @@ const CREATE_TABLE_SQL = `
     error_code TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0
+    attempts INTEGER NOT NULL DEFAULT 0,
+    owner_user_id TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_queued_mutations_status ON queued_mutations(status);
   CREATE INDEX IF NOT EXISTS idx_queued_mutations_local_id ON queued_mutations(entity, local_id);
 `;
 
 class SqliteQueueDb implements QueueDb {
-  private db: SQLiteDatabase | null = null;
-  private schemaReady: Promise<void> | null = null;
+  private ready: Promise<SQLiteDatabase> | null = null;
 
-  private open(): SQLiteDatabase {
-    if (!this.db) {
-      this.db = openDatabaseSync('sora_sync.db');
+  private open(): Promise<SQLiteDatabase> {
+    if (this.ready === null) {
+      const attempt = syncDatabase().then(async (db) => {
+        await this.migrate(db);
+        return db;
+      });
+      attempt.catch(() => {
+        if (this.ready === attempt) this.ready = null;
+      });
+      this.ready = attempt;
     }
-    return this.db;
+    return this.ready;
   }
 
-  ensureSchema(): Promise<void> {
-    if (!this.schemaReady) {
-      this.schemaReady = this.open().execAsync(CREATE_TABLE_SQL);
+  private async migrate(db: SQLiteDatabase): Promise<void> {
+    await db.execAsync(CREATE_TABLE_SQL);
+    // Installs from before ownership have the table without the column; CREATE IF NOT EXISTS won't add it.
+    const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(queued_mutations)', {});
+    if (!columns.some((column) => column.name === 'owner_user_id')) {
+      await db.execAsync('ALTER TABLE queued_mutations ADD COLUMN owner_user_id TEXT');
     }
-    return this.schemaReady;
   }
 
   async insert(row: QueuedMutation): Promise<void> {
-    await this.ensureSchema();
     const r = toRow(row);
-    await this.open().runAsync(
+    await (await this.open()).runAsync(
       `INSERT INTO queued_mutations
-        (queue_id, entity, op, local_id, server_id, idempotency_key, payload, status, error_code, created_at, updated_at, attempts)
-       VALUES ($queue_id, $entity, $op, $local_id, $server_id, $idempotency_key, $payload, $status, $error_code, $created_at, $updated_at, $attempts)`,
+        (queue_id, entity, op, local_id, server_id, idempotency_key, payload, status, error_code, created_at, updated_at, attempts, owner_user_id)
+       VALUES ($queue_id, $entity, $op, $local_id, $server_id, $idempotency_key, $payload, $status, $error_code, $created_at, $updated_at, $attempts, $owner_user_id)`,
       {
         $queue_id: r.queue_id,
         $entity: r.entity,
@@ -138,13 +146,13 @@ class SqliteQueueDb implements QueueDb {
         $created_at: r.created_at,
         $updated_at: r.updated_at,
         $attempts: r.attempts,
+        $owner_user_id: r.owner_user_id,
       },
     );
   }
 
   async updateStatus(queueId: string, patch: QueueStatusPatch): Promise<void> {
-    await this.ensureSchema();
-    await this.open().runAsync(
+    await (await this.open()).runAsync(
       `UPDATE queued_mutations
        SET status = $status,
            server_id = COALESCE($server_id, server_id),
@@ -164,10 +172,9 @@ class SqliteQueueDb implements QueueDb {
   }
 
   async listByStatus(statuses: QueueStatus[]): Promise<QueuedMutation[]> {
-    await this.ensureSchema();
     const placeholders = statuses.map((_, i) => `$s${i}`).join(', ');
     const params = Object.fromEntries(statuses.map((status, i) => [`$s${i}`, status]));
-    const rows = await this.open().getAllAsync<QueueRow>(
+    const rows = await (await this.open()).getAllAsync<QueueRow>(
       `SELECT * FROM queued_mutations WHERE status IN (${placeholders}) ORDER BY created_at ASC`,
       params,
     );
@@ -175,8 +182,7 @@ class SqliteQueueDb implements QueueDb {
   }
 
   async listAll(): Promise<QueuedMutation[]> {
-    await this.ensureSchema();
-    const rows = await this.open().getAllAsync<QueueRow>(
+    const rows = await (await this.open()).getAllAsync<QueueRow>(
       'SELECT * FROM queued_mutations ORDER BY created_at ASC',
       {},
     );
@@ -184,8 +190,7 @@ class SqliteQueueDb implements QueueDb {
   }
 
   async findByLocalId(entity: QueueEntity, localId: string): Promise<QueuedMutation | null> {
-    await this.ensureSchema();
-    const row = await this.open().getFirstAsync<QueueRow>(
+    const row = await (await this.open()).getFirstAsync<QueueRow>(
       'SELECT * FROM queued_mutations WHERE entity = $entity AND local_id = $local_id',
       { $entity: entity, $local_id: localId },
     );
@@ -193,18 +198,22 @@ class SqliteQueueDb implements QueueDb {
   }
 
   async remove(queueId: string): Promise<void> {
-    await this.ensureSchema();
-    await this.open().runAsync('DELETE FROM queued_mutations WHERE queue_id = $queue_id', {
+    await (await this.open()).runAsync('DELETE FROM queued_mutations WHERE queue_id = $queue_id', {
       $queue_id: queueId,
     });
   }
-}
+
+  async assignUnowned(ownerUserId: string): Promise<number> {
+    const result = await (await this.open()).runAsync(
+      'UPDATE queued_mutations SET owner_user_id = $owner WHERE owner_user_id IS NULL',
+      { $owner: ownerUserId },
+    );
+    return result.changes;
+  }}
 
 /** Web fallback when SQLite/SharedArrayBuffer is unavailable in browser workers. */
 class MemoryQueueDb implements QueueDb {
   private rows = new Map<string, QueuedMutation>();
-
-  async ensureSchema(): Promise<void> {}
 
   async insert(row: QueuedMutation): Promise<void> {
     this.rows.set(row.queueId, { ...row });
@@ -240,7 +249,16 @@ class MemoryQueueDb implements QueueDb {
   async remove(queueId: string): Promise<void> {
     this.rows.delete(queueId);
   }
-}
+
+  async assignUnowned(ownerUserId: string): Promise<number> {
+    let count = 0;
+    for (const row of this.rows.values()) {
+      if (row.ownerUserId !== null) continue;
+      row.ownerUserId = ownerUserId;
+      count += 1;
+    }
+    return count;
+  }}
 
 export const offlineQueueDb: QueueDb =
   Platform.OS === 'web' ? new MemoryQueueDb() : new SqliteQueueDb();

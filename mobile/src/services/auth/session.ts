@@ -32,6 +32,12 @@ export type RefreshFn = (refreshToken: string) => Promise<AuthTokens>;
 export interface SessionManagerOptions {
   persistence: SessionPersistence;
   refresh: RefreshFn;
+  /**
+   * Whether a failed refresh means the server rejected the token. Only then is the
+   * session ended; a dropped connection or a 5xx keeps it for the next attempt.
+   * Defaults to treating every failure as a rejection.
+   */
+  isRefreshRejected?: (error: unknown) => boolean;
   now?: () => number;
 }
 
@@ -130,12 +136,33 @@ export class SessionManager {
     const current = this.session;
     if (current === null) return null;
 
+    // A logout or another login during the request is newer than its answer, which must not
+    // bring the old session back, overwrite the new one, or sign the new user out.
     try {
       const tokens = await this.options.refresh(current.refreshToken);
+      if (this.session !== current) return this.session;
       return await this.adopt(tokens);
-    } catch {
-      await this.clear();
+    } catch (error) {
+      if (this.session !== current) return this.session;
+      if (this.options.isRefreshRejected?.(error) ?? true) await this.clear();
       return null;
     }
+  }
+}
+
+/**
+ * The `sub` claim of an access token, read without verifying the signature: it
+ * only scopes device-local data to an account, never authorizes anything (AC-02).
+ */
+export function userIdFromAccessToken(accessToken: string): string | null {
+  const payload = accessToken.split('.')[1];
+  if (payload === undefined) return null;
+  try {
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const claims: unknown = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')));
+    const sub = (claims as { sub?: unknown }).sub;
+    return typeof sub === 'string' && sub !== '' ? sub : null;
+  } catch {
+    return null;
   }
 }

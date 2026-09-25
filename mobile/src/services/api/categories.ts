@@ -39,7 +39,11 @@ export const categoriesApi = {
       idempotencyHeaders(idempotencyKey),
     );
   },
-  deletePermanently(categoryId: string): Promise<void> {
-    return deleteVoid(apiUrl(ROUTES.categories.archive(categoryId)), { mode: 'permanent' });
+  deletePermanently(categoryId: string, idempotencyKey?: string): Promise<void> {
+    return deleteVoid(
+      apiUrl(ROUTES.categories.archive(categoryId)),
+      { mode: 'permanent' },
+      idempotencyHeaders(idempotencyKey),
+    );
   },
 };

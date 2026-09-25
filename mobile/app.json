@@ -11,7 +11,8 @@
       "bundleIdentifier": "com.sora.app"
     },
     "android": {
-      "package": "com.sora.app"
+      "package": "com.sora.app",
+      "allowBackup": false
     },
     "web": {
       "bundler": "metro"
@@ -19,7 +20,8 @@
     "plugins": [
       "expo-web-browser",
       "expo-localization",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      ["expo-sqlite", { "useSQLCipher": true }]
     ],
     "extra": {
       "eas": {

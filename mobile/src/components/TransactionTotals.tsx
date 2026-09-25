@@ -9,10 +9,7 @@ export interface TransactionTotalsProps {
   testID?: string;
 }
 
-/**
- * Per-currency income + expense totals for a set of transactions, colour/
- * sign-coded via `Money`. Used for a day's heading in `TransactionListSection`.
- */
+/** Per-currency income + expense totals for a set of transactions, colour/sign-coded via `Money`. */
 export function TransactionTotals({ transactions, testID }: TransactionTotalsProps) {
   const income = sumByTransactionType(transactions, 'INCOME');
   const expense = sumByTransactionType(transactions, 'EXPENSE');

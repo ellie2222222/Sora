@@ -1,12 +1,13 @@
+import { useMemo } from 'react';
 import { Plus } from 'lucide-react-native';
 import { FlatList, Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { ContributionResponse } from '@sora/contracts';
 
 import { useModal, useTheme, useWallets } from '@/app/providers';
-import { Card, Money, ProgressBar, SkeletonList, StateView, Text } from '@/components';
-import { useGetGoalQuery, useListGoalContributionsQuery } from '@/app/store';
-import { formatDay, isNetworkError } from '@/utils';
+import { Card, ListLoadMoreFooter, Money, ProgressBar, SkeletonList, StateView, Text } from '@/components';
+import { useGetGoalQuery, useListGoalContributionsInfiniteQuery } from '@/app/store';
+import { canLoadMore, flattenPages, formatDay, isNetworkError } from '@/utils';
 import type { AppStackScreenProps } from '@/app/navigation';
 
 export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScreenProps<'GoalDetail'>) {
@@ -17,7 +18,8 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
   const { permissions, isLoading: walletsLoading } = useWallets();
 
   const goal = useGetGoalQuery(goalId);
-  const contributions = useListGoalContributionsQuery(goalId);
+  const contributions = useListGoalContributionsInfiniteQuery(goalId);
+  const contributionItems = useMemo(() => flattenPages(contributions.data?.pages), [contributions.data]);
 
   const renderContent = () => {
     if (goal.isLoading || walletsLoading) {
@@ -46,8 +48,8 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
 
     return (
       <FlatList<ContributionResponse>
-        testID="goal-detail"
-        data={contributions.data ?? []}
+        testID="screen-goal-detail"
+        data={contributionItems}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.sm }}
         ListHeaderComponent={
@@ -80,7 +82,7 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
 
             {permissions.canWrite ? (
               <Pressable
-                testID="goal-detail-add-contribution"
+                testID="btn-add-contribution"
                 onPress={() => openModal('AddContribution', { goalId })}
                 className="flex-row items-center self-start"
                 style={{
@@ -102,6 +104,19 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
         }
         ListEmptyComponent={<Text tone="faint">{t('goals.noContributionsYet', 'No contributions yet.')}</Text>}
         renderItem={({ item }) => <ContributionRow contribution={item} />}
+        onEndReached={() => {
+          if (canLoadMore(contributions)) void contributions.fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <ListLoadMoreFooter
+            isFetchingNextPage={contributions.isFetchingNextPage}
+            hasNextPage={contributions.hasNextPage}
+            isError={contributions.isError}
+            onRetry={() => void contributions.fetchNextPage()}
+            testID="goal-detail-contributions-footer"
+          />
+        }
       />
     );
   };

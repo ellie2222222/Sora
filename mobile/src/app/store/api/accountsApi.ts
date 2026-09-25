@@ -7,11 +7,12 @@ import {
 
 import { accountsApi as accountsHttp, type AccountListQuery } from '@/services/api';
 import { guestAccountsApi } from '@/services/guest';
-import { buildOptimisticAccount, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
+import { buildOptimisticAccount, cacheKeyOf, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
-import { readWithGuestFallback } from './guestFallback.ts';
+import { readGuestOrApi } from './guestFallback.ts';
+import { patchTotalsForNewAccount } from './pendingTotalsPatch.ts';
 
 export type { AccountListQuery } from '@/services/api';
 
@@ -20,10 +21,11 @@ const ACCOUNT_TAGS = ['Account', 'Wallet', 'Dashboard'] as const;
 export const accountsApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     listAccounts: builder.query<AccountResponse[], AccountListQuery>({
-      queryFn: (query, { getState }) => {
+      queryFn: (query, { getState, endpoint }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         return toQueryFnResult(() =>
-          readWithGuestFallback(
+          readGuestOrApi(
+            cacheKeyOf(endpoint, query),
             isGuest,
             () => accountsHttp.list(query),
             () => guestAccountsApi.list(query),
@@ -33,10 +35,11 @@ export const accountsApiSlice = apiSlice.injectEndpoints({
       providesTags: ['Account'],
     }),
     getAccount: builder.query<AccountDetailResponse, string>({
-      queryFn: (accountId, { getState }) => {
+      queryFn: (accountId, { getState, endpoint }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         return toQueryFnResult(() =>
-          readWithGuestFallback(
+          readGuestOrApi(
+            cacheKeyOf(endpoint, accountId),
             isGuest,
             () => accountsHttp.detail(accountId),
             () => guestAccountsApi.detail(accountId),
@@ -71,6 +74,7 @@ export const accountsApiSlice = apiSlice.injectEndpoints({
               }),
             );
           });
+          patchTotalsForNewAccount(dispatch, rootState, data);
         } catch {
           // Nothing was applied to the cache yet — nothing to undo.
         }

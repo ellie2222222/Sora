@@ -9,7 +9,7 @@ import {
   type UpdateGoalRequest,
 } from '@sora/contracts';
 
-import { deleteVoid, getList, getOne, idempotencyHeaders, patchOne, postOne } from './client.ts';
+import { deleteVoid, getList, getOne, idempotencyHeaders, patchOne, postOne, type ListResult, type PageQuery } from './client.ts';
 
 export interface GoalListQuery {
   walletId: string;
@@ -39,11 +39,8 @@ export const goalsApi = {
     return deleteVoid(apiUrl(ROUTES.goals.archive(goalId)), undefined, idempotencyHeaders(idempotencyKey));
   },
 
-  async contributions(goalId: string): Promise<ContributionResponse[]> {
-    const { items } = await getList<ContributionResponse>(
-      apiUrl(ROUTES.goals.contributions(goalId)),
-    );
-    return items;
+  contributions(goalId: string, page: PageQuery): Promise<ListResult<ContributionResponse>> {
+    return getList<ContributionResponse>(apiUrl(ROUTES.goals.contributions(goalId)), page);
   },
 
   /**

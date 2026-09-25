@@ -2,24 +2,54 @@ import { TransactionStatus, type CreateTransactionRequest, type TransactionQuery
 
 import { transactionsApi as transactionsHttp, type TransactionPage } from '@/services/api';
 import { guestTransactionsApi } from '@/services/guest';
-import { buildOptimisticTransaction, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
+import {
+  buildOptimisticTransaction,
+  cacheKeyOf,
+  enqueueOffline,
+  forEachCachedQueryArgs,
+  isCurrentlyOnline,
+  isStillQueued,
+  ledgerChangeOf,
+  newLocalId,
+} from '@/services/sync';
+import { FIRST_PAGE, nextPageParam } from '@/utils';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
-import { readWithGuestFallback } from './guestFallback.ts';
+import { readGuestOrApi } from './guestFallback.ts';
+import { currentUserId, findCachedTransaction, patchTotalsForTransaction } from './pendingTotalsPatch.ts';
 
 export type { TransactionPage } from '@/services/api';
+
+/** The list filters; paging is owned by the infinite query. */
+export type TransactionListArgs = Omit<Partial<TransactionQuery>, 'page' | 'pageSize'>;
+
+const TRANSACTIONS_PAGE_SIZE = 50;
 
 /** A transaction moves money and, when it is a transfer, sometimes across a wallet — all six can change. */
 const TRANSACTION_TAGS = ['Transaction', 'Account', 'Dashboard', 'Budget', 'Wallet', 'Goal'] as const;
 
+function findInPages(pages: TransactionPage[], transactionId: string): TransactionResponse | undefined {
+  for (const page of pages) {
+    const item = page.items.find((candidate) => candidate.id === transactionId);
+    if (item) return item;
+  }
+  return undefined;
+}
+
 export const transactionsApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-    listTransactions: builder.query<TransactionPage, Partial<TransactionQuery>>({
-      queryFn: (query, { getState }) => {
+    listTransactions: builder.infiniteQuery<TransactionPage, TransactionListArgs, number>({
+      infiniteQueryOptions: {
+        initialPageParam: FIRST_PAGE,
+        getNextPageParam: (lastPage) => nextPageParam(lastPage),
+      },
+      queryFn: ({ queryArg, pageParam }, { getState, endpoint }) => {
         const isGuest = selectIsGuest(getState() as RootState);
+        const query = { ...queryArg, page: pageParam, pageSize: TRANSACTIONS_PAGE_SIZE };
         return toQueryFnResult(() =>
-          readWithGuestFallback(
+          readGuestOrApi(
+            cacheKeyOf(endpoint, queryArg, pageParam),
             isGuest,
             () => transactionsHttp.list(query),
             () => guestTransactionsApi.list(query),
@@ -29,10 +59,11 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
       providesTags: ['Transaction'],
     }),
     getTransaction: builder.query<TransactionResponse, string>({
-      queryFn: (transactionId, { getState }) => {
+      queryFn: (transactionId, { getState, endpoint }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         return toQueryFnResult(() =>
-          readWithGuestFallback(
+          readGuestOrApi(
+            cacheKeyOf(endpoint, transactionId),
             isGuest,
             () => transactionsHttp.detail(transactionId),
             () => guestTransactionsApi.detail(transactionId),
@@ -54,7 +85,7 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
         }
         return toQueryFnResult(() => transactionsHttp.create(body));
       },
-      onQueryStarted: async (_body, { dispatch, queryFulfilled, getState }) => {
+      onQueryStarted: async (body, { dispatch, queryFulfilled, getState }) => {
         try {
           const { data } = await queryFulfilled;
           if (!isStillQueued(data.id)) return; // Online/guest path — invalidatesTags already covers it.
@@ -62,12 +93,19 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
           const rootState = getState();
           forEachCachedQueryArgs(rootState, 'listTransactions', (args) => {
             dispatch(
-              transactionsApiSlice.util.updateQueryData('listTransactions', args as Partial<TransactionQuery>, (draft) => {
-                draft.items.unshift(data);
-                if (draft.pagination) draft.pagination.total += 1;
+              transactionsApiSlice.util.updateQueryData('listTransactions', args as TransactionListArgs, (draft) => {
+                draft.pages[0]?.items.unshift(data);
+                for (const page of draft.pages) {
+                  if (page.pagination) page.pagination.total += 1;
+                }
               }),
             );
           });
+          const accountIds = {
+            from: 'fromAccountId' in body ? body.fromAccountId : null,
+            to: 'toAccountId' in body ? body.toAccountId : null,
+          };
+          patchTotalsForTransaction(dispatch, rootState, ledgerChangeOf('create', data, { accountIds, actorUserId: currentUserId() }));
         } catch {
           // Nothing was applied to the cache yet — nothing to undo.
         }
@@ -104,8 +142,8 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
           const rootState = getState();
           forEachCachedQueryArgs(rootState, 'listTransactions', (args) => {
             dispatch(
-              transactionsApiSlice.util.updateQueryData('listTransactions', args as Partial<TransactionQuery>, (draft) => {
-                const item = draft.items.find((candidate) => candidate.id === transactionId);
+              transactionsApiSlice.util.updateQueryData('listTransactions', args as TransactionListArgs, (draft) => {
+                const item = findInPages(draft.pages, transactionId);
                 if (item) Object.assign(item, body);
               }),
             );
@@ -139,6 +177,10 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
           await queryFulfilled;
           if (!isStillQueued(transactionId)) return;
 
+          // Read before the patches below mark it deleted.
+          const original = findCachedTransaction(getState(), transactionId);
+          if (original) patchTotalsForTransaction(dispatch, getState(), ledgerChangeOf('cancel', original));
+
           const markDeleted = (draft: TransactionResponse) => {
             draft.status = TransactionStatus.DELETED;
           };
@@ -147,8 +189,8 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
           const rootState = getState();
           forEachCachedQueryArgs(rootState, 'listTransactions', (args) => {
             dispatch(
-              transactionsApiSlice.util.updateQueryData('listTransactions', args as Partial<TransactionQuery>, (draft) => {
-                const item = draft.items.find((candidate) => candidate.id === transactionId);
+              transactionsApiSlice.util.updateQueryData('listTransactions', args as TransactionListArgs, (draft) => {
+                const item = findInPages(draft.pages, transactionId);
                 if (item) item.status = TransactionStatus.DELETED;
               }),
             );
@@ -164,7 +206,7 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
 });
 
 export const {
-  useListTransactionsQuery,
+  useListTransactionsInfiniteQuery,
   useGetTransactionQuery,
   useCreateTransactionMutation,
   useUpdateTransactionMutation,
