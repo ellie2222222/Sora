@@ -133,3 +133,68 @@ describe('GuestStore.setPersistence', () => {
     assert.equal(data.wallet, null);
   });
 });
+
+/** A persistence whose load waits until released, so overlapping calls can be ordered by hand. */
+function slowPersistence(stored: string | null) {
+  let saved = stored;
+  const pending: (() => void)[] = [];
+  return {
+    persistence: {
+      async load() {
+        const read = saved; // What storage held when the read began.
+        await new Promise<void>((resolve) => pending.push(resolve));
+        return read;
+      },
+      async save(value: string) {
+        saved = value;
+      },
+      async clear() {
+        saved = null;
+      },
+    },
+    releaseNextLoad: () => pending.shift()?.(),
+    pendingLoads: () => pending.length,
+    saved: () => saved,
+  };
+}
+
+describe('GuestStore under overlapping calls', () => {
+  it('reads storage once for concurrent hydrates, so a late read cannot discard a change made in between', async () => {
+    const slow = slowPersistence(JSON.stringify({ wallet: walletOf('Stored') }));
+    const store = new GuestStore(slow.persistence);
+    const first = store.hydrate();
+    const second = store.hydrate();
+    slow.releaseNextLoad();
+    await first;
+    await store.mutate((data) => ({ ...data, wallet: walletOf('Edited') }));
+    slow.releaseNextLoad();
+    await second;
+
+    assert.equal(store.current().wallet?.name, 'Edited');
+    assert.equal((JSON.parse(slow.saved()!) as GuestData).wallet?.name, 'Edited');
+  });
+
+  it('builds a change made before hydration on the stored data instead of overwriting it', async () => {
+    const slow = slowPersistence(JSON.stringify({ wallet: walletOf('Stored'), accounts: [{ id: 'a1' }] }));
+    const store = new GuestStore(slow.persistence);
+    const mutation = store.mutate((data) => ({ ...data, wallet: walletOf('Renamed') }));
+    await Promise.resolve();
+    slow.releaseNextLoad();
+    await mutation;
+
+    const saved = JSON.parse(slow.saved()!) as GuestData;
+    assert.equal(saved.wallet?.name, 'Renamed');
+    assert.equal(saved.accounts.length, 1, 'the stored accounts survive a mutation that ran first');
+  });
+
+  it('stays empty when cleared while a hydrate was still reading', async () => {
+    const slow = slowPersistence(JSON.stringify({ wallet: walletOf('Stored') }));
+    const store = new GuestStore(slow.persistence);
+    const hydrating = store.hydrate();
+    await store.clear();
+    slow.releaseNextLoad();
+    await hydrating;
+
+    assert.equal(store.current().wallet, null);
+  });
+});

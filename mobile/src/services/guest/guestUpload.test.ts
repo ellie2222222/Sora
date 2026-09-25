@@ -77,8 +77,8 @@ function recordingApis(options: {
           transactionCount: 0,
         }));
       },
-      async create(body) {
-        record('categories.create', [body]);
+      async create(body, idempotencyKey) {
+        record('categories.create', [body, idempotencyKey]);
         return {
           id: serverId('category'),
           walletId: TARGET_WALLET,
@@ -96,8 +96,8 @@ function recordingApis(options: {
       },
     },
     accounts: {
-      async create(body) {
-        record('accounts.create', [body]);
+      async create(body, idempotencyKey) {
+        record('accounts.create', [body, idempotencyKey]);
         return {
           id: serverId('account'),
           walletId: TARGET_WALLET,
@@ -138,8 +138,8 @@ function recordingApis(options: {
       },
     },
     budgets: {
-      async create(body) {
-        record('budgets.create', [body]);
+      async create(body, idempotencyKey) {
+        record('budgets.create', [body, idempotencyKey]);
         return {
           id: serverId('budget'),
           walletId: TARGET_WALLET,
@@ -164,8 +164,8 @@ function recordingApis(options: {
       },
     },
     goals: {
-      async create(body) {
-        record('goals.create', [body]);
+      async create(body, idempotencyKey) {
+        record('goals.create', [body, idempotencyKey]);
         return {
           id: serverId('goal'),
           walletId: TARGET_WALLET,
@@ -498,6 +498,26 @@ describe('uploadGuestData — resume after failure', () => {
 
     const retriedKey = resumed.of('transactions.create')[0]!.args[1] as string;
     assert.equal(retriedKey, firstKey);
+  });
+
+  it('resends the pinned key for every create whose response was lost after the server committed it', async () => {
+    await seedFullLedger();
+    const first = recordingApis();
+    await uploadGuestData(TARGET_WALLET, first.apis);
+
+    // A kill between the server's commit and recordMap leaves the id unmapped but the key pinned.
+    await guestStore.mutate((data) => ({
+      ...data,
+      uploadProgress: { ...data.uploadProgress!, accountMap: {}, budgetMap: {}, goalMap: {}, categoryMap: {} },
+    }));
+    const resumed = recordingApis();
+    await uploadGuestData(TARGET_WALLET, resumed.apis);
+
+    for (const method of ['categories.create', 'accounts.create', 'budgets.create', 'goals.create']) {
+      const sent = first.of(method).map((call) => call.args[1]);
+      assert.ok(sent.length > 0 && sent.every((key) => typeof key === 'string'), `${method} sends a key`);
+      assert.deepEqual(resumed.of(method).map((call) => call.args[1]), sent, `${method} reuses its key`);
+    }
   });
 
   it('reuses the pinned idempotency key on a retried contribution', async () => {

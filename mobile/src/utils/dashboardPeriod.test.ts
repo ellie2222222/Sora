@@ -1,13 +1,25 @@
 import { strict as assert } from 'node:assert';
-import { describe, it } from 'node:test';
+import { after, describe, it } from 'node:test';
+import i18next from 'i18next';
 
+import en from '../app/i18n/locales/en.ts';
+import vi from '../app/i18n/locales/vi.ts';
 import {
   DASHBOARD_PERIODS,
+  formatPeriodLabel,
   isCurrentPeriod,
   previousWindow,
   shiftAnchor,
   windowFor,
 } from './dashboardPeriod.ts';
+
+// formatPeriodLabel takes no locale argument; it reads the app-wide i18next language.
+await i18next.init({
+  lng: 'en',
+  fallbackLng: 'en',
+  resources: { en: { translation: en }, vi: { translation: vi } },
+  interpolation: { escapeValue: false },
+});
 
 /**
  * These windows are what the dashboard sends as `dateFrom`/`dateTo`, so a wrong
@@ -88,5 +100,32 @@ describe('isCurrentPeriod', () => {
     assert.equal(isCurrentPeriod('daily', ANCHOR, '2026-08-18'), false);
     assert.equal(isCurrentPeriod('yearly', ANCHOR, '2026-12-31'), true);
     assert.equal(isCurrentPeriod('yearly', ANCHOR, '2027-01-01'), false);
+  });
+});
+
+describe('formatPeriodLabel', () => {
+  after(async () => {
+    await i18next.changeLanguage('en');
+  });
+
+  it('labels each period in English', async () => {
+    await i18next.changeLanguage('en');
+    assert.equal(formatPeriodLabel('daily', ANCHOR), 'Aug 17, 2026');
+    assert.equal(formatPeriodLabel('weekly', ANCHOR), 'Aug 16, 2026 – Aug 22, 2026');
+    assert.equal(formatPeriodLabel('monthly', ANCHOR), 'Aug 2026');
+    assert.equal(formatPeriodLabel('quarterly', ANCHOR), 'Q3 2026');
+    assert.equal(formatPeriodLabel('yearly', ANCHOR), '2026');
+  });
+
+  it('labels a week that spans New Year with both years', async () => {
+    await i18next.changeLanguage('en');
+    assert.equal(formatPeriodLabel('weekly', '2026-12-30'), 'Dec 27, 2026 – Jan 2, 2027');
+  });
+
+  it('follows the active language for the date-based periods', async () => {
+    await i18next.changeLanguage('vi');
+    assert.equal(formatPeriodLabel('daily', ANCHOR), '17 thg 8, 2026');
+    assert.equal(formatPeriodLabel('weekly', ANCHOR), '16 thg 8, 2026 – 22 thg 8, 2026');
+    assert.equal(formatPeriodLabel('monthly', ANCHOR), 'thg 8 2026');
   });
 });

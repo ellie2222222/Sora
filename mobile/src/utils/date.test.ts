@@ -1,9 +1,13 @@
 import { strict as assert } from 'node:assert';
-import { describe, it } from 'node:test';
+import { after, describe, it } from 'node:test';
+import i18next from 'i18next';
 
+import en from '../app/i18n/locales/en.ts';
+import vi from '../app/i18n/locales/vi.ts';
 import {
   addDays,
   addMonths,
+  withYear,
   addQuarters,
   addWeeks,
   dayOfInstant,
@@ -11,6 +15,8 @@ import {
   endOfQuarter,
   endOfWeek,
   endOfYear,
+  formatDayHeading,
+  formatSavedAt,
   formatShortDay,
   instantOfDay,
   monthGrid,
@@ -22,6 +28,14 @@ import {
   startOfWeek,
   startOfYear,
 } from './date.ts';
+
+// formatDayHeading's Today/Yesterday words come from the app-wide i18next instance, not its locale argument.
+await i18next.init({
+  lng: 'en',
+  fallbackLng: 'en',
+  resources: { en: { translation: en }, vi: { translation: vi } },
+  interpolation: { escapeValue: false },
+});
 
 /**
  * These are the windows every dashboard period is built from, so an off-by-one
@@ -55,6 +69,14 @@ describe('addMonths', () => {
     // Naive date math turns "Jan 31 + 1 month" into March 3rd.
     assert.equal(addMonths('2026-01-31', 1), '2026-02-28');
     assert.equal(addMonths('2026-05-31', 1), '2026-06-30');
+  });
+});
+
+describe('withYear', () => {
+  it('keeps the month and day, clamping a leap day into a non-leap year', () => {
+    assert.equal(withYear('2026-05-17', 2019), '2019-05-17');
+    assert.equal(withYear('2024-02-29', 2025), '2025-02-28');
+    assert.equal(withYear('2024-02-29', 2028), '2028-02-29');
   });
 });
 
@@ -194,5 +216,58 @@ describe('formatShortDay', () => {
     const now = new Date();
     const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     assert.match(formatShortDay(day, 'en'), /^[A-Z][a-z]{2} \d{1,2}$/);
+  });
+});
+
+describe('formatSavedAt', () => {
+  const at = (day: number, hour: number, minute: number) => new Date(2026, 8, day, hour, minute).toISOString();
+  const now = new Date(2026, 8, 25, 18, 0);
+
+  it('shows only the local time for something saved today', () => {
+    assert.equal(formatSavedAt(at(25, 9, 5), 'en', now), '09:05');
+  });
+
+  it('adds the day for something saved earlier', () => {
+    assert.equal(formatSavedAt(at(24, 14, 32), 'en', now), 'Sep 24 14:32');
+  });
+
+  it('returns nothing for an unreadable instant', () => {
+    assert.equal(formatSavedAt('not a date', 'en', now), '');
+  });
+});
+
+describe('formatDayHeading', () => {
+  const REFERENCE = '2026-09-25';
+
+  after(async () => {
+    await i18next.changeLanguage('en');
+  });
+
+  it('names today and yesterday, followed by the date without the year', async () => {
+    await i18next.changeLanguage('en');
+    assert.equal(formatDayHeading('2026-09-25', REFERENCE, 'en'), 'Today · Sep 25');
+    assert.equal(formatDayHeading('2026-09-24', REFERENCE, 'en'), 'Yesterday · Sep 24');
+  });
+
+  it('shows the weekday for older days, adding the year only outside the reference year', async () => {
+    await i18next.changeLanguage('en');
+    assert.equal(formatDayHeading('2026-09-23', REFERENCE, 'en'), 'Wed, Sep 23');
+    assert.equal(formatDayHeading('2025-12-31', REFERENCE, 'en'), 'Wed, Dec 31, 2025');
+  });
+
+  it('still says yesterday across a year boundary, keeping the year it belongs to', async () => {
+    await i18next.changeLanguage('en');
+    assert.equal(formatDayHeading('2025-12-31', '2026-01-01', 'en'), 'Yesterday · Dec 31, 2025');
+  });
+
+  it('renders Vietnamese headings when the app language is Vietnamese', async () => {
+    await i18next.changeLanguage('vi');
+    assert.equal(formatDayHeading('2026-09-25', REFERENCE, 'vi'), 'Hôm nay · 25 thg 9');
+    assert.equal(formatDayHeading('2026-09-24', REFERENCE, 'vi'), 'Hôm qua · 24 thg 9');
+    assert.equal(formatDayHeading('2026-09-23', REFERENCE, 'vi'), 'Thứ 4, 23 thg 9');
+  });
+
+  it('returns nothing for an empty day', () => {
+    assert.equal(formatDayHeading('', REFERENCE, 'en'), '');
   });
 });

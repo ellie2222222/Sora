@@ -7,6 +7,7 @@ import {
   SessionManager,
   type SessionPersistence,
   type StoredSession,
+  userIdFromAccessToken,
 } from './session.ts';
 
 function memoryPersistence(initial: StoredSession | null = null): SessionPersistence & {
@@ -213,6 +214,24 @@ describe('SessionManager.refreshTokens — single flight', () => {
     assert.equal(persistence.clears, 1);
   });
 
+  it('keeps the session when the refresh fails for a reason the server did not decide', async () => {
+    const persistence = memoryPersistence();
+    const dropped = Object.assign(new Error('Network Error'), { transient: true });
+    const manager = new SessionManager({
+      persistence,
+      refresh: async () => {
+        throw dropped;
+      },
+      isRefreshRejected: (error) => (error as { transient?: boolean }).transient !== true,
+      now: () => FIXED_NOW,
+    });
+    await manager.adopt(tokens('a'));
+
+    assert.equal(await manager.refreshTokens(), null);
+    assert.equal(manager.current()?.refreshToken, 'refresh-a');
+    assert.equal(persistence.clears, 0);
+  });
+
   it('does not attempt a refresh with no session at all', async () => {
     const deferred = deferredRefresh();
     const manager = new SessionManager({
@@ -280,5 +299,70 @@ describe('SessionManager.subscribe', () => {
     await manager.adopt(tokens('b'));
 
     assert.deepEqual(seen, ['access-a', null]);
+  });
+});
+
+describe('userIdFromAccessToken', () => {
+  const encode = (claims: object) => Buffer.from(JSON.stringify(claims)).toString('base64url');
+
+  it('reads the sub claim from a base64url payload, padding included', () => {
+    const sub = '0f0e7b1c-4a2d-4c1e-9b1a-3f5d2e6c7a81';
+    for (const email of ['a@example.invalid', 'ab@example.invalid', 'abc@example.invalid']) {
+      assert.equal(userIdFromAccessToken(`h.${encode({ sub, email })}.sig`), sub);
+    }
+  });
+
+  it('returns null for a malformed token or a missing sub', () => {
+    assert.equal(userIdFromAccessToken('not-a-jwt'), null);
+    assert.equal(userIdFromAccessToken('h.%%%.sig'), null);
+    assert.equal(userIdFromAccessToken(`h.${encode({ email: 'x' })}.sig`), null);
+  });
+});
+
+describe('SessionManager.refreshTokens racing a logout or another login', () => {
+  it('does not bring back a session that was logged out while its refresh was in flight', async () => {
+    const persistence = memoryPersistence();
+    const deferred = deferredRefresh();
+    const manager = new SessionManager({ persistence, refresh: deferred.refresh, now: () => FIXED_NOW });
+    await manager.adopt(tokens('a'));
+
+    const refreshing = manager.refreshTokens();
+    await manager.clear();
+    deferred.resolve('a2');
+
+    assert.equal(await refreshing, null);
+    assert.equal(manager.current(), null);
+    assert.equal(await persistence.load(), null, 'nothing re-saved after the logout');
+  });
+
+  it("does not overwrite the next user's session with the previous user's refreshed tokens", async () => {
+    const deferred = deferredRefresh();
+    const manager = new SessionManager({ persistence: memoryPersistence(), refresh: deferred.refresh, now: () => FIXED_NOW });
+    await manager.adopt(tokens('a'));
+
+    const refreshing = manager.refreshTokens();
+    await manager.clear();
+    await manager.adopt(tokens('b'));
+    deferred.resolve('a2');
+
+    assert.equal((await refreshing)?.accessToken, 'access-b');
+    assert.equal(manager.getAccessToken(), 'access-b');
+  });
+
+  it("does not sign out the next user when the previous user's refresh is rejected", async () => {
+    const deferred = deferredRefresh();
+    const persistence = memoryPersistence();
+    const manager = new SessionManager({ persistence, refresh: deferred.refresh, now: () => FIXED_NOW });
+    await manager.adopt(tokens('a'));
+
+    const refreshing = manager.refreshTokens();
+    await manager.clear();
+    await manager.adopt(tokens('b'));
+    const clearsBefore = persistence.clears;
+    deferred.reject('token replayed');
+    await refreshing;
+
+    assert.equal(manager.getAccessToken(), 'access-b');
+    assert.equal(persistence.clears, clearsBefore);
   });
 });

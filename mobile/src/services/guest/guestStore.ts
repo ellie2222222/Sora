@@ -136,7 +136,11 @@ export interface GuestUploadProgress {
   budgetMap: Record<string, string>;
   goalMap: Record<string, string>;
   contributionMap: Record<string, string>;
+  categoryKeys: Record<string, string>;
+  accountKeys: Record<string, string>;
   transactionKeys: Record<string, string>;
+  budgetKeys: Record<string, string>;
+  goalKeys: Record<string, string>;
   contributionKeys: Record<string, string>;
 }
 
@@ -176,7 +180,11 @@ export function emptyUploadProgress(walletId: string): GuestUploadProgress {
     budgetMap: {},
     goalMap: {},
     contributionMap: {},
+    categoryKeys: {},
+    accountKeys: {},
     transactionKeys: {},
+    budgetKeys: {},
+    goalKeys: {},
     contributionKeys: {},
   };
 }
@@ -193,6 +201,9 @@ export interface GuestPersistence {
 export class GuestStore {
   private data: GuestData = emptyData();
   private hydrated = false;
+  private hydrating: Promise<GuestData> | null = null;
+  /** Bumped by clear/setPersistence, so a read that started before either is discarded. */
+  private generation = 0;
   private readonly listeners = new Set<GuestListener>();
   // Assigned in the body rather than as a parameter property: Node's
   // strip-only type stripping, which `npm test` relies on, rejects those.
@@ -212,6 +223,8 @@ export class GuestStore {
     this.persistence = persistence;
     this.data = emptyData();
     this.hydrated = false;
+    this.hydrating = null;
+    this.generation += 1;
   }
 
   private emit(): void {
@@ -236,10 +249,20 @@ export class GuestStore {
   /** Reads whatever the last run persisted. A later call is a no-op once
    * hydration has already happened, so it is safe to call from more than
    * one place on startup. */
-  async hydrate(): Promise<GuestData> {
-    if (this.hydrated) return this.data;
+  /** Single-flight: AuthProvider and ensureSeeded both call it, and a second read landing late would discard a change. */
+  hydrate(): Promise<GuestData> {
+    if (this.hydrated) return Promise.resolve(this.data);
+    this.hydrating ??= this.load().finally(() => {
+      this.hydrating = null;
+    });
+    return this.hydrating;
+  }
 
+  private async load(): Promise<GuestData> {
+    const generation = this.generation;
     const raw = await this.persistence.load();
+    if (generation !== this.generation || this.hydrated) return this.data;
+
     if (raw !== null) {
       try {
         this.data = { ...emptyData(), ...(JSON.parse(raw) as Partial<GuestData>) };
@@ -253,6 +276,8 @@ export class GuestStore {
   }
 
   async mutate(updater: (data: GuestData) => GuestData): Promise<GuestData> {
+    // Before hydration `data` is the empty default, and saving an update of it would overwrite storage.
+    await this.hydrate();
     this.data = updater(this.data);
     await this.persistence.save(JSON.stringify(this.data));
     this.emit();
@@ -262,6 +287,7 @@ export class GuestStore {
   async clear(): Promise<void> {
     this.data = emptyData();
     this.hydrated = true;
+    this.generation += 1;
     await this.persistence.clear();
     this.emit();
   }

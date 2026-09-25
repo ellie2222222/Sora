@@ -2,10 +2,9 @@
  * Money for the screen.
  *
  * Everything arithmetic lives in `@sora/contracts` and operates on scaled
- * bigints; this module only turns one of those into characters. The float that
- * `Intl.NumberFormat` needs is produced at the very last step, from a value
- * already rounded to the digits the currency actually prints, so the discarded
- * precision can never reach the formatter and come back as a wrong figure.
+ * bigints; this module only turns one of those into characters. The formatter is
+ * handed an exact decimal string already rounded to the digits the currency
+ * prints, never a float, so no total can come back as a wrong figure.
  */
 
 import {
@@ -15,6 +14,7 @@ import {
   formatMoneyCompact,
   parseMoney,
   ZERO,
+  TransactionStatus,
   TransactionType,
   type CurrencyTotal,
   type MoneyString,
@@ -38,23 +38,17 @@ export function absScaled(value: Scaled): Scaled {
   return value < 0n ? -value : value;
 }
 
-/**
- * Scaled minor units to the number a formatter can take, rounded half-up to
- * `decimals` places first.
- *
- * Half-up rather than bankers' rounding because a displayed total that differs
- * from the sum a user computes by hand reads as a bug, whichever way it leans.
- */
-export function scaledToDisplayNumber(value: Scaled, decimals: number): number {
-  const keep = Math.max(0, Math.min(decimals, MONEY_SCALE));
-  const divisor = 10n ** BigInt(MONEY_SCALE - keep);
-  const negative = value < 0n;
-  const magnitude = negative ? -value : value;
+/** Half-up to `decimals` places, still at full scale: a total that differs from a hand sum reads as a bug. */
+function roundToDecimals(value: Scaled, decimals: number): Scaled {
+  const divisor = 10n ** BigInt(MONEY_SCALE - decimals);
+  const magnitude = absScaled(value);
   const quotient = magnitude / divisor;
-  const remainder = magnitude % divisor;
-  const rounded = remainder * 2n >= divisor ? quotient + 1n : quotient;
-  const signed = negative ? -rounded : rounded;
-  return Number(signed) / 10 ** keep;
+  const rounded = (magnitude % divisor) * 2n >= divisor ? quotient + 1n : quotient;
+  return (value < 0n ? -rounded : rounded) * divisor;
+}
+
+function clampDecimals(decimals: number): number {
+  return Math.max(0, Math.min(decimals, MONEY_SCALE));
 }
 
 export interface MoneyFormatOptions {
@@ -85,11 +79,12 @@ function fallbackFormat(
   decimals: number,
   options: MoneyFormatOptions,
 ): string {
-  const negative = value < 0n;
-  const text = formatMoneyCompact(absScaled(value), decimals);
+  const rounded = roundToDecimals(value, decimals);
+  const negative = rounded < 0n;
+  const text = formatMoneyCompact(absScaled(rounded), decimals);
   const [whole = '0', fraction] = text.split('.');
   const body = fraction === undefined ? groupDigits(whole) : `${groupDigits(whole)}.${fraction}`;
-  const sign = negative ? '-' : options.signDisplay === 'always' && value > 0n ? '+' : '';
+  const sign = negative ? '-' : options.signDisplay === 'always' && rounded > 0n ? '+' : '';
   return options.hideCurrency ? `${sign}${body}` : `${sign}${body} ${currency.toUpperCase()}`;
 }
 
@@ -98,10 +93,13 @@ export function formatScaled(
   currency: string,
   options: MoneyFormatOptions = {},
 ): string {
-  const decimals = currencyDecimals(currency);
+  const decimals = clampDecimals(currencyDecimals(currency));
   const shown = options.signDisplay === 'never' ? absScaled(value) : value;
+  const exact = formatMoneyCompact(roundToDecimals(shown, decimals), decimals);
 
   try {
+    // A numeric string formats exactly (ES2023; this TS lib lacks the overload). An engine without it
+    // coerces the string to a number, losing cents only past 2^53 minor units.
     return new Intl.NumberFormat(options.locale ?? DEFAULT_LOCALE, {
       style: options.hideCurrency ? 'decimal' : 'currency',
       currency,
@@ -110,7 +108,7 @@ export function formatScaled(
       minimumFractionDigits: options.compact ? 0 : decimals,
       maximumFractionDigits: decimals,
       signDisplay: options.signDisplay === 'always' ? 'exceptZero' : 'auto',
-    }).format(scaledToDisplayNumber(shown, decimals));
+    }).format(exact as unknown as number);
   } catch {
     return fallbackFormat(shown, currency, decimals, options);
   }
@@ -158,14 +156,15 @@ export function sumScaledByKey<T>(
  * Per-currency INCOME or EXPENSE total across `transactions`, formatted for
  * display. Shared by every "totals" summary row (a day's heading, a month's
  * header) so none of them hand-roll their own filter+sum — TRANSFER is
- * excluded by construction, since it matches neither `type` (BR-06).
+ * excluded by construction, since it matches neither `type` (BR-06), and only
+ * COMPLETED rows count, as in every balance.
  */
 export function sumByTransactionType(
   transactions: readonly TransactionResponse[],
   type: 'INCOME' | 'EXPENSE',
 ): CurrencyTotal[] {
   const byCurrency = sumScaledByKey(
-    transactions.filter((transaction) => transaction.type === type),
+    transactions.filter((transaction) => transaction.type === type && transaction.status === TransactionStatus.COMPLETED),
     (transaction) => transaction.currency,
     (transaction) => transaction.amount,
   );

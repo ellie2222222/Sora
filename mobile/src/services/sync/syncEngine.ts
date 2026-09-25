@@ -35,6 +35,11 @@ const REFERENCE_FIELDS: Partial<Record<QueueEntity, ReferenceField[]>> = {
   ],
   budget: [{ field: 'categoryId', refEntity: 'category' }],
   category: [{ field: 'parentId', refEntity: 'category' }],
+  contribution: [
+    { field: 'goalId', refEntity: 'goal' },
+    { field: 'accountId', refEntity: 'account' },
+    { field: 'categoryId', refEntity: 'category' },
+  ],
 };
 
 type ResolveResult = { ok: true; payload: unknown } | { ok: false };
@@ -60,16 +65,19 @@ function resolveReferences(queue: OfflineQueue, entity: QueueEntity, payload: un
   return { ok: true, payload: resolved };
 }
 
-/** A row's own id, resolved against the queue the same way an embedded reference would be. */
+/**
+ * A row's own id, resolved against the queue the same way an embedded reference would be.
+ * A record created offline is edited under its local id in both fields, so a queued create
+ * for it decides: its server id once synced, otherwise wait (null) rather than send a local id.
+ */
 function resolveOwnId(queue: OfflineQueue, row: QueuedMutation): string | null {
   if (row.op === 'create') return null; // No server id to target yet.
-  if (row.serverId) return row.serverId;
 
   const created = queue.current().find(
     (candidate) => candidate.entity === row.entity && candidate.localId === row.localId && candidate.op === 'create',
   );
-  if (created?.status === 'synced' && created.serverId) return created.serverId;
-  return row.localId; // Assume localId already is a real id (record predates offline mode).
+  if (created) return created.status === 'synced' && created.serverId ? created.serverId : null;
+  return row.serverId ?? row.localId; // No create queued: the record already exists on the server.
 }
 
 // FORBIDDEN already maps to status 403 in ERROR_STATUS; checked by code too
@@ -77,13 +85,15 @@ function resolveOwnId(queue: OfflineQueue, row: QueuedMutation): string | null {
 // doesn't match its own code.
 const ERROR_CODES_ARE_CONFLICTS = new Set(['FORBIDDEN']);
 
-function classifyFailure(error: unknown): 'conflict' | 'failed' | 'network' {
+function classifyFailure(error: unknown): 'conflict' | 'failed' | 'server' | 'network' {
   if (!isApiError(error)) return 'network';
   const apiError = error as ApiErrorLike;
   if (apiError.status === 403 || apiError.status === 404 || ERROR_CODES_ARE_CONFLICTS.has(apiError.code)) {
     return 'conflict';
   }
   if (apiError.status >= 400 && apiError.status < 500) return 'failed';
+  // The server answered, so the connection is fine: back this row off and let the rest through.
+  if (apiError.status >= 500) return 'server';
   return 'network';
 }
 
@@ -94,6 +104,7 @@ function errorCodeOf(error: unknown): ApiErrorLike['code'] | null {
 /**
  * A `failed` row is a 4xx the same payload will keep getting, so it is retried with a growing delay
  * and, after this many attempts, parked as `conflict` (needs the user) instead of re-sent forever.
+ * A 5xx backs off the same way but is never parked: an outage is not the user's to resolve.
  */
 export const MAX_FAILED_ATTEMPTS = 5;
 const FAILED_RETRY_BASE_MS = 30_000;
@@ -106,6 +117,9 @@ export function failedRetryDelayMs(attempts: number): number {
 
 function isDue(row: QueuedMutation, now: number, ignoreBackoff: boolean): boolean {
   if (row.status === 'pending') return true;
+  // Only one pass runs at a time, so a row still `syncing` when a pass starts was cut off by an
+  // app kill mid-request. Its idempotency key makes resending it safe; skipping it would strand it.
+  if (row.status === 'syncing') return true;
   if (row.status !== 'failed') return false;
   return ignoreBackoff || Date.parse(row.updatedAt) + failedRetryDelayMs(row.attempts) <= now;
 }
@@ -150,6 +164,9 @@ export async function runSyncPass(
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
     for (const row of rows) {
+      // Signed out or switched account mid-pass: never send one user's writes under the next one's token.
+      if (row.ownerUserId !== queue.ownerId()) break;
+
       const resolution = resolveReferences(queue, row.entity, row.payload);
       if (!resolution.ok) {
         result.deferred.push(row.queueId);
@@ -173,6 +190,9 @@ export async function runSyncPass(
           }
           if (row.op === 'update') {
             await adapter.update(targetId, resolution.payload, row.idempotencyKey);
+          } else if (row.op === 'delete') {
+            if (!adapter.deletePermanently) throw new Error(`syncEngine: ${row.entity} has no permanent delete`);
+            await adapter.deletePermanently(targetId, row.idempotencyKey);
           } else {
             await adapter.cancelOrArchive(targetId, resolution.payload, row.idempotencyKey);
           }
@@ -188,7 +208,7 @@ export async function runSyncPass(
         } else if (classification === 'failed' && row.attempts + 1 >= MAX_FAILED_ATTEMPTS) {
           await queue.markConflict(row.queueId, errorCodeOf(error));
           result.conflicted.push(row.queueId);
-        } else if (classification === 'failed') {
+        } else if (classification === 'failed' || classification === 'server') {
           await queue.markFailed(row.queueId, errorCodeOf(error), row.attempts + 1);
           result.failed.push(row.queueId);
         } else {

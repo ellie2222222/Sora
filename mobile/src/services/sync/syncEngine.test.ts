@@ -16,7 +16,7 @@ import type { NewQueuedMutation, QueueEntity } from './offlineQueueTypes.ts';
 
 interface Call {
   entity: QueueEntity;
-  method: 'create' | 'update' | 'cancelOrArchive';
+  method: 'create' | 'update' | 'cancelOrArchive' | 'deletePermanently';
   args: unknown[];
 }
 
@@ -39,6 +39,9 @@ function recordingAdapters(overrides: Partial<Record<QueueEntity, Partial<Entity
       async cancelOrArchive(id, payload, key) {
         calls.push({ entity, method: 'cancelOrArchive', args: [id, payload, key] });
       },
+      async deletePermanently(id, key) {
+        calls.push({ entity, method: 'deletePermanently', args: [id, key] });
+      },
     };
     return { ...base, ...overrides[entity] };
   }
@@ -51,6 +54,7 @@ function recordingAdapters(overrides: Partial<Record<QueueEntity, Partial<Entity
       budget: makeAdapter('budget'),
       goal: makeAdapter('goal'),
       category: makeAdapter('category'),
+      contribution: makeAdapter('contribution'),
     },
   };
 }
@@ -70,6 +74,7 @@ function entry(overrides: Partial<NewQueuedMutation> = {}): NewQueuedMutation {
 describe('runSyncPass ordering and idempotency', () => {
   it('drains rows FIFO by creation time', async () => {
     const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
     const first = await queue.enqueue(entry({ localId: 'a' }));
     await new Promise((resolve) => setTimeout(resolve, 2));
     const second = await queue.enqueue(entry({ localId: 'b' }));
@@ -85,6 +90,7 @@ describe('runSyncPass ordering and idempotency', () => {
 
   it('reuses the same idempotency key across a retry', async () => {
     const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
     const mutation = await queue.enqueue(entry());
 
     let attempt = 0;
@@ -124,6 +130,7 @@ describe('runSyncPass retry backoff for failed rows', () => {
 
   it('waits out the backoff before re-sending a failed row, unless the user asks to retry', async () => {
     const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
     await queue.enqueue(entry());
     const { adapters } = alwaysConflicting409();
 
@@ -144,6 +151,7 @@ describe('runSyncPass retry backoff for failed rows', () => {
 
   it('parks a row as conflict after MAX_FAILED_ATTEMPTS instead of retrying forever', async () => {
     const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
     await queue.enqueue(entry());
     const { adapters } = alwaysConflicting409();
 
@@ -161,6 +169,7 @@ describe('runSyncPass retry backoff for failed rows', () => {
 describe('runSyncPass failure classification', () => {
   it('a 403 marks conflict, not failed, and never removes the row', async () => {
     const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
     await queue.enqueue(entry());
 
     const { adapters } = recordingAdapters({
@@ -180,6 +189,7 @@ describe('runSyncPass failure classification', () => {
 
   it('a 409 marks failed, and leaves the row for a manual retry', async () => {
     const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
     await queue.enqueue(entry({ entity: 'transaction', op: 'cancel', serverId: 'server-1', localId: 'server-1' }));
 
     const { adapters } = recordingAdapters({
@@ -198,6 +208,7 @@ describe('runSyncPass failure classification', () => {
 
   it('a network error leaves the row pending and stops the rest of the pass', async () => {
     const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
     await queue.enqueue(entry({ localId: 'a' }));
     await queue.enqueue(entry({ localId: 'b' }));
 
@@ -221,6 +232,7 @@ describe('runSyncPass failure classification', () => {
 describe('runSyncPass concurrency lock', () => {
   it('a second concurrent pass is a no-op while one is in flight', async () => {
     const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
     await queue.enqueue(entry());
 
     let resolveCreate!: (value: { id: string }) => void;
@@ -264,6 +276,7 @@ describe('runSyncPass concurrency lock', () => {
 describe('runSyncPass cross-entity FK resolution', () => {
   it('resolves a transaction referencing its own account, synced earlier in the same FIFO pass', async () => {
     const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
     await queue.enqueue(
       entry({ entity: 'account', localId: 'local-account', payload: { name: 'Cash' } }),
     );
@@ -307,6 +320,7 @@ describe('runSyncPass cross-entity FK resolution', () => {
 
   it('defers a row whose referenced local id belongs to an entry not yet in the queue at all', async () => {
     const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
     await queue.enqueue(
       entry({
         entity: 'transaction',
@@ -320,7 +334,7 @@ describe('runSyncPass cross-entity FK resolution', () => {
     const pendingAccount = await queue.enqueue(
       entry({ entity: 'account', localId: 'never-enqueued-yet', payload: { name: 'Cash' } }),
     );
-    await queue.markSyncing(pendingAccount.queueId); // still not `synced`
+    await queue.markFailed(pendingAccount.queueId, null, 1); // not `synced`, and inside its backoff
 
     const { adapters } = recordingAdapters({
       transaction: {
@@ -333,5 +347,190 @@ describe('runSyncPass cross-entity FK resolution', () => {
     const result = await runSyncPass(queue, adapters);
     assert.equal(result.deferred.length, 1);
     assert.equal(result.synced.length, 0);
+  });
+});
+
+describe('runSyncPass for contributions and permanent category deletes', () => {
+  it('sends a contribution to a goal created offline only once that goal has its server id', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    await queue.enqueue(entry({ entity: 'goal', localId: 'local-goal', payload: { name: 'Trip' } }));
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    await queue.enqueue(
+      entry({ entity: 'contribution', localId: 'local-contribution', payload: { goalId: 'local-goal', accountId: 'acc-1', amount: '5.0000' } }),
+    );
+
+    const { adapters, calls } = recordingAdapters();
+    const result = await runSyncPass(queue, adapters);
+
+    assert.equal(result.synced.length, 2);
+    const contribution = calls.find((call) => call.entity === 'contribution');
+    assert.deepEqual(contribution?.args[0], { goalId: 'server-goal-1', accountId: 'acc-1', amount: '5.0000' });
+  });
+
+  it('routes a queued category delete to the permanent delete, not to archive', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    const row = await queue.enqueue(entry({ entity: 'category', op: 'delete', localId: 'cat-1', serverId: 'cat-1', payload: {} }));
+
+    const { adapters, calls } = recordingAdapters();
+    await runSyncPass(queue, adapters);
+
+    assert.deepEqual(calls, [{ entity: 'category', method: 'deletePermanently', args: ['cat-1', row.idempotencyKey] }]);
+    assert.equal(queue.current()[0]?.status, 'synced');
+  });
+
+  it('parks a delete the server refuses (the category has transactions) instead of dropping it', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    await queue.enqueue(entry({ entity: 'category', op: 'delete', localId: 'cat-2', serverId: 'cat-2', payload: {} }));
+
+    const { adapters } = recordingAdapters({
+      category: {
+        async deletePermanently() {
+          throw new ApiError('CATEGORY_HAS_TRANSACTIONS', 'has transactions', 409);
+        },
+      },
+    });
+    const result = await runSyncPass(queue, adapters);
+
+    assert.equal(result.failed.length, 1);
+    assert.equal(queue.current()[0]?.status, 'failed');
+  });
+});
+
+describe('runSyncPass for records created offline and then changed', () => {
+  it('sends an offline edit and delete of an offline-created record to the id its create got', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    // The slices enqueue follow-ups under the id the UI knows, which is the local id in both fields.
+    await queue.enqueue(entry({ localId: 'local-t', payload: { amount: '5.0000' } }));
+    await queue.enqueue(entry({ op: 'update', localId: 'local-t', serverId: 'local-t', payload: { description: 'lunch' } }));
+    await queue.enqueue(entry({ op: 'cancel', localId: 'local-t', serverId: 'local-t', payload: { reason: 'typo' } }));
+
+    const { adapters, calls } = recordingAdapters();
+    const result = await runSyncPass(queue, adapters);
+
+    const createdId = queue.current().find((row) => row.op === 'create')?.serverId;
+    assert.ok(createdId && createdId !== 'local-t');
+    assert.deepEqual(
+      calls.slice(1).map((call) => [call.method, call.args[0]]),
+      [
+        ['update', createdId],
+        ['cancelOrArchive', createdId],
+      ],
+    );
+    assert.equal(result.synced.length, 3);
+  });
+
+  it('holds an edit back while its record\'s create has not synced, instead of sending the local id', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    await queue.enqueue(entry({ localId: 'local-u' }));
+    await queue.enqueue(entry({ op: 'update', localId: 'local-u', serverId: 'local-u', payload: { description: 'x' } }));
+
+    const { adapters, calls } = recordingAdapters({
+      transaction: {
+        async create() {
+          throw new ApiError('VALIDATION_FAILED', 'rejected', 422);
+        },
+      },
+    });
+    const result = await runSyncPass(queue, adapters);
+
+    assert.deepEqual(calls.filter((call) => call.method === 'update'), []);
+    assert.equal(result.deferred.length, 1);
+    assert.equal(queue.current().find((row) => row.op === 'update')?.status, 'pending');
+  });
+
+  it('still sends an edit of a record that already existed on the server to its own id', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    await queue.enqueue(entry({ op: 'update', localId: 'server-existing', serverId: 'server-existing', payload: { description: 'x' } }));
+
+    const { adapters, calls } = recordingAdapters();
+    await runSyncPass(queue, adapters);
+    assert.deepEqual(calls.map((call) => [call.method, call.args[0]]), [['update', 'server-existing']]);
+  });
+});
+
+describe('runSyncPass after an interruption or an account switch', () => {
+  it('resends a row an app kill left in `syncing`, with its original idempotency key', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    const row = await queue.enqueue(entry());
+    await queue.markSyncing(row.queueId);
+
+    const { adapters, calls } = recordingAdapters();
+    const result = await runSyncPass(queue, adapters);
+
+    assert.deepEqual(calls.map((call) => call.args[1]), [row.idempotencyKey]);
+    assert.deepEqual(result.synced, [row.queueId]);
+  });
+
+  it('stops sending as soon as another account signs in mid-pass, leaving the rest pending for their owner', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    await queue.enqueue(entry({ localId: 'first' }));
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    await queue.enqueue(entry({ localId: 'second' }));
+
+    const { adapters, calls } = recordingAdapters({
+      transaction: {
+        async create(payload, key) {
+          calls.push({ entity: 'transaction', method: 'create', args: [payload, key] });
+          await queue.setOwner('user-b');
+          return { id: 'server-first' };
+        },
+      },
+    });
+    await runSyncPass(queue, adapters);
+
+    assert.equal(calls.length, 1, "user-a's second write must not go out under user-b's session");
+    await queue.setOwner('user-a');
+    assert.equal(queue.current().find((row) => row.localId === 'second')?.status, 'pending');
+  });
+
+  it(
+    'lets the rest of the queue sync when one row keeps getting a server error',
+    async () => {
+      const queue = new OfflineQueue(memoryQueueDb());
+      await queue.setOwner('user-a');
+      await queue.enqueue(entry({ localId: 'poison' }));
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      await queue.enqueue(entry({ localId: 'healthy' }));
+
+      let creates = 0;
+      const { adapters } = recordingAdapters({
+        transaction: {
+          async create() {
+            creates += 1;
+            if (creates === 1) throw new ApiError('INTERNAL_ERROR', 'boom', 500);
+            return { id: 'server-healthy' };
+          },
+        },
+      });
+      const result = await runSyncPass(queue, adapters);
+      assert.equal(queue.current().find((row) => row.localId === 'healthy')?.status, 'synced');
+      assert.equal(queue.current().find((row) => row.localId === 'poison')?.status, 'failed', 'backed off, not dropped');
+      assert.equal(result.stoppedOnNetworkError, false);
+    },
+  );
+
+  it('never parks a row as conflict for server errors alone, however many times they repeat', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    const row = await queue.enqueue(entry({ localId: 'outage' }));
+    await queue.markFailed(row.queueId, 'INTERNAL_ERROR', MAX_FAILED_ATTEMPTS + 3);
+
+    const { adapters } = recordingAdapters({
+      transaction: {
+        async create() {
+          throw new ApiError('INTERNAL_ERROR', 'down', 503);
+        },
+      },
+    });
+    await runSyncPass(queue, adapters, { ignoreBackoff: true });
+    assert.equal(queue.current()[0]?.status, 'failed');
   });
 });

@@ -48,7 +48,7 @@ import {
 } from './guestStore.ts';
 
 type MapField = 'categoryMap' | 'accountMap' | 'transactionMap' | 'budgetMap' | 'goalMap' | 'contributionMap';
-type KeyField = 'transactionKeys' | 'contributionKeys';
+type KeyField = 'categoryKeys' | 'accountKeys' | 'transactionKeys' | 'budgetKeys' | 'goalKeys' | 'contributionKeys';
 
 /**
  * Only the methods the sequencer calls, injected rather than imported at the
@@ -99,13 +99,14 @@ async function recordMap(field: MapField, localId: string, serverId: string): Pr
 
 /** Pins one idempotency key per local id, reused on every retry. */
 async function ensureKey(field: KeyField, localId: string): Promise<string> {
-  const existing = progressOf(guestStore.current())[field][localId];
+  // Progress saved before a key map existed lacks that field.
+  const existing = progressOf(guestStore.current())[field]?.[localId];
   if (existing) return existing;
 
   const key = newLocalId();
   await guestStore.mutate((current) => {
     if (!current.uploadProgress) return current;
-    return { ...current, uploadProgress: { ...current.uploadProgress, [field]: { ...current.uploadProgress[field], [localId]: key } } };
+    return { ...current, uploadProgress: { ...current.uploadProgress, [field]: { ...(current.uploadProgress[field] ?? {}), [localId]: key } } };
   });
   return key;
 }
@@ -162,7 +163,7 @@ async function uploadCategories(walletId: string, apis: UploadApis): Promise<voi
               type: category.type,
               icon: category.icon ?? undefined,
               color: category.color ?? undefined,
-            })
+            }, await ensureKey('categoryKeys', category.id))
           ).id;
 
       if (!match) {
@@ -201,7 +202,7 @@ async function uploadAccounts(walletId: string, apis: UploadApis): Promise<void>
       type: account.type,
       currency: account.currency,
       initialBalance: account.initialBalance,
-    });
+    }, await ensureKey('accountKeys', account.id));
     await recordMap('accountMap', account.id, response.id);
   }
 }
@@ -278,7 +279,7 @@ async function uploadBudgets(walletId: string, apis: UploadApis): Promise<void> 
       periodType: budget.periodType,
       startDate: budget.startDate,
       endDate: budget.endDate,
-    });
+    }, await ensureKey('budgetKeys', budget.id));
     await recordMap('budgetMap', budget.id, response.id);
   }
 }
@@ -298,7 +299,7 @@ async function uploadGoals(walletId: string, apis: UploadApis): Promise<void> {
       targetAmount: goal.targetAmount,
       currency: goal.currency,
       targetDate: goal.targetDate ?? undefined,
-    });
+    }, await ensureKey('goalKeys', goal.id));
     await recordMap('goalMap', goal.id, response.id);
   }
 

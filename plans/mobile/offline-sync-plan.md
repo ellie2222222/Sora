@@ -108,10 +108,19 @@ interface QueuedMutation {
   errorCode: string | null; // an @sora/contracts ERROR_CODE, for i18n mapping — never raw text
   createdAt: string;
   attempts: number;
+  ownerUserId: string | null; // the signed-in user who queued it (access token `sub`)
 }
 ```
 
-RTK Query's own cache remains the read path (`useListTransactionsQuery` etc.) — this queue is
+**Ownership (added 2026-09-24).** The queue only shows and syncs rows whose `ownerUserId`
+matches the current session. Another user's pending writes wait, untouched, until that user signs
+back in, instead of replaying under the wrong bearer token. `OfflineQueue.setOwner()` is driven by
+`AuthProvider` from the stored session, so it works on an offline start too. Rows from before the
+column existed go only to the session restored on the first launch after the upgrade. That choice
+is recorded so later launches reuse it; with no restored session they are orphaned and never synced
+(`OfflineQueue.resolvePreOwnershipRows`, SDS §4.4).
+
+RTK Query's own cache remains the read path (`useListTransactionsInfiniteQuery` etc.) — this queue is
 *write*-side bookkeeping only, not a duplicate read store. A queued create's record must still be
 visible in the list immediately (spec §1's core requirement), which Phase 4 covers.
 
@@ -158,7 +167,8 @@ For each: mark `syncing`, POST/PATCH with `Idempotency-Key: idempotencyKey`
        optimistic record with the server's canonical response
 403/404 (permission) → mark `conflict`, map ERROR_CODE → i18n (§9), do NOT delete
 409 (BR-03/other)    → mark `failed`, same i18n mapping, do NOT delete
-network error         → leave `pending`, retry next trigger — never delete
+5xx                   → mark `failed` with backoff, keep draining the rest; never parked as `conflict`
+network error         → leave `pending`, stop this pass, retry next trigger — never delete
 ```
 
 Concurrency: one in-flight sync pass at a time (a simple in-memory lock in `syncEngine.ts`),
