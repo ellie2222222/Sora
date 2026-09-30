@@ -10,6 +10,9 @@ const workspaceRoot = path.resolve(projectRoot, '..');
 
 const config = getDefaultConfig(projectRoot);
 
+// Allow Metro to resolve and bundle .wasm files (required by expo-sqlite on web)
+config.resolver.assetExts.push('wasm');
+
 config.watchFolders = [workspaceRoot];
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
