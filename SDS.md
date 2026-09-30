@@ -387,11 +387,12 @@ Real screens under `mobile/src/features/*/screens/`, grouped by feature:
 | --- | --- |
 | Home | `HomeScreen` |
 | Planning | `PlanningScreen` (a segmented Budgets/Goals list; there is no separate `BudgetsScreen`/`GoalsScreen`) |
+| Chat | `AiChatScreen` (the AI tab: one conversation at a time, history and new chat in its header, proposals confirmed in place; guests see a sign-in prompt, and offline the history stays readable with sending disabled) |
 | Dashboard | `DashboardScreen` (a read-only monthly/yearly view over the dashboard's own derived figures — see the note below; not report generation/export, which stays out of scope per [SRS.md §1.6](SRS.md#16-out-of-scope)) |
 | Transactions | `TransactionsScreen` (list; add/detail are `ModalProvider` modals, not screens — see below) |
-| Accounts | `AccountsScreen` (list + net worth), `AccountDetailScreen` |
+| Accounts | `AccountDetailScreen`. The list with net worth is `AccountsOverview`, rendered by `DashboardScreen` in its wallet view; its account chips (`AccountScopePicker`) narrow the dashboard to one account |
 | Categories | `CategoryListScreen` |
-| Wallets | `WalletListScreen`, `WalletDetailScreen`, `WalletMembersScreen`, `WalletActivityScreen` (the audit trail, `WAL-US-13`, owner-only), `InviteMemberScreen` |
+| Wallets | No screens — the wallet sheet (`WalletSwitcher`, opened from every screen's `WalletContextBar`) lists the wallets and pages through details, members, invitations, activity (the audit trail, `WAL-US-13`, owner-only) and wallet creation |
 | Auth | `LoginScreen`, `RegisterScreen`, `AcceptInvitationScreen` |
 | Guest | `GuestUploadScreen` — the wallet-choice/upload-progress screen for [GST-US-02](SRS.md#gst-us-02-bring-my-guest-data-into-a-real-wallet); rendered in place of the normal app by `RootNavigator` whenever local guest data is pending upload |
 | Settings | `SettingsScreen` |
@@ -404,10 +405,11 @@ by the modal pattern plus `PlanningScreen`.
 
 **Bottom tab bar** (`MainTabNavigator`, a fully custom `CustomTabBar` with an animated sliding
 indicator, not the default React Navigation tab bar) — five destinations, none of them an "Add"
-action: **Home | Account | Planning | Dashboard | Settings**. There is no center "+" tab; recording
-a transaction/budget/goal is reached from within a screen via `ModalProvider`. Wallet management,
-categories, and invitations are reached from within Account/Settings, not from the tab bar
-itself.
+action: **Home | Planning | AI | Dashboard | Settings**. The center tab is the AI assistant;
+recording a transaction/budget/goal is reached from within a screen via `ModalProvider`. Accounts
+are listed and managed in the Dashboard tab. Wallet management and invitations live in the wallet
+sheet, one bottom sheet whose pages replace each other so no second modal presents while the first
+is dismissing. None of them is on the tab bar itself.
 
 **`DashboardScreen` is a dashboard view, not a report generator.** It renders two periods (monthly,
 yearly) purely from `useGetDashboardSummaryQuery` — the same derived, computed-on-read figures
@@ -619,7 +621,7 @@ the real API — it is not a second local dataset.
   SQLite rows, not a second source of truth — the rows themselves live in `offlineQueueDb.ts`
   (`expo-sqlite`). Selectors include `selectPendingCount` and `selectQueueEntryFor(entity,
   localId)`, which drives the per-row sync-status indicator shown on list screens (`PlanningScreen`,
-  `AccountsScreen`).
+  `AccountsOverview`).
 - **Lifecycle:** an `OfflineQueue` class (`services/sync/offlineQueue.ts`) enqueues a mutation as
   `pending`, transitions it through `syncing` → `synced`/`failed`/`conflict` as it's replayed.
   `startSyncEngine(store)` runs from app startup and is re-triggered on reconnect (its own NetInfo

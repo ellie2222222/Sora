@@ -1,13 +1,13 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { CalendarRange, Landmark, LayoutDashboard, PieChart, Settings as SettingsIcon } from 'lucide-react-native';
+import { CalendarRange, LayoutDashboard, PieChart, Settings as SettingsIcon, Sparkles } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AccountsScreen } from '@/features/accounts';
+import { AiChatScreen } from '@/features/chat';
 import { PlanningScreen } from '@/features/planning';
 import { HomeScreen } from '@/features/home';
 import { DashboardScreen } from '@/features/dashboard';
@@ -169,19 +169,19 @@ export function MainTabNavigator() {
         }}
       />
       <Tab.Screen
-        name="Account"
-        component={AccountsScreen}
-        options={{
-          tabBarLabel: t('nav.account'),
-          tabBarIcon: ({ color, size }) => <Landmark color={color} size={size} />,
-        }}
-      />
-      <Tab.Screen
         name="Planning"
         component={PlanningScreen}
         options={{
           tabBarLabel: t('nav.planning', 'Planning'),
           tabBarIcon: ({ color, size }) => <CalendarRange color={color} size={size} />,
+        }}
+      />
+      <Tab.Screen
+        name="Ai"
+        component={AiChatScreen}
+        options={{
+          tabBarLabel: t('nav.ai'),
+          tabBarIcon: ({ color, size }) => <Sparkles color={color} size={size} />,
         }}
       />
       <Tab.Screen

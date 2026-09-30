@@ -81,6 +81,9 @@ const ENUM_TO_CONSTRAINT = [
   ['BUDGET_PERIOD_TYPES', 'chk_budget_period'],
   ['BUDGET_STATUSES', 'chk_budget_status'],
   ['GOAL_STATUSES', 'chk_goal_status'],
+  ['AI_MESSAGE_ROLES', 'chk_ai_message_role'],
+  ['AI_ACTION_TYPES', 'chk_ai_message_action_type'],
+  ['AI_ACTION_STATUSES', 'chk_ai_message_action_status'],
 ];
 
 for (const [enumName, constraintName] of ENUM_TO_CONSTRAINT) {

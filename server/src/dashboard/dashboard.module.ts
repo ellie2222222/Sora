@@ -11,5 +11,6 @@ import { DashboardService } from './dashboard.service.ts';
   imports: [WalletAccessModule, BalanceModule, ExchangeRateModule],
   controllers: [DashboardController],
   providers: [DashboardService],
+  exports: [DashboardService],
 })
 export class DashboardModule {}

@@ -32,6 +32,7 @@ import {
   type Scaled,
 } from '@sora/contracts';
 
+import { guestAccountsApi } from './guestAccounts.ts';
 import { guestError } from './guestErrors.ts';
 import { guestBudgetsApi } from './guestBudgets.ts';
 import { guestGoalsApi } from './guestGoals.ts';
@@ -87,9 +88,9 @@ interface PeriodActivity {
  * server-side, through the same shared `countsAsPeriodActivity`/
  * `transferDirection` predicates rather than a second local copy of BR-06.
  *
- * A guest wallet has no other wallet to transfer with, so `transferredIn/Out`
- * are structurally always empty here; they are computed anyway so the guest
- * response cannot drift into a different *shape* from the server's.
+ * A guest wallet has no other wallet to transfer with, so for the whole wallet
+ * `transferredIn/Out` are always empty; scoped to one account, a transfer to or
+ * from a sibling account is that account's in/out.
  */
 function periodActivity(
   transactions: readonly GuestTransaction[],
@@ -172,18 +173,24 @@ export const guestDashboardApi = {
   async summary(query: DashboardQuery): Promise<DashboardResponse> {
     const wallet = requireWallet();
     const { dateFrom, dateTo } = resolvePeriod(query);
-    const { transactions } = guestStore.current();
+    const { accountId } = query;
+    const scoped = accountId !== undefined;
+    const transactions = guestStore
+      .current()
+      .transactions.filter((t) => !scoped || t.fromAccountId === accountId || t.toAccountId === accountId);
 
-    const [walletResponse, recent, activeBudgets, activeGoals] = await Promise.all([
-      guestWalletsApi.detail(wallet.id),
-      guestTransactionsApi.list({ sortBy: '-transactionDate', page: 1, pageSize: RECENT_TRANSACTIONS_LIMIT }),
-      guestBudgetsApi.list({ walletId: wallet.id, status: BudgetStatus.ACTIVE }),
-      guestGoalsApi.list({ walletId: wallet.id, status: GoalStatus.ACTIVE }),
+    // Mirrors the server: an account view reports that account's balance and omits the wallet's budgets and goals.
+    const [totalBalance, recent, activeBudgets, activeGoals] = await Promise.all([
+      scoped
+        ? guestAccountsApi.detail(accountId).then((account): CurrencyTotal[] => [{ currency: account.currency, amount: account.balance }])
+        : guestWalletsApi.detail(wallet.id).then((detail) => detail.balances),
+      guestTransactionsApi.list({ accountId, sortBy: '-transactionDate', page: 1, pageSize: RECENT_TRANSACTIONS_LIMIT }),
+      scoped ? [] : guestBudgetsApi.list({ walletId: wallet.id, status: BudgetStatus.ACTIVE }),
+      scoped ? [] : guestGoalsApi.list({ walletId: wallet.id, status: GoalStatus.ACTIVE }),
     ]);
 
-    const accountIds = new Set(guestStore.current().accounts.map((account) => account.id));
+    const accountIds = new Set(scoped ? [accountId] : guestStore.current().accounts.map((account) => account.id));
     const activity = periodActivity(transactions, accountIds, dateFrom, dateTo);
-    const totalBalance = walletResponse.balances;
 
     let valuation: ConvertedValuation | null | undefined = undefined;
     if (query.displayCurrency) {

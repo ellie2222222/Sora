@@ -28,6 +28,8 @@ interface WalletContextValue {
   setActiveWalletId: (walletId: string) => void;
   isLoading: boolean;
   isError: boolean;
+  /** The list couldn't be reached and nothing is saved: the user's wallets are unknown, not absent. */
+  isUnavailable: boolean;
   refetch: () => void;
 }
 
@@ -66,9 +68,10 @@ export function WalletProvider({ children }: { children: ReactNode }): ReactNode
       setActiveWalletId,
       isLoading: query.isLoading,
       isError: query.isError && !isNetworkError(query.error),
+      isUnavailable: query.isError && isNetworkError(query.error) && query.data === undefined,
       refetch: () => void query.refetch(),
     }),
-    [wallets, activeWallet, permissions, query.isLoading, query.isError, query.error, query.refetch],
+    [wallets, activeWallet, permissions, query.isLoading, query.isError, query.error, query.data, query.refetch],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

@@ -188,6 +188,13 @@ Mutating endpoints accept an optional `Idempotency-Key` header. A replay with th
 | 48 | DELETE | `/goals/{id}/contributions/{cId}` | EDITOR | [13.8](#138-delete-goalsidcontributionscid) |
 | 49 | GET | `/dashboard` | VIEWER | [14.1](#141-get-dashboard) |
 | 50 | GET | `/wallets/{id}/audit-logs` | OWNER | [15.1](#151-get-walletsidaudit-logs) |
+| 51 | GET | `/ai/conversations` | authed | [17.1](#171-get-aiconversations) |
+| 52 | POST | `/ai/conversations` | authed | [17.2](#172-post-aiconversations) |
+| 53 | POST | `/ai/conversations/{id}/delete` | authed | [17.3](#173-post-aiconversationsiddelete) |
+| 54 | GET | `/ai/conversations/{id}/messages` | authed | [17.4](#174-get-aiconversationsidmessages) |
+| 55 | POST | `/ai/conversations/{id}/messages` | VIEWER | [17.5](#175-post-aiconversationsidmessages) |
+| 56 | POST | `/ai/conversations/{id}/messages/{messageId}/confirm` | EDITOR | [17.6](#176-post-aiconversationsidmessagesmessageidconfirm) |
+| 57 | POST | `/ai/conversations/{id}/messages/{messageId}/dismiss` | authed | [17.7](#177-post-aiconversationsidmessagesmessageiddismiss) |
 
 ---
 
@@ -1034,7 +1041,9 @@ One request answering the four questions the dashboard exists to answer: how muc
 |---|---|
 | **Auth** | Bearer · **Min role** `VIEWER` |
 
-**Query** — `dashboardQuerySchema`: `walletId` (required), `dateFrom`, `dateTo` (default: the current calendar month), `displayCurrency` (optional, three-letter code)
+**Query** — `dashboardQuerySchema`: `walletId` (required), `accountId` (optional — one of this wallet's accounts, see below), `dateFrom`, `dateTo` (default: the current calendar month), `displayCurrency` (optional, three-letter code)
+
+**`accountId`** narrows every figure to that one account. `totalBalance` is that account's balance, and `income`/`expense`/`spendingByCategory`/`spendingByMember`/`recentTransactions` count only transactions touching it. The account is now the boundary, so a transfer to or from a *sibling* account in the same wallet appears in `transferredIn`/`transferredOut`. At wallet level that transfer is internal and appears in neither. It is still never income or expense (BR-06). `activeBudgets` and `activeGoals` are wallet-level, not per-account, so an account-scoped response returns them as `[]` rather than wallet figures that would read as the account's. An `accountId` that is not one of `walletId`'s accounts is `404 ACCOUNT_NOT_FOUND`: the wallet is already authorised, so this reveals nothing about another wallet (AC-01).
 
 **Response `200`** — `DashboardResponse`: `totalBalance`, `income`, `expense`, `net`, `transferredIn`, `transferredOut` (each **per currency**), `spendingByCategory` (descending, with percentages), `spendingByMember`, `recentTransactions` (10), `activeBudgets`, `activeGoals`, `valuation` (optional — present only when `displayCurrency` was supplied).
 
@@ -1048,7 +1057,7 @@ One request answering the four questions the dashboard exists to answer: how muc
 
 **`valuation`** (`ConvertedValuation`, present only when `displayCurrency` is requested): `{currency, amount, isApproximate, status, rateTimestamp?, missingCurrencies?}`. `amount` is `totalBalance` converted into `currency` — an estimate, never authoritative, never stored, never summed into any other figure. `status` is one of `FRESH` (converted just now, or every account already in `currency` so no conversion was needed), `STALE` (converted using the best available cached/snapshotted rate, older than preferred), or `UNAVAILABLE` (`amount: null`, `missingCurrencies` lists what couldn't be converted — the whole total is withheld rather than silently excluding a currency). Rates come from an external provider (`ExchangeRateService`, 12h cache by default) with a daily-snapshot fallback for staleness; a request with no `displayCurrency` omits this field entirely rather than sending `null`.
 
-**Errors** — `404 WALLET_NOT_FOUND` · `422 VALIDATION_FAILED`. `503 VALUATION_UNAVAILABLE` is defined in the error catalog for this feature but not currently returned by any code path — an unavailable conversion is reported in-band via `valuation.status`, not as a request failure.
+**Errors** — `404 WALLET_NOT_FOUND` · `404 ACCOUNT_NOT_FOUND` (an `accountId` outside the wallet) · `422 VALIDATION_FAILED`. `503 VALUATION_UNAVAILABLE` is defined in the error catalog for this feature but not currently returned by any code path — an unavailable conversion is reported in-band via `valuation.status`, not as a request failure.
 
 **Side effects** — none. Served by two aggregate queries rather than one per tile, plus (only when `displayCurrency` is requested) a possible external rate lookup, cached for 12h by default.
 
@@ -1094,7 +1103,109 @@ Each account has one currency. A transaction must match its accounts' currency. 
 
 ---
 
-## 17. Traceability
+## 17. AI assistant
+
+A chat that answers questions about one wallet and can **propose** an income or expense. It never records anything by itself: a proposal is stored on the assistant's message as `PENDING`, and only the user's explicit confirm (§17.6) turns it into a transaction, through the same code path, checks and audit row as §11.2.
+
+A conversation belongs to the user who created it. Another user's conversation id is `404 AI_CONVERSATION_NOT_FOUND`, the same as an id that does not exist. Each message names the wallet it is about, and read access to that wallet is checked on every send (AC-01: a non-member gets `404 WALLET_NOT_FOUND`). The assistant reads only that wallet, through read-only tools: its active accounts with their derived balances, its active categories, and the current month's §14.1 figures (so transfers are never income or expense, BR-06).
+
+The model is pluggable behind one server-side interface. The default is a deterministic keyword-rule provider that needs no API key; every figure it states comes from a tool, never from its own arithmetic. Replies are written in the request's `locale` (`en` or `vi`).
+
+Types: `AiConversationResponse` `{id, walletId, title, createdAt, updatedAt}` · `AiMessageResponse` `{id, conversationId, role (USER | ASSISTANT), content, action, createdAt}` · `AiActionResponse` `{type (CREATE_TRANSACTION), status (PENDING | CONFIRMED | DISMISSED), transaction, accountName, categoryName, transactionId}`. `transaction` is an income or expense in exactly the §11.2 request shape (`aiTransactionDraftSchema`), in the account's own currency (BR-07); `accountName`/`categoryName` are the names at proposal time.
+
+Conversations and their messages are chat history, not financial data, so §17.3 removes them outright. A confirmed proposal's transaction is unaffected.
+
+### 17.1 GET /ai/conversations
+
+| | |
+|---|---|
+| **Auth** | Bearer · the caller's own conversations only |
+
+**Query** — `aiConversationQuerySchema`: `page`, `pageSize`
+
+**Response `200`** — `AiConversationResponse[]`, most recently active first.
+
+**Side effects** — none.
+
+### 17.2 POST /ai/conversations
+
+| | |
+|---|---|
+| **Auth** | Bearer · `VIEWER` on `walletId` when it is given |
+
+**Request** — `createAiConversationSchema`: `walletId` (optional), `title` (optional, 1–150; default `New conversation`)
+
+**Response `201`** — `AiConversationResponse`
+
+**Errors** — `404 WALLET_NOT_FOUND` · `422 VALIDATION_FAILED`
+
+**Side effects** — inserts `ai_conversations`.
+
+### 17.3 POST /ai/conversations/{id}/delete
+
+| | |
+|---|---|
+| **Auth** | Bearer · the conversation's owner |
+
+**Response `200`** — the deleted `AiConversationResponse`.
+
+**Errors** — `404 AI_CONVERSATION_NOT_FOUND`
+
+**Side effects** — deletes the conversation and, by cascade, its messages.
+
+### 17.4 GET /ai/conversations/{id}/messages
+
+| | |
+|---|---|
+| **Auth** | Bearer · the conversation's owner |
+
+**Query** — `page`, `pageSize`
+
+**Response `200`** — `AiMessageResponse[]`, **newest first**, so page 1 is the end of the chat.
+
+**Errors** — `404 AI_CONVERSATION_NOT_FOUND`
+
+### 17.5 POST /ai/conversations/{id}/messages
+
+| | |
+|---|---|
+| **Auth** | Bearer · the conversation's owner · **Min role** `VIEWER` on `walletId` |
+
+**Request** — `sendAiMessageSchema`: `walletId` (required), `message` (1–2000, trimmed), `locale` (`en` \| `vi`, default `en`)
+
+**Response `201`** — `SendAiMessageResponse` `{conversation, userMessage, assistantMessage}`. `assistantMessage.action` is set only when the caller holds `EDITOR` on an active wallet and the proposal names that wallet's own active account and a category of the matching type in the account's currency. Otherwise the assistant explains in text and proposes nothing.
+
+**Errors** — `404 AI_CONVERSATION_NOT_FOUND` · `404 WALLET_NOT_FOUND` · `422 VALIDATION_FAILED`
+
+**Side effects** — inserts the user's and the assistant's `ai_messages` rows and sets the conversation's `walletId` and `updatedAt`, in one transaction. The provider sees at most the last 15 earlier messages; the stored history is never trimmed.
+
+### 17.6 POST /ai/conversations/{id}/messages/{messageId}/confirm
+
+| | |
+|---|---|
+| **Auth** | Bearer · the conversation's owner · **Min role** `EDITOR` on the proposal's account's wallet, checked by §11.2 |
+
+**Response `200`** — the `AiMessageResponse` with `action.status: CONFIRMED` and `action.transactionId` set.
+
+**Errors** — `404 AI_CONVERSATION_NOT_FOUND` · `404 AI_MESSAGE_NOT_FOUND` (no such message, or it carries no proposal) · `409 AI_ACTION_NOT_PENDING` · every error of §11.2 (e.g. `403 FORBIDDEN` after a demotion, `409 ACCOUNT_ARCHIVED`, `409 WALLET_ARCHIVED`)
+
+**Side effects** — creates the transaction exactly as §11.2 would (including its audit row), then marks the proposal `CONFIRMED`. The message row is locked for the duration, so a double tap records one transaction and the second gets `409 AI_ACTION_NOT_PENDING`.
+
+### 17.7 POST /ai/conversations/{id}/messages/{messageId}/dismiss
+
+| | |
+|---|---|
+| **Auth** | Bearer · the conversation's owner |
+
+**Response `200`** — the `AiMessageResponse` with `action.status: DISMISSED`.
+
+**Errors** — `404 AI_CONVERSATION_NOT_FOUND` · `404 AI_MESSAGE_NOT_FOUND` · `409 AI_ACTION_NOT_PENDING`
+
+**Side effects** — none beyond the status change.
+
+---
+
+## 18. Traceability
 
 | Section | Schema / type | Database constraint |
 |---|---|---|
@@ -1108,5 +1219,6 @@ Each account has one currency. A transaction must match its accounts' currency. 
 | §12 Budgets | `createBudgetSchema`, `updateBudgetSchema` | `chk_budget_dates`, `excl_budget_overlap` |
 | §13 Goals | `createGoalSchema`, `createContributionSchema` | `chk_goal_target`, `goal_contributions.transaction_id UNIQUE` |
 | §14 Dashboard | `dashboardQuerySchema` | — |
+| §17 AI assistant | `createAiConversationSchema`, `sendAiMessageSchema`, `aiTransactionDraftSchema` | `chk_ai_message_role`, `chk_ai_message_action_type`, `chk_ai_message_action_status`, `chk_ai_message_action_shape` |
 
 Derived values (`balance`, `spent`, `remaining`, `usagePercentage`, `progressPercentage`) are computed by [`calc.ts`](../packages/contracts/src/calc.ts) and proven against real PostgreSQL by [`db/tests/001_constraints.sql`](../db/tests/001_constraints.sql).

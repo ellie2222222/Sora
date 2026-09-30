@@ -4,7 +4,7 @@ import { useModal } from '@/app/providers';
 import { TransactionListScreen } from '../components/TransactionListScreen';
 import type { AppStackScreenProps } from '@/app/navigation';
 
-export function TransactionsScreen({ route, navigation }: AppStackScreenProps<'Transactions'>) {
+export function TransactionsScreen({ route }: AppStackScreenProps<'Transactions'>) {
   const insets = useSafeAreaInsets();
   const { openModal } = useModal();
 
@@ -12,7 +12,6 @@ export function TransactionsScreen({ route, navigation }: AppStackScreenProps<'T
     <TransactionListScreen
       accountId={route.params?.accountId}
       categoryId={route.params?.categoryId}
-      onManage={() => navigation.navigate('WalletList')}
       onAddTransaction={() => openModal('AddTransaction')}
       fabBottomOffset={insets.bottom}
       testIDPrefix="transactions"

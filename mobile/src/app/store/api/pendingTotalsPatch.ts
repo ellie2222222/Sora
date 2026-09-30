@@ -2,6 +2,7 @@ import type {
   AccountDetailResponse,
   AccountResponse,
   BudgetResponse,
+  DashboardQuery,
   DashboardResponse,
   GoalResponse,
   TransactionResponse,
@@ -28,11 +29,23 @@ type Dispatch = (action: never) => unknown;
 type UntypedUpdateQueryData = (endpoint: string, args: unknown, recipe: (draft: unknown) => void) => never;
 const updateQueryData = apiSlice.util.updateQueryData as unknown as UntypedUpdateQueryData;
 
-function patchEach<T>(dispatch: Dispatch, rootState: unknown, endpoint: string, recipe: (draft: T) => void): void {
+function patchEach<T>(
+  dispatch: Dispatch,
+  rootState: unknown,
+  endpoint: string,
+  recipe: (draft: T) => void,
+  include: (args: unknown) => boolean = () => true,
+): void {
   forEachCachedQueryArgs(rootState, endpoint, (args) => {
-    dispatch(updateQueryData(endpoint, args, recipe as (draft: unknown) => void));
+    if (include(args)) dispatch(updateQueryData(endpoint, args, recipe as (draft: unknown) => void));
   });
 }
+
+/**
+ * The patches reason at wallet level (a sibling transfer is internal, a new account adds to the total),
+ * which is wrong for a one-account view; those entries wait for the sync's refetch instead.
+ */
+const isWalletWideDashboard = (args: unknown) => (args as DashboardQuery).accountId === undefined;
 
 function eachItem<T>(apply: (item: T) => void): (draft: T[]) => void {
   return (draft) => draft.forEach(apply);
@@ -52,7 +65,7 @@ export function patchTotalsForTransaction(dispatch: Dispatch, rootState: unknown
   patchEach<WalletResponse>(dispatch, rootState, 'getWallet', (wallet) => applyToWallet(wallet, change));
   patchEach<BudgetResponse[]>(dispatch, rootState, 'listBudgets', eachItem((budget) => applyToBudget(budget, change)));
   patchEach<BudgetResponse>(dispatch, rootState, 'getBudget', (budget) => applyToBudget(budget, change));
-  patchEach<DashboardResponse>(dispatch, rootState, 'getDashboardSummary', (dashboard) => applyToDashboard(dashboard, change));
+  patchEach<DashboardResponse>(dispatch, rootState, 'getDashboardSummary', (dashboard) => applyToDashboard(dashboard, change), isWalletWideDashboard);
 }
 
 export function patchTotalsForNewAccount(dispatch: Dispatch, rootState: unknown, account: AccountResponse): void {
@@ -60,7 +73,7 @@ export function patchTotalsForNewAccount(dispatch: Dispatch, rootState: unknown,
   patchEach<WalletResponse>(dispatch, rootState, 'getWallet', (wallet) => applyNewAccountToWallet(wallet, account));
   patchEach<DashboardResponse>(dispatch, rootState, 'getDashboardSummary', (dashboard) =>
     applyNewAccountToDashboard(dashboard, account),
-  );
+  isWalletWideDashboard);
 }
 
 export function patchTotalsForContribution(dispatch: Dispatch, rootState: unknown, goalId: string, amount: string): void {

@@ -1,3 +1,4 @@
+export * from './aiApi.ts';
 export * from './accountsApi.ts';
 export * from './apiSlice.ts';
 export * from './auditApi.ts';

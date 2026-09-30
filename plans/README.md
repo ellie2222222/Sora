@@ -30,6 +30,7 @@ plans/
 | [`domain-database-design.md`](architecture/domain-database-design.md) | **Active Reference** | Defines the core domain model (User, Wallet, Account, Transaction, Category, Budget, Goal), ERD, PostgreSQL schema rationale, and business rules (BR-01 through BR-10). |
 | [`multi-currency-plan.md`](architecture/multi-currency-plan.md) | **Implemented** | Master architecture establishing Sora as an exact native-currency ledger with optional base-currency converted totals. |
 | [`exchange-rate-resilience-plan.md`](architecture/exchange-rate-resilience-plan.md) | **Implemented** | Design for handling FX rate unavailability, stale rate fallbacks, transparency indicators, and daily historical snapshot storage (`exchange_rate_snapshots`). |
+| [`ai-chat-assistant-plan.md`](architecture/ai-chat-assistant-plan.md) | **Implemented** | AI assistant chat: pluggable model provider (deterministic stand-in by default), draft-and-confirm transactions, centre mobile tab. As-built differences in its §0. |
 
 ### 2. Mobile Client (`plans/mobile/`)
 

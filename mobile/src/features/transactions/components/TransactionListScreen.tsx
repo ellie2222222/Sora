@@ -52,14 +52,12 @@ interface DaySection {
 export function TransactionListScreen({
   accountId,
   categoryId,
-  onManage,
   onAddTransaction,
   fabBottomOffset,
   testIDPrefix,
 }: {
   accountId?: string;
   categoryId?: string;
-  onManage: () => void;
   onAddTransaction: () => void;
   fabBottomOffset: number;
   testIDPrefix: string;
@@ -216,7 +214,7 @@ export function TransactionListScreen({
 
   return (
     <AnimatedScreen testID={`screen-${testIDPrefix}`}>
-      <WalletContextBar onManage={onManage}>
+      <WalletContextBar>
         <View style={{ paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.xs }}>
           <PeriodBar
             period={period}

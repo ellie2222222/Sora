@@ -1,5 +1,5 @@
 /**
- * §14.1 GET /dashboard — one wallet's headline numbers for a period.
+ * §14.1 GET /dashboard — one wallet's (or one of its accounts') headline numbers for a period.
  *
  * `totalBalance` reuses BalanceService (BR-05: balance is derived once, not
  * re-summed here). Income/expense/spendingByCategory need a *period-scoped*,
@@ -46,6 +46,7 @@ import {
   type TransactionResponse,
 } from '@sora/contracts';
 
+import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { BalanceService } from '../accounts/balance.service.ts';
 import { CurrencyLedger, netOf } from '../common/currency-totals.ts';
@@ -71,21 +72,30 @@ export class DashboardService {
 
     const accountRows = await this.database.db
       .selectFrom('accounts')
-      .select(['id'])
+      .select(['id', 'wallet_id', 'currency', 'initial_balance'])
       .where('wallet_id', '=', walletId)
+      .$if(query.accountId !== undefined, (qb) => qb.where('id', '=', query.accountId as string))
       .execute();
+    const scopedAccount = query.accountId !== undefined ? accountRows[0] : undefined;
+    // The wallet is already authorised, so an account outside it is simply not one of its accounts.
+    if (query.accountId !== undefined && scopedAccount === undefined) {
+      throw new AppError('ACCOUNT_NOT_FOUND');
+    }
     const accountIds = accountRows.map((row) => row.id);
 
-    const [totalBalanceByWallet, activity, recentTransactions, activeBudgets, activeGoals] =
-      await Promise.all([
-        this.balances.walletBalances([walletId]),
-        this.periodActivity(accountIds, dateFrom, dateTo),
-        this.recentTransactions(accountIds),
-        this.activeBudgets(walletId),
-        this.activeGoals(walletId),
-      ]);
+    // Budgets and goals belong to the wallet, not to any one account, so an account view omits them.
+    const [totalBalance, activity, recentTransactions, activeBudgets, activeGoals] = await Promise.all([
+      scopedAccount !== undefined
+        ? this.balances
+            .balanceForAccount(scopedAccount)
+            .then((balance): CurrencyTotal[] => [{ currency: balance.currency, amount: formatMoney(balance.balance) }])
+        : this.balances.walletBalances([walletId]).then((byWallet) => byWallet.get(walletId) ?? []),
+      this.periodActivity(accountIds, dateFrom, dateTo),
+      this.recentTransactions(accountIds),
+      scopedAccount !== undefined ? [] : this.activeBudgets(walletId),
+      scopedAccount !== undefined ? [] : this.activeGoals(walletId),
+    ]);
 
-    const totalBalance = totalBalanceByWallet.get(walletId) ?? [];
     let valuation: ConvertedValuation | null | undefined = undefined;
     if (query.displayCurrency) {
       valuation = await this.exchangeRate.calculateValuation(totalBalance, query.displayCurrency);

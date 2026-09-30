@@ -92,6 +92,9 @@ const MESSAGES: Record<ErrorCode, string> = {
   INTERNAL_ERROR: 'Something went wrong on our side',
   GOOGLE_TOKEN_INVALID: 'Google sign-in could not be verified',
   VALUATION_UNAVAILABLE: 'Converted valuation is unavailable right now',
+  AI_CONVERSATION_NOT_FOUND: 'Conversation not found',
+  AI_MESSAGE_NOT_FOUND: 'Message not found',
+  AI_ACTION_NOT_PENDING: 'This proposal was already confirmed or dismissed',
 };
 
 export function defaultMessage(code: ErrorCode): string {

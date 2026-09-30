@@ -7,6 +7,9 @@
 
 import type {
   AccountStatus,
+  AiActionStatus,
+  AiActionType,
+  AiMessageRole,
   AccountType,
   BudgetPeriodType,
   BudgetStatus,
@@ -23,6 +26,7 @@ import type {
   WalletStatus,
 } from './enums.ts';
 import type { MoneyString } from './money.ts';
+import type { AiTransactionDraft } from './schemas.ts';
 
 /** Every response body, success or failure, is wrapped in this envelope. */
 export interface ApiEnvelope<T> {
@@ -103,6 +107,9 @@ export const ERROR_CODES = [
   'INTERNAL_ERROR',
   'GOOGLE_TOKEN_INVALID',
   'VALUATION_UNAVAILABLE',
+  'AI_CONVERSATION_NOT_FOUND',
+  'AI_MESSAGE_NOT_FOUND',
+  'AI_ACTION_NOT_PENDING',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -184,6 +191,9 @@ export const ERROR_STATUS: Record<ErrorCode, HttpStatusCode> = {
   INTERNAL_ERROR: HTTP_STATUS.INTERNAL_SERVER_ERROR,
   GOOGLE_TOKEN_INVALID: HTTP_STATUS.UNAUTHORIZED,
   VALUATION_UNAVAILABLE: HTTP_STATUS.SERVICE_UNAVAILABLE,
+  AI_CONVERSATION_NOT_FOUND: HTTP_STATUS.NOT_FOUND,
+  AI_MESSAGE_NOT_FOUND: HTTP_STATUS.NOT_FOUND,
+  AI_ACTION_NOT_PENDING: HTTP_STATUS.CONFLICT,
 };
 
 // ---------------------------------------------------------------------------
@@ -471,4 +481,43 @@ export interface AuditLogResponse {
   actorRole: WalletRole | null;
   note: string | null;
   createdAt: string;
+}
+
+export interface AiConversationResponse {
+  id: string;
+  /** The wallet the conversation last read; `null` before its first message. */
+  walletId: string | null;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * A proposal the assistant made. Nothing is recorded until the user confirms it,
+ * and confirming runs the same checks as POST /transactions.
+ */
+export interface AiActionResponse {
+  type: AiActionType;
+  status: AiActionStatus;
+  transaction: AiTransactionDraft;
+  /** Names as they were when proposed, so the card still reads after a rename. */
+  accountName: string;
+  categoryName: string;
+  /** Set once CONFIRMED. */
+  transactionId: string | null;
+}
+
+export interface AiMessageResponse {
+  id: string;
+  conversationId: string;
+  role: AiMessageRole;
+  content: string;
+  action: AiActionResponse | null;
+  createdAt: string;
+}
+
+export interface SendAiMessageResponse {
+  conversation: AiConversationResponse;
+  userMessage: AiMessageResponse;
+  assistantMessage: AiMessageResponse;
 }

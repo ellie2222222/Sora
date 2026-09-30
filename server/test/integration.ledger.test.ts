@@ -187,4 +187,37 @@ describe('the ledger against a real database', { skip: integrationSkipReason() }
       'scoped to the dominant expense currency',
     );
   });
+
+  it('scopes the dashboard to one account: a sibling-account transfer is its in/out, never income or expense', async () => {
+    const user = await registerProbeUser(api, 'ledger-acct-dash');
+    const other = await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}` } });
+    const main = await createAccount(api, user, user.walletId, { initialBalance: '1000000' });
+    const cashBox = await createAccount(api, user, user.walletId, { initialBalance: '0' });
+    const foreign = await createAccount(api, user, other.body!.data.id);
+    const dashFood = await categoryOf(api, user, user.walletId, 'EXPENSE');
+    const post = (body: Record<string, unknown>) =>
+      api.call('POST', '/transactions', { token: user.token, body: { currency: 'VND', transactionDate: IN_PERIOD, ...body } });
+
+    await post({ type: 'EXPENSE', fromAccountId: main, categoryId: dashFood, amount: '100000' });
+    await post({ type: 'TRANSFER', fromAccountId: main, toAccountId: cashBox, amount: '300000' });
+    await post({ type: 'EXPENSE', fromAccountId: cashBox, categoryId: dashFood, amount: '50000' });
+
+    const query = `walletId=${user.walletId}&dateFrom=${PERIOD.dateFrom}&dateTo=${PERIOD.dateTo}`;
+    const response = await api.call('GET', `/dashboard?${query}&accountId=${cashBox}`, { token: user.token });
+    assert.equal(response.status, 200);
+    const dash = response.body!.data;
+    assert.deepEqual(dash.expense, [{ currency: 'VND', amount: '50000.0000' }], "only this account's own expense");
+    assert.deepEqual(dash.income, []);
+    assert.deepEqual(dash.transferredIn, [{ currency: 'VND', amount: '300000.0000' }], 'the sibling transfer crossed this account');
+    assert.deepEqual(dash.transferredOut, []);
+    assert.deepEqual(dash.totalBalance, [{ currency: 'VND', amount: '250000.0000' }]);
+    assert.equal(dash.recentTransactions.length, 2);
+    assert.deepEqual([dash.activeBudgets, dash.activeGoals], [[], []], 'budgets and goals belong to the wallet');
+
+    const wholeWallet = (await api.call('GET', `/dashboard?${query}`, { token: user.token })).body!.data;
+    assert.deepEqual(wholeWallet.transferredIn, [], 'internal to the wallet, so neither in nor out at wallet level');
+
+    const outside = await api.call('GET', `/dashboard?${query}&accountId=${foreign}`, { token: user.token });
+    assert.deepEqual([outside.status, outside.body?.error?.code], [404, 'ACCOUNT_NOT_FOUND']);
+  });
 });

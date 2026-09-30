@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { maxOf, parseMoney, percentageOf, ZERO } from '@sora/contracts';
 import type { DashboardResponse } from '@sora/contracts';
 
 import { AnimatedScreen, PeriodBar, RefreshableScrollView, SkeletonList, StateView, Text, TrendBarChart } from '@/components';
-import { Plus, Wallet as WalletIcon } from 'lucide-react-native';
 import { useModal, useTheme, useWallets } from '@/app/providers';
-import { WalletContextBar } from '@/features/wallets';
+import { ChevronRight } from 'lucide-react-native';
+import { AccountsOverview } from '@/features/accounts';
+import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { dashboardApiSlice, useGetDashboardSummaryQuery, useListCategoriesQuery } from '@/app/store';
 import {
   changeAgainst,
@@ -26,6 +27,7 @@ import {
   type DashboardPeriod,
 } from '@/utils';
 import type { MainTabScreenProps } from '@/app/navigation';
+import { AccountScopePicker } from '../components/AccountScopePicker.tsx';
 import { BudgetGoalSummary } from '../components/BudgetGoalSummary.tsx';
 import { CashFlowCard } from '../components/CashFlowCard.tsx';
 import { CategoryBreakdown } from '../components/CategoryBreakdown.tsx';
@@ -37,9 +39,14 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
   const theme = useTheme();
   const { t } = useTranslation();
   const dispatch = useDispatch();
-  const { activeWalletId, isLoading: walletsLoading } = useWallets();
+  const { activeWalletId, isLoading: walletsLoading, permissions } = useWallets();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const onManage = () => navigation.getParent()?.navigate('WalletList');
+  // Remembered with its wallet: an account belongs to one wallet, so after a switch the scope
+  // reads as "all accounts" on that same render, before any query could name the old account.
+  const [scope, setScope] = useState<{ walletId: string | null; accountId: string | null }>({ walletId: null, accountId: null });
+  const scopeAccountId = scope.walletId === activeWalletId ? scope.accountId : null;
+  const setScopeAccountId = (accountId: string | null) => setScope({ walletId: activeWalletId, accountId });
+  const openAccount = (accountId: string) => navigation.getParent()?.navigate('AccountDetail', { accountId });
 
   const [period, setPeriod] = useState<DashboardPeriod>('monthly');
   const [anchor, setAnchor] = useState<CalendarDay>(() => today());
@@ -48,7 +55,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      dispatch(dashboardApiSlice.util.invalidateTags(['Dashboard']));
+      dispatch(dashboardApiSlice.util.invalidateTags(['Dashboard', 'Account']));
       await new Promise((resolve) => setTimeout(resolve, 500));
     } finally {
       setIsRefreshing(false);
@@ -57,7 +64,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
 
   return (
     <AnimatedScreen>
-      <WalletContextBar onManage={onManage}>
+      <WalletContextBar>
         <RefreshableScrollView
           testID="screen-dashboard"
           // flexGrow lets an empty state centre itself in the leftover height; with
@@ -76,30 +83,60 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
           {walletsLoading ? (
             <SkeletonList rows={5} />
           ) : activeWalletId === null ? (
-            <StateView
-              variant="empty"
-              icon={WalletIcon}
+            <NoWalletState
               title={t('dashboard.noWalletYet')}
               message={t('dashboard.createWalletToSee')}
-              primaryAction={{ label: t('wallets.newWallet'), onPress: onManage, icon: Plus }}
               testID="dashboard-empty"
             />
-          ) : period === 'yearly' ? (
-            <YearlyReport
-              walletId={activeWalletId}
-              year={parseDay(anchor).year}
-              periodLabel={formatPeriodLabel(period, anchor)}
-              navigation={navigation}
-              onPreviousPeriod={() => shiftPeriod(-1)}
-            />
           ) : (
-            <PeriodReport
-              walletId={activeWalletId}
-              period={period}
-              anchor={anchor}
-              navigation={navigation}
-              onPreviousPeriod={() => shiftPeriod(-1)}
-            />
+            <>
+              <AccountScopePicker
+                walletId={activeWalletId}
+                selectedAccountId={scopeAccountId}
+                onSelect={setScopeAccountId}
+              />
+
+              {scopeAccountId === null ? (
+                <AccountsOverview
+                  walletId={activeWalletId}
+                  canWrite={permissions.canWrite}
+                  onOpenAccount={openAccount}
+                />
+              ) : (
+                <Pressable
+                  testID="btn-manage-account"
+                  onPress={() => openAccount(scopeAccountId)}
+                  className="flex-row items-center self-start"
+                  style={{ gap: theme.spacing.xs }}
+                >
+                  <Text weight="medium" style={{ color: theme.colors.primary }}>
+                    {t('dashboard.manageAccount')}
+                  </Text>
+                  <ChevronRight size={16} color={theme.colors.primary} />
+                </Pressable>
+              )}
+
+              {period === 'yearly' ? (
+                <YearlyReport
+                  key={scopeAccountId ?? 'all'}
+                  walletId={activeWalletId}
+                  accountId={scopeAccountId}
+                  year={parseDay(anchor).year}
+                  periodLabel={formatPeriodLabel(period, anchor)}
+                  navigation={navigation}
+                  onPreviousPeriod={() => shiftPeriod(-1)}
+                />
+              ) : (
+                <PeriodReport
+                  walletId={activeWalletId}
+                  accountId={scopeAccountId}
+                  period={period}
+                  anchor={anchor}
+                  navigation={navigation}
+                  onPreviousPeriod={() => shiftPeriod(-1)}
+                />
+              )}
+            </>
           )}
         </RefreshableScrollView>
       </WalletContextBar>
@@ -141,12 +178,14 @@ function DashboardEmptyForWallet({
  */
 function PeriodReport({
   walletId,
+  accountId,
   period,
   anchor,
   navigation,
   onPreviousPeriod,
 }: {
   walletId: string;
+  accountId: string | null;
   period: DashboardPeriod;
   anchor: CalendarDay;
   navigation: DashboardNavigation;
@@ -155,8 +194,9 @@ function PeriodReport({
   const theme = useTheme();
   const { t } = useTranslation();
 
-  const current = useGetDashboardSummaryQuery({ walletId, ...windowFor(period, anchor) });
-  const previous = useGetDashboardSummaryQuery({ walletId, ...previousWindow(period, anchor) });
+  const scope = accountId ?? undefined;
+  const current = useGetDashboardSummaryQuery({ walletId, accountId: scope, ...windowFor(period, anchor) });
+  const previous = useGetDashboardSummaryQuery({ walletId, accountId: scope, ...previousWindow(period, anchor) });
   const categories = useListCategoriesQuery({ walletId });
 
   if (current.isLoading) return <SkeletonList rows={5} />;
@@ -257,12 +297,14 @@ function PeriodReport({
  */
 function YearlyReport({
   walletId,
+  accountId,
   year,
   periodLabel,
   navigation,
   onPreviousPeriod,
 }: {
   walletId: string;
+  accountId: string | null;
   year: number;
   periodLabel: string;
   navigation: DashboardNavigation;
@@ -284,7 +326,7 @@ function YearlyReport({
     return (
       <>
         {months.map((month) => (
-          <MonthDataPoint key={month} walletId={walletId} month={month} onSettled={handleMonthSettled} />
+          <MonthDataPoint key={month} walletId={walletId} accountId={accountId} month={month} onSettled={handleMonthSettled} />
         ))}
         <SkeletonList rows={5} />
       </>
@@ -299,7 +341,7 @@ function YearlyReport({
     return (
       <>
         {months.map((month) => (
-          <MonthDataPoint key={month} walletId={walletId} month={month} onSettled={handleMonthSettled} />
+          <MonthDataPoint key={month} walletId={walletId} accountId={accountId} month={month} onSettled={handleMonthSettled} />
         ))}
         <DashboardEmptyForWallet
           reason={emptyReason}
@@ -328,7 +370,7 @@ function YearlyReport({
   return (
     <>
       {months.map((month) => (
-        <MonthDataPoint key={month} walletId={walletId} month={month} onSettled={handleMonthSettled} />
+        <MonthDataPoint key={month} walletId={walletId} accountId={accountId} month={month} onSettled={handleMonthSettled} />
       ))}
       <View className="gap-lg">
         <View>
@@ -354,14 +396,16 @@ function YearlyReport({
 /** One query per month as its own component — a fixed array of these keeps hook calls stable, unlike calling the hook inside a loop. */
 function MonthDataPoint({
   walletId,
+  accountId,
   month,
   onSettled,
 }: {
   walletId: string;
+  accountId: string | null;
   month: CalendarDay;
   onSettled: (month: CalendarDay, data: DashboardResponse | undefined) => void;
 }) {
-  const query = useGetDashboardSummaryQuery({ walletId, ...windowFor('monthly', month) });
+  const query = useGetDashboardSummaryQuery({ walletId, accountId: accountId ?? undefined, ...windowFor('monthly', month) });
   // A month whose query errors still settles (as `undefined`, folded into the
   // chart as a zero point) — waiting on `data` alone would spin forever.
   useEffect(() => {

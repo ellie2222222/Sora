@@ -94,6 +94,18 @@ export const ROUTES = {
   audit: {
     list: (walletId: string) => `/wallets/${walletId}/audit-logs`,
   },
+
+  ai: {
+    conversations: () => '/ai/conversations',
+    createConversation: () => '/ai/conversations',
+    deleteConversation: (conversationId: string) => `/ai/conversations/${conversationId}/delete`,
+    messages: (conversationId: string) => `/ai/conversations/${conversationId}/messages`,
+    sendMessage: (conversationId: string) => `/ai/conversations/${conversationId}/messages`,
+    confirmAction: (conversationId: string, messageId: string) =>
+      `/ai/conversations/${conversationId}/messages/${messageId}/confirm`,
+    dismissAction: (conversationId: string, messageId: string) =>
+      `/ai/conversations/${conversationId}/messages/${messageId}/dismiss`,
+  },
 } as const;
 
 export function apiUrl(path: string): string {

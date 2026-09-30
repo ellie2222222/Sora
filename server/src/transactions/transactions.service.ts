@@ -325,6 +325,7 @@ export class TransactionsService {
     user: AuthenticatedUser,
     request: CreateTransactionRequest,
     ip: string | null,
+    trx?: Transaction<DB>,
   ): Promise<TransactionResponse> {
     if (request.type === TransactionType.TRANSFER && request.fromAccountId === request.toAccountId) {
       throw new AppError('TRANSFER_SAME_ACCOUNT');
@@ -355,8 +356,8 @@ export class TransactionsService {
       assertCategoryFits(await this.categoryFacts(categoryId, user.id), request.type, accessMap.get(namedAccountId)!.walletId);
     }
 
-    const row = await this.database.db.transaction().execute(async (trx) => {
-      const inserted = await trx
+    const withTrx = async (t: Transaction<DB>) => {
+      const inserted = await t
         .insertInto('transactions')
         .values({
           created_by_user_id: user.id,
@@ -375,7 +376,7 @@ export class TransactionsService {
         .executeTakeFirstOrThrow();
 
       await this.auditTransaction(
-        trx,
+        t,
         AUDIT_EVENTS.TRANSACTION_CREATED,
         inserted.id,
         user.id,
@@ -383,9 +384,11 @@ export class TransactionsService {
         ip,
       );
       return inserted;
-    });
+    };
 
-    return this.toResponse(row.id);
+    const row = await (trx ? withTrx(trx) : this.database.db.transaction().execute(withTrx));
+
+    return this.toResponse(row.id, trx);
   }
 
   /**
