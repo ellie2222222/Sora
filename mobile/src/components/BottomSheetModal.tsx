@@ -170,8 +170,10 @@ export function BottomSheetModal({
     >
       <View style={{ flex: 1 }}>
         <Animated.View
-          pointerEvents="none"
-          style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.overlay, opacity: backdropOpacity }]}
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: theme.colors.overlay, opacity: backdropOpacity, pointerEvents: 'none' },
+          ]}
         />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}

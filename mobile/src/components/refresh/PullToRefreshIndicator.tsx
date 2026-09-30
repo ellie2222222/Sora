@@ -56,7 +56,7 @@ export function PullToRefreshIndicator({
         <Animated.View style={iconAnimatedStyle}>
           <RotateCw size={17} color={theme.colors.primary} strokeWidth={2.2} />
         </Animated.View>
-        <Animated.View style={[StyleSheet.absoluteFill, styles.center, spinnerAnimatedStyle]} pointerEvents="none">
+        <Animated.View style={[StyleSheet.absoluteFill, styles.center, { pointerEvents: 'none' }, spinnerAnimatedStyle]}>
           {/* Never stopped: a stopped spinner hides itself, and starting it waits on a JS render. */}
           <ActivityIndicator size="small" color={theme.colors.primary} animating />
         </Animated.View>
