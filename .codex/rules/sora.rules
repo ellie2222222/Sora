@@ -1,0 +1,90 @@
+# Codex hooks cannot answer "ask" (only allow/deny), so the human-confirmation gate that
+# CLAUDE.md → Destructive Commands and Data Safety require lives here as `prompt` rules.
+# Prefix rules match argv only: SQL inside a psql -c string is still governed by AGENTS.md alone.
+
+prefix_rule(
+    pattern = ["git", ["commit", "push"]],
+    decision = "prompt",
+    justification = "Commits go through the commit-messages skill and only when explicitly asked; pushing needs a separate ask.",
+    match = ["git commit -m x", "git push origin main", "git push --force"],
+    not_match = ["git status", "git log --oneline -10"],
+)
+
+prefix_rule(
+    pattern = ["git", ["reset", "clean", "restore"]],
+    decision = "prompt",
+    justification = "Can discard uncommitted work.",
+    match = ["git reset --hard", "git clean -fd", "git restore src/App.tsx"],
+    not_match = ["git diff"],
+)
+
+prefix_rule(
+    pattern = ["git", "checkout", ["--", ".", "-f"]],
+    decision = "prompt",
+    justification = "Discards uncommitted work.",
+    match = ["git checkout -- mobile/package.json", "git checkout ."],
+    not_match = ["git checkout -b feature"],
+)
+
+prefix_rule(
+    pattern = ["git", "branch", "-D"],
+    decision = "prompt",
+    justification = "Force-deletes a branch regardless of merge state.",
+    match = ["git branch -D old"],
+    not_match = ["git branch -a"],
+)
+
+prefix_rule(
+    pattern = ["git", "stash", ["drop", "clear"]],
+    decision = "prompt",
+    justification = "Destroys stashed work.",
+    match = ["git stash drop", "git stash clear"],
+    not_match = ["git stash list"],
+)
+
+prefix_rule(
+    pattern = [["rm", "rmdir", "rd", "del", "erase", "Remove-Item", "ri", "robocopy"]],
+    decision = "prompt",
+    justification = "Deletes files; confirm where the target resolves (junctions/symlinks) before approving.",
+    match = ["rm -rf node_modules", "Remove-Item -Recurse dist", "rmdir /s /q build"],
+    not_match = ["ls"],
+)
+
+prefix_rule(
+    pattern = ["node", "scripts/migrate.mjs", "--reset"],
+    decision = "prompt",
+    justification = "Drops and recreates the database; only ever against a disposable one.",
+    match = ["node scripts/migrate.mjs --reset"],
+    not_match = ["node scripts/migrate.mjs --status"],
+)
+
+prefix_rule(
+    pattern = ["npm", "run", "db:reset"],
+    decision = "prompt",
+    justification = "Runs migrate.mjs --reset.",
+    match = ["npm run db:reset"],
+    not_match = ["npm run db:test"],
+)
+
+prefix_rule(
+    pattern = [["dropdb", "pg_restore"]],
+    decision = "prompt",
+    justification = "Drops or overwrites a database.",
+    match = ["dropdb sora_dev", "pg_restore -d sora_dev dump.sql"],
+)
+
+prefix_rule(
+    pattern = ["docker", ["volume", "system"], ["rm", "prune"]],
+    decision = "prompt",
+    justification = "Removes Docker data, including the optional Postgres volume.",
+    match = ["docker volume rm sora_pgdata", "docker system prune -a"],
+    not_match = ["docker volume ls"],
+)
+
+prefix_rule(
+    pattern = ["docker", "compose", "down"],
+    decision = "prompt",
+    justification = "Tears down the stack; with -v it also deletes the Postgres volume.",
+    match = ["docker compose down -v"],
+    not_match = ["docker compose ps"],
+)

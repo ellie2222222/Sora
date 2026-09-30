@@ -33,7 +33,7 @@ One canonical term per concept across code, SQL, API, and UI:
 ### BR-03 — Transaction Immutability
 - `amount`, `type`, `fromAccountId`, and `toAccountId` cannot be edited (`409 TRANSACTION_IMMUTABLE`).
 - Financial transactions are historical facts. Editing them rewrites balances, budget figures, and goal progress.
-- Correcting an entry requires cancelling and creating a new transaction. Only `description`, `transactionDate`, `categoryId`, and `reference` are mutable.
+- Correcting an entry is delete + create (the transaction is marked `DELETED`, so both rows stay visible). Only `description`, `transactionDate`, `categoryId`, and `reference` are mutable.
 
 ### BR-04 — Non-Overlapping Budget Windows
 - At most one `ACTIVE` budget per category per overlapping date range.

@@ -57,10 +57,10 @@ Any response that modifies, adds, or deletes files **must** conclude with the st
 ## Summary
 
 **Changed**
-- [path/to/file.ext:LINE](file:///d:/Code/sora/path/to/file.ext#LLINE) — what changed and why
+- [path/to/file.ext:LINE](path/to/file.ext#LLINE) — what changed and why
 
 **Added**
-- [path/to/new_file.ext](file:///d:/Code/sora/path/to/new_file.ext) — purpose of the file
+- [path/to/new_file.ext](path/to/new_file.ext) — purpose of the file
 
 **Removed**
 - `path/to/deleted_file.ext` — why it was safe to delete
@@ -73,7 +73,7 @@ Any response that modifies, adds, or deletes files **must** conclude with the st
 ```
 
 - Each entry must be one single line.
-- Every **Changed** and **Added** file must be a clickable markdown link.
+- Every **Changed** and **Added** file must be a clickable markdown link, path relative to the repo root.
 - **Removed** files remain plain backticks.
 - Omit **Added**, **Removed**, or **Follow-ups** if empty (do not write "None").
 - Never claim verification that did not actually run.

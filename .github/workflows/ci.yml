@@ -40,6 +40,10 @@ jobs:
       - name: Contract/schema parity
         run: node scripts/check-contract-parity.mjs
 
+      # Codex reads skills from .agents/skills, a copy of .claude/skills that drifts silently if not re-synced.
+      - name: Agent skill copies in sync
+        run: node scripts/sync-agent-skills.mjs --check
+
       # High, not moderate: the remaining moderates are expo's `uuid` chain, whose only npm fix is an Expo downgrade.
       - name: Dependency audit (runtime deps)
         run: npm audit --omit=dev --audit-level=high

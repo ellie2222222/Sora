@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "codegraph prompt-hook",
+            "commandWindows": "codegraph.cmd prompt-hook",
+            "timeout": 30,
+            "statusMessage": "CodeGraph context"
+          }
+        ]
+      }
+    ]
+  }
+}
