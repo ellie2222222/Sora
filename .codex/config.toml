@@ -1,0 +1,7 @@
+# Project-scoped Codex config. Loaded only once this project is trusted; see AGENTS.md → Codex.
+
+# .codegraph/ holds this repo's local index (gitignored); `codegraph` must be on PATH.
+[mcp_servers.codegraph]
+command = "codegraph"
+args = ["serve", "--mcp"]
+startup_timeout_sec = 30

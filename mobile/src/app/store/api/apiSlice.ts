@@ -107,6 +107,8 @@ export const API_TAG_TYPES = [
   'Goal',
   'GoalContribution',
   'Dashboard',
+  'AiConversation',
+  'AiMessage',
 ] as const;
 
 export const apiSlice = createApi({

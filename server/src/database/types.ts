@@ -14,6 +14,10 @@ import type { ColumnType, Generated } from 'kysely';
 import type {
   AccountStatus,
   AccountType,
+  AiActionStatus,
+  AiActionType,
+  AiMessageRole,
+  AiTransactionDraft,
   BudgetPeriodType,
   BudgetStatus,
   CategoryStatus,
@@ -205,6 +209,34 @@ export interface ExchangeRateSnapshotsTable {
   created_at: Timestamp;
 }
 
+export interface AiConversationsTable {
+  id: Generated<string>;
+  user_id: string;
+  wallet_id: string | null;
+  title: string;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export interface AiMessagesTable {
+  id: Generated<string>;
+  conversation_id: string;
+  role: AiMessageRole;
+  content: string;
+  action_type: AiActionType | null;
+  /** The proposed transaction plus the account/category names shown with it. */
+  action_payload: ColumnType<AiActionPayload | null, string | null, string | null>;
+  action_status: AiActionStatus | null;
+  action_transaction_id: string | null;
+  created_at: Timestamp;
+}
+
+export interface AiActionPayload {
+  transaction: AiTransactionDraft;
+  accountName: string;
+  categoryName: string;
+}
+
 export interface DB {
   users: UsersTable;
   refresh_tokens: RefreshTokensTable;
@@ -219,4 +251,6 @@ export interface DB {
   goal_contributions: GoalContributionsTable;
   audit_logs: AuditLogsTable;
   exchange_rate_snapshots: ExchangeRateSnapshotsTable;
+  ai_conversations: AiConversationsTable;
+  ai_messages: AiMessagesTable;
 }

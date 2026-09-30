@@ -21,6 +21,7 @@ build/
 
 # React Native
 .expo/
+.export/
 # Full Expo prebuild output — managed workflow, regenerate via `expo prebuild`
 mobile/android/
 ios/Pods/

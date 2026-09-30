@@ -192,7 +192,7 @@ export function GuestUploadScreen() {
         {wallets.map((wallet) => (
           <Card key={wallet.id}>
             <View className="flex-row justify-between items-center">
-              <Text weight="semibold">{wallet.name === 'Guest Wallet' ? t('wallets.guestWallet') : wallet.name}</Text>
+              <Text weight="semibold">{wallet.name === 'Guest Wallet' ? t('wallets.yourWallet') : wallet.name}</Text>
               <Button
                 testID={`btn-use-wallet-${wallet.id}`}
                 label={t('guest.upload.useThisWallet')}

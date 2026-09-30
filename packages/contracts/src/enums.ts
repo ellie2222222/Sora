@@ -111,6 +111,29 @@ export const ValuationStatus = {
   UNAVAILABLE: 'UNAVAILABLE',
 } as const;
 
+/** Who wrote an AI chat message. The system prompt is built per request and never stored. */
+export const AI_MESSAGE_ROLES = ['USER', 'ASSISTANT'] as const;
+export type AiMessageRole = (typeof AI_MESSAGE_ROLES)[number];
+export const AiMessageRole = {
+  USER: 'USER',
+  ASSISTANT: 'ASSISTANT',
+} as const;
+
+export const AI_ACTION_TYPES = ['CREATE_TRANSACTION'] as const;
+export type AiActionType = (typeof AI_ACTION_TYPES)[number];
+export const AiActionType = {
+  CREATE_TRANSACTION: 'CREATE_TRANSACTION',
+} as const;
+
+/** An assistant's proposal stays PENDING until the user confirms or dismisses it. */
+export const AI_ACTION_STATUSES = ['PENDING', 'CONFIRMED', 'DISMISSED'] as const;
+export type AiActionStatus = (typeof AI_ACTION_STATUSES)[number];
+export const AiActionStatus = {
+  PENDING: 'PENDING',
+  CONFIRMED: 'CONFIRMED',
+  DISMISSED: 'DISMISSED',
+} as const;
+
 /**
  * Lowercase display slugs, not upper-snake-case like the domain enums, so
  * check-contract-parity.mjs (which matches only upper-snake-case values) doesn't check them.

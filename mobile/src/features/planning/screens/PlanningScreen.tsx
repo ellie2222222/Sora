@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PiggyBank, Plus, Target, Wallet as WalletIcon } from 'lucide-react-native';
+import { PiggyBank, Plus, Target } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +7,7 @@ import type { BudgetResponse, GoalResponse } from '@sora/contracts';
 
 import { AnimatedScreen, Card, ListItemEnter, Money, ProgressBar, RefreshableFlatList, SkeletonList, SlideSwap, StateView, SyncStatusDot, Text } from '@/components';
 import { useModal, useTheme, useWallets } from '@/app/providers';
-import { WalletContextBar } from '@/features/wallets';
+import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { today, formatMoneyString, isNetworkError } from '@/utils';
 import { selectQueueEntryFor, useListBudgetsQuery, useListGoalsQuery } from '@/app/store';
 import type { MainTabScreenProps } from '@/app/navigation';
@@ -21,8 +21,6 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
   const { openModal } = useModal();
   const [section, setSection] = useState<PlanningSection>('budgets');
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const onManage = () => navigation.getParent()?.navigate('WalletList');
 
   const budgets = useListBudgetsQuery(
     { walletId: activeWalletId ?? '', status: 'ACTIVE', activeOn: today() },
@@ -50,7 +48,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
   const renderBudgetsContent = () => {
     // The query is skipped without a wallet, so this must resolve before the
     // loading branch — otherwise the skeleton below never ends.
-    if (activeWalletId === null) return <NoWalletState onManage={onManage} />;
+    if (activeWalletId === null) return <NoWalletState testID="planning-no-wallet" entrance="none" />;
     if (budgets.isLoading) {
       return <SkeletonList rows={4} rowHeight={96} />;
     }
@@ -113,7 +111,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
   };
 
   const renderGoalsContent = () => {
-    if (activeWalletId === null) return <NoWalletState onManage={onManage} />;
+    if (activeWalletId === null) return <NoWalletState testID="planning-no-wallet" entrance="none" />;
     if (goals.isLoading) {
       return <SkeletonList rows={4} rowHeight={110} />;
     }
@@ -179,7 +177,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
 
   return (
     <AnimatedScreen testID="screen-planning">
-      <WalletContextBar onManage={onManage}>
+      <WalletContextBar>
         <View
           style={{
             paddingHorizontal: theme.spacing.md,
@@ -252,23 +250,6 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
         </SlideSwap>
       </WalletContextBar>
     </AnimatedScreen>
-  );
-}
-
-/** Reuses the Accounts tab's no-wallet copy rather than adding another wording. */
-function NoWalletState({ onManage }: { onManage: () => void }) {
-  const { t } = useTranslation();
-
-  return (
-    <StateView
-      variant="empty"
-      icon={WalletIcon}
-      title={t('home.noWalletTitle')}
-      message={t('home.noWalletDescription')}
-      primaryAction={{ label: t('wallets.newWallet'), onPress: onManage, icon: Plus }}
-      testID="planning-no-wallet"
-      entrance="none"
-    />
   );
 }
 

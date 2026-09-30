@@ -9,6 +9,7 @@ import { AddContributionModal } from '../../features/goals/components/AddContrib
 import { AddGoalModal } from '../../features/goals/components/AddGoalModal.tsx';
 import { AddTransactionModal } from '../../features/transactions/components/AddTransactionModal.tsx';
 import { EditTransactionModal } from '../../features/transactions/components/EditTransactionModal.tsx';
+import { CreateWalletModal } from '../../features/wallets/components/CreateWalletModal.tsx';
 import { ModalContext, type ModalParams, type ModalType } from './ModalContext.ts';
 
 export function ModalProvider({ children }: { children: ReactNode }) {
@@ -60,6 +61,11 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       <AddContributionModal
         visible={activeModal === 'AddContribution'}
         goalId={modalParams.goalId}
+        onClose={closeModal}
+      />
+
+      <CreateWalletModal
+        visible={activeModal === 'CreateWallet'}
         onClose={closeModal}
       />
     </ModalContext.Provider>

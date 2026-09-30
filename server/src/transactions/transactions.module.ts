@@ -9,5 +9,6 @@ import { TransactionsService } from './transactions.service.ts';
   imports: [WalletAccessModule],
   controllers: [TransactionsController],
   providers: [TransactionsService],
+  exports: [TransactionsService],
 })
 export class TransactionsModule {}

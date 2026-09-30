@@ -394,10 +394,39 @@ export const createContributionSchema = z.object({
 
 export const dashboardQuerySchema = z.object({
   walletId: uuidSchema,
+  /** Narrows every figure to one of the wallet's accounts; transfers to its sibling accounts then count as in/out. */
+  accountId: uuidSchema.optional(),
   dateFrom: isoDateSchema.optional(),
   dateTo: isoDateSchema.optional(),
   displayCurrency: currencySchema.optional(),
 });
+
+// ---------------------------------------------------------------------------
+// AI assistant
+// ---------------------------------------------------------------------------
+
+export const createAiConversationSchema = z.object({
+  walletId: uuidSchema.optional(),
+  title: nameSchema(150).optional(),
+});
+
+export const aiConversationQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+});
+
+export const sendAiMessageSchema = z.object({
+  /** The wallet the question is about; read access is checked on every send. */
+  walletId: uuidSchema,
+  message: z.string().trim().min(1, 'Required').max(2000),
+  locale: z.enum(LOCALES).default('en'),
+});
+
+/**
+ * What the assistant may propose: an income or an expense in exactly the shape
+ * POST /transactions takes, so confirming one is that request and nothing looser.
+ */
+export const aiTransactionDraftSchema = z.discriminatedUnion('type', [createIncomeSchema, createExpenseSchema]);
 
 // ---------------------------------------------------------------------------
 // Inferred request types
@@ -427,5 +456,9 @@ export type CreateGoalRequest = z.infer<typeof createGoalSchema>;
 export type UpdateGoalRequest = z.infer<typeof updateGoalSchema>;
 export type CreateContributionRequest = z.infer<typeof createContributionSchema>;
 export type DashboardQuery = z.infer<typeof dashboardQuerySchema>;
+export type CreateAiConversationRequest = z.infer<typeof createAiConversationSchema>;
+export type AiConversationQuery = z.infer<typeof aiConversationQuerySchema>;
+export type SendAiMessageRequest = z.input<typeof sendAiMessageSchema>;
+export type AiTransactionDraft = z.output<typeof aiTransactionDraftSchema>;
 
 export const MONEY_DECIMALS = MONEY_SCALE;

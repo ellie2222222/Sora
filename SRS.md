@@ -1545,6 +1545,21 @@ The most rule-dense feature in the product, because a transaction is the only th
 
 ---
 
+#### DASH-US-04: Read one account's dashboard
+
+**As a** member of a wallet, **I want to** narrow the dashboard to one of its accounts, **so that** I can see what went in and out of that account alone.
+
+**Acceptance criteria**
+
+- The account view shows that account's balance and the period's income, expense, category split and recent transactions touching it.
+- A transfer between that account and a sibling account in the same wallet appears as money in or out of the account. It is still never income or expense (BR-04). At wallet level the same transfer appears in neither figure.
+- Budgets and goals belong to the wallet, not to an account, so the account view omits them rather than showing wallet figures as if they were the account's.
+- The wallet's accounts are listed and managed from the dashboard's wallet view. There is no separate Accounts tab.
+
+**Error cases:** an account outside the wallet reads as not found (BR-05).
+
+---
+
 ### Feature: GST-US — Guest Mode
 
 **Traceability:** Flow §8.10
@@ -1577,6 +1592,55 @@ The most rule-dense feature in the product, because a transaction is the only th
 - Declining to complete the upload immediately leaves the local data intact and offers the same choice again later.
 
 **Error cases:** none — an interruption resumes rather than fails; nothing about this flow is user-facing-error-shaped by design.
+
+---
+
+### Feature: AI-US — AI Assistant
+
+**Traceability:** [API spec §17](docs/API_SPECIFICATION.md#17-ai-assistant); BR-04, BR-05, BR-13
+**Roles:** any signed-in member; `EDITOR` or above to confirm a proposal
+
+#### AI-US-01: Ask about a wallet in plain words
+
+**As a** member of a wallet, **I want to** ask about balances, this month's spending, budgets and goals in plain English or Vietnamese, **so that** I get the answer without navigating to it.
+
+**Acceptance criteria**
+
+- Every figure in an answer comes from the wallet's own derived values, the same ones its dashboard shows. The assistant never does its own arithmetic.
+- Totals are stated per currency and never summed across currencies (BR-13). Transfers are never counted as spending (BR-04).
+- The assistant reads only the wallet the question is about, and only while the asker is a member of it.
+- A conversation is private to the user who started it. Chat history stays readable offline; sending needs a connection.
+- A guest is told the assistant needs an account and is offered sign-in.
+
+**Error cases:** a wallet the asker is not a member of reads as not found (BR-05), as does another user's conversation.
+
+---
+
+#### AI-US-02: Record a spend by describing it
+
+**As an** editor of a wallet, **I want to** type "Spent 65k on lunch from Cash" and get a ready-made transaction, **so that** recording it takes one tap.
+
+**Acceptance criteria**
+
+- The assistant only proposes. Nothing is recorded until I confirm, and confirming goes through exactly the checks the transaction form does.
+- A proposal names one of the wallet's active accounts and a category of the matching type, in that account's currency. When the account is ambiguous, or the stated currency is not the account's, it asks or explains instead of proposing.
+- A viewer, or anyone on an archived wallet, is never offered a proposal.
+- Confirming twice records one transaction. A proposal can be dismissed, and a confirmed or dismissed one cannot be acted on again.
+
+**Error cases:** a proposal already confirmed or dismissed is a conflict; every error of recording a transaction applies to confirming one (for example, a role lowered since the proposal was made).
+
+---
+
+#### AI-US-03: Keep and remove conversations
+
+**As a** user of the assistant, **I want to** return to earlier conversations and delete ones I no longer need, **so that** my history stays useful.
+
+**Acceptance criteria**
+
+- Conversations are listed most recent first, and the latest one reopens by default.
+- Deleting a conversation removes it and its messages. A transaction confirmed from it stays recorded.
+
+**Error cases:** another user's conversation reads as not found.
 
 ---
 
@@ -1624,9 +1688,10 @@ The most rule-dense feature in the product, because a transaction is the only th
 | Categories | `CAT-US` | 4 | Flows §8.4, §8.6; FR-30 |
 | Budgets | `BUD-US` | 4 | Flows §8.6; BR-10, FR-35–FR-42 |
 | Saving Goals | `SAV-US` | 6 | Flows §8.7; FR-43–FR-50 |
-| Dashboard | `DASH-US` | 3 | Flows §8.8; BR-04, BR-13, BR-16 |
+| Dashboard | `DASH-US` | 4 | Flows §8.8; BR-04, BR-13, BR-16 |
 | Guest Mode | `GST-US` | 2 | Flow §8.10 |
-| **Total** | — | **49** | — |
+| AI Assistant | `AI-US` | 3 | API spec §17; BR-04, BR-05, BR-13 |
+| **Total** | — | **53** | — |
 
 **Rule coverage** — the rules that most often get lost in implementation, and where their acceptance criteria live:
 

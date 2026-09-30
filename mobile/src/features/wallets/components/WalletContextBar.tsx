@@ -15,11 +15,9 @@ import { ConnectionSyncStatus } from '@/components';
  * connectivity/sync issues (every screen stays usable offline).
  */
 export function WalletContextBar({
-  onManage,
   rightContent,
   children,
 }: {
-  onManage?: () => void;
   rightContent?: ReactNode;
   children?: ReactNode;
 }) {
@@ -37,7 +35,7 @@ export function WalletContextBar({
           paddingBottom: theme.spacing.sm,
         }}
       >
-        <WalletSwitcher onManage={onManage} />
+        <WalletSwitcher />
         <View className="flex-row items-center" style={{ gap: theme.spacing.md }}>
           {rightContent}
           <ConnectionSyncStatus />

@@ -23,7 +23,9 @@
     "dev": "concurrently -k -n server,mobile -c blue,magenta \"npm:dev:server\" \"npm:dev:mobile\"",
     "dev:server": "npm run start:dev --workspace @sora/server",
     "dev:mobile": "npm start --workspace @sora/mobile",
-    "dev:mobile:clear": "npm run clear --workspace @sora/mobile"
+    "dev:mobile:clear": "npm run clear --workspace @sora/mobile",
+    "agents:sync": "node scripts/sync-agent-skills.mjs",
+    "agents:check": "node scripts/sync-agent-skills.mjs --check"
   },
   "devDependencies": {
     "concurrently": "^10.0.5",

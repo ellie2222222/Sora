@@ -1,3 +1,4 @@
+export * from './ai.ts';
 export * from './accounts.ts';
 export * from './auth.ts';
 export * from './budgets.ts';

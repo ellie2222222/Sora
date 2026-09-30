@@ -92,7 +92,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
 
-      <View pointerEvents="box-none" style={[styles.container, { top: insets.top + theme.spacing.sm }]}>
+      <View style={[styles.container, { top: insets.top + theme.spacing.sm, pointerEvents: 'box-none' }]}>
         {visibleToasts.map((toast) => {
           const Icon = VARIANT_ICON[toast.variant];
           const color = variantColor[toast.variant];

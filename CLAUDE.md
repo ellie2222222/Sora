@@ -30,6 +30,11 @@ In `.claude/skills/`. Reach for these instead of improvising the same sweep by h
 | `brainstorm-features` | Feature suggestions grounded in this repo's actual current patterns, discovered live |
 | `skill-audit` | Audits the skill files themselves — frozen path references, trigger collisions, advice with no observable check |
 
+`AGENTS.md`, `.agents/rules/` and `.codex/` (MCP config, hooks, command rules) port this file for Codex and
+Google Antigravity; amend them in the same change when a rule here changes. Codex reads skills from
+`.agents/skills/`, a copy of the ten skills above: edit them here, then `npm run agents:sync` (CI runs
+`npm run agents:check`).
+
 `.claude/skills/` also carries the [Front-End Checklist](https://frontendchecklist.io) skill corpus
 (MIT-licensed, vendored from `thedaviddias/Front-End-Checklist` at `/home/app/Front-End-Checklist`) —
 `frontend-checklist-global` plus ~390 individual rule-specific skills (HTML, CSS, JS, performance,
@@ -257,7 +262,7 @@ machine-checked, which is why they outrank the narrative documents.
 |---|---|---|
 | 1 | [`db/migrations/001_initial_wallet_schema.sql`](db/migrations/001_initial_wallet_schema.sql) | The schema. What the database actually permits |
 | 2 | [`packages/contracts/src/`](packages/contracts/src/) | Enums, validation, response shapes, error codes, route paths, money/derivation math |
-| 3 | [`docs/API_SPECIFICATION.md`](docs/API_SPECIFICATION.md) | The 50-endpoint contract: auth, authorization, validation, errors, side effects per endpoint |
+| 3 | [`docs/API_SPECIFICATION.md`](docs/API_SPECIFICATION.md) | The endpoint contract: auth, authorization, validation, errors, side effects per endpoint |
 | 4 | [`SRS.md`](SRS.md) | What the system does and why — domain model, business flows, user stories |
 | 5 | [`SDS.md`](SDS.md) | How it is designed — architecture, sequence flows, feature mapping |
 
@@ -323,7 +328,7 @@ finance/
 ├── db/
 │   ├── migrations/            # raw SQL, forward-only, immutable once applied
 │   └── tests/                 # psql constraint probes against a real Postgres
-├── scripts/                   # check-contract-parity.mjs, migrate.mjs
+├── scripts/                   # check-contract-parity.mjs, migrate.mjs, sync-agent-skills.mjs
 ├── .github/workflows/ci.yml   # contracts → database → server; contracts → mobile; server + mobile → e2e
 ├── docs/API_SPECIFICATION.md
 ├── SRS.md  SDS.md

@@ -6,7 +6,6 @@ import { BudgetDetailScreen } from '@/features/budgets';
 import { CategoryListScreen } from '@/features/categories';
 import { TransactionsScreen } from '@/features/transactions';
 import { GoalDetailScreen } from '@/features/goals';
-import { InviteMemberScreen, WalletActivityScreen, WalletDetailScreen, WalletListScreen, WalletMembersScreen } from '@/features/wallets';
 import { ModalProvider } from '../providers/ModalProvider.tsx';
 import { MainTabNavigator } from './MainTabNavigator.tsx';
 import type { AppStackParamList } from './types.ts';
@@ -31,12 +30,6 @@ export function AppNavigator() {
     <ModalProvider>
       <Stack.Navigator>
       <Stack.Screen name="Main" component={MainTabNavigator} options={{ headerShown: false }} />
-
-      <Stack.Screen name="WalletList" component={WalletListScreen} options={{ title: t('wallets.title') }} />
-      <Stack.Screen name="WalletDetail" component={WalletDetailScreen} options={{ title: '' }} />
-      <Stack.Screen name="WalletMembers" component={WalletMembersScreen} options={{ title: t('wallets.members') }} />
-      <Stack.Screen name="InviteMember" component={InviteMemberScreen} options={{ title: t('members.invite') }} />
-      <Stack.Screen name="WalletActivity" component={WalletActivityScreen} options={{ title: t('activity.title') }} />
 
       <Stack.Screen name="AccountDetail" component={AccountDetailScreen} options={{ title: t('accounts.detailTitle') }} />
       <Stack.Screen name="AddAccount" component={AddAccountScreen} options={transparentModalOptions} />

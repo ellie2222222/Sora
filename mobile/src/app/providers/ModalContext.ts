@@ -14,7 +14,8 @@ export type ModalType =
   | 'AddAccount'
   | 'AddGoal'
   | 'AddBudget'
-  | 'AddContribution';
+  | 'AddContribution'
+  | 'CreateWallet';
 
 export interface ModalParams {
   transactionId?: string;

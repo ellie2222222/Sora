@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 
 import { AccountsModule } from './accounts/accounts.module.ts';
+import { AiModule } from './ai/ai.module.ts';
 import { AuditModule } from './audit/audit.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { JwtAuthGuard } from './auth/jwt-auth.guard.ts';
@@ -48,6 +49,7 @@ import { WalletsModule } from './wallets/wallets.module.ts';
     GoalsModule,
     DashboardModule,
     ExchangeRateModule,
+    AiModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

@@ -87,3 +87,12 @@ Each rule below was established to permanently prevent a regression of a specifi
     style={{ backgroundColor: pressed ? theme.colors.surfaceMuted : theme.colors.surface }}
   >
   ```
+
+### 16. A Swallowed Error Inside a Postgres Transaction Still Aborts It
+- `AuditService.record()` never throws, but inside `db.transaction()` a failed insert leaves the transaction aborted, so the caller's `COMMIT` silently becomes a rollback — the financial write it was auditing disappears with no error.
+- `record()` therefore wraps its insert in a `SAVEPOINT` when handed a transaction. Any other best-effort write inside a caller's transaction needs the same shape, or must run outside it.
+
+### 17. Device-Local Data Belongs to One Identity
+- The guest store is the guest's ledger: a signed-in read must never fall back to it when offline.
+- Signed-in reads go through `readSignedIn`: on a network failure they rethrow, and RTK Query keeps the last data or the account's own saved copy.
+- The in-memory cache is reset when the session ends; the SQLite read cache and offline-queue rows are keyed by account, so another account's data is never read.

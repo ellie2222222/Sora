@@ -10,8 +10,8 @@ export type AuthStackParamList = {
 
 export type MainTabParamList = {
   Home: undefined;
-  Account: undefined;
   Planning: undefined;
+  Ai: undefined;
   Dashboard: undefined;
   Settings: undefined;
 };
@@ -25,11 +25,6 @@ export type AppStackParamList = {
   // Typed with NavigatorScreenParams so a caller can deep-link straight into a tab
   // instead of only ever landing on whichever tab was last active.
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
-  WalletList: undefined;
-  WalletDetail: { walletId: string };
-  WalletMembers: { walletId: string };
-  InviteMember: { walletId: string };
-  WalletActivity: { walletId: string };
   AccountDetail: { accountId: string };
   AddAccount: { walletId?: string } | undefined;
   CategoryList: { walletId?: string } | undefined;

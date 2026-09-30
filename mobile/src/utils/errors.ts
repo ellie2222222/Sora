@@ -177,6 +177,9 @@ export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
   INTERNAL_ERROR: 'errors.internalError',
   GOOGLE_TOKEN_INVALID: 'errors.googleTokenInvalid',
   VALUATION_UNAVAILABLE: 'errors.valuationUnavailable',
+  AI_CONVERSATION_NOT_FOUND: 'errors.aiConversationNotFound',
+  AI_MESSAGE_NOT_FOUND: 'errors.aiMessageNotFound',
+  AI_ACTION_NOT_PENDING: 'errors.aiActionNotPending',
 };
 
 export function getServerErrorMessage(error: unknown, t: TranslationFunction): string {

@@ -105,7 +105,7 @@ export function CategoryListScreen({
     <>
       {renderContent()}
       {walletId !== undefined ? (
-        <CreateCategoryModal visible={creating} walletId={walletId} onClose={() => setCreating(false)} />
+        <AddCategoryModal visible={creating} walletId={walletId} onClose={() => setCreating(false)} />
       ) : null}
       <CategoryDeleteDialog category={deletingCategory} onClose={() => setDeletingCategory(null)} />
     </>
@@ -158,7 +158,7 @@ export function CategoryListScreen({
     );
   }
 
-  function CreateCategoryModal({
+  function AddCategoryModal({
     visible,
     walletId,
     onClose,

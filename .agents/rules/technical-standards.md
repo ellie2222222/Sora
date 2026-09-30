@@ -23,7 +23,7 @@
    - Amounts support up to 4 decimal places.
    - `parseMoney` strictly rejects inputs with >4 decimals rather than silently rounding or truncating.
 4. **Formatting**:
-   - Always render money in UI using `formatMoney` or `formatMoneyCompact`. Never call `Number(amount)` or `toLocaleString` on raw strings.
+   - Render money through the `<Money>` component, or `formatMoneyString`/`formatScaled` (`mobile/src/utils/money.ts`) where a plain string is needed. Never call `Number(amount)` or `toLocaleString` on raw strings. `formatMoney`/`formatMoneyCompact` in `@sora/contracts` produce a wire `MoneyString`, not display text.
 
 ---
 
@@ -61,7 +61,7 @@
   - Active locales are strictly English (`en`) and Vietnamese (`vi`) (`['en', 'vi'] as const`).
   - Never translate new keys into disabled locales (`de`, `es`, `fr`, `hi`, `ja`, `ko`, `ru`, `zh`). Full key parity is maintained between `en.ts` and `vi.ts`.
 - **Test Selectors**:
-  - Use `testID` attributes for test automation (Detox / React Native Testing Library):
+  - Use `testID` attributes, the only stable selector the Maestro E2E suite (`id:`) can address. The full pattern table is `CLAUDE.md` → NC-04:
     - Root screens: `screen-[name]`
     - Input fields: `input-[entity]-[field]`
     - Submit buttons: `btn-submit-[entity]`
@@ -86,7 +86,7 @@
 - **Immutability**: Applied migrations are immutable. Never edit historical migrations; create a new migration for schema changes.
 - **Data Safety**:
   - Never drop databases, truncate tables, or run unconstrained `DELETE`/`UPDATE` operations.
-  - Financial records are never hard-deleted: entities are soft-deleted or marked `ARCHIVED`, `CANCELLED`, or `REVOKED`.
+  - Financial records are never hard-deleted: wallets, accounts, categories and budgets are archived, transactions are marked `DELETED` (the row stays), members are `REVOKED`.
 
 ---
 
