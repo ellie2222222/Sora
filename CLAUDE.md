@@ -328,7 +328,7 @@ finance/
 ├── db/
 │   ├── migrations/            # raw SQL, forward-only, immutable once applied
 │   └── tests/                 # psql constraint probes against a real Postgres
-├── scripts/                   # check-contract-parity.mjs, migrate.mjs, sync-agent-skills.mjs
+├── scripts/                   # check-contract-parity.mjs, migrate.mjs, sync-agent-skills.mjs, audit-runtime-deps.mjs
 ├── .github/workflows/ci.yml   # contracts → database → server; contracts → mobile; server + mobile → e2e
 ├── docs/API_SPECIFICATION.md
 ├── docs/test-plans/           # per-feature test plans: SRS §9 story → test case → test file:line

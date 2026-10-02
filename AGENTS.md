@@ -72,7 +72,7 @@ finance/
 ├── db/
 │   ├── migrations/            # Raw SQL forward-only migrations (immutable once applied)
 │   └── tests/                 # Constraint probes executed against real Postgres
-├── scripts/                   # check-contract-parity.mjs, migrate.mjs, sync-agent-skills.mjs
+├── scripts/                   # check-contract-parity.mjs, migrate.mjs, sync-agent-skills.mjs, audit-runtime-deps.mjs
 ├── .agents/
 │   ├── rules/                 # Topic rule files (read on trigger — see below)
 │   ├── skills/                # Codex skills: generated copy of .claude/skills — do not edit here

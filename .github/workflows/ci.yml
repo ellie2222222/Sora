@@ -46,7 +46,7 @@ jobs:
 
       # High, not moderate: the remaining moderates are expo's `uuid` chain, whose only npm fix is an Expo downgrade.
       - name: Dependency audit (runtime deps)
-        run: npm audit --omit=dev --audit-level=high
+        run: node scripts/audit-runtime-deps.mjs
 
   database:
     name: Database (migrations, constraints)
