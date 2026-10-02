@@ -7,6 +7,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import type { Transaction } from 'kysely';
 
 import {
   formatMoney,
@@ -23,7 +24,9 @@ import { AuditService } from '../audit/audit.service.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { DatabaseService } from '../database/database.service.ts';
+import type { DB } from '../database/types.ts';
 import { WalletAccessService } from '../wallets/wallet-access.service.ts';
+import { lockAccountForCurrencyChange } from './account-currency-lock.ts';
 import { BalanceService } from './balance.service.ts';
 
 export interface AccountListQuery {
@@ -136,55 +139,39 @@ export class AccountsService {
       await this.assertNotLastActiveAccount(access.walletId, accountId);
     }
 
-    if (request.currency !== undefined && request.currency !== access.currency) {
-      const txCount = await this.database.db
-        .selectFrom('transactions')
-        .select((eb) => eb.fn.countAll().as('count'))
-        .where((eb) =>
-          eb.or([
-            eb('from_account_id', '=', accountId),
-            eb('to_account_id', '=', accountId),
-          ]),
-        )
-        .executeTakeFirstOrThrow();
+    const row = await this.database.db.transaction().execute(async (trx) => {
+      if (request.currency !== undefined && request.currency !== access.currency) {
+        await lockAccountForCurrencyChange(trx, accountId);
+        await this.assertNothingNamesAccount(trx, accountId);
+      }
 
-      // An earmark contribution carries the account's currency without a transaction behind it.
-      const earmark = await this.database.db
-        .selectFrom('goal_contributions')
-        .select('id')
-        .where('account_id', '=', accountId)
+      const updated = await trx
+        .updateTable('accounts')
+        .set({
+          ...(request.name !== undefined ? { name: request.name } : {}),
+          ...(request.currency !== undefined ? { currency: request.currency } : {}),
+          ...(request.status !== undefined ? { status: request.status } : {}),
+          updated_at: new Date(),
+        })
+        .where('id', '=', accountId)
+        .returningAll()
         .executeTakeFirst();
 
-      if (Number(txCount.count) > 0 || earmark) {
-        throw new AppError(
-          'ACCOUNT_CURRENCY_MISMATCH',
-          'Cannot change currency once a transaction or goal contribution names this account',
-        );
-      }
-    }
+      if (!updated) throw new AppError('ACCOUNT_NOT_FOUND');
 
-    const row = await this.database.db
-      .updateTable('accounts')
-      .set({
-        ...(request.name !== undefined ? { name: request.name } : {}),
-        ...(request.currency !== undefined ? { currency: request.currency } : {}),
-        ...(request.status !== undefined ? { status: request.status } : {}),
-        updated_at: new Date(),
-      })
-      .where('id', '=', accountId)
-      .returningAll()
-      .executeTakeFirst();
-
-    if (!row) throw new AppError('ACCOUNT_NOT_FOUND');
-
-    await this.audit.record({
-      event:
-        request.status === AccountStatus.ARCHIVED ? AUDIT_EVENTS.ACCOUNT_ARCHIVED : AUDIT_EVENTS.ACCOUNT_UPDATED,
-      entityType: ENTITY_TYPES.ACCOUNT,
-      entityId: accountId,
-      actorId: user.id,
-      walletId: access.walletId,
-      ip,
+      await this.audit.record(
+        {
+          event:
+            request.status === AccountStatus.ARCHIVED ? AUDIT_EVENTS.ACCOUNT_ARCHIVED : AUDIT_EVENTS.ACCOUNT_UPDATED,
+          entityType: ENTITY_TYPES.ACCOUNT,
+          entityId: accountId,
+          actorId: user.id,
+          walletId: access.walletId,
+          ip,
+        },
+        trx,
+      );
+      return updated;
     });
 
     const balance = await this.balances.balanceForAccount(row);
@@ -233,6 +220,29 @@ export class AccountsService {
       .executeTakeFirstOrThrow();
 
     if (Number(remaining.count) === 0) throw new AppError('ACCOUNT_LAST_ACTIVE');
+  }
+
+  /** Run under the account's `FOR UPDATE`, so no writer can name it between this check and the update. */
+  private async assertNothingNamesAccount(trx: Transaction<DB>, accountId: string): Promise<void> {
+    const transaction = await trx
+      .selectFrom('transactions')
+      .select('id')
+      .where((eb) => eb.or([eb('from_account_id', '=', accountId), eb('to_account_id', '=', accountId)]))
+      .executeTakeFirst();
+
+    // An earmark contribution carries the account's currency without a transaction behind it.
+    const earmark = await trx
+      .selectFrom('goal_contributions')
+      .select('id')
+      .where('account_id', '=', accountId)
+      .executeTakeFirst();
+
+    if (transaction || earmark) {
+      throw new AppError(
+        'ACCOUNT_CURRENCY_MISMATCH',
+        'Cannot change currency once a transaction or goal contribution names this account',
+      );
+    }
   }
 
   private async accountRow(accountId: string): Promise<AccountRow> {

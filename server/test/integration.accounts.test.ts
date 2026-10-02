@@ -2,6 +2,10 @@ import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 
+import { sql, type Transaction } from 'kysely';
+
+import { DatabaseService } from '../src/database/database.service.ts';
+import type { DB } from '../src/database/types.ts';
 import {
   addMember,
   categoryOf,
@@ -197,6 +201,71 @@ describe('accounts against a real database', { skip: integrationSkipReason() }, 
       assert.deepEqual([refused.status, refused.body?.error?.code], [422, 'ACCOUNT_CURRENCY_MISMATCH']);
       assert.equal(await currencyOf(id), 'VND');
     }
+  });
+
+  describe('ACC-US-04: a currency change racing a write that names the account', () => {
+    const WAIT_MS = 300;
+    let user: ProbeUser;
+
+    before(async () => {
+      user = await registerProbeUser(api, 'acc-currency-race');
+    });
+
+    /** Runs `statements` in a transaction left open until the returned commit is called. */
+    async function openTransaction(statements: (trx: Transaction<DB>) => Promise<void>): Promise<() => Promise<void>> {
+      let commit!: () => void;
+      const committed = new Promise<void>((resolve) => (commit = resolve));
+      let started!: () => void;
+      const ready = new Promise<void>((resolve) => (started = resolve));
+      const done = api.app.get(DatabaseService).db.transaction().execute(async (trx) => {
+        await statements(trx);
+        started();
+        await committed;
+      });
+      await ready;
+      return async () => {
+        commit();
+        await done;
+      };
+    }
+
+    const stillWaiting = async (request: Promise<unknown>) =>
+      (await Promise.race([request.then(() => false), new Promise((resolve) => setTimeout(() => resolve(true), WAIT_MS))])) === true;
+
+    it('a transaction create waits for an in-flight currency change, then refuses the old currency', async () => {
+      const account = await createAccount(api, user, user.walletId);
+      const salary = await categoryOf(api, user, user.walletId, 'INCOME');
+      const commit = await openTransaction(async (trx) => {
+        await sql`SELECT id FROM accounts WHERE id = ${account} FOR UPDATE`.execute(trx);
+        await sql`UPDATE accounts SET currency = 'USD' WHERE id = ${account}`.execute(trx);
+      });
+
+      const income = transact(user, { type: 'INCOME', toAccountId: account, categoryId: salary, amount: '1' });
+      assert.equal(await stillWaiting(income), true, 'the create must wait on the account row');
+      await commit();
+
+      const refused = await income;
+      assert.deepEqual([refused.status, refused.body?.error?.code], [422, 'ACCOUNT_CURRENCY_MISMATCH']);
+      assert.deepEqual(await api.sql('SELECT id FROM transactions WHERE to_account_id = $1', [account]), []);
+    });
+
+    it('a currency change waits for an in-flight transaction create, then refuses', async () => {
+      const account = await createAccount(api, user, user.walletId);
+      const salary = await categoryOf(api, user, user.walletId, 'INCOME');
+      const commit = await openTransaction(async (trx) => {
+        await sql`SELECT id FROM accounts WHERE id = ${account} FOR SHARE`.execute(trx);
+        await sql`INSERT INTO transactions (created_by_user_id, to_account_id, category_id, type, amount, currency, transaction_date, status)
+                  VALUES (${user.id}, ${account}, ${salary}, 'INCOME', 1, 'VND', ${WHEN}, 'COMPLETED')`.execute(trx);
+      });
+
+      const change = api.call('PATCH', `/accounts/${account}`, { token: user.token, body: { currency: 'USD' } });
+      assert.equal(await stillWaiting(change), true, 'the change must wait on the account row');
+      await commit();
+
+      const refused = await change;
+      assert.deepEqual([refused.status, refused.body?.error?.code], [422, 'ACCOUNT_CURRENCY_MISMATCH']);
+      assert.deepEqual(await api.sql('SELECT currency FROM accounts WHERE id = $1', [account]), [{ currency: 'VND' }]);
+    });
   });
 
   it('ACC-US-05: archives with 204, then refuses new transactions on the account', async () => {

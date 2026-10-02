@@ -683,7 +683,7 @@ Lets an invitee see what they are being offered *before* signing up.
 
 **Request** — `updateAccountSchema`: `{ "name"?, "currency"?, "status"? }`
 
-**Validation** — `type` and `initialBalance` are **not** editable. Every stored balance and every transaction on the account derives from them; changing one retroactively rewrites history with no audit trail. Create a new account instead. `currency` is editable only while the account is empty — no transaction of any status and no goal contribution names it — and is otherwise refused with `422 ACCOUNT_CURRENCY_MISMATCH`.
+**Validation** — `type` and `initialBalance` are **not** editable. Every stored balance and every transaction on the account derives from them; changing one retroactively rewrites history with no audit trail. Create a new account instead. `currency` is editable only while the account is empty — no transaction of any status and no goal contribution names it — and is otherwise refused with `422 ACCOUNT_CURRENCY_MISMATCH`. The check and the change hold a lock on the account row, which every transaction and contribution create also takes, so a write naming the account at the same moment either commits first (the change is refused) or waits and is refused because it names the old currency.
 
 **Response `200`** — `AccountResponse`.
 

@@ -22,6 +22,7 @@ import {
   type CreateContributionRequest,
 } from '@sora/contracts';
 
+import { lockAccountsInCurrency } from '../accounts/account-currency-lock.ts';
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';
 import { AppError } from '../common/app-error.ts';
@@ -121,6 +122,7 @@ export class GoalContributionsService {
     }
 
     const row = await this.database.db.transaction().execute(async (trx) => {
+      await lockAccountsInCurrency(trx, [request.accountId], request.currency);
       let transactionId: string | null = null;
 
       if (request.recordAsTransaction) {

@@ -28,6 +28,7 @@ import {
   type UpdateTransactionRequest,
 } from '@sora/contracts';
 
+import { lockAccountsInCurrency } from '../accounts/account-currency-lock.ts';
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';
 import { AppError } from '../common/app-error.ts';
@@ -366,6 +367,7 @@ export class TransactionsService {
     if (goalId !== null) await this.assertGoalTag(request.type, goalId, fromAccess?.walletId ?? null);
 
     const withTrx = async (t: Transaction<DB>) => {
+      await lockAccountsInCurrency(t, accountIds, request.currency);
       const inserted = await t
         .insertInto('transactions')
         .values({
