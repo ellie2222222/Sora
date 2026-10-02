@@ -2,9 +2,9 @@ import { Archive, History, Landmark, LogOut, Plus, Settings, UsersRound } from '
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { WalletRole, type AccountResponse } from '@sora/contracts';
+import { AccountStatus, WalletRole, type AccountResponse } from '@sora/contracts';
 
-import { Card, ConfirmDialog, Money, SkeletonList, StateView, Text } from '@/components';
+import { Card, ConfirmDialog, Money, Skeleton, StateView, Text } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
 import {
   useArchiveWalletMutation,
@@ -40,7 +40,7 @@ export function WalletDetailPanel({
   const { isGuest } = useAuth();
 
   const wallet = useGetWalletQuery(walletId);
-  const accounts = useListAccountsQuery({ walletId, status: 'ACTIVE' });
+  const accounts = useListAccountsQuery({ walletId, status: AccountStatus.ACTIVE });
   // Sharing is out of scope for guest mode — see membersApi's note.
   const members = useListMembersQuery({ walletId }, { skip: isGuest });
   const [leaveWallet] = useLeaveWalletMutation();
@@ -62,7 +62,32 @@ export function WalletDetailPanel({
   }
 
   const renderContent = () => {
-    if (wallet.isLoading || accounts.isLoading) return <SkeletonList rows={5} />;
+    if (wallet.isLoading || accounts.isLoading) return         <View style={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.xl }}>
+          <View className="flex-row justify-between items-center">
+            <Skeleton width={120} height={32} radius={theme.radius.sm} />
+            <Skeleton width={60} height={20} radius={theme.radius.sm} />
+          </View>
+          
+          <View className="flex-row justify-between items-center" style={{ marginTop: theme.spacing.sm }}>
+            <Skeleton width={80} height={16} radius={theme.radius.sm} />
+            <Skeleton width={24} height={24} radius={12} />
+          </View>
+
+          <View style={{ gap: theme.spacing.md }}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <View key={i} className="flex-row items-center justify-between">
+                <View className="flex-row items-center" style={{ gap: theme.spacing.md }}>
+                  <Skeleton width={40} height={40} radius={20} />
+                  <View style={{ gap: theme.spacing.xs }}>
+                    <Skeleton width={100} height={16} radius={theme.radius.sm} />
+                    <Skeleton width={60} height={12} radius={theme.radius.sm} />
+                  </View>
+                </View>
+                <Skeleton width={80} height={16} radius={theme.radius.sm} />
+              </View>
+            ))}
+          </View>
+        </View>;
     if (wallet.isError && !isNetworkError(wallet.error)) {
       return <StateView variant="error" error={wallet.error} retryAction={() => void wallet.refetch()} />;
     }
@@ -131,7 +156,7 @@ export function WalletDetailPanel({
           />
         ) : (
           (accounts.data ?? []).map((account) => (
-            <AccountRow key={account.id} account={account} onPress={() => onOpenAccount(account.id)} />
+            <AccountItem key={account.id} account={account} onPress={() => onOpenAccount(account.id)} />
           ))
         )}
 
@@ -212,7 +237,7 @@ export function WalletDetailPanel({
   );
 }
 
-function AccountRow({ account, onPress }: { account: AccountResponse; onPress: () => void }) {
+function AccountItem({ account, onPress }: { account: AccountResponse; onPress: () => void }) {
   const theme = useTheme();
   return (
     <Pressable testID={`wallet-detail-account-${account.id}`} onPress={onPress}>

@@ -163,7 +163,7 @@ export function Button({
                     ? theme.colors.onDanger
                     : textColor
             }
-            style={{ marginRight: theme.spacing.xs }}
+            style={{ marginRight: theme.spacing.sm }}
           />
           <Text variant="label" weight="semibold" style={{ color: textColor }}>
             {loadingLabel ?? t('common.loading', 'Loading…')}
@@ -171,7 +171,7 @@ export function Button({
         </>
       ) : (
         <>
-          {Icon !== undefined ? <Icon size={iconSize} color={iconColor} style={{ marginRight: theme.spacing.xs }} /> : null}
+          {Icon !== undefined ? <Icon size={iconSize} color={iconColor} style={{ marginRight: theme.spacing.sm }} /> : null}
           <Text variant="label" weight="semibold" style={{ color: textColor }}>
             {label}
           </Text>

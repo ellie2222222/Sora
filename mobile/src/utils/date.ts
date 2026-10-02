@@ -208,19 +208,17 @@ export function formatDayHeading(
   );
 
   if (day === reference) {
-    const todayLabel = i18next.t('common.today', { defaultValue: 'Today' });
-    return `${todayLabel} · ${formattedDate}`;
+    return `${i18next.t('common.today')} · ${formattedDate}`;
   }
   if (day === addDays(reference, -1)) {
-    const yesterdayLabel = i18next.t('common.yesterday', { defaultValue: 'Yesterday' });
-    return `${yesterdayLabel} · ${formattedDate}`;
+    return `${i18next.t('common.yesterday')} · ${formattedDate}`;
   }
 
   return d.toLocaleDateString(
     locale,
     sameYear
-      ? { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }
-      : { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' },
+      ? { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }
+      : { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' },
   );
 }
 

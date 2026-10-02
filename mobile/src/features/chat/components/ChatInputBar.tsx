@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { SendHorizontal } from 'lucide-react-native';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, TextInput, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
@@ -23,60 +23,57 @@ export function ChatInputBar({ disabled, onSend }: { disabled: boolean; onSend: 
   };
 
   return (
-    <View
-      className="flex-row items-end"
-      style={{
-        gap: theme.spacing.sm,
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.sm,
-        borderTopWidth: 1,
-        borderTopColor: theme.colors.border,
-        backgroundColor: theme.colors.background,
-      }}
-    >
+
+    <View style={{ flex: 1, position: 'relative' }}>
       <TextInput
         testID="input-ai-message"
         value={text}
         onChangeText={setText}
-        placeholder={t('ai.inputPlaceholder')}
-        placeholderTextColor={theme.colors.textFaint}
+        placeholder=""
         editable={!disabled}
         multiline
         maxLength={MAX_LENGTH}
         style={{
-          flex: 1,
+          minHeight: 44,
           maxHeight: 120,
-          minHeight: 40,
           paddingHorizontal: theme.spacing.md,
-          paddingVertical: theme.spacing.sm,
-          borderRadius: theme.radius.lg,
-          borderWidth: 1,
+          paddingTop: theme.spacing.sm,
+          paddingBottom: theme.spacing.sm,
+          fontSize: theme.fontSize.md,
+          fontFamily: theme.fontFamily.regular,
+          borderRadius: theme.radius.md,
+          borderWidth: 1.5,
           borderColor: theme.colors.borderControl,
           backgroundColor: theme.colors.surface,
           color: theme.colors.text,
+          textAlignVertical: 'top',
           opacity: disabled ? 0.6 : 1,
         }}
       />
-      <Pressable
-        testID="btn-submit-ai-message"
-        accessibilityRole="button"
-        accessibilityLabel={t('ai.send')}
-        accessibilityState={{ disabled: !canSend }}
-        disabled={!canSend}
-        onPress={() => void send()}
-        onPressIn={() => setPressed(true)}
-        onPressOut={() => setPressed(false)}
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: theme.radius.pill,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: canSend ? (pressed ? theme.colors.primaryMuted : theme.colors.primary) : theme.colors.surfaceMuted,
-        }}
-      >
-        <SendHorizontal size={18} color={canSend ? theme.colors.onPrimary : theme.colors.textFaint} />
-      </Pressable>
+
+      {!text && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: theme.spacing.md,
+            right: theme.spacing.md,
+            justifyContent: 'center',
+          }}
+        >
+          <Text
+            style={{
+              fontSize: theme.fontSize.md,
+              fontFamily: theme.fontFamily.regular,
+              color: theme.colors.textFaint,
+            }}
+          >
+            {t('ai.inputPlaceholder')}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }

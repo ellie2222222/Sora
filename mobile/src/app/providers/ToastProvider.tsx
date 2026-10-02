@@ -9,6 +9,7 @@ import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react-native'
 // useTheme back through this directory's own barrel, and routing through both
 // barrels here would close the require-cycle shape rule 14 in CLAUDE.md documents.
 import { Text } from '../../components/Text';
+import { spacing } from '../../design-system/index';
 import { ToastContext, type ToastVariant } from './ToastContext.ts';
 import { useTheme } from './ThemeProvider.tsx';
 
@@ -141,7 +142,7 @@ const styles = StyleSheet.create({
   },
   toastWrapper: {
     maxWidth: '92%',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   toast: {
     flexDirection: 'row',

@@ -25,7 +25,7 @@ export function NoWalletState({
   const { openModal } = useModal();
   const { isLoading, isError, isUnavailable, refetch } = useWallets();
 
-  if (isLoading) return <SkeletonList rows={4} />;
+  if (isLoading) return null;
   if (isError) {
     return (
       <StateView

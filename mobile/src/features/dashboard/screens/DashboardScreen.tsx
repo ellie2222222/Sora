@@ -1,39 +1,28 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { maxOf, parseMoney, percentageOf, ZERO } from '@sora/contracts';
-import type { DashboardResponse } from '@sora/contracts';
 
-import { AnimatedScreen, PeriodBar, RefreshableScrollView, SkeletonList, StateView, Text, TrendBarChart } from '@/components';
-import { useModal, useTheme, useWallets } from '@/app/providers';
+import { AnimatedScreen, PeriodBar, RefreshableScrollView, Skeleton, Text } from '@/components';
+import { useTheme, useWallets } from '@/app/providers';
 import { ChevronRight } from 'lucide-react-native';
 import { AccountsOverview } from '@/features/accounts';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
-import { dashboardApiSlice, useGetDashboardSummaryQuery, useListCategoriesQuery } from '@/app/store';
+import { BudgetDetailModal } from '@/features/budgets';
+import { GoalDetailModal } from '@/features/goals';
+import { dashboardApiSlice } from '@/app/store';
 import {
-  changeAgainst,
-  emptyReasonFor,
   formatPeriodLabel,
-  isNetworkError,
-  monthName,
   parseDay,
-  previousWindow,
   shiftAnchor,
   today,
-  windowFor,
   type CalendarDay,
-  type DashboardEmptyReason,
   type DashboardPeriod,
 } from '@/utils';
 import type { MainTabScreenProps } from '@/app/navigation';
-import { AccountScopePicker } from '../components/AccountScopePicker.tsx';
-import { BudgetGoalSummary } from '../components/BudgetGoalSummary.tsx';
-import { CashFlowCard } from '../components/CashFlowCard.tsx';
-import { CategoryBreakdown } from '../components/CategoryBreakdown.tsx';
-import { DashboardEmpty } from '../components/DashboardEmpty.tsx';
-import { DashboardKpis } from '../components/DashboardKpis.tsx';
-import { MemberSplit } from '../components/MemberSplit.tsx';
+import { AccountScopePicker } from '../components/AccountScopePicker';
+import { PeriodReport } from '../components/PeriodReport';
+import { YearlyReport } from '../components/YearlyReport';
 
 export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>) {
   const theme = useTheme();
@@ -50,6 +39,8 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
 
   const [period, setPeriod] = useState<DashboardPeriod>('monthly');
   const [anchor, setAnchor] = useState<CalendarDay>(() => today());
+  const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const shiftPeriod = (delta: number) => setAnchor((current) => shiftAnchor(period, current, delta));
 
   const handleRefresh = async () => {
@@ -81,7 +72,36 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
           />
 
           {walletsLoading ? (
-            <SkeletonList rows={5} />
+                        <View style={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.xl }}>
+              {/* AccountScopePicker + AccountsOverview Mock */}
+              <View style={{ gap: theme.spacing.md }}>
+                <Skeleton width={140} height={24} radius={theme.radius.sm} />
+                <View className="flex-row" style={{ gap: theme.spacing.sm }}>
+                  <Skeleton width={100} height={36} radius={18} />
+                  <Skeleton width={100} height={36} radius={18} />
+                </View>
+                <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
+                  {Array.from({ length: 2 }).map((_, i) => (
+                     <View key={i} className="flex-row items-center justify-between">
+                       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
+                         <Skeleton width={40} height={40} radius={20} />
+                         <View style={{ gap: theme.spacing.xs }}>
+                           <Skeleton width={100} height={16} radius={theme.radius.sm} />
+                           <Skeleton width={60} height={12} radius={theme.radius.sm} />
+                         </View>
+                       </View>
+                       <Skeleton width={80} height={16} radius={theme.radius.sm} />
+                     </View>
+                  ))}
+                </View>
+              </View>
+
+              {/* PeriodReport Mock */}
+              <View style={{ gap: theme.spacing.md, marginTop: theme.spacing.md }}>
+                <Skeleton width={120} height={20} radius={theme.radius.sm} />
+                <Skeleton width="100%" height={200} radius={theme.radius.lg} />
+              </View>
+            </View>
           ) : activeWalletId === null ? (
             <NoWalletState
               title={t('dashboard.noWalletYet')}
@@ -109,10 +129,10 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
                   className="flex-row items-center self-start"
                   style={{ gap: theme.spacing.xs }}
                 >
+                  <ChevronRight size={16} color={theme.colors.primary} />
                   <Text weight="medium" style={{ color: theme.colors.primary }}>
                     {t('dashboard.manageAccount')}
                   </Text>
-                  <ChevronRight size={16} color={theme.colors.primary} />
                 </Pressable>
               )}
 
@@ -124,6 +144,8 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
                   year={parseDay(anchor).year}
                   periodLabel={formatPeriodLabel(period, anchor)}
                   navigation={navigation}
+                  onOpenBudget={setSelectedBudgetId}
+                  onOpenGoal={setSelectedGoalId}
                   onPreviousPeriod={() => shiftPeriod(-1)}
                 />
               ) : (
@@ -133,6 +155,8 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
                   period={period}
                   anchor={anchor}
                   navigation={navigation}
+                  onOpenBudget={setSelectedBudgetId}
+                  onOpenGoal={setSelectedGoalId}
                   onPreviousPeriod={() => shiftPeriod(-1)}
                 />
               )}
@@ -140,369 +164,8 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
           )}
         </RefreshableScrollView>
       </WalletContextBar>
+      <BudgetDetailModal budgetId={selectedBudgetId} onClose={() => setSelectedBudgetId(null)} />
+      <GoalDetailModal goalId={selectedGoalId} onClose={() => setSelectedGoalId(null)} />
     </AnimatedScreen>
   );
-}
-
-type DashboardNavigation = MainTabScreenProps<'Dashboard'>['navigation'];
-
-/** `DashboardEmpty` with the wallet-scoped bits — role gating and the create modals — filled in. */
-function DashboardEmptyForWallet({
-  reason,
-  walletId,
-  periodLabel,
-  onPreviousPeriod,
-}: {
-  reason: DashboardEmptyReason;
-  walletId: string;
-  periodLabel: string;
-  onPreviousPeriod: () => void;
-}) {
-  const { openModal } = useModal();
-  const { permissions } = useWallets();
-
-  return (
-    <DashboardEmpty
-      reason={reason}
-      periodLabel={periodLabel}
-      canWrite={permissions.canWrite}
-      onAddAccount={() => openModal('AddAccount', { walletId })}
-      onAddTransaction={() => openModal('AddTransaction')}
-      onPreviousPeriod={onPreviousPeriod}
-    />
-  );
-}
-
-/**
- * One window's figures, plus the window before it for the change indicators.
- */
-function PeriodReport({
-  walletId,
-  accountId,
-  period,
-  anchor,
-  navigation,
-  onPreviousPeriod,
-}: {
-  walletId: string;
-  accountId: string | null;
-  period: DashboardPeriod;
-  anchor: CalendarDay;
-  navigation: DashboardNavigation;
-  onPreviousPeriod: () => void;
-}) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-
-  const scope = accountId ?? undefined;
-  const current = useGetDashboardSummaryQuery({ walletId, accountId: scope, ...windowFor(period, anchor) });
-  const previous = useGetDashboardSummaryQuery({ walletId, accountId: scope, ...previousWindow(period, anchor) });
-  const categories = useListCategoriesQuery({ walletId });
-
-  if (current.isLoading) return <SkeletonList rows={5} />;
-  if (current.isError && !isNetworkError(current.error)) {
-    return (
-      <StateView
-        variant="error"
-        error={current.error}
-        retryAction={() => void current.refetch()}
-        testID="dashboard-period-error"
-      />
-    );
-  }
-
-  const data = current.data;
-  if (data === undefined) {
-    return <StateView variant="error" error={new Error(t('dashboard.noData', 'No dashboard data available.'))} />;
-  }
-
-  const emptyReason = emptyReasonFor(data);
-  if (emptyReason !== null) {
-    return (
-      <View style={{ flex: 1, gap: theme.spacing.lg }}>
-        <DashboardEmptyForWallet
-          reason={emptyReason}
-          walletId={walletId}
-          periodLabel={formatPeriodLabel(period, anchor)}
-          onPreviousPeriod={onPreviousPeriod}
-        />
-        {/* An active budget or goal is worth seeing even in a window that recorded nothing against it. */}
-        <BudgetGoalSummary
-          budgets={data.activeBudgets}
-          goals={data.activeGoals}
-          onOpenBudget={(budgetId) => navigation.getParent()?.navigate('BudgetDetail', { budgetId })}
-          onOpenGoal={(goalId) => navigation.getParent()?.navigate('GoalDetail', { goalId })}
-        />
-      </View>
-    );
-  }
-
-  const income = data.income[0];
-  const net = data.net[0];
-  const savingsRate =
-    income !== undefined && net !== undefined
-      ? percentageOf(parseMoney(net.amount), parseMoney(income.amount), 0)
-      : null;
-
-  const categoryNames = new Map((categories.data ?? []).map((category) => [category.id, category.name]));
-
-  return (
-    <View style={{ gap: theme.spacing.lg }}>
-      <DashboardKpis
-        income={data.income}
-        expense={data.expense}
-        net={data.net}
-        transferredIn={data.transferredIn}
-        transferredOut={data.transferredOut}
-        savingsRate={savingsRate}
-      />
-
-      <CashFlowCard
-        income={data.income}
-        expense={data.expense}
-        transferredIn={data.transferredIn}
-        transferredOut={data.transferredOut}
-      />
-
-      <CategoryBreakdown
-        slices={data.spendingByCategory}
-        previousSlices={previous.data?.spendingByCategory ?? []}
-        expenseTotal={data.expense[0]}
-        categoryNames={categoryNames}
-        onSelectCategory={(categoryId) =>
-          navigation.getParent()?.navigate('Transactions', { categoryId })
-        }
-      />
-
-      <MemberSplit members={data.spendingByMember} />
-
-      <BudgetGoalSummary
-        budgets={data.activeBudgets}
-        goals={data.activeGoals}
-        onOpenBudget={(budgetId) => navigation.getParent()?.navigate('BudgetDetail', { budgetId })}
-        onOpenGoal={(goalId) => navigation.getParent()?.navigate('GoalDetail', { goalId })}
-      />
-
-      <PeriodInsights data={data} previousData={previous.data} savingsRate={savingsRate} periodLabel={formatPeriodLabel(period, anchor)} />
-    </View>
-  );
-}
-
-/**
- * The year as twelve monthly windows.
- *
- * Kept as its own path rather than folded into `PeriodReport`: a year is the
- * one period the screen shows as a *trend across* its sub-periods, which needs
- * twelve queries instead of two.
- */
-function YearlyReport({
-  walletId,
-  accountId,
-  year,
-  periodLabel,
-  navigation,
-  onPreviousPeriod,
-}: {
-  walletId: string;
-  accountId: string | null;
-  year: number;
-  periodLabel: string;
-  navigation: DashboardNavigation;
-  onPreviousPeriod: () => void;
-}) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-  const months = monthsOfYear(year);
-  const [byMonth, setByMonth] = useState<Record<CalendarDay, DashboardResponse | undefined>>({});
-  const [settled, setSettled] = useState<Record<CalendarDay, boolean>>({});
-
-  const handleMonthSettled = useCallback((month: CalendarDay, data: DashboardResponse | undefined) => {
-    setByMonth((current) => (current[month] === data ? current : { ...current, [month]: data }));
-    setSettled((current) => (current[month] === true ? current : { ...current, [month]: true }));
-  }, []);
-
-  const settledCount = months.filter((month) => settled[month] === true).length;
-  if (settledCount < months.length) {
-    return (
-      <>
-        {months.map((month) => (
-          <MonthDataPoint key={month} walletId={walletId} accountId={accountId} month={month} onSettled={handleMonthSettled} />
-        ))}
-        <SkeletonList rows={5} />
-      </>
-    );
-  }
-
-  // Every month agrees on the all-time figures the reason is derived from, so
-  // the first that loaded answers for the year.
-  const anyMonth = months.map((month) => byMonth[month]).find((response) => response !== undefined);
-  const emptyReason = anyMonth === undefined ? 'no-accounts' : emptyReasonFor(yearOf(months, byMonth, anyMonth));
-  if (emptyReason !== null) {
-    return (
-      <>
-        {months.map((month) => (
-          <MonthDataPoint key={month} walletId={walletId} accountId={accountId} month={month} onSettled={handleMonthSettled} />
-        ))}
-        <DashboardEmptyForWallet
-          reason={emptyReason}
-          walletId={walletId}
-          periodLabel={periodLabel}
-          onPreviousPeriod={onPreviousPeriod}
-        />
-      </>
-    );
-  }
-
-  const monthlyIncome = months.map((month) => parseMoney(byMonth[month]?.income[0]?.amount ?? '0'));
-  const monthlyExpense = months.map((month) => parseMoney(byMonth[month]?.expense[0]?.amount ?? '0'));
-  // TrendBarChart only needs each bar's height relative to the year's peak, so
-  // that ratio is computed in bigint space (percentageOf) rather than ever
-  // widening a Scaled amount into a JS number.
-  const yearMax = [...monthlyIncome, ...monthlyExpense].reduce((max, amount) => maxOf(max, amount), ZERO);
-  const points = months.map((month, index) => ({
-    label: monthName(parseDay(month).month),
-    income: percentageOf(monthlyIncome[index] ?? ZERO, yearMax),
-    expense: percentageOf(monthlyExpense[index] ?? ZERO, yearMax),
-  }));
-
-  const december = byMonth[months[months.length - 1] ?? ''];
-
-  return (
-    <>
-      {months.map((month) => (
-        <MonthDataPoint key={month} walletId={walletId} accountId={accountId} month={month} onSettled={handleMonthSettled} />
-      ))}
-      <View className="gap-lg">
-        <View>
-          <Text variant="label" tone="muted" style={{ marginBottom: theme.spacing.sm }}>
-            {t('dashboard.incomeVsExpenses')}
-          </Text>
-          <TrendBarChart points={points} />
-        </View>
-
-        {december !== undefined ? (
-          <BudgetGoalSummary
-            budgets={december.activeBudgets}
-            goals={december.activeGoals}
-            onOpenBudget={(budgetId) => navigation.getParent()?.navigate('BudgetDetail', { budgetId })}
-            onOpenGoal={(goalId) => navigation.getParent()?.navigate('GoalDetail', { goalId })}
-          />
-        ) : null}
-      </View>
-    </>
-  );
-}
-
-/** One query per month as its own component — a fixed array of these keeps hook calls stable, unlike calling the hook inside a loop. */
-function MonthDataPoint({
-  walletId,
-  accountId,
-  month,
-  onSettled,
-}: {
-  walletId: string;
-  accountId: string | null;
-  month: CalendarDay;
-  onSettled: (month: CalendarDay, data: DashboardResponse | undefined) => void;
-}) {
-  const query = useGetDashboardSummaryQuery({ walletId, accountId: accountId ?? undefined, ...windowFor('monthly', month) });
-  // A month whose query errors still settles (as `undefined`, folded into the
-  // chart as a zero point) — waiting on `data` alone would spin forever.
-  useEffect(() => {
-    if (query.isSuccess || query.isError) onSettled(month, query.data);
-  }, [month, query.isSuccess, query.isError, query.data, onSettled]);
-  return null;
-}
-
-/** A short, deterministic list of observations, not an analytics engine. */
-function PeriodInsights({
-  data,
-  previousData,
-  savingsRate,
-  periodLabel,
-}: {
-  data: DashboardResponse;
-  previousData: DashboardResponse | undefined;
-  savingsRate: number | null;
-  periodLabel: string;
-}) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-
-  const lines: string[] = [];
-  const topCategory = data.spendingByCategory[0];
-
-  if (savingsRate !== null) {
-    lines.push(
-      savingsRate >= 0
-        ? t('dashboard.savedPercent', { rate: savingsRate })
-        : t('dashboard.spentMorePercent', { rate: Math.abs(savingsRate) }),
-    );
-  }
-
-  if (topCategory !== undefined) {
-    lines.push(
-      t('dashboard.biggestExpense', {
-        category: topCategory.categoryName,
-        percentage: topCategory.percentage.toFixed(0),
-      }),
-    );
-
-    const previousSlice = previousData?.spendingByCategory.find(
-      (slice) => slice.categoryId === topCategory.categoryId,
-    );
-    if (previousSlice !== undefined) {
-      const change = changeAgainst(topCategory.amount, previousSlice.amount);
-      if (change !== null && Math.abs(change) >= 5) {
-        lines.push(
-          t('dashboard.spendingChangedPeriod', {
-            category: topCategory.categoryName,
-            direction: change >= 0 ? t('dashboard.increased') : t('dashboard.decreased'),
-            change: Math.abs(change),
-          }),
-        );
-      }
-    }
-  }
-
-  if (lines.length === 0) return null;
-
-  return (
-    <View style={{ gap: theme.spacing.xs }}>
-      <Text variant="label" tone="muted">
-        {t('dashboard.insightsFor', { period: periodLabel })}
-      </Text>
-      {lines.map((line) => (
-        <Text key={line}>{line}</Text>
-      ))}
-    </View>
-  );
-}
-
-/**
- * The year's loaded months as one emptiness input: activity in any single month
- * makes the year non-empty, while `totalBalance`/`recentTransactions` are
- * all-time figures every month's response reports identically.
- */
-function yearOf(
-  months: readonly CalendarDay[],
-  byMonth: Record<CalendarDay, DashboardResponse | undefined>,
-  reference: DashboardResponse,
-) {
-  const loaded = months
-    .map((month) => byMonth[month])
-    .filter((response): response is DashboardResponse => response !== undefined);
-
-  return {
-    totalBalance: reference.totalBalance,
-    recentTransactions: reference.recentTransactions,
-    income: loaded.flatMap((response) => response.income),
-    expense: loaded.flatMap((response) => response.expense),
-    transferredIn: loaded.flatMap((response) => response.transferredIn),
-    transferredOut: loaded.flatMap((response) => response.transferredOut),
-  };
-}
-
-function monthsOfYear(year: number): CalendarDay[] {
-  return Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, '0')}-01`);
 }

@@ -153,15 +153,14 @@ export function sumScaledByKey<T>(
 }
 
 /**
- * Per-currency INCOME or EXPENSE total across `transactions`, formatted for
- * display. Shared by every "totals" summary row (a day's heading, a month's
- * header) so none of them hand-roll their own filter+sum — TRANSFER is
- * excluded by construction, since it matches neither `type` (BR-06), and only
- * COMPLETED rows count, as in every balance.
+ * Per-currency total of one transaction type across `transactions`, formatted for
+ * display. Shared by every "totals" summary row (a day's heading, a month's header)
+ * so none hand-rolls its own filter+sum. Each type is summed on its own, so a
+ * transfer never lands in income or expense (BR-06); only COMPLETED rows count.
  */
 export function sumByTransactionType(
   transactions: readonly TransactionResponse[],
-  type: 'INCOME' | 'EXPENSE',
+  type: 'INCOME' | 'EXPENSE' | 'TRANSFER',
 ): CurrencyTotal[] {
   const byCurrency = sumScaledByKey(
     transactions.filter((transaction) => transaction.type === type && transaction.status === TransactionStatus.COMPLETED),
@@ -169,6 +168,31 @@ export function sumByTransactionType(
     (transaction) => transaction.amount,
   );
   return Array.from(byCurrency, ([currency, amount]) => ({ currency, amount: formatMoney(amount) }));
+}
+
+export interface NetCurrencyTotal extends CurrencyTotal {
+  type: TransactionType;
+}
+
+/**
+ * Net total (INCOME - EXPENSE) per currency across `transactions`.
+ * Used for showing a single daily/group net figure instead of separate + and - numbers.
+ */
+export function netSumByCurrency(transactions: readonly TransactionResponse[]): NetCurrencyTotal[] {
+  const totals = new Map<string, Scaled>();
+  for (const t of transactions) {
+    if (t.status !== TransactionStatus.COMPLETED) continue;
+    if (t.type === TransactionType.TRANSFER) continue;
+    
+    const amount = parseMoney(t.amount);
+    const current = totals.get(t.currency) ?? ZERO;
+    totals.set(t.currency, t.type === TransactionType.INCOME ? current + amount : current - amount);
+  }
+  return Array.from(totals, ([currency, netAmount]) => {
+    const type = netAmount < ZERO ? TransactionType.EXPENSE : TransactionType.INCOME;
+    const absAmount = absScaled(netAmount);
+    return { currency, amount: formatMoney(absAmount), type };
+  });
 }
 
 /**

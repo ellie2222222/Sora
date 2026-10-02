@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import type { CategoryResponse, CategoryType } from '@sora/contracts';
+import { CategoryStatus, type CategoryResponse, type CategoryType } from '@sora/contracts';
 
 import { Text } from '@/components';
 import { useTheme } from '@/app/providers';
@@ -32,7 +32,7 @@ const COLUMNS = 4;
 export function CategoryGrid({ walletId, type, value, onChange, optional = false, error, testID }: CategoryGridProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const categories = useListCategoriesQuery({ walletId, type, status: 'ACTIVE' });
+  const categories = useListCategoriesQuery({ walletId, type, status: CategoryStatus.ACTIVE });
 
   useDefaultToFirst(categories.data, value, (first) => onChange(first.id), !optional);
   const typeLabel = t(CATEGORY_TYPE_LABEL_KEY[type]).toLowerCase();
@@ -49,7 +49,11 @@ export function CategoryGrid({ walletId, type, value, onChange, optional = false
             key={category.id}
             category={category}
             selected={category.id === value}
-            onPress={() => onChange(optional && category.id === value ? null : category.id)}
+            onPress={() => {
+              requestAnimationFrame(() => {
+                onChange(optional && category.id === value ? null : category.id);
+              });
+            }}
           />
         ))}
       </View>
@@ -83,6 +87,9 @@ function CategoryCell({
   const iconTint = ensureContrast(storedTint, theme.colors.surfaceMuted, 3, theme.colors.text);
   const letterTint = ensureContrast(storedTint, theme.colors.surfaceMuted, 4.5, theme.colors.text);
 
+  const selectedFgIcon = ensureContrast(theme.colors.surface, storedTint, 3, theme.colors.text);
+  const selectedFgLetter = ensureContrast(theme.colors.surface, storedTint, 4.5, theme.colors.text);
+
   return (
     <Pressable
       testID={`option-category-${category.id}`}
@@ -107,15 +114,13 @@ function CategoryCell({
           borderRadius: 22,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: theme.colors.surfaceMuted,
-          borderWidth: selected ? 1.5 : 0,
-          borderColor: theme.colors.primary,
+          backgroundColor: selected ? storedTint : theme.colors.surfaceMuted,
         }}
       >
         {Icon !== null ? (
-          <Icon size={20} color={iconTint} strokeWidth={2} />
+          <Icon size={20} color={selected ? selectedFgIcon : iconTint} strokeWidth={2} />
         ) : (
-          <Text weight="semibold" style={{ color: letterTint }}>
+          <Text weight="semibold" style={{ color: selected ? selectedFgLetter : letterTint }}>
             {category.name.slice(0, 1).toUpperCase()}
           </Text>
         )}

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Calendar, Clock, CreditCard, Tag, User, UsersRound, X } from 'lucide-react-native';
-import { TransactionStatus, type TransactionResponse } from '@sora/contracts';
+import { Calendar, Clock, CreditCard, Pencil, Tag, Trash2, User, UsersRound, X } from 'lucide-react-native';
+import { TransactionStatus, TransactionType, type TransactionResponse } from '@sora/contracts';
 
 import { BottomSheetModal, Button, CategoryAvatar, ConfirmDialog, Money, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
@@ -57,20 +57,20 @@ export function TransactionDetailModal({
     <BottomSheetModal visible={visible} onClose={onClose} title={t('transactions.detailTitle', { defaultValue: 'Transaction details' })}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.xl }}
+        contentContainerStyle={{ paddingBottom: theme.spacing.xl }}
       >
-        <View className="items-center" style={{ gap: theme.spacing.xs, paddingTop: theme.spacing.xs }}>
-          <View style={{ marginBottom: theme.spacing.xs }}>
+        <View className="items-center" style={{ marginTop: theme.spacing.xl, marginBottom: theme.spacing.xxl }}>
+          <View style={{ marginBottom: theme.spacing.lg }}>
             <CategoryAvatar
               categoryIcon={category?.icon}
               categoryName={category?.name}
               transactionType={transaction.type}
               tint={tint}
-              size={48}
+              size={40}
             />
           </View>
 
-          <Text variant="heading" style={{ fontSize: 20, textAlign: 'center' }}>
+          <Text variant="heading" style={{ fontSize: 20, textAlign: 'center', marginBottom: theme.spacing.xs }}>
             {title}
           </Text>
 
@@ -125,7 +125,11 @@ export function TransactionDetailModal({
           {toAcc !== null ? (
             <DetailRow
               icon={<CreditCard size={18} color={theme.colors.textMuted} />}
-              label={t('transactions.toLabel', { defaultValue: 'To' })}
+              label={
+                transaction.type === TransactionType.INCOME
+                  ? t('transactions.accountLabel', { defaultValue: 'Account' })
+                  : t('transactions.toLabel', { defaultValue: 'To' })
+              }
               value={`${toAcc.name} (${toAcc.walletName})`}
             />
           ) : null}
@@ -133,7 +137,7 @@ export function TransactionDetailModal({
           <DetailRow
             icon={<Calendar size={18} color={theme.colors.textMuted} />}
             label={t('transactions.transactionDateLabel', { defaultValue: 'Transaction date' })}
-            value={`${formatDay(transaction.transactionDate.slice(0, 10))} ${formatTimeOfDay(transaction.transactionDate)}`}
+            value={formatDay(transaction.transactionDate.slice(0, 10))}
           />
 
           <DetailRow
@@ -162,10 +166,11 @@ export function TransactionDetailModal({
         {deleteError !== null ? <Text tone="danger">{deleteError}</Text> : null}
 
         {isEditable ? (
-          <View style={{ gap: theme.spacing.sm }}>
+          <View style={{ gap: theme.spacing.sm, marginTop: 28 }}>
             {onEdit ? (
               <Button
                 label={t('transactions.editTransaction', { defaultValue: 'Edit transaction' })}
+                icon={Pencil}
                 variant="secondary"
                 onPress={() => {
                   onClose();
@@ -176,6 +181,7 @@ export function TransactionDetailModal({
             ) : null}
             <Button
               label={t('transactions.cancelTransaction', { defaultValue: 'Delete transaction' })}
+              icon={Trash2}
               variant="danger-outline"
               onPress={() => setConfirmingDelete(true)}
               fullWidth
@@ -212,9 +218,11 @@ function DetailRow({
   const theme = useTheme();
 
   return (
-    <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-      {icon}
-      <View className="flex-1">
+    <View className="flex-row items-center" style={{ minHeight: 44 }}>
+      <View style={{ width: 32, alignItems: 'center' }}>
+        {icon}
+      </View>
+      <View className="flex-1" style={{ marginLeft: theme.spacing.md }}>
         <Text variant="caption" tone="muted">
           {label}
         </Text>

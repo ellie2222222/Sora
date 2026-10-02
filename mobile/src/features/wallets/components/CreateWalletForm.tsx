@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { Plus } from 'lucide-react-native';
 import { createWalletSchema } from '@sora/contracts';
 
 import { Button, Input, Text } from '@/components';
@@ -58,6 +59,7 @@ export function CreateWalletForm({ active, onCreated }: { active: boolean; onCre
       <Button
         testID="btn-submit-wallet"
         label={t('common.create')}
+        icon={Plus}
         onPress={handleCreate}
         loading={isCreating}
         disabled={name.trim().length === 0}

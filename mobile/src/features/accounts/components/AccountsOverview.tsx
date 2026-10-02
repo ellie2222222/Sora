@@ -4,6 +4,8 @@ import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import {
   ACCOUNT_TYPES,
+  AccountStatus,
+  TransactionType,
   add,
   formatMoney,
   isNegative,
@@ -13,7 +15,7 @@ import {
   type AccountResponse,
 } from '@sora/contracts';
 
-import { ListItemEnter, Money, SkeletonList, StateView, SyncStatusDot, Text } from '@/components';
+import { ListItemEnter, Money, Skeleton, StateView, SyncStatusDot, Text } from '@/components';
 import { useModal, useTheme } from '@/app/providers';
 import { selectQueueEntryFor, useListAccountsQuery } from '@/app/store';
 import { isNetworkError, sumScaledByKey } from '@/utils';
@@ -32,9 +34,47 @@ export function AccountsOverview({
   const theme = useTheme();
   const { t } = useTranslation();
   const { openModal } = useModal();
-  const accounts = useListAccountsQuery({ walletId, status: 'ACTIVE' });
+  const accounts = useListAccountsQuery({ walletId, status: AccountStatus.ACTIVE });
 
-  if (accounts.isLoading) return <SkeletonList rows={3} />;
+  if (accounts.isLoading) {
+    return (
+            <View style={{ gap: theme.spacing.lg }}>
+        <View>
+          <Text variant="label" tone="muted">{t('accounts.netWorth')}</Text>
+          <View style={{ marginTop: theme.spacing.xs }}>
+            <Skeleton width={140} height={32} radius={theme.radius.sm} />
+          </View>
+        </View>
+
+        <View className="flex-row" style={{ gap: theme.spacing.md }}>
+          <View className="flex-1" style={{ gap: theme.spacing.xs }}>
+            <Skeleton width={80} height={14} radius={theme.radius.sm} />
+            <Skeleton width={100} height={20} radius={theme.radius.sm} />
+          </View>
+          <View className="flex-1" style={{ gap: theme.spacing.xs }}>
+            <Skeleton width={80} height={14} radius={theme.radius.sm} />
+            <Skeleton width={100} height={20} radius={theme.radius.sm} />
+          </View>
+        </View>
+
+        <View>
+          <View className="flex-row justify-between items-center" style={{ marginBottom: theme.spacing.sm }}>
+            <Text variant="title">{t('accounts.accountsLabel')}</Text>
+            {canWrite ? (
+              <View style={{ paddingVertical: theme.spacing.xs, paddingHorizontal: theme.spacing.sm }}>
+                <Skeleton width={80} height={16} radius={theme.radius.sm} />
+              </View>
+            ) : null}
+          </View>
+          <View className="border-t" style={{ borderTopColor: theme.colors.border }}>
+            {[1, 2, 3].map((key) => (
+              <AccountItemSkeleton key={key} />
+            ))}
+          </View>
+        </View>
+      </View>
+    );
+  }
   if (accounts.isError && !isNetworkError(accounts.error)) {
     return (
       <StateView
@@ -90,8 +130,8 @@ export function AccountsOverview({
       </View>
 
       <View className="flex-row" style={{ gap: theme.spacing.md }}>
-        <TotalsColumn label={t('accounts.assets')} totals={assets} type="INCOME" />
-        <TotalsColumn label={t('accounts.liabilities')} totals={liabilities} type="EXPENSE" />
+        <TotalsColumn label={t('accounts.assets')} totals={assets} type={TransactionType.INCOME} />
+        <TotalsColumn label={t('accounts.liabilities')} totals={liabilities} type={TransactionType.EXPENSE} />
       </View>
 
       <View>
@@ -116,7 +156,7 @@ export function AccountsOverview({
           {items.map((account, index) => (
             <View key={account.id} style={index === 0 ? undefined : { borderTopWidth: 1, borderTopColor: theme.colors.border }}>
               <ListItemEnter>
-                <AccountRow account={account} onPress={() => onOpenAccount(account.id)} />
+                <AccountItem account={account} onPress={() => onOpenAccount(account.id)} />
               </ListItemEnter>
             </View>
           ))}
@@ -133,7 +173,7 @@ function TotalsColumn({
 }: {
   label: string;
   totals: { currency: string; amount: string }[];
-  type: 'INCOME' | 'EXPENSE';
+  type: Extract<TransactionType, 'INCOME' | 'EXPENSE'>;
 }) {
   const theme = useTheme();
   return (
@@ -154,7 +194,7 @@ function TotalsColumn({
   );
 }
 
-function AccountRow({ account, onPress }: { account: AccountResponse; onPress: () => void }) {
+function AccountItem({ account, onPress }: { account: AccountResponse; onPress: () => void }) {
   const theme = useTheme();
   const Icon = ACCOUNT_ICON[account.type];
   const syncStatus = useSelector(selectQueueEntryFor('account', account.id))?.status;
@@ -173,6 +213,23 @@ function AccountRow({ account, onPress }: { account: AccountResponse; onPress: (
       </View>
       <Money amount={account.balance} currency={account.currency} weight="semibold" />
     </Pressable>
+  );
+}
+
+function AccountItemSkeleton() {
+  const theme = useTheme();
+
+  return (
+    <View
+      className="flex-row items-center justify-between"
+      style={{ paddingVertical: theme.spacing.sm }}
+    >
+      <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
+        <Skeleton width={18} height={18} radius={theme.radius.sm} />
+        <Skeleton width={120} height={20} radius={theme.radius.sm} />
+      </View>
+      <Skeleton width={80} height={20} radius={theme.radius.sm} />
+    </View>
   );
 }
 

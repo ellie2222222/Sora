@@ -1,5 +1,6 @@
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import { LayoutAnimation, View } from 'react-native';
 import { formatMoney, parseMoney, subtract, TransactionType, ZERO, type TransactionResponse } from '@sora/contracts';
 
 import { useTheme } from '@/app/providers';
@@ -10,6 +11,7 @@ import { Text } from './Text.tsx';
 
 export interface PeriodSummaryCardProps {
   transactions: readonly TransactionResponse[];
+  filterType?: 'ALL' | TransactionType;
   testID?: string;
 }
 
@@ -20,50 +22,145 @@ export interface PeriodSummaryCardProps {
  * period, day-heading, and per-transaction totals each read as one number
  * instead of competing ones.
  */
-export function PeriodSummaryCard({ transactions, testID }: PeriodSummaryCardProps) {
+export function PeriodSummaryCard({ transactions, filterType = 'ALL', testID }: PeriodSummaryCardProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+
+  useEffect(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  }, [filterType]);
+
   const income = sumByTransactionType(transactions, 'INCOME');
   const expense = sumByTransactionType(transactions, 'EXPENSE');
-  if (income.length === 0 && expense.length === 0) return null;
+  const transfer = sumByTransactionType(transactions, 'TRANSFER');
 
-  const currencies = Array.from(new Set([...income.map((c) => c.currency), ...expense.map((c) => c.currency)]));
+  const allCurrencies = new Set<string>();
+  if (filterType === 'ALL' || filterType === TransactionType.INCOME) income.forEach((c) => allCurrencies.add(c.currency));
+  if (filterType === 'ALL' || filterType === TransactionType.EXPENSE) expense.forEach((c) => allCurrencies.add(c.currency));
+  if (filterType === TransactionType.TRANSFER) transfer.forEach((c) => allCurrencies.add(c.currency));
+
+  if (allCurrencies.size === 0) return null;
+
+  const currencies = Array.from(allCurrencies);
 
   return (
     <Card elevated testID={testID} style={{ gap: theme.spacing.md }}>
       {currencies.map((currency) => {
         const incomeAmount = income.find((c) => c.currency === currency)?.amount ?? formatMoney(ZERO);
         const expenseAmount = expense.find((c) => c.currency === currency)?.amount ?? formatMoney(ZERO);
+        const transferAmount = transfer.find((c) => c.currency === currency)?.amount ?? formatMoney(ZERO);
         const netAmount = formatMoney(subtract(parseMoney(incomeAmount), parseMoney(expenseAmount)));
+        
+        const curTransactions = transactions.filter(t => t.currency === currency);
 
-        return (
-          <View key={currency} style={{ gap: theme.spacing.sm }}>
-            <View>
-              <Text variant="caption" tone="muted">
-                {t('transactions.expensesLabel', { defaultValue: 'Expenses' })}
-              </Text>
-              <Money
-                amount={expenseAmount}
-                currency={currency}
-                type={TransactionType.EXPENSE}
-                showSign={false}
-                formatOptions={{ signDisplay: 'never' }}
-                variant="heading"
-                weight="bold"
-              />
+        if (filterType === 'ALL') {
+          return (
+            <View key={currency} style={{ gap: theme.spacing.sm }}>
+              <View className="flex-row">
+                <View style={{ flex: 1, gap: theme.spacing.xxs }}>
+                  <Text variant="caption" tone="muted">
+                    {t('transactions.expensesLabel', { defaultValue: 'Expenses' })}
+                  </Text>
+                  <Money
+                    amount={expenseAmount}
+                    currency={currency}
+                    type={TransactionType.EXPENSE}
+                    showSign={false}
+                    formatOptions={{ signDisplay: 'never' }}
+                    variant="heading"
+                    weight="bold"
+                  />
+                </View>
+                <View style={{ flex: 1, gap: theme.spacing.xxs }}>
+                  <Text variant="caption" tone="muted">
+                    {t('transactions.incomeLabel', { defaultValue: 'Income' })}
+                  </Text>
+                  <Money
+                    amount={incomeAmount}
+                    currency={currency}
+                    type={TransactionType.INCOME}
+                    showSign={false}
+                    formatOptions={{ signDisplay: 'never' }}
+                    variant="heading"
+                    weight="bold"
+                  />
+                </View>
+              </View>
+
+              <View
+                style={{
+                  gap: theme.spacing.xxs,
+                  paddingTop: theme.spacing.sm,
+                  borderTopWidth: 1,
+                  borderTopColor: theme.colors.border,
+                }}
+              >
+                <Text variant="caption" tone="muted">
+                  {t('transactions.netCashFlow', { defaultValue: 'Net cash flow' })}
+                </Text>
+                <Money amount={netAmount} currency={currency} variant="label" weight="semibold" />
+              </View>
             </View>
+          );
+        }
 
-            <View
-              style={{
-                gap: theme.spacing.xs,
-                paddingTop: theme.spacing.sm,
-                borderTopWidth: 1,
-                borderTopColor: theme.colors.border,
-              }}
-            >
-              <View className="flex-row justify-between">
-                <Text variant="label" tone="muted">
-                  {t('transactions.incomeLabel', { defaultValue: 'Income' })}
+        if (filterType === TransactionType.EXPENSE) {
+          const avg = curTransactions.length > 0
+            ? formatMoney(parseMoney(expenseAmount) / BigInt(curTransactions.length))
+            : formatMoney(ZERO);
+
+          return (
+            <View key={currency} style={{ gap: theme.spacing.sm }}>
+              <View style={{ gap: theme.spacing.xxs }}>
+                <Text variant="caption" tone="muted">
+                  {t('transactions.totalExpenses', { defaultValue: 'Total expenses' })}
+                </Text>
+                <Money
+                  amount={expenseAmount}
+                  currency={currency}
+                  type={TransactionType.EXPENSE}
+                  showSign={false}
+                  formatOptions={{ signDisplay: 'never' }}
+                  variant="heading"
+                  weight="bold"
+                />
+              </View>
+
+              <View
+                style={{
+                  gap: theme.spacing.xs,
+                  paddingTop: theme.spacing.sm,
+                  borderTopWidth: 1,
+                  borderTopColor: theme.colors.border,
+                }}
+              >
+                <View className="flex-row justify-between">
+                  <Text variant="label" tone="muted">
+                    {t('transactions.transactions', { defaultValue: 'Transactions' })}
+                  </Text>
+                  <Text variant="label">{curTransactions.length}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text variant="label" tone="muted">
+                    {t('transactions.average', { defaultValue: 'Average' })}
+                  </Text>
+                  <Money amount={avg} currency={currency} showSign={false} formatOptions={{ signDisplay: 'never' }} variant="label" />
+                </View>
+              </View>
+            </View>
+          );
+        }
+
+        if (filterType === TransactionType.INCOME) {
+          const avg = curTransactions.length > 0
+            ? formatMoney(parseMoney(incomeAmount) / BigInt(curTransactions.length))
+            : formatMoney(ZERO);
+
+          return (
+            <View key={currency} style={{ gap: theme.spacing.sm }}>
+              <View style={{ gap: theme.spacing.xxs }}>
+                <Text variant="caption" tone="muted">
+                  {t('transactions.totalIncome', { defaultValue: 'Total income' })}
                 </Text>
                 <Money
                   amount={incomeAmount}
@@ -71,20 +168,89 @@ export function PeriodSummaryCard({ transactions, testID }: PeriodSummaryCardPro
                   type={TransactionType.INCOME}
                   showSign={false}
                   formatOptions={{ signDisplay: 'never' }}
-                  variant="label"
+                  variant="heading"
+                  weight="bold"
                 />
               </View>
-              <View className="flex-row justify-between">
-                <Text variant="label" tone="muted">
-                  {t('transactions.netCashFlow', { defaultValue: 'Net cash flow' })}
-                </Text>
-                {/* No `type` here: netAmount already carries its own sign (subtract can go
-                    negative), so EXPENSE/INCOME would double-negate it via Money's own logic. */}
-                <Money amount={netAmount} currency={currency} variant="label" weight="semibold" />
+
+              <View
+                style={{
+                  gap: theme.spacing.xs,
+                  paddingTop: theme.spacing.sm,
+                  borderTopWidth: 1,
+                  borderTopColor: theme.colors.border,
+                }}
+              >
+                <View className="flex-row justify-between">
+                  <Text variant="label" tone="muted">
+                    {t('transactions.transactions', { defaultValue: 'Transactions' })}
+                  </Text>
+                  <Text variant="label">{curTransactions.length}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text variant="label" tone="muted">
+                    {t('transactions.averageIncome', { defaultValue: 'Average income' })}
+                  </Text>
+                  <Money amount={avg} currency={currency} showSign={false} formatOptions={{ signDisplay: 'never' }} variant="label" />
+                </View>
               </View>
             </View>
-          </View>
-        );
+          );
+        }
+
+        if (filterType === TransactionType.TRANSFER) {
+          const uniqueAccounts = new Set(
+            curTransactions.flatMap((t) => {
+              const accs = [];
+              if (t.fromAccount) accs.push(t.fromAccount.id);
+              if (t.toAccount) accs.push(t.toAccount.id);
+              return accs;
+            })
+          ).size;
+
+          return (
+            <View key={currency} style={{ gap: theme.spacing.sm }}>
+              <View style={{ gap: theme.spacing.xxs }}>
+                <Text variant="caption" tone="muted">
+                  {t('transactions.totalTransferred', { defaultValue: 'Total transferred' })}
+                </Text>
+                <Money
+                  amount={transferAmount}
+                  currency={currency}
+                  showSign={false}
+                  formatOptions={{ signDisplay: 'never' }}
+                  variant="heading"
+                  weight="bold"
+                  style={{ color: theme.colors.transfer }}
+                />
+              </View>
+
+              <View
+                style={{
+                  gap: theme.spacing.xs,
+                  paddingTop: theme.spacing.sm,
+                  borderTopWidth: 1,
+                  borderTopColor: theme.colors.border,
+                }}
+              >
+                <View className="flex-row justify-between">
+                  <Text variant="label" tone="muted">
+                    {t('transactions.transfers', { defaultValue: 'Transfers' })}
+                  </Text>
+                  <Text variant="label">{curTransactions.length}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text variant="label" tone="muted">
+                    {t('transactions.accountsInvolved', { defaultValue: 'Accounts involved' })}
+                  </Text>
+                  <Text variant="label">{uniqueAccounts}</Text>
+                </View>
+              </View>
+            </View>
+          );
+        }
+
+        return null;
       })}
     </Card>
   );

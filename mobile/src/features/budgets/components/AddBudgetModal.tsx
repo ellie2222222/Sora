@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { View, Pressable, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { CalendarRange } from 'lucide-react-native';
-import { BUDGET_PERIOD_TYPES, createBudgetSchema, type BudgetPeriodType } from '@sora/contracts';
+import { BUDGET_PERIOD_TYPES, BudgetPeriodType, createBudgetSchema } from '@sora/contracts';
 
 import {
   BottomSheetModal,
@@ -19,11 +19,8 @@ import {
   useCalculatorExpression,
 } from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
-// Deep-imported (not via the categories barrel): this component is itself deep-imported by
-// ModalProvider, and pulling in `@/features/categories` here reintroduces a cycle through that
-// barrel's other exports (same reasoning as AddTransactionModal.tsx's identical comment).
 import { CategoryGrid } from '../../categories/components/CategoryGrid.tsx';
-import { useCreateBudgetMutation } from '@/app/store';
+import { useCreateBudgetMutation, useListGoalsQuery } from '@/app/store';
 import {
   addDays,
   addMonths,
@@ -34,21 +31,22 @@ import {
   messageOf,
   startOfMonth,
   today,
+  parseDay,
   type CalendarDay,
 } from '@/utils';
 
-/**
- * The end a period type suggests for a start date — a convenience default, not a constraint:
- * FR-38 treats period type as a descriptive label only, the actual window is whatever start/end
- * dates the user leaves in place or edits (BUD-US-01).
- */
 function suggestedEnd(period: BudgetPeriodType, start: CalendarDay, currentEnd: CalendarDay): CalendarDay {
   switch (period) {
-    case 'MONTHLY':
+    case BudgetPeriodType.DAILY:
+      return start;
+    case BudgetPeriodType.MONTHLY:
       return addDays(addMonths(start, 1), -1);
-    case 'WEEKLY':
+    case BudgetPeriodType.WEEKLY:
       return addDays(start, 6);
-    case 'CUSTOM':
+    case BudgetPeriodType.YEARLY:
+      return `${parseDay(start).year}-12-31`;
+    case BudgetPeriodType.CUSTOM:
+    case BudgetPeriodType.GOAL:
     default:
       return currentEnd < start ? start : currentEnd;
   }
@@ -66,29 +64,29 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
   const { activeWallet } = useWallets();
+  const walletId = activeWallet?.id;
   const [createBudget, { isLoading: isCreating }] = useCreateBudgetMutation();
+  const { data: goals = [], isLoading: isLoadingGoals, isError: isErrorGoals } = useListGoalsQuery({ walletId: walletId ?? '' }, { skip: !visible || walletId === undefined });
 
   const { setExpression, expressionRef, display: displayAmount, confirm } = useCalculatorExpression('', '0');
   const [name, setName] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [periodType, setPeriodType] = useState<BudgetPeriodType>('MONTHLY');
+  const [goalId, setGoalId] = useState<string | null>(null);
+  const [periodType, setPeriodType] = useState<BudgetPeriodType>(BudgetPeriodType.MONTHLY);
   const [startDate, setStartDate] = useState<CalendarDay>(() => startOfMonth(today()));
   const [endDate, setEndDate] = useState<CalendarDay>(() => endOfMonth(today()));
-  // Once the user picks an end date directly, a new start or period stops overwriting it — the
-  // period only pre-fills a sensible window, per FR-38.
   const [endTouched, setEndTouched] = useState(false);
   const [pickingDate, setPickingDate] = useState<PickingDate>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const walletId = activeWallet?.id;
 
   useEffect(() => {
     if (visible) {
       setExpression('');
       setName('');
       setCategoryId(null);
-      setPeriodType('MONTHLY');
+      setGoalId(null);
+      setPeriodType(BudgetPeriodType.MONTHLY);
       setStartDate(startOfMonth(today()));
       setEndDate(endOfMonth(today()));
       setEndTouched(false);
@@ -99,17 +97,22 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
   }, [visible]);
 
   const PERIOD_LABEL: Record<BudgetPeriodType, string> = {
-    WEEKLY: t('budgets.weekly', { defaultValue: 'Weekly' }),
-    MONTHLY: t('budgets.monthly', { defaultValue: 'Monthly' }),
-    CUSTOM: t('budgets.custom', { defaultValue: 'Custom' }),
+    [BudgetPeriodType.DAILY]: t('budgets.daily', { defaultValue: 'Daily' }),
+    [BudgetPeriodType.WEEKLY]: t('budgets.weekly', { defaultValue: 'Weekly' }),
+    [BudgetPeriodType.MONTHLY]: t('budgets.monthly', { defaultValue: 'Monthly' }),
+    [BudgetPeriodType.YEARLY]: t('budgets.yearly', { defaultValue: 'Yearly' }),
+    [BudgetPeriodType.CUSTOM]: t('budgets.custom', { defaultValue: 'Custom' }),
+    [BudgetPeriodType.GOAL]: t('budgets.goal', { defaultValue: 'Goal' }),
   };
 
-  // Ref pattern (see CalculatorKeypadProps.onConfirmRef): keeps the keypad grid's identity stable.
-  // Declared before the early returns so every render calls the same hooks.
   const onConfirmRef = useRef(handleConfirm);
   onConfirmRef.current = handleConfirm;
   const onQuickDateRef = useRef(() => {});
-  onQuickDateRef.current = () => setPickingDate('start');
+  onQuickDateRef.current = () => {
+    if (periodType === BudgetPeriodType.CUSTOM || periodType === BudgetPeriodType.GOAL) {
+      setPickingDate('start');
+    }
+  };
 
   if (!visible) return null;
 
@@ -123,7 +126,20 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
 
   function handlePeriodTypeChange(next: BudgetPeriodType) {
     setPeriodType(next);
-    if (!endTouched) setEndDate(suggestedEnd(next, startDate, endDate));
+    const tday = today();
+    if (next === BudgetPeriodType.DAILY) {
+      setStartDate(tday);
+      setEndDate(tday);
+    } else if (next === BudgetPeriodType.MONTHLY) {
+      setStartDate(startOfMonth(tday));
+      setEndDate(endOfMonth(tday));
+    } else if (next === BudgetPeriodType.YEARLY) {
+      const year = parseDay(tday).year;
+      setStartDate(`${year}-01-01`);
+      setEndDate(`${year}-12-31`);
+    } else {
+      if (!endTouched) setEndDate(suggestedEnd(next, startDate, endDate));
+    }
   }
 
   function handleSelectDay(day: CalendarDay) {
@@ -139,14 +155,20 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
   async function handleSubmit(amount: string) {
     setSubmitError(null);
     if (walletId === undefined) return;
-    if (categoryId === null) {
+
+    if (periodType === BudgetPeriodType.GOAL && goalId === null) {
+      setFieldErrors({ goalId: t('budgets.chooseGoalFirst', { defaultValue: 'Choose a goal first.' }) });
+      return;
+    }
+    if (periodType !== BudgetPeriodType.GOAL && categoryId === null) {
       setFieldErrors({ categoryId: t('budgets.chooseCategoryFirst', { defaultValue: 'Choose a category first.' }) });
       return;
     }
 
     const parsed = createBudgetSchema.safeParse({
       walletId,
-      categoryId,
+      categoryId: periodType !== BudgetPeriodType.GOAL ? categoryId : null,
+      goalId: periodType === BudgetPeriodType.GOAL ? goalId : null,
       name: name.trim().length > 0 ? name : `${PERIOD_LABEL[periodType]} budget`,
       amount,
       currency: activeWallet?.balances[0]?.currency ?? 'VND',
@@ -178,26 +200,56 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
     if (amount !== null) void handleSubmit(amount);
   }
 
-  const windowLabel = `${formatShortDay(startDate)} – ${formatShortDay(endDate)}`;
+  const windowLabel = `${formatShortDay(startDate)} \u2014 ${formatShortDay(endDate)}`;
+  const shouldAllowManualDates = periodType === BudgetPeriodType.CUSTOM || periodType === BudgetPeriodType.GOAL || periodType === BudgetPeriodType.WEEKLY;
 
   return (
     <BottomSheetModal visible={visible} onClose={onClose}>
       <SheetFormHeader title={t('budgets.newBudget')} onCancel={onClose} entity="budget" />
 
-      <View className="flex-row" style={{ flexShrink: 0, gap: theme.spacing.sm, marginBottom: theme.spacing.md }}>
-        {BUDGET_PERIOD_TYPES.map((candidate) => (
-          <Button
-            key={candidate}
-            testID={`btn-budget-period-${candidate}`}
-            label={PERIOD_LABEL[candidate]}
-            variant={periodType === candidate ? 'primary' : 'secondary'}
-            onPress={() => handlePeriodTypeChange(candidate)}
-            style={{ flex: 1 }}
-          />
-        ))}
+      <View style={{ flexShrink: 0, marginBottom: theme.spacing.md }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md }}>
+          {BUDGET_PERIOD_TYPES.map((candidate) => (
+            <Button
+              key={candidate}
+              testID={`btn-budget-period-${candidate}`}
+              label={PERIOD_LABEL[candidate]}
+              variant={periodType === candidate ? 'primary' : 'secondary'}
+              onPress={() => handlePeriodTypeChange(candidate)}
+            />
+          ))}
+        </ScrollView>
       </View>
 
       <SheetScrollArea>
+        {periodType === BudgetPeriodType.GOAL ? (
+          <View style={{ paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm }}>
+            {isLoadingGoals ? (
+              <Text tone="muted">{t('common.loading', { defaultValue: 'Loading...' })}</Text>
+            ) : isErrorGoals ? (
+              <Text tone="danger">{t('common.error', { defaultValue: 'Error loading goals' })}</Text>
+            ) : goals.length === 0 ? (
+              <Text tone="muted">{t('goals.noGoals', { defaultValue: 'No goals found.' })}</Text>
+            ) : (
+              goals.map((goal) => (
+                <Pressable
+                  key={goal.id}
+                  onPress={() => setGoalId(goal.id)}
+                  style={{
+                    padding: theme.spacing.md,
+                    borderRadius: theme.radius.md,
+                    backgroundColor: goal.id === goalId ? theme.colors.primaryMuted : theme.colors.surface,
+                    borderWidth: 1,
+                    borderColor: goal.id === goalId ? theme.colors.primary : theme.colors.border,
+                  }}
+                >
+                  <Text weight={goal.id === goalId ? 'bold' : 'medium'}>{goal.name}</Text>
+                </Pressable>
+              ))
+            )}
+            {fieldErrors.goalId ? <Text tone="danger">{fieldErrors.goalId}</Text> : null}
+          </View>
+        ) : (
           <CategoryGrid
             testID="picker-category"
             walletId={walletId}
@@ -206,18 +258,25 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
             onChange={setCategoryId}
             error={fieldErrors.categoryId}
           />
+        )}
       </SheetScrollArea>
 
       <KeypadSheetFooter
         leading={
-          <IconChip
-            icon={CalendarRange}
-            label={windowLabel}
-            onPress={() => setPickingDate('end')}
-            accessibilityLabel={`${t('budgets.endDate', { defaultValue: 'End date' })}, ${formatDay(endDate)}`}
-            error={fieldErrors.endDate !== undefined}
-            testID="input-budget-end-date"
-          />
+          shouldAllowManualDates ? (
+            <IconChip
+              icon={CalendarRange}
+              label={windowLabel}
+              onPress={() => setPickingDate('end')}
+              accessibilityLabel={`${t('budgets.endDate', { defaultValue: 'End date' })}, ${formatDay(endDate)}`}
+              error={fieldErrors.endDate !== undefined}
+              testID="input-budget-end-date"
+            />
+          ) : (
+            <View style={{ paddingHorizontal: theme.spacing.sm }}>
+              <Text variant="caption" tone="muted">{windowLabel}</Text>
+            </View>
+          )
         }
         amount={displayAmount}
         amountTestID="add-budget-amount-display"
@@ -238,9 +297,9 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
           onExpressionChange={setExpression}
           onConfirmRef={onConfirmRef}
           confirmDisabled={isCreating}
-          onQuickDateRef={onQuickDateRef}
-          dateLabel={formatShortDay(startDate)}
-          dateAccessibilityLabel={`${t('budgets.startDate', { defaultValue: 'Start date' })}, ${formatDay(startDate)}`}
+          onQuickDateRef={shouldAllowManualDates ? onQuickDateRef : undefined}
+          dateLabel={shouldAllowManualDates ? formatShortDay(startDate) : undefined}
+          dateAccessibilityLabel={shouldAllowManualDates ? `${t('budgets.startDate', { defaultValue: 'Start date' })}, ${formatDay(startDate)}` : undefined}
           testID="keypad-budget"
         />
       </KeypadSheetFooter>

@@ -3,7 +3,7 @@ import { History, LogIn, MessageSquarePlus, Sparkles } from 'lucide-react-native
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { AnimatedScreen, ListLoadMoreFooter, SkeletonList, StateView, Text } from '@/components';
+import { AnimatedScreen, ListLoadMoreFooter, Skeleton, StateView, Text } from '@/components';
 import { useAuth, useTheme, useToast, useWallets } from '@/app/providers';
 import {
   useConfirmAiActionMutation,
@@ -18,6 +18,7 @@ import type { AiMessageResponse } from '@sora/contracts';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { useNetworkStatus } from '@/hooks';
 import { canLoadMore, flattenPages, getServerErrorMessage, isNetworkError } from '@/utils';
+import { chatAvailability } from '../chatAvailability.ts';
 import { ChatInputBar } from '../components/ChatInputBar.tsx';
 import { ChatMessageItem } from '../components/ChatMessageItem.tsx';
 import { ConversationHistorySheet } from '../components/ConversationHistorySheet.tsx';
@@ -36,18 +37,52 @@ export function AiChatScreen() {
   );
 }
 
+
+function AssistantHeader({ rightElement }: { rightElement?: React.ReactNode }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  return (
+    <View 
+      className="flex-row items-center justify-between border-b"
+      style={{ 
+        paddingHorizontal: theme.spacing.md, 
+        paddingVertical: theme.spacing.md,
+        borderBottomColor: theme.colors.border,
+        backgroundColor: theme.colors.surface,
+      }}
+    >
+      <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
+        <Sparkles size={20} color={theme.colors.primary} />
+        <Text variant="title">{t('ai.title')}</Text>
+      </View>
+      {rightElement}
+    </View>
+  );
+}
+
 function GuestPrompt() {
+  const theme = useTheme();
   const { t } = useTranslation();
   const { exitGuestModeToAuth } = useAuth();
+  
   return (
-    <StateView
-      variant="empty"
-      icon={Sparkles}
-      title={t('ai.guestTitle')}
-      message={t('ai.guestMessage')}
-      primaryAction={{ label: t('ai.signIn'), onPress: () => void exitGuestModeToAuth(), icon: LogIn }}
-      testID="ai-guest"
-    />
+    <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <AssistantHeader />
+
+      <View className="flex-1 justify-center" style={{ paddingHorizontal: theme.spacing.xl, paddingBottom: theme.spacing.xl }}>
+        <StateView
+          variant="empty"
+          icon={Sparkles}
+          title={t('ai.guestTitle')}
+          message={t('ai.guestMessage')}
+          primaryAction={{ label: t('ai.signIn'), onPress: () => void exitGuestModeToAuth(), icon: LogIn }}
+          testID="ai-guest"
+          entrance="none"
+        />
+      </View>
+
+      <ChatInputBar disabled={true} onSend={async () => false} />
+    </KeyboardAvoidingView>
   );
 }
 
@@ -84,7 +119,7 @@ function SignedInChat() {
 
   const locale = i18n.language === 'vi' ? 'vi' : 'en';
   const isSending = pendingText !== null;
-  const canSend = isOnline && !isSending;
+  const { canSend, blockedReason: blocked } = chatAvailability({ isOnline, isSending, canWrite: permissions.canWrite });
 
   /** Resolves false on failure so the input can give the text back. */
   const send = async (text: string): Promise<boolean> => {
@@ -131,9 +166,17 @@ function SignedInChat() {
     }
   };
 
-  const blockedReason = !isOnline ? t('ai.offlineHint') : !permissions.canWrite ? t('ai.proposal.viewOnly') : null;
+  const blockedReason = blocked === 'offline' ? t('ai.offlineHint') : blocked === 'viewOnly' ? t('ai.proposal.viewOnly') : null;
   const renderBody = () => {
-    if (conversationId !== null && messages.isLoading) return <SkeletonList rows={4} />;
+    if (conversationId !== null && messages.isLoading) {
+      return (
+        <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, flex: 1, justifyContent: 'flex-end' }}>
+          {[...Array(4)].map((_, i) => (
+            <ChatMessageSkeleton key={i} fromUser={i % 2 === 0} />
+          ))}
+        </View>
+      );
+    }
     if (conversationId !== null && messages.isError && items.length === 0 && !isNetworkError(messages.error)) {
       return (
         <StateView
@@ -189,17 +232,18 @@ function SignedInChat() {
 
   return (
     <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View className="flex-row items-center justify-between" style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
-        <Text variant="title">{t('ai.title')}</Text>
-        <View className="flex-row" style={{ gap: theme.spacing.md }}>
-          <Pressable testID="btn-open-ai-history" accessibilityRole="button" accessibilityLabel={t('ai.history')} hitSlop={10} onPress={() => setHistoryOpen(true)}>
-            <History size={20} color={theme.colors.textMuted} />
-          </Pressable>
-          <Pressable testID="btn-add-ai-conversation" accessibilityRole="button" accessibilityLabel={t('ai.newChat')} hitSlop={10} onPress={() => setConversationId(null)}>
-            <MessageSquarePlus size={20} color={theme.colors.primary} />
-          </Pressable>
-        </View>
-      </View>
+      <AssistantHeader 
+        rightElement={
+          <View className="flex-row" style={{ gap: theme.spacing.md }}>
+            <Pressable testID="btn-open-ai-history" accessibilityRole="button" accessibilityLabel={t('ai.history')} hitSlop={10} onPress={() => setHistoryOpen(true)}>
+              <History size={20} color={theme.colors.textMuted} />
+            </Pressable>
+            <Pressable testID="btn-add-ai-conversation" accessibilityRole="button" accessibilityLabel={t('ai.newChat')} hitSlop={10} onPress={() => setConversationId(null)}>
+              <MessageSquarePlus size={20} color={theme.colors.primary} />
+            </Pressable>
+          </View>
+        }
+      />
 
       <View className="flex-1">{renderBody()}</View>
 
@@ -237,6 +281,15 @@ function PendingExchange({ text }: { text: string | null }) {
       <Text variant="caption" tone="faint" testID="ai-thinking">
         {t('ai.thinking')}
       </Text>
+    </View>
+  );
+}
+
+function ChatMessageSkeleton({ fromUser }: { fromUser: boolean }) {
+  const theme = useTheme();
+  return (
+    <View style={{ alignItems: fromUser ? 'flex-end' : 'flex-start', marginVertical: theme.spacing.xs }}>
+      <Skeleton width={fromUser ? 200 : 260} height={44} radius={theme.radius.lg} />
     </View>
   );
 }

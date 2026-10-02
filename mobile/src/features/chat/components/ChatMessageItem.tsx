@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import type { AiMessageResponse } from '@sora/contracts';
+import { AiMessageRole, type AiMessageResponse } from '@sora/contracts';
 
 import { Text } from '@/components';
 import { useTheme } from '@/app/providers';
@@ -19,7 +19,7 @@ export function ChatMessageItem({
   onDismiss: (messageId: string) => void;
 }) {
   const theme = useTheme();
-  const fromUser = message.role === 'USER';
+  const fromUser = message.role === AiMessageRole.USER;
 
   return (
     <View

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
 import { useSelector } from "react-redux";
-import { Archive, Pencil, Trash2 } from "lucide-react-native";
+import { Archive, Pencil, Trash2, Plus, ArrowUpFromLine, ArrowDownToLine, ArrowRightLeft, Save } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import {
   CategoryType,
@@ -9,7 +9,7 @@ import {
   type CategoryResponse,
 } from "@sora/contracts";
 
-import { BottomSheetModal, Button, Input, ListItemEnter, SkeletonList, StateView, SyncStatusDot, Text } from '@/components';
+import { BottomSheetModal, Button, Input, ListItemEnter, Skeleton, StateView, SyncStatusDot, Text } from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
 import { selectQueueEntryFor, useArchiveCategoryMutation, useCreateCategoryMutation, useDeleteCategoryPermanentlyMutation, useListCategoriesQuery, useUpdateCategoryMutation } from '@/app/store';
 import { isNetworkError, messageOf } from '@/utils';
@@ -54,7 +54,28 @@ export function CategoryListScreen({
         />
       );
     }
-    if (expense.isLoading || income.isLoading || transfer.isLoading || walletsLoading) return <SkeletonList rows={6} rowHeight={44} />;
+    if (expense.isLoading || income.isLoading || transfer.isLoading || walletsLoading) {
+      return (
+                <View style={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
+          {permissions.canWrite ? (
+            <View style={{ marginBottom: theme.spacing.sm }}>
+              <Skeleton width={120} height={36} radius={theme.radius.md} />
+            </View>
+          ) : null}
+
+          {['categories.expenseCategories', 'categories.incomeCategories', 'categories.transferCategories'].map((titleKey, sectionIndex) => (
+            <View key={titleKey}>
+              <Text variant="label" tone="muted" style={{ marginBottom: theme.spacing.xs }}>
+                {t(titleKey)}
+              </Text>
+              {Array.from({ length: 2 }).map((_, i) => (
+                <CategoryItemSkeleton key={i} />
+              ))}
+            </View>
+          ))}
+        </View>
+      );
+    }
     const failed = [expense, income, transfer].find((query) => query.isError && !isNetworkError(query.error));
     if (failed !== undefined) {
       return <StateView variant="error" error={failed.error} retryAction={() => void failed.refetch()} />;
@@ -74,7 +95,7 @@ export function CategoryListScreen({
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
         ListHeaderComponent={
           permissions.canWrite ? (
-            <Button label={t('categories.newCategory')} size="sm" onPress={() => setCreating(true)} style={{ marginBottom: theme.spacing.sm }} />
+            <Button label={t('categories.newCategory')} icon={Plus} size="sm" onPress={() => setCreating(true)} style={{ marginBottom: theme.spacing.sm }} />
           ) : null
         }
         renderItem={({ item: section }) => (
@@ -87,7 +108,7 @@ export function CategoryListScreen({
             ) : (
               section.data.map((category) => (
                 <ListItemEnter key={category.id}>
-                  <CategoryRow
+                  <CategoryItem
                     category={category}
                     canDelete={permissions.canWrite}
                     onDelete={() => setDeletingCategory(category)}
@@ -112,7 +133,7 @@ export function CategoryListScreen({
   );
 }
 
-  function CategoryRow({
+  function CategoryItem({
     category,
     canDelete,
     onDelete,
@@ -154,6 +175,25 @@ export function CategoryListScreen({
             <Trash2 size={16} color={theme.colors.textFaint} />
           </Pressable>
         ) : null}
+      </View>
+    );
+  }
+
+  function CategoryItemSkeleton() {
+    const theme = useTheme();
+    return (
+      <View
+        className="flex-row items-center"
+        style={{
+          gap: theme.spacing.sm,
+          paddingVertical: theme.spacing.xs,
+        }}
+      >
+        <Skeleton width={10} height={10} radius={theme.radius.pill} />
+        <View style={{ flex: 1 }}>
+          <Skeleton width={120} height={20} radius={theme.radius.sm} />
+        </View>
+        <Skeleton width={16} height={16} radius={theme.radius.sm} />
       </View>
     );
   }
@@ -205,6 +245,7 @@ export function CategoryListScreen({
             <Button
               testID="btn-category-type-EXPENSE"
               label={t("categories.expense")}
+              icon={ArrowUpFromLine}
               size="sm"
               variant={type === CategoryType.EXPENSE ? "primary" : "secondary"}
               onPress={() => setType(CategoryType.EXPENSE)}
@@ -212,6 +253,7 @@ export function CategoryListScreen({
             <Button
               testID="btn-category-type-INCOME"
               label={t("categories.income")}
+              icon={ArrowDownToLine}
               size="sm"
               variant={type === CategoryType.INCOME ? "primary" : "secondary"}
               onPress={() => setType(CategoryType.INCOME)}
@@ -219,6 +261,7 @@ export function CategoryListScreen({
             <Button
               testID="btn-category-type-TRANSFER"
               label={t("categories.transfer")}
+              icon={ArrowRightLeft}
               size="sm"
               variant={type === CategoryType.TRANSFER ? "primary" : "secondary"}
               onPress={() => setType(CategoryType.TRANSFER)}
@@ -228,6 +271,7 @@ export function CategoryListScreen({
           <Button
             testID="btn-submit-category"
             label={t("categories.create")}
+            icon={Plus}
             onPress={handleCreate}
             loading={isCreating}
             disabled={name.trim().length === 0}
@@ -333,6 +377,7 @@ export function CategoryListScreen({
               <Button
                 testID="btn-submit-category-rename"
                 label={t("common.save")}
+                icon={Save}
                 onPress={handleRename}
                 loading={isRenaming}
                 disabled={name.trim().length === 0}

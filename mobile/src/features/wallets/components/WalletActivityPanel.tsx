@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AuditLogResponse } from '@sora/contracts';
 
-import { Card, ListLoadMoreFooter, RefreshableSectionList, SkeletonList, StateView, Text } from '@/components';
+import { Card, ListLoadMoreFooter, RefreshableSectionList, Skeleton, StateView, Text } from '@/components';
 import { useTheme } from '@/app/providers';
 import { useListAuditLogsInfiniteQuery } from '@/app/store';
 import {
@@ -36,7 +36,15 @@ export function WalletActivityPanel({ walletId }: { walletId: string }) {
     }
   };
 
-  if (activity.isLoading) return <SkeletonList rows={6} />;
+  if (activity.isLoading) {
+    return (
+      <View style={{ gap: theme.spacing.sm }}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <ActivityItemSkeleton key={i} />
+        ))}
+      </View>
+    );
+  }
   if (activity.isError && items.length === 0 && !isNetworkError(activity.error)) {
     return (
       <StateView
@@ -76,7 +84,7 @@ export function WalletActivityPanel({ walletId }: { walletId: string }) {
           </Text>
         </View>
       )}
-      renderItem={({ item }) => <ActivityRow entry={item} />}
+      renderItem={({ item }) => <ActivityItem entry={item} />}
       onEndReached={() => {
         if (canLoadMore(activity)) void activity.fetchNextPage();
       }}
@@ -109,7 +117,7 @@ function humanizeEvent(event: string): string {
     .join(' ');
 }
 
-function ActivityRow({ entry }: { entry: AuditLogResponse }) {
+function ActivityItem({ entry }: { entry: AuditLogResponse }) {
   const theme = useTheme();
   const { t } = useTranslation();
   const failed = entry.result !== 'SUCCESS';
@@ -128,6 +136,20 @@ function ActivityRow({ entry }: { entry: AuditLogResponse }) {
         <Text variant="caption" tone={failed ? 'danger' : 'muted'}>
           {formatTimeOfDay(entry.createdAt)}
         </Text>
+      </View>
+    </Card>
+  );
+}
+
+function ActivityItemSkeleton() {
+  return (
+    <Card>
+      <View className="flex-row justify-between items-start">
+        <View className="flex-1 gap-xxs">
+          <Skeleton width={140} height={20} radius={4} />
+          <Skeleton width={100} height={16} radius={4} />
+        </View>
+        <Skeleton width={40} height={16} radius={4} />
       </View>
     </Card>
   );

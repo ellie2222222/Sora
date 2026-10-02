@@ -69,10 +69,10 @@ export function MonthSelector({
           borderColor: theme.colors.border,
         }}
       >
+        {onOpenPicker ? <Calendar size={15} color={theme.colors.primary} /> : null}
         <Text weight="semibold" style={{ fontSize: theme.fontSize.sm, color: theme.colors.text }}>
           {label}
         </Text>
-        {onOpenPicker ? <Calendar size={15} color={theme.colors.primary} /> : null}
       </Pressable>
 
       <Pressable

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import type { WalletResponse } from '@sora/contracts';
+import { ArrowRight, Plus } from 'lucide-react-native';
+import { WalletStatus, type WalletResponse } from '@sora/contracts';
 
 import { Button, Card, Input, StateView, Text } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
@@ -47,7 +48,7 @@ export function GuestUploadScreen() {
     let cancelled = false;
     void (async () => {
       try {
-        const all = await walletsApi.list({ status: 'ACTIVE' });
+        const all = await walletsApi.list({ status: WalletStatus.ACTIVE });
         if (cancelled) return;
         const own = all.filter((wallet) => wallet.isOwn);
         setWallets(own);
@@ -196,6 +197,7 @@ export function GuestUploadScreen() {
               <Button
                 testID={`btn-use-wallet-${wallet.id}`}
                 label={t('guest.upload.useThisWallet')}
+                icon={ArrowRight}
                 size="sm"
                 onPress={() => setTargetWalletId(wallet.id)}
               />
@@ -215,6 +217,7 @@ export function GuestUploadScreen() {
         <Button
           testID="btn-submit-wallet"
           label={t('guest.upload.createAndUse')}
+          icon={Plus}
           onPress={() => void handleCreateWallet()}
           loading={creating}
           disabled={newWalletName.trim().length === 0}

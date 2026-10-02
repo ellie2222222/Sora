@@ -18,17 +18,19 @@ export type { WalletListQuery } from '@/services/api';
 export const walletsApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     listWallets: builder.query<WalletResponse[], WalletListQuery | void>({
-      queryFn: (query, { getState, endpoint }) => {
-        const isGuest = selectIsGuest(getState() as RootState);
-        return toQueryFnResult(() =>
-          readGuestOrApi(
-            cacheKeyOf(endpoint, query),
+      query: (query) => ({
+        method: 'custom',
+        run: async (api) => {
+          const isGuest = selectIsGuest(api.getState() as RootState);
+          return readGuestOrApi(
+            cacheKeyOf(api.endpoint, query),
             isGuest,
             () => walletsHttp.list(query ?? {}),
             () => guestWalletsApi.list(query ?? {}),
-          ),
-        );
-      },
+          );
+        },
+      }),
+      extraOptions: { maxRetries: 3 },
       providesTags: ['Wallet'],
     }),
     getWallet: builder.query<WalletResponse, string>({

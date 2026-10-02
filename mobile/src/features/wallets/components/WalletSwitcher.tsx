@@ -53,24 +53,7 @@ export function WalletSwitcher() {
   const displayNameOf = (wallet: WalletResponse) =>
     wallet.isOwn ? formatWalletName(wallet.name) : wallet.relationLabel ?? formatWalletName(wallet.name);
 
-  if (isLoading) {
-    return (
-      <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
-        <View
-          className="w-[18px] h-[18px]"
-          style={{ borderRadius: theme.radius.pill, backgroundColor: theme.colors.skeleton }}
-        />
-        <View
-          className="h-[20px] w-[120px]"
-          style={{ borderRadius: theme.radius.sm, backgroundColor: theme.colors.skeleton }}
-        />
-        <View
-          className="w-[18px] h-[18px]"
-          style={{ borderRadius: theme.radius.sm, backgroundColor: theme.colors.skeleton }}
-        />
-      </View>
-    );
-  }
+
 
   const currentWallet = activeWallet ?? wallets[0] ?? null;
   const displayName = currentWallet ? displayNameOf(currentWallet) : t('wallets.yourWallet', { defaultValue: 'Your wallet' });
@@ -162,14 +145,14 @@ export function WalletSwitcher() {
           setOpen(true);
         }}
         className="flex-row items-center"
-        style={{ gap: theme.spacing.xs }}
+        style={{ gap: theme.spacing.sm }}
       >
         {currentWallet && !currentWallet.isOwn ? (
           <UsersRound size={16} color={theme.colors.primary} />
         ) : (
           <Wallet size={18} color={theme.colors.primary} />
         )}
-        <Text variant="title" numberOfLines={1}>
+        <Text variant="title" numberOfLines={1} isLoading={isLoading} skeletonWidth={120}>
           {displayName}
         </Text>
         <ChevronDown size={18} color={theme.colors.textMuted} />

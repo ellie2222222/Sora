@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { AccountStatus } from '@sora/contracts';
 
 import { Text } from '@/components';
 import { useTheme } from '@/app/providers';
@@ -20,7 +21,7 @@ export function AccountScopePicker({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const accounts = useListAccountsQuery({ walletId, status: 'ACTIVE' });
+  const accounts = useListAccountsQuery({ walletId, status: AccountStatus.ACTIVE });
   const [pressedKey, setPressedKey] = useState<string | null>(null);
 
   const items = accounts.data ?? [];

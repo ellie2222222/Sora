@@ -27,7 +27,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const isInitialized = useSharedValue(false);
 
   const totalTabs = state.routes.length;
-  const indicatorWidth = 28;
+  const indicatorWidth = 36;
   const tabWidth = containerWidth / (totalTabs || 1);
 
   useEffect(() => {

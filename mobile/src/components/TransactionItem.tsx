@@ -1,4 +1,5 @@
 import { Pressable, View } from 'react-native';
+import { useMemo } from 'react';
 import { UsersRound } from 'lucide-react-native';
 import { TransactionType, type TransactionResponse } from '@sora/contracts';
 
@@ -8,8 +9,9 @@ import { CategoryAvatar } from './CategoryAvatar.tsx';
 import { Money } from './Money.tsx';
 import { SyncStatusDot } from './SyncStatusDot.tsx';
 import { Text } from './Text.tsx';
+import { Skeleton } from './Skeleton.tsx';
 
-export interface TransactionRowProps {
+export interface TransactionItemProps {
   transaction: TransactionResponse;
   onPress?: (transaction: TransactionResponse) => void;
   testID?: string;
@@ -18,7 +20,7 @@ export interface TransactionRowProps {
 }
 
 /** The one row shape for a transaction. */
-export function TransactionRow({ transaction, onPress, testID, syncStatus }: TransactionRowProps) {
+export function TransactionItem({ transaction, onPress, testID, syncStatus }: TransactionItemProps) {
   const theme = useTheme();
   const category = transaction.category;
   
@@ -52,26 +54,26 @@ export function TransactionRow({ transaction, onPress, testID, syncStatus }: Tra
       testID={testID}
       onPress={onPress ? () => onPress(transaction) : undefined}
       className="w-full self-stretch flex-row items-center justify-between"
-      style={{ paddingVertical: theme.spacing.sm, gap: theme.spacing.sm }}
+      style={{ paddingVertical: theme.spacing.sm, minHeight: 58 }}
     >
       <View
         className="flex-row items-center flex-1"
-        style={{ gap: theme.spacing.sm, paddingRight: theme.spacing.xs }}
+        style={{ gap: theme.spacing.sm }}
       >
         <CategoryAvatar
           categoryIcon={category?.icon}
           categoryName={category?.name}
           transactionType={transaction.type}
           tint={tint}
-          size={34}
+          size={36}
         />
         <View className="flex-1">
-          <Text numberOfLines={1} weight="medium" style={{ fontSize: 15 }}>
+          <Text numberOfLines={1} weight="medium" style={{ fontSize: 16 }}>
             {primaryTitle}
           </Text>
           {secondaryText.length > 0 ? (
-            <View className="flex-row items-center gap-xs mt-xxs">
-              <Text variant="caption" tone="muted" numberOfLines={1} style={{ fontSize: 12 }}>
+            <View className="flex-row items-center mt-xxs" style={{ gap: theme.spacing.xxs }}>
+              <Text variant="caption" tone="muted" numberOfLines={1}>
                 {secondaryText}
               </Text>
               {transaction.isCrossWallet ? <UsersRound size={12} color={theme.colors.textFaint} /> : null}
@@ -92,3 +94,34 @@ export function TransactionRow({ transaction, onPress, testID, syncStatus }: Tra
     </Pressable>
   );
 }
+export function TransactionItemSkeleton({ titleWidth, subtitleWidth, amountWidth }: { titleWidth?: number | string; subtitleWidth?: number | string; amountWidth?: number | string } = {}) {
+  const theme = useTheme();
+  
+  // Stable random widths across re-renders
+  const rTitleWidth = useMemo(() => titleWidth ?? `${Math.floor(Math.random() * 40) + 40}%`, [titleWidth]);
+  const rSubtitleWidth = useMemo(() => subtitleWidth ?? `${Math.floor(Math.random() * 30) + 30}%`, [subtitleWidth]);
+  const rAmountWidth = useMemo(() => amountWidth ?? Math.floor(Math.random() * 40) + 50, [amountWidth]);
+
+  return (
+    <View
+      className="w-full self-stretch flex-row items-center justify-between"
+      style={{ paddingVertical: theme.spacing.sm, minHeight: 58 }}
+    >
+      <View
+        className="flex-row items-center flex-1"
+        style={{ gap: theme.spacing.sm }}
+      >
+        <Skeleton width={36} height={36} radius={18} />
+        <View className="flex-1" style={{ gap: theme.spacing.xxs, justifyContent: 'center' }}>
+          <Skeleton width={rTitleWidth as any} height={16} radius={theme.radius.sm} />
+          <Skeleton width={rSubtitleWidth as any} height={12} radius={theme.radius.sm} />
+        </View>
+      </View>
+
+      <View className="items-end justify-center">
+        <Skeleton width={rAmountWidth as any} height={16} radius={theme.radius.sm} />
+      </View>
+    </View>
+  );
+}
+

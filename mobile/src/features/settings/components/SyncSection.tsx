@@ -133,6 +133,7 @@ export function SyncSection({
         <Button
           testID="sync-settings-sync-now"
           label={t('errors.syncNowAction', 'Sync now')}
+          icon={RefreshCw}
           variant="secondary"
           size="sm"
           loading={syncing}

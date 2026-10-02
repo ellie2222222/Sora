@@ -1,10 +1,10 @@
-import { MoreVertical, UsersRound, X } from 'lucide-react-native';
+import { MoreVertical, UsersRound, X, UserPlus } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { WalletRole, type WalletInvitationResponse, type WalletMemberResponse } from '@sora/contracts';
 
-import { ActionSheet, Button, Card, ConfirmDialog, ListItemEnter, SkeletonList, StateView, Text } from '@/components';
+import { ActionSheet, Button, Card, ConfirmDialog, ListItemEnter, Skeleton, StateView, Text } from '@/components';
 import type { ActionSheetAction } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
 import {
@@ -93,7 +93,15 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
         ];
 
   const renderContent = () => {
-    if (wallet.isLoading || members.isLoading) return <SkeletonList rows={4} />;
+    if (wallet.isLoading || members.isLoading) {
+      return (
+        <>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <MemberItemSkeleton key={i} />
+          ))}
+        </>
+      );
+    }
     if (members.isError && !isNetworkError(members.error)) {
       return <StateView variant="error" error={members.error} retryAction={() => void members.refetch()} />;
     }
@@ -105,7 +113,7 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
 
         {(members.data ?? []).map((member) => (
           <ListItemEnter key={member.id}>
-            <MemberRow
+            <MemberItem
               member={member}
               isSelf={member.userId === user?.id}
               canManage={isOwner}
@@ -144,7 +152,7 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
         contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.md }}
       >
         {isOwner ? (
-          <Button testID="btn-add-invitation" label={t('members.invite')} size="sm" onPress={onInvite} style={{ alignSelf: 'flex-end' }} />
+          <Button testID="btn-add-invitation" label={t('members.invite')} icon={UserPlus} size="sm" onPress={onInvite} style={{ alignSelf: 'flex-end' }} />
         ) : null}
 
         {renderContent()}
@@ -170,7 +178,7 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
   );
 }
 
-function MemberRow({
+function MemberItem({
   member,
   isSelf,
   canManage,
@@ -241,6 +249,25 @@ function InvitationRow({ invitation, onRevoke }: { invitation: WalletInvitationR
         >
           <X size={18} color={theme.colors.danger} />
         </Pressable>
+      </View>
+    </Card>
+  );
+}
+
+function MemberItemSkeleton() {
+  const theme = useTheme();
+
+  return (
+    <Card>
+      <View className="flex-row justify-between items-center">
+        <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
+          <Skeleton width={18} height={18} radius={9} />
+          <View style={{ gap: theme.spacing.xs }}>
+            <Skeleton width={120} height={16} radius={6} />
+            <Skeleton width={80} height={14} radius={6} />
+          </View>
+        </View>
+        <Skeleton width={18} height={18} radius={9} />
       </View>
     </Card>
   );

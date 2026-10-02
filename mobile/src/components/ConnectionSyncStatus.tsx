@@ -17,7 +17,7 @@ import { Text } from './Text';
 type OpenSheet = 'connection' | 'sync' | null;
 
 const ICON_SIZE = 16;
-const TARGET_SIZE = 44;
+const TARGET_SIZE = 30;
 // Real 44pt boxes rather than hitSlop: slop around two icons this close together would overlap.
 const TARGET_STYLE = { width: TARGET_SIZE, height: TARGET_SIZE, alignItems: 'center', justifyContent: 'center' } as const;
 // Grows to fit the "Saved 14:32" note, which shares the connection icon's tap target.
@@ -89,7 +89,7 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
         style={savedNote === null ? TARGET_STYLE : SAVED_NOTE_TARGET_STYLE}
       >
         {savedNote === null ? null : (
-          <Text variant="caption" tone="muted" testID={`${testID}-saved-at`} style={{ marginRight: theme.spacing.xs }}>
+          <Text variant="caption" tone="muted" testID={`${testID}-saved-at`}>
             {savedNote}
           </Text>
         )}
@@ -147,6 +147,7 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
           <Button
             testID={`${testID}-sync-now`}
             label={t('errors.syncNowAction')}
+            icon={RefreshCw}
             variant="secondary"
             size="sm"
             loading={retryInFlight}

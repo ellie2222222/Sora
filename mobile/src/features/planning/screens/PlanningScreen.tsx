@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { PiggyBank, Plus, Target } from 'lucide-react-native';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import type { BudgetResponse, GoalResponse } from '@sora/contracts';
+import { BudgetStatus, GoalStatus, type BudgetResponse, type GoalResponse } from '@sora/contracts';
 
-import { AnimatedScreen, Card, ListItemEnter, Money, ProgressBar, RefreshableFlatList, SkeletonList, SlideSwap, StateView, SyncStatusDot, Text } from '@/components';
+import { AnimatedScreen, Card, ListItemEnter, Money, ProgressBar, RefreshableFlatList, Skeleton, SlideSwap, StateView, SyncStatusDot, Text } from '@/components';
 import { useModal, useTheme, useWallets } from '@/app/providers';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
+import { BudgetDetailModal } from '@/features/budgets';
+import { GoalDetailModal } from '@/features/goals';
 import { today, formatMoneyString, isNetworkError } from '@/utils';
 import { selectQueueEntryFor, useListBudgetsQuery, useListGoalsQuery } from '@/app/store';
 import type { MainTabScreenProps } from '@/app/navigation';
@@ -21,14 +23,16 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
   const { openModal } = useModal();
   const [section, setSection] = useState<PlanningSection>('budgets');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
 
   const budgets = useListBudgetsQuery(
-    { walletId: activeWalletId ?? '', status: 'ACTIVE', activeOn: today() },
+    { walletId: activeWalletId ?? '', status: BudgetStatus.ACTIVE, activeOn: today() },
     { skip: activeWalletId === null },
   );
 
   const goals = useListGoalsQuery(
-    { walletId: activeWalletId ?? '', status: 'ACTIVE' },
+    { walletId: activeWalletId ?? '', status: GoalStatus.ACTIVE },
     { skip: activeWalletId === null },
   );
 
@@ -50,7 +54,18 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
     // loading branch — otherwise the skeleton below never ends.
     if (activeWalletId === null) return <NoWalletState testID="planning-no-wallet" entrance="none" />;
     if (budgets.isLoading) {
-      return <SkeletonList rows={4} rowHeight={96} />;
+      return (
+                <View style={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
+          {permissions.canWrite ? (
+            <View className="flex-row justify-end" style={{ marginBottom: theme.spacing.sm }}>
+              <Skeleton width={20} height={20} radius={10} />
+            </View>
+          ) : null}
+          {[1, 2, 3].map((key) => (
+            <BudgetItemSkeleton key={key} />
+          ))}
+        </View>
+      );
     }
     if (budgets.isError && !isNetworkError(budgets.error)) {
       return (
@@ -103,7 +118,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
         renderItem={({ item }) => (
           <BudgetCard
             budget={item}
-            onPress={() => navigation.getParent()?.navigate('BudgetDetail', { budgetId: item.id })}
+            onPress={() => setSelectedBudgetId(item.id)}
           />
         )}
       />
@@ -113,7 +128,18 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
   const renderGoalsContent = () => {
     if (activeWalletId === null) return <NoWalletState testID="planning-no-wallet" entrance="none" />;
     if (goals.isLoading) {
-      return <SkeletonList rows={4} rowHeight={110} />;
+      return (
+                <View style={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
+          {permissions.canWrite ? (
+            <View className="flex-row justify-end" style={{ marginBottom: theme.spacing.sm }}>
+              <Skeleton width={20} height={20} radius={10} />
+            </View>
+          ) : null}
+          {[1, 2, 3].map((key) => (
+            <GoalItemSkeleton key={key} />
+          ))}
+        </View>
+      );
     }
     if (goals.isError && !isNetworkError(goals.error)) {
       return (
@@ -167,7 +193,7 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
           <ListItemEnter>
             <GoalCard
               goal={item}
-              onPress={() => navigation.getParent()?.navigate('GoalDetail', { goalId: item.id })}
+              onPress={() => setSelectedGoalId(item.id)}
             />
           </ListItemEnter>
         )}
@@ -199,15 +225,24 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
               accessibilityRole="tab"
               accessibilityState={{ selected: section === 'budgets' }}
               className="flex-1 py-sm items-center justify-center"
-              style={{
-                borderRadius: theme.radius.sm,
-                backgroundColor: section === 'budgets' ? theme.colors.surface : 'transparent',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: section === 'budgets' ? 0.08 : 0,
-                shadowRadius: 2,
-                elevation: section === 'budgets' ? 1 : 0,
-              }}
+              style={[
+                {
+                  borderRadius: theme.radius.sm,
+                  backgroundColor: section === 'budgets' ? theme.colors.surface : 'transparent',
+                },
+                section === 'budgets'
+                  ? Platform.select({
+                      web: { boxShadow: '0px 1px 2px rgba(0,0,0,0.08)' },
+                      default: {
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.08,
+                        shadowRadius: 2,
+                        elevation: 1,
+                      },
+                    })
+                  : undefined,
+              ]}
             >
               <Text
                 weight={section === 'budgets' ? 'bold' : 'medium'}
@@ -224,15 +259,24 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
               accessibilityRole="tab"
               accessibilityState={{ selected: section === 'goals' }}
               className="flex-1 py-sm items-center justify-center"
-              style={{
-                borderRadius: theme.radius.sm,
-                backgroundColor: section === 'goals' ? theme.colors.surface : 'transparent',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: section === 'goals' ? 0.08 : 0,
-                shadowRadius: 2,
-                elevation: section === 'goals' ? 1 : 0,
-              }}
+              style={[
+                {
+                  borderRadius: theme.radius.sm,
+                  backgroundColor: section === 'goals' ? theme.colors.surface : 'transparent',
+                },
+                section === 'goals'
+                  ? Platform.select({
+                      web: { boxShadow: '0px 1px 2px rgba(0,0,0,0.08)' },
+                      default: {
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.08,
+                        shadowRadius: 2,
+                        elevation: 1,
+                      },
+                    })
+                  : undefined,
+              ]}
             >
               <Text
                 weight={section === 'goals' ? 'bold' : 'medium'}
@@ -249,6 +293,8 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
           {section === 'budgets' ? renderBudgetsContent() : renderGoalsContent()}
         </SlideSwap>
       </WalletContextBar>
+      <BudgetDetailModal budgetId={selectedBudgetId} onClose={() => setSelectedBudgetId(null)} />
+      <GoalDetailModal goalId={selectedGoalId} onClose={() => setSelectedGoalId(null)} />
     </AnimatedScreen>
   );
 }
@@ -326,3 +372,44 @@ function GoalCard({ goal, onPress }: { goal: GoalResponse; onPress: () => void }
   );
 }
 
+function BudgetItemSkeleton() {
+  const theme = useTheme();
+
+  return (
+    <Card>
+      <View className="flex-row items-center justify-between" style={{ marginBottom: theme.spacing.xs }}>
+        <Skeleton width={120} height={20} radius={theme.radius.sm} />
+      </View>
+
+      <Skeleton width="100%" height={8} radius={theme.radius.sm} />
+
+      <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
+        <Skeleton width={80} height={16} radius={theme.radius.sm} />
+        <Skeleton width={60} height={16} radius={theme.radius.sm} />
+      </View>
+    </Card>
+  );
+}
+
+function GoalItemSkeleton() {
+  const theme = useTheme();
+
+  return (
+    <Card>
+      <View className="flex-row items-center" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.xs }}>
+        <Skeleton width={100} height={20} radius={theme.radius.sm} />
+      </View>
+
+      <View className="flex-row" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.sm }}>
+        <Skeleton width={150} height={28} radius={theme.radius.sm} />
+      </View>
+
+      <Skeleton width="100%" height={8} radius={theme.radius.sm} />
+
+      <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
+        <Skeleton width={40} height={16} radius={theme.radius.sm} />
+        <Skeleton width={80} height={16} radius={theme.radius.sm} />
+      </View>
+    </Card>
+  );
+}

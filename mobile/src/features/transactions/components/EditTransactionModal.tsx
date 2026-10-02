@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { useTranslation } from "react-i18next";
+import { Save, Trash2 } from "lucide-react-native";
 import {
   TransactionStatus,
   TransactionType,
@@ -8,12 +9,13 @@ import {
   type UpdateTransactionRequest,
 } from "@sora/contracts";
 
-import { BottomSheetModal, Button, DateField, Input, SkeletonList, StateView, Text } from '@/components';
+import { BottomSheetModal, Button, DateField, Input, Skeleton, StateView, Text, ConfirmDialog } from '@/components';
 import { useTheme } from "@/app/providers";
 import { CategoryPicker } from "@/features/categories";
 import {
   useGetTransactionQuery,
   useUpdateTransactionMutation,
+  useDeleteTransactionMutation,
 } from "@/app/store";
 import { categoryTypeFor, dayOfInstant, replaceDay, isNetworkError, messageOf } from '@/utils';
 
@@ -36,6 +38,10 @@ export function EditTransactionModal({
   });
   const [updateTransaction, { isLoading: isSaving }] =
     useUpdateTransactionMutation();
+  const [deleteTransaction, { isLoading: isDeleting }] = useDeleteTransactionMutation();
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [description, setDescription] = useState<string | null>(null);
   const [day, setDay] = useState<string | null>(null);
@@ -51,6 +57,8 @@ export function EditTransactionModal({
       setCategoryId(undefined);
       setReference(null);
       setSubmitError(null);
+      setDeleteError(null);
+      setConfirmingDelete(false);
     }
   }, [visible, transactionId]);
 
@@ -63,7 +71,26 @@ export function EditTransactionModal({
         onClose={onClose}
         title={t("transactions.editTransaction")}
       >
-        <SkeletonList rows={4} />
+                <View style={{ gap: theme.spacing.md, paddingBottom: theme.spacing.xl, marginTop: theme.spacing.md }}>
+          <Skeleton width="100%" height={32} radius={theme.radius.sm} />
+          
+          <View style={{ gap: theme.spacing.xs }}>
+            <Skeleton width={80} height={14} radius={theme.radius.sm} />
+            <Skeleton width="100%" height={48} radius={theme.radius.md} />
+          </View>
+          
+          <View style={{ gap: theme.spacing.xs }}>
+            <Skeleton width={60} height={14} radius={theme.radius.sm} />
+            <Skeleton width="100%" height={48} radius={theme.radius.md} />
+          </View>
+
+          <View style={{ gap: theme.spacing.xs }}>
+            <Skeleton width={100} height={14} radius={theme.radius.sm} />
+            <Skeleton width="100%" height={48} radius={theme.radius.md} />
+          </View>
+          
+          <Skeleton width="100%" height={48} radius={theme.radius.md} />
+        </View>
       </BottomSheetModal>
     );
   }
@@ -166,7 +193,19 @@ export function EditTransactionModal({
       }
     }
 
+    async function handleDelete(current: TransactionResponse) {
+      setDeleteError(null);
+      try {
+        await deleteTransaction({ transactionId: current.id }).unwrap();
+        setConfirmingDelete(false);
+        onClose();
+      } catch (error) {
+        setDeleteError(messageOf(error, t));
+      }
+    }
+
     return (
+      <>
       <BottomSheetModal
         visible={visible}
         onClose={onClose}
@@ -223,14 +262,42 @@ export function EditTransactionModal({
             <Text tone="danger">{submitError}</Text>
           ) : null}
 
-          <Button
-            testID="btn-submit-transaction"
-            label={t("common.save", { defaultValue: "Save" })}
-            onPress={() => void handleSubmit(data)}
-            loading={isSaving}
-            fullWidth
-          />
+          <View style={{ gap: theme.spacing.sm }}>
+            <Button
+              testID="btn-submit-transaction"
+              label={t("common.save", { defaultValue: "Save" })}
+              icon={Save}
+              onPress={() => void handleSubmit(data)}
+              loading={isSaving}
+              fullWidth
+            />
+            <Button
+              testID="btn-delete-transaction"
+              label={t('transactions.cancelTransaction', { defaultValue: 'Delete transaction' })}
+              icon={Trash2}
+              variant="danger-outline"
+              onPress={() => setConfirmingDelete(true)}
+              fullWidth
+            />
+          </View>
+          {deleteError !== null ? (
+            <Text tone="danger" style={{ textAlign: 'center' }}>{deleteError}</Text>
+          ) : null}
         </ScrollView>
       </BottomSheetModal>
+      
+      <ConfirmDialog
+        visible={confirmingDelete}
+        title={t('transactions.cancelConfirmTitle', { defaultValue: 'Delete this transaction?' })}
+        message={t('transactions.cancelConfirmBody', {
+          defaultValue: "This removes it from your list and reverses its effect on your balances and budgets. This can't be undone.",
+        })}
+        confirmLabel={t('transactions.cancelTransaction', { defaultValue: 'Delete transaction' })}
+        destructive
+        loading={isDeleting}
+        onConfirm={() => void handleDelete(data)}
+        onCancel={() => setConfirmingDelete(false)}
+      />
+      </>
     );
 }

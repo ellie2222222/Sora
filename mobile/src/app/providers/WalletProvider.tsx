@@ -46,32 +46,45 @@ export function WalletProvider({ children }: { children: ReactNode }): ReactNode
 
   const wallets = query.data ?? [];
 
-  useEffect(() => {
-    if (activeWalletId !== null && wallets.some((w) => w.id === activeWalletId)) return;
-    // The most useful default on first load or after the active wallet is
-    // archived/left: the caller's own wallet, ahead of any shared one, since
-    // it's the one every new account has and the one most sessions start from.
+  const effectiveWalletId = useMemo(() => {
+    if (activeWalletId !== null && wallets.some((w) => w.id === activeWalletId)) return activeWalletId;
     const own = wallets.find((w) => w.isOwn);
-    const fallback = own ?? wallets[0] ?? null;
-    if (fallback !== null) setActiveWalletId(fallback.id);
+    return own?.id ?? wallets[0]?.id ?? null;
   }, [wallets, activeWalletId]);
 
-  const activeWallet = wallets.find((w) => w.id === activeWalletId) ?? null;
+  useEffect(() => {
+    if (activeWalletId !== effectiveWalletId) {
+      setActiveWalletId(effectiveWalletId);
+    }
+  }, [activeWalletId, effectiveWalletId]);
+
+  const activeWallet = wallets.find((w) => w.id === effectiveWalletId) ?? null;
   const permissions = useMemo(() => permissionsFor(activeWallet?.role ?? null), [activeWallet]);
 
   const value = useMemo<WalletContextValue>(
     () => ({
       wallets,
       activeWallet,
-      activeWalletId: activeWallet?.id ?? null,
+      activeWalletId: effectiveWalletId,
       permissions,
       setActiveWalletId,
-      isLoading: query.isLoading,
+      isLoading: query.isLoading || (query.isFetching && query.data === undefined),
       isError: query.isError && !isNetworkError(query.error),
       isUnavailable: query.isError && isNetworkError(query.error) && query.data === undefined,
       refetch: () => void query.refetch(),
     }),
-    [wallets, activeWallet, permissions, query.isLoading, query.isError, query.error, query.data, query.refetch],
+    [
+      wallets,
+      activeWallet,
+      effectiveWalletId,
+      permissions,
+      query.isLoading,
+      query.isFetching,
+      query.isError,
+      query.error,
+      query.data,
+      query.refetch,
+    ],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

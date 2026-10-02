@@ -5,29 +5,27 @@ import { useTranslation } from 'react-i18next';
 import type { ContributionResponse } from '@sora/contracts';
 
 import { useModal, useTheme, useWallets } from '@/app/providers';
-import { Card, ListLoadMoreFooter, Money, ProgressBar, SkeletonList, StateView, Text } from '@/components';
+import { BottomSheetModal, Card, ListLoadMoreFooter, Money, ProgressBar, Skeleton, StateView, Text } from '@/components';
 import { useGetGoalQuery, useListGoalContributionsInfiniteQuery } from '@/app/store';
 import { canLoadMore, flattenPages, formatDay, isNetworkError } from '@/utils';
-import type { AppStackScreenProps } from '@/app/navigation';
 
-export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScreenProps<'GoalDetail'>) {
+export interface GoalDetailModalProps {
+  goalId: string | null;
+  onClose: () => void;
+}
+
+export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { openModal } = useModal();
-  const { goalId } = route.params;
   const { permissions, isLoading: walletsLoading } = useWallets();
-
-  const goal = useGetGoalQuery(goalId);
-  const contributions = useListGoalContributionsInfiniteQuery(goalId);
+  const goal = useGetGoalQuery(goalId as string, { skip: !goalId });
+  const contributions = useListGoalContributionsInfiniteQuery(goalId as string, { skip: !goalId });
   const contributionItems = useMemo(() => flattenPages(contributions.data?.pages), [contributions.data]);
 
   const renderContent = () => {
     if (goal.isLoading || walletsLoading) {
-      return (
-        <View style={{ padding: theme.spacing.md }}>
-          <SkeletonList rows={4} />
-        </View>
-      );
+      return <GoalDetailSkeleton />;
     }
     if (goal.isError && !isNetworkError(goal.error)) {
       return (
@@ -83,7 +81,7 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
             {permissions.canWrite ? (
               <Pressable
                 testID="btn-add-contribution"
-                onPress={() => openModal('AddContribution', { goalId })}
+                onPress={() => openModal('AddContribution', { goalId: goalId as string })}
                 className="flex-row items-center self-start"
                 style={{
                   gap: theme.spacing.xs,
@@ -103,7 +101,7 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
           </Card>
         }
         ListEmptyComponent={<Text tone="faint">{t('goals.noContributionsYet', 'No contributions yet.')}</Text>}
-        renderItem={({ item }) => <ContributionRow contribution={item} />}
+        renderItem={({ item }) => <ContributionItem contribution={item} />}
         onEndReached={() => {
           if (canLoadMore(contributions)) void contributions.fetchNextPage();
         }}
@@ -122,13 +120,15 @@ export function GoalDetailScreen({ route, navigation: _navigation }: AppStackScr
   };
 
   return (
-    <View className="flex-1" style={{ backgroundColor: theme.colors.background }}>
-      {renderContent()}
-    </View>
+    <BottomSheetModal visible={goalId !== null} onClose={onClose} title={t('goals.detailTitle', 'Goal Details')}>
+      <View style={{ flex: 1, minHeight: 400 }}>
+        {renderContent()}
+      </View>
+    </BottomSheetModal>
   );
 }
 
-function ContributionRow({ contribution }: { contribution: ContributionResponse }) {
+function ContributionItem({ contribution }: { contribution: ContributionResponse }) {
   const theme = useTheme();
 
   return (
@@ -146,6 +146,65 @@ function ContributionRow({ contribution }: { contribution: ContributionResponse 
         </Text>
       </View>
       <Money amount={contribution.amount} currency={contribution.currency} weight="semibold" />
+    </View>
+  );
+}
+
+function GoalDetailSkeleton() {
+  const theme = useTheme();
+
+  return (
+    <View style={{ padding: theme.spacing.md, gap: theme.spacing.sm }}>
+      <Card style={{ marginBottom: theme.spacing.md }}>
+        <Skeleton width={150} height={24} />
+        <View style={{ marginTop: theme.spacing.xs }}>
+          <Skeleton width="80%" height={16} />
+        </View>
+
+        <View className="flex-row" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
+          <Skeleton width={120} height={32} />
+          <Skeleton width={20} height={32} />
+          <Skeleton width={80} height={32} />
+        </View>
+
+        <View style={{ marginTop: theme.spacing.sm }}>
+          <Skeleton width="100%" height={10} radius={5} />
+        </View>
+
+        <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
+          <Skeleton width={80} height={16} />
+          <Skeleton width={100} height={16} />
+        </View>
+
+        <View
+          className="flex-row items-center self-start"
+          style={{
+            gap: theme.spacing.xs,
+            marginTop: theme.spacing.md,
+          }}
+        >
+          <Skeleton width={16} height={16} radius={8} />
+          <Skeleton width={100} height={16} />
+        </View>
+
+        <View style={{ marginTop: theme.spacing.lg }}>
+          <Skeleton width={120} height={16} />
+        </View>
+      </Card>
+
+      {Array.from({ length: 4 }).map((_, i) => (
+        <View
+          key={i}
+          className="flex-row justify-between"
+          style={{ paddingVertical: theme.spacing.xs }}
+        >
+          <View style={{ gap: theme.spacing.xs }}>
+            <Skeleton width={100} height={16} />
+            <Skeleton width={140} height={14} />
+          </View>
+          <Skeleton width={60} height={16} />
+        </View>
+      ))}
     </View>
   );
 }

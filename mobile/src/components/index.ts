@@ -24,7 +24,7 @@ export * from './MonthSelector';
 export * from './PeriodBar';
 export * from './PeriodSummaryCard';
 export * from './TransactionListSection';
-export * from './TransactionRow';
+export * from './TransactionItem';
 export * from './TransactionTotals';
 export * from './TrendBarChart';
 export * from './WaterfallChart';
@@ -45,3 +45,4 @@ export * from './ConnectionSyncStatus';
 export * from './SyncStatusDot';
 export * from './ThemeToggle';
 export * from './refresh/index.ts';
+

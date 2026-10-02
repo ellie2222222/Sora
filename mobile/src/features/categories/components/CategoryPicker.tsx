@@ -2,7 +2,7 @@ import { Check, ChevronDown } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import type { CategoryType } from '@sora/contracts';
+import { CategoryStatus, type CategoryType } from '@sora/contracts';
 
 import { BottomSheetModal, Text } from '@/components';
 import { useTheme } from '@/app/providers';
@@ -26,7 +26,7 @@ export function CategoryPicker({ walletId, type, value, onChange, onClear, error
   const theme = useTheme();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const categories = useListCategoriesQuery({ walletId, type, status: 'ACTIVE' });
+  const categories = useListCategoriesQuery({ walletId, type, status: CategoryStatus.ACTIVE });
 
   useDefaultToFirst(categories.data, value, (first) => onChange(first.id), onClear === undefined);
   const typeLabel = t(CATEGORY_TYPE_LABEL_KEY[type]).toLowerCase();
@@ -51,7 +51,8 @@ export function CategoryPicker({ walletId, type, value, onChange, onClear, error
           paddingHorizontal: theme.spacing.md,
         }}
       >
-        <View className="flex-row justify-between items-center">
+        <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
+          <ChevronDown size={18} color={theme.colors.textMuted} />
           <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
             {selected?.color !== undefined && selected.color !== null ? (
               <View className="w-[10px] h-[10px]" style={{ borderRadius: theme.radius.pill, backgroundColor: selected.color }} />
@@ -60,7 +61,6 @@ export function CategoryPicker({ walletId, type, value, onChange, onClear, error
               {selected === undefined ? placeholder : selected.name}
             </Text>
           </View>
-          <ChevronDown size={18} color={theme.colors.textMuted} />
         </View>
       </Pressable>
       {error !== undefined ? (
@@ -82,27 +82,31 @@ export function CategoryPicker({ walletId, type, value, onChange, onClear, error
           contentContainerStyle={{ paddingBottom: theme.spacing.md }}
         >
           {onClear !== undefined ? (
-            <CategoryRow
+            <CategoryItem
               testID="option-category-none"
               label={noCategoryLabel}
               color={null}
               selected={value === null}
               onPress={() => {
-                onClear();
                 setOpen(false);
+                requestAnimationFrame(() => {
+                  onClear();
+                });
               }}
             />
           ) : null}
           {(categories.data ?? []).map((category) => (
-            <CategoryRow
+            <CategoryItem
               key={category.id}
               testID={`option-category-${category.id}`}
               label={category.name}
               color={category.color}
               selected={category.id === value}
               onPress={() => {
-                onChange(category.id);
                 setOpen(false);
+                requestAnimationFrame(() => {
+                  onChange(category.id);
+                });
               }}
             />
           ))}
@@ -117,7 +121,7 @@ export function CategoryPicker({ walletId, type, value, onChange, onClear, error
   );
 }
 
-function CategoryRow({
+function CategoryItem({
   label,
   color,
   selected,

@@ -3,6 +3,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 
+import { LogIn } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { loginSchema, type LoginRequest } from '@sora/contracts';
 
@@ -126,6 +127,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
           <Button
             testID="btn-submit-login"
             label={t('auth.loginButton')}
+            icon={LogIn}
             onPress={onSubmit}
             loading={isSubmitting}
             fullWidth

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Receipt } from 'lucide-react-native';
-import { View } from 'react-native';
+import { Platform, Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { TransactionStatus, type TransactionResponse } from '@sora/contracts';
+import { TransactionStatus, TransactionType, type TransactionResponse } from '@sora/contracts';
 
 import {
   AnimatedScreen,
@@ -18,21 +18,25 @@ import {
   StateView,
   Text,
   TransactionDayHeader,
-  TransactionListRow,
+  TransactionListItem,
+  TransactionItemSkeleton,
 } from '@/components';
-import { useAuth, useTheme, useWallets } from '@/app/providers';
+import { useAuth, useModal, useTheme, useWallets } from '@/app/providers';
 import { useListTransactionsInfiniteQuery } from '@/app/store';
-import { WalletContextBar } from '@/features/wallets';
+import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { TransactionDetailModal } from './TransactionDetailModal';
+import { TransactionListSkeleton } from './TransactionListSkeleton';
 import {
   canLoadMore,
   flattenPages,
   groupTransactionsByDay,
   isNetworkError,
+  parseDay,
   shiftAnchor,
   today,
   totalOf,
   windowFor,
+  formatMonthYear,
   type CalendarDay,
   type DashboardPeriod,
 } from '@/utils';
@@ -42,6 +46,7 @@ interface DaySection {
   isFirst: boolean;
   showTotals: boolean;
   data: TransactionResponse[];
+  isNewMonth: boolean;
 }
 
 /**
@@ -65,13 +70,15 @@ export function TransactionListScreen({
   const theme = useTheme();
   const { t } = useTranslation();
   const { isGuest } = useAuth();
-  const { activeWalletId } = useWallets();
+  const { activeWalletId, isLoading: walletsLoading } = useWallets();
+  const { openModal } = useModal();
 
   const [period, setPeriod] = useState<DashboardPeriod>('monthly');
   const [selectedDay, setSelectedDay] = useState<CalendarDay>(today());
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionResponse | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [filterType, setFilterType] = useState<'ALL' | TransactionType>('ALL');
 
   const walletId = activeWalletId ?? undefined;
   // One source for the window, so the day strip and the query cannot disagree.
@@ -114,7 +121,12 @@ export function TransactionListScreen({
     }
   };
 
-  const items = scopeKey === displayedScopeKey ? displayedItems : [];
+  const items = useMemo(() => {
+    if (scopeKey !== displayedScopeKey) return [];
+    if (filterType === 'ALL') return displayedItems;
+    return displayedItems.filter((item) => item.type === filterType);
+  }, [scopeKey, displayedScopeKey, displayedItems, filterType]);
+
   const showFab = !transactions.isLoading && items.length > 0;
 
   // A total summed from part of a window is wrong, not merely partial, so it is
@@ -127,13 +139,20 @@ export function TransactionListScreen({
   // The last loaded day may continue on the next page, so its heading total waits too.
   const sections = useMemo<DaySection[]>(() => {
     const groups = groupTransactionsByDay(items);
-    return groups.map((group, index) => ({
-      day: group.day,
-      isFirst: index === 0,
-      showTotals: !(hasMorePages && index === groups.length - 1),
-      data: group.transactions,
-    }));
-  }, [items, hasMorePages]);
+    return groups.map((group, index) => {
+      const currentMonth = parseDay(group.day).month;
+      const prevMonth = index > 0 ? parseDay(groups[index - 1]?.day ?? '').month : null;
+      const isNewMonth = (period === 'yearly' || period === 'quarterly') && currentMonth !== prevMonth;
+
+      return {
+        day: group.day,
+        isFirst: index === 0,
+        showTotals: !(hasMorePages && index === groups.length - 1),
+        data: group.transactions,
+        isNewMonth,
+      };
+    });
+  }, [items, hasMorePages, period]);
 
   const handlePressTransaction = useCallback((transaction: TransactionResponse) => setSelectedTransaction(transaction), []);
   const handleEndReached = () => {
@@ -141,9 +160,8 @@ export function TransactionListScreen({
   };
 
   const renderContent = () => {
-    if (transactions.isLoading && items.length === 0) {
-      return <SkeletonList rows={8} />;
-    }
+
+
     if (transactions.isError && items.length === 0 && !isNetworkError(transactions.error)) {
       return (
         <StateView
@@ -181,14 +199,29 @@ export function TransactionListScreen({
         keyExtractor={(item) => item.id}
         stickySectionHeadersEnabled={false}
         renderSectionHeader={({ section }) => (
-          <TransactionDayHeader
-            day={section.day}
-            transactions={section.data}
-            isFirst={section.isFirst}
-            showTotals={section.showTotals}
-          />
+          <View>
+            {section.isNewMonth ? (
+              <Text
+                variant="title"
+                weight="bold"
+                style={{
+                  marginTop: section.isFirst ? 0 : theme.spacing.lg,
+                  marginBottom: theme.spacing.sm,
+                  marginLeft: theme.spacing.xxs,
+                }}
+              >
+                {formatMonthYear(section.day)}
+              </Text>
+            ) : null}
+            <TransactionDayHeader
+              day={section.day}
+              transactions={section.data}
+              isFirst={section.isFirst || section.isNewMonth}
+              showTotals={section.showTotals}
+            />
+          </View>
         )}
-        renderItem={({ item }) => <TransactionListRow transaction={item} onPress={handlePressTransaction} />}
+        renderItem={({ item }) => <TransactionListItem transaction={item} onPress={handlePressTransaction} />}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
@@ -224,15 +257,29 @@ export function TransactionListScreen({
             onOpenPicker={() => setShowDatePicker(true)}
             testIDPrefix={testIDPrefix}
           />
-          {hasMorePages ? (
-            <View className="flex-row justify-end" style={{ marginTop: theme.spacing.xs }}>
+        </View>
+        {(activeWalletId === null && walletsLoading) || (transactions.isLoading && items.length === 0) ? (
+          <TransactionListSkeleton />
+        ) : activeWalletId === null ? (
+          <View style={{ flex: 1, paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.xl }}>
+            <NoWalletState
+              title={t('home.noWalletTitle')}
+              message={t('home.noWalletDescription')}
+              testID={`${testIDPrefix}-no-wallet`}
+            />
+          </View>
+        ) : (
+          <>
+            <View style={{ paddingHorizontal: theme.spacing.md }}>
+              {hasMorePages ? (
+                <View className="flex-row justify-end" style={{ marginTop: theme.spacing.xs }}>
               <Text variant="caption" tone="muted" testID={`${testIDPrefix}-period-truncated`}>
                 {t('transactions.showingNewest', { count: fetchedCount, total: windowTotal })}
               </Text>
             </View>
           ) : (
             <View style={{ marginTop: theme.spacing.sm }}>
-              <PeriodSummaryCard transactions={items} testID={`${testIDPrefix}-period-summary`} />
+              <PeriodSummaryCard transactions={items} filterType={filterType} testID={`${testIDPrefix}-period-summary`} />
             </View>
           )}
         </View>
@@ -244,6 +291,61 @@ export function TransactionListScreen({
             <DateStrip selectedDay={selectedDay} onSelectDay={setSelectedDay} testID={`${testIDPrefix}-date-strip`} />
           </View>
         ) : null}
+
+        <View
+          style={{
+            paddingHorizontal: theme.spacing.md,
+            paddingBottom: theme.spacing.sm,
+            paddingTop: period === 'daily' ? 0 : theme.spacing.xs,
+          }}
+        >
+          <View
+            className="flex-row p-[3px] border"
+            style={{
+              backgroundColor: theme.colors.surfaceMuted,
+              borderRadius: theme.radius.md,
+              borderColor: theme.colors.border,
+            }}
+          >
+            {(['ALL', TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.TRANSFER] as const).map((type) => (
+              <Pressable
+                key={type}
+                onPress={() => setFilterType(type)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: filterType === type }}
+                className="flex-1 py-sm items-center justify-center"
+                style={[
+                  {
+                    borderRadius: theme.radius.sm,
+                    backgroundColor: filterType === type ? theme.colors.surface : 'transparent',
+                  },
+                  filterType === type
+                    ? Platform.select({
+                        web: { boxShadow: '0px 1px 2px rgba(0,0,0,0.08)' },
+                        default: {
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.08,
+                          shadowRadius: 2,
+                          elevation: 1,
+                        },
+                      })
+                    : undefined,
+                ]}
+              >
+                <Text
+                  weight={filterType === type ? 'bold' : 'medium'}
+                  tone={filterType === type ? undefined : 'muted'}
+                  style={{ fontSize: 13 }}
+                >
+                  {type === 'ALL'
+                    ? t('common.all', 'All')
+                    : t(`transactions.type.${type.toLowerCase()}`, { defaultValue: type.charAt(0).toUpperCase() + type.slice(1).toLowerCase() })}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
 
         <SlideSwap swapKey={dateFrom} style={{ flex: 1 }}>
           {renderContent()}
@@ -257,6 +359,8 @@ export function TransactionListScreen({
           />
         ) : null}
 
+          </>
+        )}
         <DatePickerModal
           visible={showDatePicker}
           selectedDay={selectedDay}
@@ -268,8 +372,11 @@ export function TransactionListScreen({
           visible={Boolean(selectedTransaction)}
           transaction={selectedTransaction}
           onClose={() => setSelectedTransaction(null)}
+          onEdit={(t) => openModal('EditTransaction', { transactionId: t.id })}
         />
       </WalletContextBar>
     </AnimatedScreen>
   );
 }
+
+

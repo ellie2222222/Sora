@@ -1,39 +1,31 @@
 import { View } from 'react-native';
 import { TransactionType, type TransactionResponse } from '@sora/contracts';
 
-import { sumByTransactionType } from '@/utils';
+import { netSumByCurrency } from '@/utils';
 import { Money } from './Money.tsx';
 
 export interface TransactionTotalsProps {
   transactions: readonly TransactionResponse[];
   testID?: string;
+  variant?: 'caption' | 'label' | 'body' | 'title' | 'heading';
 }
 
 /** Per-currency income + expense totals for a set of transactions, colour/sign-coded via `Money`. */
-export function TransactionTotals({ transactions, testID }: TransactionTotalsProps) {
-  const income = sumByTransactionType(transactions, 'INCOME');
-  const expense = sumByTransactionType(transactions, 'EXPENSE');
-  if (income.length === 0 && expense.length === 0) return null;
+export function TransactionTotals({ transactions, testID, variant = 'label' }: TransactionTotalsProps) {
+  const nets = netSumByCurrency(transactions);
+  if (nets.length === 0) return null;
 
   return (
     <View testID={testID} className="flex-row gap-[6px]">
-      {income.map((total) => (
+      {nets.map((total) => (
         <Money
-          key={`in-${total.currency}`}
+          key={total.currency}
           amount={total.amount}
           currency={total.currency}
-          type={TransactionType.INCOME}
-          variant="caption"
+          type={total.type}
+          variant={variant}
+          weight="semibold"
           formatOptions={{ compact: true }}
-        />
-      ))}
-      {expense.map((total) => (
-        <Money
-          key={`out-${total.currency}`}
-          amount={total.amount}
-          currency={total.currency}
-          type={TransactionType.EXPENSE}
-          variant="caption"
         />
       ))}
     </View>

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AccountResponse, AccountType } from '@sora/contracts';
+import { AccountStatus } from '@sora/contracts';
 
 import { BottomSheetModal, Money, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
@@ -41,7 +42,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
   const { t } = useTranslation();
   const { wallets } = useWallets();
   const [open, setOpen] = useState(false);
-  const accounts = useListAccountsQuery({ walletId, status: 'ACTIVE' });
+  const accounts = useListAccountsQuery({ walletId, status: AccountStatus.ACTIVE });
 
   useDefaultToFirst(accounts.data, value, (first) => onChange(first.id, first.walletId));
 
@@ -75,6 +76,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
             >
               <AccountTypeIcon size={16} color={error !== undefined ? theme.colors.danger : theme.colors.warning} strokeWidth={2} />
             </View>
+            <ChevronDown size={14} color={theme.colors.textMuted} />
             <Text
               tone={selected === undefined ? 'faint' : 'default'}
               numberOfLines={1}
@@ -82,7 +84,6 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
             >
               {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Select an account' }) : selected.name}
             </Text>
-            <ChevronDown size={14} color={theme.colors.textMuted} />
           </Pressable>
           {error !== undefined ? (
             <Text variant="caption" tone="danger">
@@ -110,11 +111,11 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
               justifyContent: 'center',
             }}
           >
-            <View className="flex-row justify-between items-center">
+            <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
+              <ChevronDown size={18} color={theme.colors.textMuted} />
               <Text tone={selected === undefined ? 'faint' : 'default'}>
                 {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Select an account' }) : selected.name}
               </Text>
-              <ChevronDown size={18} color={theme.colors.textMuted} />
             </View>
           </Pressable>
           {error !== undefined ? (
@@ -134,10 +135,10 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           className="max-h-[360px]"
-          contentContainerStyle={{ gap: 4, paddingBottom: theme.spacing.md }}
+          contentContainerStyle={{ gap: theme.spacing.xs, paddingBottom: theme.spacing.md }}
         >
           {(accounts.data ?? []).map((account) => (
-            <AccountRow
+            <AccountItem
               key={account.id}
               account={account}
               walletName={walletId === undefined ? walletNameOf(account.walletId) : undefined}
@@ -159,7 +160,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
   );
 }
 
-function AccountRow({
+function AccountItem({
   account,
   walletName,
   selected,

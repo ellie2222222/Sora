@@ -1,7 +1,7 @@
 import { Check, X } from 'lucide-react-native';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import type { AiActionResponse } from '@sora/contracts';
+import { AiActionStatus, TransactionType, type AiActionResponse } from '@sora/contracts';
 
 import { Button, Money, Text } from '@/components';
 import { useTheme } from '@/app/providers';
@@ -30,7 +30,7 @@ export function ActionProposalCard({
   const theme = useTheme();
   const { t } = useTranslation();
   const { transaction } = action;
-  const isIncome = transaction.type === 'INCOME';
+  const isIncome = transaction.type === TransactionType.INCOME;
 
   return (
     <View
@@ -53,7 +53,7 @@ export function ActionProposalCard({
         {action.accountName} · {action.categoryName} · {formatDay(dayOfInstant(transaction.transactionDate))}
       </Text>
 
-      {action.status === 'PENDING' ? (
+      {action.status === AiActionStatus.PENDING ? (
         blockedReason === null ? (
           <View className="flex-row" style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
             <Button
@@ -81,8 +81,8 @@ export function ActionProposalCard({
           </Text>
         )
       ) : (
-        <Text variant="caption" weight="semibold" tone={action.status === 'CONFIRMED' ? 'success' : 'faint'}>
-          {action.status === 'CONFIRMED' ? t('ai.proposal.recorded') : t('ai.proposal.dismissed')}
+        <Text variant="caption" weight="semibold" tone={action.status === AiActionStatus.CONFIRMED ? 'success' : 'faint'}>
+          {action.status === AiActionStatus.CONFIRMED ? t('ai.proposal.recorded') : t('ai.proposal.dismissed')}
         </Text>
       )}
     </View>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { LogOut, Trash2, LogIn } from 'lucide-react-native';
 import { Button, ConfirmDialog } from '@/components';
 import { useAuth } from '@/app/providers';
 import { guestStore } from '@/services/guest';
@@ -31,6 +32,7 @@ export function SettingsBottomActions() {
             <Button
               testID="btn-logout"
               label={t('settings.logout')}
+              icon={LogOut}
               variant="secondary"
               onPress={() => setConfirmingLogout(true)}
               fullWidth
@@ -38,6 +40,7 @@ export function SettingsBottomActions() {
             <Button
               testID="settings-clear-all"
               label={t('settings.clearAllData')}
+              icon={Trash2}
               variant="danger-soft"
               onPress={() => setConfirmingClearAll(true)}
               fullWidth
@@ -48,6 +51,7 @@ export function SettingsBottomActions() {
             <Button
               testID="settings-guest-sign-up-or-in"
               label={t('guest.settings.signUpOrIn')}
+              icon={LogIn}
               variant="primary"
               onPress={() => void exitGuestModeToAuth()}
               fullWidth
@@ -55,6 +59,7 @@ export function SettingsBottomActions() {
             <Button
               testID="settings-guest-clear"
               label={t('guest.settings.clearData')}
+              icon={Trash2}
               variant="danger-soft"
               onPress={() => setConfirmingGuestClear(true)}
               fullWidth

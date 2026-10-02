@@ -3,6 +3,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 
+import { UserPlus } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { registerSchema } from '@sora/contracts';
 import type { z } from 'zod';
@@ -118,6 +119,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
           <Button
             testID="btn-submit-register"
             label={t('auth.registerButton')}
+            icon={UserPlus}
             onPress={onSubmit}
             loading={isSubmitting}
             fullWidth

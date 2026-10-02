@@ -12,7 +12,7 @@ import {
   KeypadSheetFooter,
   SheetFormHeader,
   SheetScrollArea,
-  SkeletonList,
+  Skeleton,
   StateView,
   Text,
   useCalculatorExpression,
@@ -87,7 +87,24 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
   if (goal.isLoading) {
     return (
       <BottomSheetModal visible={visible} onClose={onClose} title={t('goals.addContribution')}>
-        <SkeletonList rows={4} />
+                <View style={{ gap: theme.spacing.md, paddingHorizontal: theme.spacing.md }}>
+          <View style={{ gap: theme.spacing.xs }}>
+            <Skeleton width={80} height={14} radius={theme.radius.sm} />
+            <Skeleton width="100%" height={48} radius={theme.radius.md} />
+          </View>
+          
+          <View style={{ gap: theme.spacing.xs }}>
+            <Skeleton width={60} height={14} radius={theme.radius.sm} />
+            <Skeleton width="100%" height={48} radius={theme.radius.md} />
+          </View>
+
+          <View style={{ gap: theme.spacing.xs }}>
+            <Skeleton width={100} height={14} radius={theme.radius.sm} />
+            <Skeleton width="100%" height={48} radius={theme.radius.md} />
+          </View>
+          
+          <Skeleton width="100%" height={240} radius={theme.radius.md} />
+        </View>
       </BottomSheetModal>
     );
   }

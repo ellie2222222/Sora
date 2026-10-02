@@ -1,4 +1,6 @@
-import { Text as RNText, type TextProps as RNTextProps } from 'react-native';
+import { Text as RNText, type DimensionValue, type TextProps as RNTextProps } from 'react-native';
+
+import { Skeleton } from './Skeleton.tsx';
 
 import { useTheme } from '@/app/providers';
 import type { FontSize, FontWeight } from '../design-system/index.ts';
@@ -14,6 +16,10 @@ export interface TextComponentProps extends RNTextProps {
   weight?: WeightKey;
   /** Tabular figures for anything money-shaped, so digits align in a list. */
   numeric?: boolean;
+  /** If true, renders a skeleton block matching the text's line height. */
+  isLoading?: boolean;
+  /** Width of the skeleton block if isLoading is true. Defaults to 100%. */
+  skeletonWidth?: DimensionValue;
 }
 
 const VARIANT_SIZE: Record<TextVariant, SizeKey> = {
@@ -37,10 +43,23 @@ export function Text({
   tone = 'default',
   weight,
   numeric = false,
+  isLoading = false,
+  skeletonWidth = '100%',
   style,
   ...props
 }: TextComponentProps) {
   const theme = useTheme();
+
+  if (isLoading) {
+    const heightMap: Record<TextVariant, number> = {
+      body: 16,
+      label: 14,
+      caption: 12,
+      title: 20,
+      heading: 24,
+    };
+    return <Skeleton width={skeletonWidth} height={heightMap[variant]} radius={theme.radius.sm} />;
+  }
 
   const color = {
     default: theme.colors.text,

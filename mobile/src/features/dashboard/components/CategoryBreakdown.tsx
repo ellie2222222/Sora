@@ -85,7 +85,6 @@ export function CategoryBreakdown({
                     className="w-[8px] h-[8px] rounded-pill"
                     style={{ backgroundColor: group.color ?? theme.colors.primary }}
                   />
-                  <Text>{group.name}</Text>
                   {group.hasChildren ? (
                     expanded === group.id ? (
                       <ChevronDown size={14} color={theme.colors.textMuted} />
@@ -93,6 +92,7 @@ export function CategoryBreakdown({
                       <ChevronRight size={14} color={theme.colors.textMuted} />
                     )
                   ) : null}
+                  <Text>{group.name}</Text>
                 </View>
                 <Text tone="muted">{group.percentage.toFixed(0)}%</Text>
               </Pressable>

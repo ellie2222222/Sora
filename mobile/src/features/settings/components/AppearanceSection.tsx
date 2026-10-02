@@ -86,7 +86,7 @@ export function AppearanceSection({
       <SettingsDivider />
 
       <View className="gap-xs">
-        <Text variant="label" weight="semibold" tone="muted" style={{ fontSize: 12, marginBottom: 2 }}>
+        <Text variant="label" weight="semibold" tone="muted" style={{ fontSize: 12, marginBottom: theme.spacing.xxs }}>
           {t('settings.colorPalette', 'Color Palette')}
         </Text>
         <View className="gap-xxs">

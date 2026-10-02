@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Animated, {
   Easing,
@@ -121,11 +121,16 @@ export function ThemeToggle({
               backgroundColor: theme.colors.primary,
               alignItems: 'center',
               justifyContent: 'center',
-              shadowColor: theme.colors.shadow,
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.2,
-              shadowRadius: 3,
-              elevation: 3,
+              ...Platform.select({
+                web: { boxShadow: `0px 2px 3px ${theme.colors.shadow}` }, // roughly matches opacity 0.2
+                default: {
+                  shadowColor: theme.colors.shadow,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 3,
+                  elevation: 3,
+                },
+              }),
             },
             thumbAnimatedStyle,
           ]}

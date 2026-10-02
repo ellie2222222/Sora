@@ -2,10 +2,10 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useTranslation } from 'react-i18next';
 
 import { AccountDetailScreen, AddAccountScreen } from '@/features/accounts';
-import { BudgetDetailScreen } from '@/features/budgets';
+import { AddBudgetModal } from '@/features/budgets';
 import { CategoryListScreen } from '@/features/categories';
 import { TransactionsScreen } from '@/features/transactions';
-import { GoalDetailScreen } from '@/features/goals';
+
 import { ModalProvider } from '../providers/ModalProvider.tsx';
 import { MainTabNavigator } from './MainTabNavigator.tsx';
 import type { AppStackParamList } from './types.ts';
@@ -38,9 +38,9 @@ export function AppNavigator() {
 
       <Stack.Screen name="Transactions" component={TransactionsScreen} options={{ title: t('transactions.title') }} />
 
-      <Stack.Screen name="BudgetDetail" component={BudgetDetailScreen} options={{ title: t('budgets.detailTitle') }} />
 
-      <Stack.Screen name="GoalDetail" component={GoalDetailScreen} options={{ title: t('goals.detailTitle') }} />
+
+
     </Stack.Navigator>
     </ModalProvider>
   );

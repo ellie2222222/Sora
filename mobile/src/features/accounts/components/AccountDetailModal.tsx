@@ -1,6 +1,5 @@
 import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { AccountStatus } from '@sora/contracts';
 
 import { Card, Money, Skeleton, StateView, Text } from '@/components';
 import { useTheme } from '@/app/providers';
@@ -19,7 +18,7 @@ function AccountDetailSkeleton() {
         </View>
       </Card>
 
-      <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
+      <View className="flex-row" style={{ gap: theme.spacing.md }}>
         <Card style={{ flex: 1 }}>
           <Skeleton width="50%" height={16} />
           <View style={{ marginTop: theme.spacing.xs }}>
@@ -34,7 +33,7 @@ function AccountDetailSkeleton() {
         </Card>
       </View>
 
-      <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
+      <View className="flex-row" style={{ gap: theme.spacing.md }}>
         <Card style={{ flex: 1 }}>
           <Skeleton width="50%" height={16} />
           <View style={{ marginTop: theme.spacing.xs }}>
@@ -61,45 +60,15 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
 
   const account = useGetAccountQuery(accountId);
 
-  if (account.isLoading) {
-    return (
-      <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
-        <AccountDetailSkeleton />
-      </ScrollView>
-    );
-  }
-  
-  if (account.isError) {
-    if (isNetworkError(account.error)) {
-      return (
-        <StateView 
-          variant="error" 
-          title={t('errors.offlineTitle', { defaultValue: 'Offline' })} 
-          message={t('errors.connectionOfflineDetail', { defaultValue: 'Check your connection.' })} 
-        />
-      );
-    }
-    return (
-      <StateView 
-        variant="error" 
-        title={t('common.error', { defaultValue: 'Error' })} 
-        message={t('errors.internalError', { defaultValue: 'Could not load account details.' })} 
-      />
-    );
-  }
-
-  const data = account.data;
-  if (data === undefined) return null;
-
   const renderContent = () => {
-    if (data.status === AccountStatus.ARCHIVED) {
-      return (
-        <StateView
-          variant="empty"
-          title={t('common.archived', { defaultValue: 'Account Archived' })}
-          message={t('errors.accountArchived', { defaultValue: 'This account has been archived and its history is frozen.' })}
-        />
-      );
+    if (account.isLoading) return <AccountDetailSkeleton />;
+    if (account.isError && !isNetworkError(account.error)) {
+      return <StateView variant="error" error={account.error} retryAction={() => void account.refetch()} />;
+    }
+
+    const data = account.data;
+    if (data === undefined) {
+      return <StateView variant="error" error={new Error(t('accounts.accountNotFound', 'Account not found'))} />;
     }
 
     return (
@@ -109,22 +78,22 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
           <Money amount={data.balance} currency={data.currency} variant="heading" style={{ marginTop: theme.spacing.xs }} />
         </Card>
 
-        <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
+        <View className="flex-row" style={{ gap: theme.spacing.md }}>
           <Card style={{ flex: 1 }}>
             <Text variant="label" tone="muted">
-              {t('dashboard.income')}
+              {t('home.income')}
             </Text>
             <Money amount={data.totalIncome} currency={data.currency} type="INCOME" variant="title" />
           </Card>
           <Card style={{ flex: 1 }}>
             <Text variant="label" tone="muted">
-              {t('dashboard.expenses')}
+              {t('home.expenses')}
             </Text>
             <Money amount={data.totalExpense} currency={data.currency} type="EXPENSE" variant="title" />
           </Card>
         </View>
 
-        <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
+        <View className="flex-row" style={{ gap: theme.spacing.md }}>
           <Card style={{ flex: 1 }}>
             <Text variant="label" tone="muted">
               {t('accounts.transferredIn')}
@@ -143,7 +112,7 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
           tone="muted"
           onPress={() => navigation.navigate('Transactions', { accountId })}
         >
-          {t('accounts.viewTransactions', { count: data.transactionCount, defaultValue: `View ${data.transactionCount} transactions ->` })}
+          {t('accounts.viewTransactions', { count: data.transactionCount })}
         </Text>
       </>
     );
@@ -155,4 +124,3 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
     </ScrollView>
   );
 }
-

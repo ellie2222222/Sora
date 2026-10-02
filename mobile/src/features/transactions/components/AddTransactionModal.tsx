@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Banknote } from 'lucide-react-native';
+import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Banknote } from 'lucide-react-native';
 import { TransactionType } from '@sora/contracts';
 
 import {
@@ -63,10 +63,10 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
   const fields = fieldsForType(draft.type);
   const primaryAccount = primaryAccountOf(draft);
 
-  const TYPES: { type: TransactionType; label: string }[] = [
-    { type: TransactionType.EXPENSE, label: t('transactions.filterExpense', { defaultValue: 'Expense' }) },
-    { type: TransactionType.INCOME, label: t('transactions.filterIncome', { defaultValue: 'Income' }) },
-    { type: TransactionType.TRANSFER, label: t('transactions.filterTransfer', { defaultValue: 'Transfer' }) },
+  const TYPES = [
+    { type: TransactionType.EXPENSE, label: t('transactions.filterExpense', { defaultValue: 'Expense' }), icon: ArrowUpFromLine },
+    { type: TransactionType.INCOME, label: t('transactions.filterIncome', { defaultValue: 'Income' }), icon: ArrowDownToLine },
+    { type: TransactionType.TRANSFER, label: t('transactions.filterTransfer', { defaultValue: 'Transfer' }), icon: ArrowRightLeft },
   ];
 
   useEffect(() => {
@@ -144,11 +144,12 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
       <SheetFormHeader title={t('home.addTransaction')} onCancel={onClose} entity="transaction" />
 
       <View className="flex-row" style={{ flexShrink: 0, gap: theme.spacing.sm, marginBottom: theme.spacing.md }}>
-        {TYPES.map(({ type, label }) => (
+        {TYPES.map(({ type, label, icon }) => (
           <Button
             key={type}
             testID={`btn-transaction-type-${type}`}
             label={label}
+            icon={icon}
             variant={draft.type === type ? 'primary' : 'secondary'}
             onPress={() => setDraft((current) => switchType(current, type))}
             style={{ flex: 1 }}

@@ -107,10 +107,10 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
                   backgroundColor: yearTogglePressed ? theme.colors.border : 'transparent',
                 }}
               >
+                <CalendarIcon size={14} color={theme.colors.primary} />
                 <Text weight="semibold" style={{ fontSize: theme.fontSize.md }}>
                   {monthName(month)} {year}
                 </Text>
-                <CalendarIcon size={14} color={theme.colors.primary} />
               </Pressable>
               <Pressable testID="btn-next-month" onPress={handleNextMonth} hitSlop={8} className="p-xs">
                 <ChevronRight size={20} color={theme.colors.text} />
@@ -118,7 +118,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
             </>
           ) : (
             <View className="flex-1 flex-row justify-between items-center px-sm">
-              <Text weight="semibold" style={{ fontSize: theme.fontSize.md, paddingLeft: 8 }}>
+              <Text weight="semibold" style={{ fontSize: theme.fontSize.md, paddingLeft: theme.spacing.sm }}>
                 {t('common.selectYear', { defaultValue: 'Select Year' })}
               </Text>
               <Pressable
@@ -193,7 +193,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
             </View>
           </>
         ) : (
-          <ScrollView className="max-h-[220px]" contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', paddingVertical: 8 }}>
+          <ScrollView className="max-h-[220px]" contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, justifyContent: 'center', paddingVertical: theme.spacing.sm }}>
             {years.map((y) => {
               const isSelectedYear = y === year;
               return (

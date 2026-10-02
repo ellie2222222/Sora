@@ -48,10 +48,10 @@ export function IconChip({
       >
         <Icon size={16} color={error ? theme.colors.danger : theme.colors.warning} strokeWidth={2} />
       </View>
+      {onPress !== undefined && onClear === undefined ? <ChevronDown size={14} color={theme.colors.textMuted} /> : null}
       <Text tone={placeholder ? 'faint' : 'muted'} numberOfLines={1} style={{ flexShrink: 1 }}>
         {label}
       </Text>
-      {onPress !== undefined && onClear === undefined ? <ChevronDown size={14} color={theme.colors.textMuted} /> : null}
     </>
   );
 

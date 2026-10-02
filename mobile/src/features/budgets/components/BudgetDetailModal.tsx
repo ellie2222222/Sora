@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { Archive, Save } from 'lucide-react-native';
 
 import { BudgetStatus } from '@sora/contracts';
-import { Button, Card, ConfirmDialog, Input, KeyboardDockProvider, Money, MoneyInput, ProgressBar, SkeletonList, StateView, Text } from '@/components';
+import { BottomSheetModal, Button, Card, ConfirmDialog, Input, KeyboardDockProvider, Money, MoneyInput, ProgressBar, Skeleton, StateView, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import {
   useArchiveBudgetMutation,
@@ -11,15 +12,45 @@ import {
   useUpdateBudgetMutation,
 } from '@/app/store';
 import { isNetworkError, messageOf } from '@/utils';
-import type { AppStackScreenProps } from '@/app/navigation';
+export interface BudgetDetailModalProps {
+  budgetId: string | null;
+  onClose: () => void;
+}
 
-export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'BudgetDetail'>) {
+function BudgetDetailSkeleton() {
+  const theme = useTheme();
+  return (
+    <Card>
+      <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width="40%" height={24} radius={theme.radius.sm}  /></View>
+      <View style={{ marginBottom: theme.spacing.sm }}><Skeleton width="60%" height={16} radius={theme.radius.sm}  /></View>
+
+      <Skeleton width="100%" height={12} radius={6} />
+
+      <View className="flex-row justify-between" style={{ marginTop: theme.spacing.md }}>
+        <View>
+          <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={50} height={14} radius={theme.radius.sm}  /></View>
+          <Skeleton width={80} height={24} radius={theme.radius.sm} />
+        </View>
+        <View className="items-end">
+          <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={70} height={14} radius={theme.radius.sm}  /></View>
+          <Skeleton width={80} height={24} radius={theme.radius.sm} />
+        </View>
+      </View>
+
+      <View className="flex-row" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.sm }}>
+        <Skeleton width={60} height={14} radius={theme.radius.sm} />
+        <Skeleton width={80} height={14} radius={theme.radius.sm} />
+      </View>
+    </Card>
+  );
+}
+
+export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { budgetId } = route.params;
   const { permissions, isLoading: walletsLoading } = useWallets();
 
-  const budget = useGetBudgetQuery(budgetId);
+  const budget = useGetBudgetQuery(budgetId as string, { skip: !budgetId });
   const [updateBudget, { isLoading: isSaving }] = useUpdateBudgetMutation();
   const [archiveBudget] = useArchiveBudgetMutation();
 
@@ -34,7 +65,7 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
     const amountValue = amount ?? current.amount;
     try {
       await updateBudget({
-        budgetId,
+        budgetId: budgetId as string,
         body: {
           ...(nameValue !== current.name ? { name: nameValue } : {}),
           ...(amountValue !== current.amount ? { amount: amountValue } : {}),
@@ -48,16 +79,16 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
   async function handleConfirmArchive() {
     setActionError(null);
     try {
-      await archiveBudget(budgetId).unwrap();
+      await archiveBudget(budgetId as string).unwrap();
       setArchiving(false);
-      navigation.goBack();
+      onClose();
     } catch (error) {
       setActionError(messageOf(error, t));
     }
   }
 
   const renderContent = () => {
-    if (budget.isLoading || walletsLoading) return <SkeletonList rows={3} />;
+    if (budget.isLoading || walletsLoading) return <BudgetDetailSkeleton />;
     if (budget.isError && !isNetworkError(budget.error)) {
       return <StateView variant="error" error={budget.error} retryAction={() => void budget.refetch()} />;
     }
@@ -77,7 +108,7 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
         <Card>
           <Text variant="title">{data.name}</Text>
           <Text tone="muted" style={{ marginBottom: theme.spacing.sm }}>
-            {data.category.name} · {data.startDate} to {data.endDate}
+            {data.category?.name ?? t('budgets.overall', { defaultValue: 'Overall' })} Â· {data.startDate} to {data.endDate}
           </Text>
 
           <ProgressBar percentage={data.usagePercentage} danger={data.isOverBudget} height={12} />
@@ -129,6 +160,7 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
             <Button
               testID="btn-submit-budget"
               label={t('common.save', 'Save')}
+              icon={Save}
               onPress={() => void handleSave(data)}
               loading={isSaving}
               disabled={!isDirty}
@@ -137,6 +169,7 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
             <Button
               testID="btn-archive-budget"
               label={t('budgets.archiveBudget', 'Archive budget')}
+              icon={Archive}
               variant="danger"
               onPress={() => setArchiving(true)}
               fullWidth
@@ -148,20 +181,27 @@ export function BudgetDetailScreen({ route, navigation }: AppStackScreenProps<'B
   };
 
   return (
-    <KeyboardDockProvider>
-      <View style={{ flex: 1, padding: theme.spacing.md, gap: theme.spacing.md }}>
-        {renderContent()}
+    <BottomSheetModal
+      visible={budgetId !== null}
+      onClose={onClose}
+      title={t('budgets.detailTitle', 'Budget detail')}
+      testID="budget-detail-modal"
+    >
+      <KeyboardDockProvider>
+        <View style={{ gap: theme.spacing.md }}>
+          {renderContent()}
 
-        <ConfirmDialog
-          visible={archiving}
-          title={t('budgets.archiveConfirmTitle', 'Archive this budget?')}
-          message={t('budgets.archiveConfirmMessage', 'It stops tracking new spending. Past figures stay visible.')}
-          confirmLabel={t('common.archive', 'Archive')}
-          destructive
-          onConfirm={() => void handleConfirmArchive()}
-          onCancel={() => setArchiving(false)}
-        />
-      </View>
-    </KeyboardDockProvider>
+          <ConfirmDialog
+            visible={archiving}
+            title={t('budgets.archiveConfirmTitle', 'Archive this budget?')}
+            message={t('budgets.archiveConfirmMessage', 'It stops tracking new spending. Past figures stay visible.')}
+            confirmLabel={t('common.archive', 'Archive')}
+            destructive
+            onConfirm={() => void handleConfirmArchive()}
+            onCancel={() => setArchiving(false)}
+          />
+        </View>
+      </KeyboardDockProvider>
+    </BottomSheetModal>
   );
 }

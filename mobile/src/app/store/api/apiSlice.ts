@@ -3,7 +3,7 @@
  * rather than `fetchBaseQuery`, so the bearer-attach and single-flight
  * refresh-on-401 interceptors there stay the one implementation of both.
  */
-import { createApi, type BaseQueryFn } from '@reduxjs/toolkit/query/react';
+import { createApi, retry, type BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import type { AxiosRequestConfig } from 'axios';
 
 import {
@@ -15,7 +15,7 @@ import {
   postVoid,
   type ListResult,
 } from '@/services/api';
-import { isApiError, serializeApiError, toApiError, type ApiErrorLike } from '@/utils';
+import { isApiError, isNetworkError, serializeApiError, toApiError, type ApiErrorLike } from '@/utils';
 
 interface GetArgs {
   method: 'get';
@@ -54,7 +54,12 @@ interface DeleteArgs {
   params?: unknown;
 }
 
-export type AxiosBaseQueryArgs = GetArgs | GetListArgs | PostArgs | PostVoidArgs | PatchArgs | DeleteArgs;
+interface CustomArgs {
+  method: 'custom';
+  run: (api: any) => Promise<unknown>; // api is BaseQueryApi, typed as any here to avoid importing
+}
+
+export type AxiosBaseQueryArgs = GetArgs | GetListArgs | PostArgs | PostVoidArgs | PatchArgs | DeleteArgs | CustomArgs;
 
 /** `ApiError` is an `Error` subclass; Redux's serializability check rejects that prototype chain. */
 function toSerializedError(error: unknown): ApiErrorLike {
@@ -62,7 +67,7 @@ function toSerializedError(error: unknown): ApiErrorLike {
   return serializeApiError(toApiError(undefined, undefined, error instanceof Error ? error.message : undefined));
 }
 
-const axiosBaseQuery: BaseQueryFn<AxiosBaseQueryArgs, unknown, ApiErrorLike> = async (args) => {
+const rawAxiosBaseQuery: BaseQueryFn<AxiosBaseQueryArgs, unknown, ApiErrorLike> = async (args, api) => {
   try {
     switch (args.method) {
       case 'get':
@@ -79,11 +84,19 @@ const axiosBaseQuery: BaseQueryFn<AxiosBaseQueryArgs, unknown, ApiErrorLike> = a
       case 'delete':
         await deleteVoid(args.path, args.params);
         return { data: undefined };
+      case 'custom':
+        return { data: await args.run(api) };
     }
   } catch (error) {
-    return { error: toSerializedError(error) };
+    const serialized = toSerializedError(error);
+    if (!isNetworkError(error)) {
+      retry.fail(serialized);
+    }
+    return { error: serialized };
   }
 };
+
+const axiosBaseQuery = retry(rawAxiosBaseQuery, { maxRetries: 0 });
 
 export async function toQueryFnResult<T>(
   run: () => Promise<T>,
@@ -115,5 +128,7 @@ export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: axiosBaseQuery,
   tagTypes: API_TAG_TYPES,
+  refetchOnReconnect: true,
+  refetchOnFocus: true,
   endpoints: () => ({}),
 });

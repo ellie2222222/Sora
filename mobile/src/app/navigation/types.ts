@@ -29,8 +29,8 @@ export type AppStackParamList = {
   AddAccount: { walletId?: string } | undefined;
   CategoryList: { walletId?: string } | undefined;
   Transactions: { accountId?: string; categoryId?: string } | undefined;
-  BudgetDetail: { budgetId: string };
-  GoalDetail: { goalId: string };
+
+
 };
 
 export type AuthStackScreenProps<Screen extends keyof AuthStackParamList> = NativeStackScreenProps<

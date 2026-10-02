@@ -43,7 +43,7 @@ export function AboutSection({
       <SettingsDivider />
 
       <View className="flex-row items-start gap-md py-xs">
-        <Shield size={18} color={theme.colors.primary} style={{ marginTop: 2 }} />
+        <Shield size={18} color={theme.colors.primary} style={{ marginTop: theme.spacing.xxs }} />
         <View className="flex-1 gap-xxs">
           <Text weight="semibold" style={{ fontSize: 13 }}>
             {t('settings.privacyTitle', 'Private & Secure')}

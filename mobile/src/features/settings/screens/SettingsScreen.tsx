@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft } from 'lucide-react-native';
 
 import { AnimatedScreen, Button, Card, Text } from '@/components';
-import { useTheme, useToast } from '@/app/providers';
+import { useTheme } from '@/app/providers';
 import type { MainTabScreenProps } from '@/app/navigation';
 import {
   AboutSection,
@@ -15,14 +16,27 @@ import {
   SettingsDivider,
   SyncSection,
 } from '../components';
+import { useCreateTransactionMutation, useListAccountsQuery, useListCategoriesQuery } from '@/app/store';
+import { TransactionType, TransactionStatus } from '@sora/contracts';
+import { nowInstant } from '@/utils';
+import { useWallets } from '@/app/providers';
 
 type SectionKey = 'appearance' | 'language' | 'sync' | 'about';
 
 export function SettingsScreen({ navigation: _navigation }: MainTabScreenProps<'Settings'>) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { showToast } = useToast();
   const insets = useSafeAreaInsets();
+  const { activeWallet, permissions } = useWallets();
+  const { data: accounts } = useListAccountsQuery(
+    { walletId: activeWallet?.id as string },
+    { skip: !activeWallet?.id }
+  );
+  const { data: categories } = useListCategoriesQuery(
+    { walletId: activeWallet?.id as string },
+    { skip: !activeWallet?.id }
+  );
+  const [createTransaction] = useCreateTransactionMutation();
 
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
     appearance: false,
@@ -107,40 +121,74 @@ export function SettingsScreen({ navigation: _navigation }: MainTabScreenProps<'
           </Card>
         </View>
 
-        {__DEV__ ? (
-          <Card elevated testID="settings-toast-test" style={{ gap: theme.spacing.sm }}>
-            <Button
-              testID="settings-test-toast-success"
-              label="Test success toast"
-              variant="secondary"
-              onPress={() => showToast('This is a success toast', 'success')}
-              fullWidth
-            />
-            <Button
-              testID="settings-test-toast-error"
-              label="Test error toast"
-              variant="secondary"
-              onPress={() => showToast('This is an error toast', 'error')}
-              fullWidth
-            />
-            <Button
-              testID="settings-test-toast-warning"
-              label="Test warning toast"
-              variant="secondary"
-              onPress={() => showToast('This is a warning toast', 'warning')}
-              fullWidth
-            />
-            <Button
-              testID="settings-test-toast-info"
-              label="Test info toast"
-              variant="secondary"
-              onPress={() => showToast('This is an info toast', 'info')}
-              fullWidth
-            />
-          </Card>
-        ) : null}
 
         <SettingsBottomActions />
+
+        <View style={{ marginTop: theme.spacing.xl, paddingBottom: theme.spacing.md }}>
+          <Text variant="caption" tone="muted" style={{ marginBottom: theme.spacing.sm }}>
+            Dev Tools (Test Transactions)
+          </Text>
+          <View style={{ gap: theme.spacing.sm }}>
+            <Button
+              variant="secondary"
+              label="Add test INCOME"
+              icon={ArrowDownToLine}
+              disabled={!permissions.canWrite || !accounts?.[0] || !categories?.[0]}
+              onPress={() => {
+                if (!accounts?.[0] || !categories?.[0]) return;
+                createTransaction({
+                  type: TransactionType.INCOME,
+                  status: TransactionStatus.COMPLETED,
+                  amount: "100000",
+                  currency: "VND",
+                  description: "Test Income",
+                  transactionDate: nowInstant(),
+                  categoryId: categories[0]!.id,
+                  toAccountId: accounts[0]!.id,
+                });
+              }}
+            />
+            <Button
+              variant="secondary"
+              label="Add test EXPENSE"
+              icon={ArrowUpFromLine}
+              disabled={!permissions.canWrite || !accounts?.[0] || !categories?.[0]}
+              onPress={() => {
+                if (!accounts?.[0] || !categories?.[0]) return;
+                createTransaction({
+                  type: TransactionType.EXPENSE,
+                  status: TransactionStatus.COMPLETED,
+                  amount: "50000",
+                  currency: "VND",
+                  description: "Test Expense",
+                  transactionDate: nowInstant(),
+                  categoryId: categories[0]!.id,
+                  fromAccountId: accounts[0]!.id,
+                });
+              }}
+            />
+            <Button
+              variant="secondary"
+              label="Add test TRANSFER"
+              icon={ArrowRightLeft}
+              disabled={!permissions.canWrite || !accounts || accounts.length < 2}
+              onPress={() => {
+                if (!accounts || accounts.length < 2) return;
+                createTransaction({
+                  type: TransactionType.TRANSFER,
+                  status: TransactionStatus.COMPLETED,
+                  amount: "20000",
+                  currency: "VND",
+                  description: "Test Transfer",
+                  transactionDate: nowInstant(),
+                  categoryId: undefined,
+                  fromAccountId: accounts[0]!.id,
+                  toAccountId: accounts[1]!.id,
+                });
+              }}
+            />
+          </View>
+        </View>
       </ScrollView>
     </AnimatedScreen>
   );
