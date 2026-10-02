@@ -47,11 +47,12 @@ group) before merging to `main`. Where this file and CLAUDE.md disagree, CLAUDE.
 ## 6. Tested
 
 - [ ] Contracts: `npm test -w @sora/contracts` covers new schema/money/calc logic
-- [ ] Server: `npm test -w @sora/server` (boots the DI graph, no database), plus a unit test per new pure helper
+- [ ] Server: `npm test -w @sora/server` with `DATABASE_URL` on a disposable database, so `integration.*.test.ts` run rather than skip (a skip prints `[integration] SKIPPED`, not a failure), plus a unit test per new pure helper
 - [ ] Database: new constraints get a probe in `db/tests/`; `npm run db:test` passes
 - [ ] Live path: every new/changed endpoint exercised against a disposable Postgres with synthetic data (`scratch-probe` skill), including each documented error and the 404-vs-403 boundary
 - [ ] Mobile: `npm test -w @sora/mobile` covers new utils; `npx tsc --noEmit` is clean; `npx expo export --platform android` bundles
 - [ ] `npm run typecheck` is clean across every package
+- [ ] The feature's plan in `docs/test-plans/` lists every new or changed case, with the `file:line` of its test and an up-to-date status
 
 ## 7. Specs updated
 
