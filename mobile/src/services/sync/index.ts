@@ -1,4 +1,5 @@
 export * from './cacheLookup.ts';
+export * from './cachePatches.ts';
 export * from './entityAdapters.ts';
 export * from './localCache.ts';
 export * from './localCacheDb.ts';
@@ -14,4 +15,3 @@ export * from './optimisticRecords.ts';
 export * from './pendingTotals.ts';
 export * from './syncEngine.ts';
 export * from './syncEngineRuntime.ts';
-export * from './testSupport.ts';

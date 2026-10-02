@@ -13,16 +13,14 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from 'axios';
-import { HTTP_STATUS, type ApiEnvelope, type PaginationMeta } from '@sora/contracts';
+import type { ApiEnvelope, PaginationMeta } from '@sora/contracts';
 
 import { env } from '@/app/config';
 import { toApiError } from '@/utils';
 import { AUTH_PATHS_WITHOUT_RETRY, session } from '@/services/auth';
+import { handleFailedResponse, type RetryableRequest } from './refreshRetry.ts';
 
-interface RetryableConfig extends InternalAxiosRequestConfig {
-  /** Set once a request has already been replayed after a refresh. */
-  retriedAfterRefresh?: boolean;
-}
+interface RetryableConfig extends InternalAxiosRequestConfig, RetryableRequest {}
 
 export const http = axios.create({
   baseURL: env.apiBaseUrl,
@@ -38,36 +36,22 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
-function isRetryablePath(url: string | undefined): boolean {
-  if (url === undefined) return false;
-  return !AUTH_PATHS_WITHOUT_RETRY.some((path) => url.startsWith(path));
-}
-
 http.interceptors.response.use(
   (response) => response,
-  async (error: AxiosError) => {
-    const config = error.config as RetryableConfig | undefined;
-    const status = error.response?.status;
-
-    if (
-      status === HTTP_STATUS.UNAUTHORIZED &&
-      config !== undefined &&
-      config.retriedAfterRefresh !== true &&
-      isRetryablePath(config.url)
-    ) {
-      config.retriedAfterRefresh = true;
-      const refreshed = await session.refreshTokens();
-      if (refreshed !== null) {
-        config.headers.set('Authorization', `Bearer ${refreshed.accessToken}`);
-        return http.request(config);
-      }
-      // The refresh failed without the server rejecting the token, so the session was
-      // kept: report "no connection", not a 401 that callers would answer with sign-out.
-      if (session.current() !== null) throw toApiError(undefined, undefined, error.message);
-    }
-
-    throw toApiError(status, error.response?.data, error.message);
-  },
+  (error: AxiosError) =>
+    handleFailedResponse(
+      { config: error.config as RetryableConfig | undefined, response: error.response, message: error.message },
+      {
+        pathsWithoutRetry: AUTH_PATHS_WITHOUT_RETRY,
+        refreshTokens: () => session.refreshTokens(),
+        hasSession: () => session.current() !== null,
+        replay: (config, accessToken) => {
+          config.headers.set('Authorization', `Bearer ${accessToken}`);
+          return http.request(config);
+        },
+        toError: toApiError,
+      },
+    ),
 );
 
 export interface ListResult<T> {

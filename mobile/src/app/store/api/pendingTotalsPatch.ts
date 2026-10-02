@@ -1,24 +1,12 @@
-import type {
-  AccountDetailResponse,
-  AccountResponse,
-  BudgetResponse,
-  DashboardQuery,
-  DashboardResponse,
-  GoalResponse,
-  TransactionResponse,
-  WalletResponse,
-} from '@sora/contracts';
+import type { AccountResponse, DashboardResponse, TransactionResponse } from '@sora/contracts';
 
 import { session, userIdFromAccessToken } from '@/services/auth';
 import {
-  applyContributionToGoal,
-  applyNewAccountToDashboard,
-  applyNewAccountToWallet,
-  applyToAccount,
-  applyToBudget,
-  applyToDashboard,
-  applyToWallet,
+  contributionPatches,
   forEachCachedQueryArgs,
+  newAccountPatches,
+  transactionPatches,
+  type CachePatch,
   type LedgerChange,
 } from '@/services/sync';
 import { apiSlice } from './apiSlice.ts';
@@ -29,26 +17,12 @@ type Dispatch = (action: never) => unknown;
 type UntypedUpdateQueryData = (endpoint: string, args: unknown, recipe: (draft: unknown) => void) => never;
 const updateQueryData = apiSlice.util.updateQueryData as unknown as UntypedUpdateQueryData;
 
-function patchEach<T>(
-  dispatch: Dispatch,
-  rootState: unknown,
-  endpoint: string,
-  recipe: (draft: T) => void,
-  include: (args: unknown) => boolean = () => true,
-): void {
-  forEachCachedQueryArgs(rootState, endpoint, (args) => {
-    if (include(args)) dispatch(updateQueryData(endpoint, args, recipe as (draft: unknown) => void));
-  });
-}
-
-/**
- * The patches reason at wallet level (a sibling transfer is internal, a new account adds to the total),
- * which is wrong for a one-account view; those entries wait for the sync's refetch instead.
- */
-const isWalletWideDashboard = (args: unknown) => (args as DashboardQuery).accountId === undefined;
-
-function eachItem<T>(apply: (item: T) => void): (draft: T[]) => void {
-  return (draft) => draft.forEach(apply);
+function dispatchPatches(dispatch: Dispatch, rootState: unknown, patches: readonly CachePatch[]): void {
+  for (const { endpoint, recipe, include } of patches) {
+    forEachCachedQueryArgs(rootState, endpoint, (args) => {
+      if (!include || include(args)) dispatch(updateQueryData(endpoint, args, recipe));
+    });
+  }
 }
 
 /** The signed-in user, for the dashboard's per-member split of their own offline write. */
@@ -59,28 +33,15 @@ export function currentUserId(): string | undefined {
 
 /** Every cached figure a queued transaction moves (`pendingTotals.ts`), before it syncs. */
 export function patchTotalsForTransaction(dispatch: Dispatch, rootState: unknown, change: LedgerChange): void {
-  patchEach<AccountResponse[]>(dispatch, rootState, 'listAccounts', eachItem((account) => applyToAccount(account, change)));
-  patchEach<AccountDetailResponse>(dispatch, rootState, 'getAccount', (account) => applyToAccount(account, change));
-  patchEach<WalletResponse[]>(dispatch, rootState, 'listWallets', eachItem((wallet) => applyToWallet(wallet, change)));
-  patchEach<WalletResponse>(dispatch, rootState, 'getWallet', (wallet) => applyToWallet(wallet, change));
-  patchEach<BudgetResponse[]>(dispatch, rootState, 'listBudgets', eachItem((budget) => applyToBudget(budget, change)));
-  patchEach<BudgetResponse>(dispatch, rootState, 'getBudget', (budget) => applyToBudget(budget, change));
-  patchEach<DashboardResponse>(dispatch, rootState, 'getDashboardSummary', (dashboard) => applyToDashboard(dashboard, change), isWalletWideDashboard);
+  dispatchPatches(dispatch, rootState, transactionPatches(change));
 }
 
 export function patchTotalsForNewAccount(dispatch: Dispatch, rootState: unknown, account: AccountResponse): void {
-  patchEach<WalletResponse[]>(dispatch, rootState, 'listWallets', eachItem((wallet) => applyNewAccountToWallet(wallet, account)));
-  patchEach<WalletResponse>(dispatch, rootState, 'getWallet', (wallet) => applyNewAccountToWallet(wallet, account));
-  patchEach<DashboardResponse>(dispatch, rootState, 'getDashboardSummary', (dashboard) =>
-    applyNewAccountToDashboard(dashboard, account),
-  isWalletWideDashboard);
+  dispatchPatches(dispatch, rootState, newAccountPatches(account));
 }
 
 export function patchTotalsForContribution(dispatch: Dispatch, rootState: unknown, goalId: string, amount: string): void {
-  const apply = (goal: GoalResponse) => applyContributionToGoal(goal, goalId, amount);
-  patchEach<GoalResponse[]>(dispatch, rootState, 'listGoals', eachItem(apply));
-  patchEach<GoalResponse>(dispatch, rootState, 'getGoal', apply);
-  patchEach<DashboardResponse>(dispatch, rootState, 'getDashboardSummary', (dashboard) => dashboard.activeGoals.forEach(apply));
+  dispatchPatches(dispatch, rootState, contributionPatches(goalId, amount));
 }
 
 interface CachedEntry {

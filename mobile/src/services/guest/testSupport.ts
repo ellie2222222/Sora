@@ -8,6 +8,8 @@
  */
 
 import { AccountStatus, AccountType, CategoryStatus, CategoryType } from '@sora/contracts';
+
+import { isApiError } from '../../utils/errors.ts';
 import { guestStore } from './guestStorage.ts';
 import type { GuestPersistence } from './guestStore.ts';
 
@@ -37,6 +39,17 @@ export function memoryPersistence(initial: string | null = null): GuestPersisten
 }
 
 /** A clean, hydrated singleton backed by memory. Call at the top of each test. */
+/** The error code a guest call rejects with; fails the test if it resolves. */
+export async function codeOf(work: () => Promise<unknown>): Promise<string> {
+  try {
+    await work();
+  } catch (error) {
+    if (isApiError(error)) return error.code;
+    throw error;
+  }
+  throw new Error('expected a rejection, got none');
+}
+
 export async function withFreshStore(initial: string | null = null): Promise<void> {
   guestStore.setPersistence(memoryPersistence(initial));
   await guestStore.hydrate();

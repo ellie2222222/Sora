@@ -76,7 +76,6 @@ describe('runSyncPass ordering and idempotency', () => {
     const queue = new OfflineQueue(memoryQueueDb());
     await queue.setOwner('user-a');
     const first = await queue.enqueue(entry({ localId: 'a' }));
-    await new Promise((resolve) => setTimeout(resolve, 2));
     const second = await queue.enqueue(entry({ localId: 'b' }));
 
     const { adapters, calls } = recordingAdapters();
@@ -280,7 +279,6 @@ describe('runSyncPass cross-entity FK resolution', () => {
     await queue.enqueue(
       entry({ entity: 'account', localId: 'local-account', payload: { name: 'Cash' } }),
     );
-    await new Promise((resolve) => setTimeout(resolve, 2));
     await queue.enqueue(
       entry({
         entity: 'transaction',
@@ -355,7 +353,6 @@ describe('runSyncPass for contributions and permanent category deletes', () => {
     const queue = new OfflineQueue(memoryQueueDb());
     await queue.setOwner('user-a');
     await queue.enqueue(entry({ entity: 'goal', localId: 'local-goal', payload: { name: 'Trip' } }));
-    await new Promise((resolve) => setTimeout(resolve, 2));
     await queue.enqueue(
       entry({ entity: 'contribution', localId: 'local-contribution', payload: { goalId: 'local-goal', accountId: 'acc-1', amount: '5.0000' } }),
     );
@@ -472,7 +469,6 @@ describe('runSyncPass after an interruption or an account switch', () => {
     const queue = new OfflineQueue(memoryQueueDb());
     await queue.setOwner('user-a');
     await queue.enqueue(entry({ localId: 'first' }));
-    await new Promise((resolve) => setTimeout(resolve, 2));
     await queue.enqueue(entry({ localId: 'second' }));
 
     const { adapters, calls } = recordingAdapters({
@@ -497,7 +493,6 @@ describe('runSyncPass after an interruption or an account switch', () => {
       const queue = new OfflineQueue(memoryQueueDb());
       await queue.setOwner('user-a');
       await queue.enqueue(entry({ localId: 'poison' }));
-      await new Promise((resolve) => setTimeout(resolve, 2));
       await queue.enqueue(entry({ localId: 'healthy' }));
 
       let creates = 0;
