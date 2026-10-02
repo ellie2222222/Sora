@@ -23,6 +23,7 @@ import {
 } from '@sora/contracts';
 
 import { ClientIp, CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
+import { queryFlag } from '../common/query-flag.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';
 import { CategoriesService } from './categories.service.ts';
 
@@ -31,7 +32,7 @@ const categoryListQuerySchema = z.object({
   walletId: uuidSchema,
   type: z.enum(CATEGORY_TYPES).optional(),
   status: z.enum(CATEGORY_STATUSES).optional(),
-  tree: z.coerce.boolean().optional().default(false),
+  tree: queryFlag(false),
 });
 
 /** `mode` is DELETE-only and never validated client-side, so it stays local too. */

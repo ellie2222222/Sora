@@ -8,6 +8,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import type { Transaction } from 'kysely';
 
 import {
   BudgetStatus,
@@ -24,6 +25,7 @@ import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { translatingPgErrors } from '../common/pg-error.ts';
 import { DatabaseService } from '../database/database.service.ts';
+import type { DB } from '../database/types.ts';
 import { WalletAccessService, type WalletAccess } from '../wallets/wallet-access.service.ts';
 
 export type CategoryDeleteMode = 'archive' | 'permanent';
@@ -132,31 +134,46 @@ export class CategoriesService {
     ip: string | null,
   ): Promise<CategoryResponse> {
     const { category, access } = await this.requireCategoryAccess(user.id, categoryId, 'EDITOR');
+    // Archiving through PATCH holds the same guard and cascade as DELETE (§10.4).
+    const archiving = request.status === CategoryStatus.ARCHIVED && category.status !== CategoryStatus.ARCHIVED;
+    const subtree = archiving ? await this.archivableSubtree(category.id) : [];
+    // Restoring a child under an archived parent would leave it selectable inside a hidden subtree.
+    if (request.status === CategoryStatus.ACTIVE && category.parent_id) {
+      const parent = await this.categoryRow(category.parent_id);
+      if (parent.status === CategoryStatus.ARCHIVED) throw new AppError('CATEGORY_PARENT_ARCHIVED');
+    }
 
-    const updated = await translatingPgErrors(() =>
-      this.database.db
-        .updateTable('categories')
-        .set({
-          ...(request.name !== undefined ? { name: request.name } : {}),
-          ...(request.icon !== undefined ? { icon: request.icon } : {}),
-          ...(request.color !== undefined ? { color: request.color } : {}),
-          ...(request.status !== undefined ? { status: request.status } : {}),
-          updated_at: new Date(),
-        })
-        .where('id', '=', category.id)
-        .returningAll()
-        .executeTakeFirst(),
-    );
-    if (!updated) throw new AppError('CATEGORY_NOT_FOUND');
+    const updated = await this.database.db.transaction().execute(async (trx) => {
+      const row = await translatingPgErrors(() =>
+        trx
+          .updateTable('categories')
+          .set({
+            ...(request.name !== undefined ? { name: request.name } : {}),
+            ...(request.icon !== undefined ? { icon: request.icon } : {}),
+            ...(request.color !== undefined ? { color: request.color } : {}),
+            ...(request.status !== undefined ? { status: request.status } : {}),
+            updated_at: new Date(),
+          })
+          .where('id', '=', category.id)
+          .returningAll()
+          .executeTakeFirst(),
+      );
+      if (!row) throw new AppError('CATEGORY_NOT_FOUND');
+      if (archiving) await this.archiveSubtree(trx, user, category, subtree, access, ip);
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.CATEGORY_UPDATED,
-      entityType: ENTITY_TYPES.CATEGORY,
-      entityId: category.id,
-      actorId: user.id,
-      walletId: access.walletId,
-      actorRole: access.role,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.CATEGORY_UPDATED,
+          entityType: ENTITY_TYPES.CATEGORY,
+          entityId: category.id,
+          actorId: user.id,
+          walletId: access.walletId,
+          actorRole: access.role,
+          ip,
+        },
+        trx,
+      );
+      return row;
     });
 
     const counts = await this.transactionCounts([updated.id]);
@@ -191,32 +208,52 @@ export class CategoriesService {
     ip: string | null,
   ): Promise<void> {
     if (category.status === CategoryStatus.ARCHIVED) return;
+    const subtree = await this.archivableSubtree(category.id);
+    await this.database.db.transaction().execute((trx) => this.archiveSubtree(trx, user, category, subtree, access, ip));
+  }
 
+  /**
+   * The category and its descendants, refused while an active budget plans for any of them:
+   * that budget would lose its category and never compute a period again.
+   */
+  private async archivableSubtree(categoryId: string): Promise<string[]> {
+    const subtree = [categoryId, ...(await this.collectDescendantLevels(categoryId)).flat()];
     const activeBudget = await this.database.db
       .selectFrom('budgets')
       .select('id')
-      .where('category_id', '=', category.id)
+      .where('category_id', 'in', subtree)
       .where('status', '=', BudgetStatus.ACTIVE)
       .executeTakeFirst();
     if (activeBudget) throw new AppError('CATEGORY_IN_USE');
+    return subtree;
+  }
 
-    const descendantIds = (await this.collectDescendantLevels(category.id)).flat();
-
-    await this.database.db
+  private async archiveSubtree(
+    trx: Transaction<DB>,
+    user: AuthenticatedUser,
+    category: CategoryRow,
+    subtree: readonly string[],
+    access: WalletAccess,
+    ip: string | null,
+  ): Promise<void> {
+    await trx
       .updateTable('categories')
       .set({ status: CategoryStatus.ARCHIVED, updated_at: new Date() })
-      .where('id', 'in', [category.id, ...descendantIds])
+      .where('id', 'in', [...subtree])
       .execute();
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.CATEGORY_ARCHIVED,
-      entityType: ENTITY_TYPES.CATEGORY,
-      entityId: category.id,
-      actorId: user.id,
-      walletId: access.walletId,
-      actorRole: access.role,
-      ip,
-    });
+    await this.audit.record(
+      {
+        event: AUDIT_EVENTS.CATEGORY_ARCHIVED,
+        entityType: ENTITY_TYPES.CATEGORY,
+        entityId: category.id,
+        actorId: user.id,
+        walletId: access.walletId,
+        actorRole: access.role,
+        ip,
+      },
+      trx,
+    );
   }
 
   /**

@@ -148,10 +148,17 @@ export class AccountsService {
         )
         .executeTakeFirstOrThrow();
 
-      if (Number(txCount.count) > 0) {
+      // An earmark contribution carries the account's currency without a transaction behind it.
+      const earmark = await this.database.db
+        .selectFrom('goal_contributions')
+        .select('id')
+        .where('account_id', '=', accountId)
+        .executeTakeFirst();
+
+      if (Number(txCount.count) > 0 || earmark) {
         throw new AppError(
           'ACCOUNT_CURRENCY_MISMATCH',
-          'Cannot change currency for an account with existing transactions',
+          'Cannot change currency once a transaction or goal contribution names this account',
         );
       }
     }

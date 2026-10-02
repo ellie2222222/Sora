@@ -162,6 +162,7 @@ export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
   CATEGORY_CYCLE: 'errors.categoryCycle',
   CATEGORY_IN_USE: 'errors.categoryInUse',
   CATEGORY_HAS_TRANSACTIONS: 'errors.categoryHasTransactions',
+  CATEGORY_PARENT_ARCHIVED: 'errors.categoryParentArchived',
   TRANSACTION_NOT_FOUND: 'errors.transactionNotFound',
   TRANSACTION_IMMUTABLE: 'errors.transactionImmutable',
   TRANSACTION_ALREADY_DELETED: 'errors.transactionAlreadyDeleted',

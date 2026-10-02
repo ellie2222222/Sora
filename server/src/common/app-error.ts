@@ -18,6 +18,8 @@ export class AppError extends Error {
    * the guard never stashes it, because the request is rejected before it would.
    */
   readonly resolvedRole?: WalletRole;
+  /** The wallet whose trail records the denial (SRS WAL-US-13); set only by `forbidden`. */
+  readonly deniedWalletId?: string;
 
   constructor(
     code: ErrorCode,
@@ -25,6 +27,7 @@ export class AppError extends Error {
     fields?: Record<string, string[]>,
     resolvedRole?: WalletRole,
     params?: Record<string, unknown>,
+    deniedWalletId?: string,
   ) {
     super(message ?? defaultMessage(code));
     this.name = 'AppError';
@@ -32,15 +35,15 @@ export class AppError extends Error {
     if (fields) this.fields = fields;
     if (resolvedRole) this.resolvedRole = resolvedRole;
     if (params) this.params = params;
+    if (deniedWalletId) this.deniedWalletId = deniedWalletId;
   }
 
   /**
-   * A denial that knows the role the caller actually holds, so the WARN line
-   * can name it (LA-03). Preferred over the constructor, which would need two
-   * `undefined` placeholders to reach the role.
+   * A denial that knows the role the caller holds (for the LA-03 WARN line) and the wallet
+   * whose trail records it. Preferred over the constructor's positional placeholders.
    */
-  static forbidden(resolvedRole: WalletRole): AppError {
-    return new AppError('FORBIDDEN', undefined, undefined, resolvedRole);
+  static forbidden(resolvedRole: WalletRole, walletId: string): AppError {
+    return new AppError('FORBIDDEN', undefined, undefined, resolvedRole, undefined, walletId);
   }
 
   get status(): number {
@@ -77,6 +80,7 @@ const MESSAGES: Record<ErrorCode, string> = {
   CATEGORY_CYCLE: 'That parent would create a cycle in the category tree',
   CATEGORY_IN_USE: 'An active budget still references this category',
   CATEGORY_HAS_TRANSACTIONS: 'This category has transactions — rename or archive it instead of deleting it permanently',
+  CATEGORY_PARENT_ARCHIVED: 'Its parent category is archived — restore the parent first',
   TRANSACTION_NOT_FOUND: 'Transaction not found',
   TRANSACTION_IMMUTABLE: 'Amount, type and accounts cannot be changed — delete and re-record instead',
   TRANSACTION_ALREADY_DELETED: 'This transaction is already deleted',

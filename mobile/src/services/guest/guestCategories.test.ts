@@ -3,25 +3,14 @@ import { beforeEach, describe, it } from 'node:test';
 
 import { CategoryStatus, CategoryType } from '@sora/contracts';
 
-import { isApiError } from '../../utils/errors.ts';
 import { guestBudgetsApi } from './guestBudgets.ts';
 import { guestCategoriesApi } from './guestCategories.ts';
 import { guestStore } from './guestStorage.ts';
 import type { GuestCategory } from './guestStore.ts';
 import { guestTransactionsApi } from './guestTransactions.ts';
-import { ACCOUNT_ID, EXPENSE_CATEGORY_ID, WALLET_ID, seedFixture, withFreshStore } from './testSupport.ts';
+import { ACCOUNT_ID, codeOf, EXPENSE_CATEGORY_ID, seedFixture, WALLET_ID, withFreshStore } from './testSupport.ts';
 
 const NOW = '2026-09-01T00:00:00.000Z';
-
-async function codeOf(work: () => Promise<unknown>): Promise<string> {
-  try {
-    await work();
-  } catch (error) {
-    if (isApiError(error)) return error.code;
-    throw error;
-  }
-  throw new Error('expected a rejection, got none');
-}
 
 function category(id: string, name: string, parentId: string | null): GuestCategory {
   return {
@@ -144,6 +133,39 @@ describe('guestCategoriesApi.archive', () => {
 
     assert.equal(statusOf(CHILD_ID), CategoryStatus.ARCHIVED);
     assert.equal(statusOf(GRANDCHILD_ID), CategoryStatus.ARCHIVED);
+  });
+
+  it('applies the same refusal and cascade when archived through update', async () => {
+    await addCategories(category(CHILD_ID, 'Groceries', EXPENSE_CATEGORY_ID));
+    const created = await guestBudgetsApi.create(budget);
+    const archiveByUpdate = () => guestCategoriesApi.update(EXPENSE_CATEGORY_ID, { status: CategoryStatus.ARCHIVED });
+
+    assert.equal(await codeOf(archiveByUpdate), 'CATEGORY_IN_USE');
+    assert.equal(statusOf(CHILD_ID), CategoryStatus.ACTIVE);
+
+    await guestBudgetsApi.archive(created.id);
+    await archiveByUpdate();
+    assert.deepEqual([statusOf(EXPENSE_CATEGORY_ID), statusOf(CHILD_ID)], [CategoryStatus.ARCHIVED, CategoryStatus.ARCHIVED]);
+  });
+
+  it('refuses archiving a parent while an active budget plans for one of its children', async () => {
+    await addCategories(category(CHILD_ID, 'Groceries', EXPENSE_CATEGORY_ID));
+    await guestBudgetsApi.create({ ...budget, categoryId: CHILD_ID });
+
+    assert.equal(await codeOf(() => guestCategoriesApi.archive(EXPENSE_CATEGORY_ID)), 'CATEGORY_IN_USE');
+    assert.equal(await codeOf(() => guestCategoriesApi.update(EXPENSE_CATEGORY_ID, { status: CategoryStatus.ARCHIVED })), 'CATEGORY_IN_USE');
+    assert.deepEqual([statusOf(EXPENSE_CATEGORY_ID), statusOf(CHILD_ID)], [CategoryStatus.ACTIVE, CategoryStatus.ACTIVE]);
+  });
+
+  it('refuses restoring a child while its parent is archived', async () => {
+    await addCategories(category(CHILD_ID, 'Groceries', EXPENSE_CATEGORY_ID));
+    await guestCategoriesApi.archive(EXPENSE_CATEGORY_ID);
+    const restore = (id: string) => guestCategoriesApi.update(id, { status: CategoryStatus.ACTIVE });
+
+    assert.equal(await codeOf(() => restore(CHILD_ID)), 'CATEGORY_PARENT_ARCHIVED');
+    await restore(EXPENSE_CATEGORY_ID);
+    await restore(CHILD_ID);
+    assert.equal(statusOf(CHILD_ID), CategoryStatus.ACTIVE);
   });
 });
 

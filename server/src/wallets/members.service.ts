@@ -167,8 +167,10 @@ export class MembersService {
         // Re-checked under the lock: the OWNER check above ran before it, so a concurrent
         // transfer may already have demoted this caller, who must not hand ownership on again.
         if (currentOwner?.user_id !== user.id) {
-          const callerRole = members.find((member) => member.user_id === user.id)?.role ?? WalletRole.VIEWER;
-          throw AppError.forbidden(callerRole);
+          const caller = members.find((member) => member.user_id === user.id);
+          // Revoked meanwhile: a non-member now, so 404 rather than a 403 with a made-up role (AC-01).
+          if (!caller) throw new AppError('WALLET_NOT_FOUND');
+          throw AppError.forbidden(caller.role, access.walletId);
         }
 
         if (!incoming) throw new AppError('MEMBER_NOT_FOUND');

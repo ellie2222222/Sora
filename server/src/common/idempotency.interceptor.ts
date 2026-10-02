@@ -8,6 +8,9 @@
  * silently serving the first response for a second, different request would hide
  * a client bug behind a success.
  *
+ * The key is claimed when the first attempt starts, not when it finishes: a client that
+ * retries while that attempt is still in flight must wait for it, not run a second write.
+ *
  * In-memory and per process, with the same caveat as RateLimitService.
  */
 
@@ -18,7 +21,7 @@ import {
   type ExecutionContext,
   type NestInterceptor,
 } from '@nestjs/common';
-import { of, tap, type Observable } from 'rxjs';
+import { shareReplay, tap, type Observable } from 'rxjs';
 import type { Request } from 'express';
 
 import { AppError } from './app-error.ts';
@@ -28,7 +31,8 @@ const RETENTION_MS = 24 * 60 * 60 * 1000;
 
 interface Recorded {
   fingerprint: string;
-  response: unknown;
+  /** The first attempt, shared: in flight it is awaited, once done its response is replayed. */
+  result: Observable<unknown>;
   storedAt: number;
 }
 
@@ -55,12 +59,16 @@ export class IdempotencyInterceptor implements NestInterceptor {
           'This Idempotency-Key was already used with a different request body',
         );
       }
-      return of(recorded.response);
+      return recorded.result;
     }
 
-    return next
-      .handle()
-      .pipe(tap((response) => this.seen.set(identity, { fingerprint, response, storedAt: Date.now() })));
+    const result = next.handle().pipe(
+      // A failed attempt is forgotten, so the client's retry runs again rather than replaying the error.
+      tap({ error: () => this.seen.delete(identity) }),
+      shareReplay({ bufferSize: 1, refCount: false }),
+    );
+    this.seen.set(identity, { fingerprint, result, storedAt: Date.now() });
+    return result;
   }
 
   private evictExpired(): void {

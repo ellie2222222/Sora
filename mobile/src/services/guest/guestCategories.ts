@@ -22,7 +22,7 @@ import {
 import { fromZodError, guestError } from './guestErrors.ts';
 import { newLocalId } from './guestIds.ts';
 import { guestStore } from './guestStorage.ts';
-import { type GuestCategory, type GuestWallet } from './guestStore.ts';
+import { type GuestBudget, type GuestCategory, type GuestWallet } from './guestStore.ts';
 
 export type CategoryDeleteMode = 'archive' | 'permanent';
 
@@ -106,6 +106,13 @@ function assertUniqueName(
   if (collides) throw guestError('CATEGORY_DUPLICATE_NAME');
 }
 
+/** An active budget on any category in the subtree would lose it and never compute a period again. */
+function assertNotBudgeted(budgets: readonly GuestBudget[], subtree: readonly string[]): void {
+  if (budgets.some((budget) => budget.categoryId !== null && subtree.includes(budget.categoryId) && budget.status === BudgetStatus.ACTIVE)) {
+    throw guestError('CATEGORY_IN_USE');
+  }
+}
+
 /** Direct-children levels below `rootId`, shallowest first. */
 function collectDescendantLevels(categories: readonly GuestCategory[], rootId: string): string[][] {
   const levels: string[][] = [];
@@ -180,12 +187,20 @@ export const guestCategoriesApi = {
     if (!parsed.success) throw fromZodError(parsed.error);
     const patch = parsed.data;
 
-    const { categories, transactions } = guestStore.current();
+    const { categories, transactions, budgets } = guestStore.current();
     const existing = findCategory(categories, categoryId);
 
     if (patch.name !== undefined) {
       assertUniqueName(categories, wallet.id, existing.parentId, patch.name, existing.id);
     }
+    // Archiving through PATCH holds the same guard and cascade as archive() (§10.4).
+    const archiving = patch.status === CategoryStatus.ARCHIVED && existing.status !== CategoryStatus.ARCHIVED;
+    // Restoring a child under an archived parent would leave it selectable inside a hidden subtree.
+    if (patch.status === CategoryStatus.ACTIVE && existing.parentId) {
+      if (findCategory(categories, existing.parentId).status === CategoryStatus.ARCHIVED) throw guestError('CATEGORY_PARENT_ARCHIVED');
+    }
+    const archivedIds = archiving ? collectDescendantLevels(categories, categoryId).flat() : [];
+    if (archiving) assertNotBudgeted(budgets, [categoryId, ...archivedIds]);
 
     const updated: GuestCategory = {
       ...existing,
@@ -198,7 +213,13 @@ export const guestCategoriesApi = {
 
     await guestStore.mutate((current) => ({
       ...current,
-      categories: current.categories.map((candidate) => (candidate.id === categoryId ? updated : candidate)),
+      categories: current.categories.map((candidate) =>
+        candidate.id === categoryId
+          ? updated
+          : archivedIds.includes(candidate.id)
+            ? { ...candidate, status: CategoryStatus.ARCHIVED, updatedAt: updated.updatedAt }
+            : candidate,
+      ),
     }));
 
     return toCategoryResponse(updated, transactionCount(transactions, updated.id));
@@ -209,10 +230,8 @@ export const guestCategoriesApi = {
     const existing = findCategory(categories, categoryId);
     if (existing.status === CategoryStatus.ARCHIVED) return;
 
-    const activeBudget = budgets.some((budget) => budget.categoryId === categoryId && budget.status === BudgetStatus.ACTIVE);
-    if (activeBudget) throw guestError('CATEGORY_IN_USE');
-
     const descendantIds = collectDescendantLevels(categories, categoryId).flat();
+    assertNotBudgeted(budgets, [categoryId, ...descendantIds]);
     const now = new Date().toISOString();
 
     await guestStore.mutate((current) => ({

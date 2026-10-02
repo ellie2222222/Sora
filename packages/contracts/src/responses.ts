@@ -92,6 +92,7 @@ export const ERROR_CODES = [
   'CATEGORY_CYCLE',
   'CATEGORY_IN_USE',
   'CATEGORY_HAS_TRANSACTIONS',
+  'CATEGORY_PARENT_ARCHIVED',
   'TRANSACTION_NOT_FOUND',
   'TRANSACTION_IMMUTABLE',
   'TRANSACTION_ALREADY_DELETED',
@@ -176,6 +177,7 @@ export const ERROR_STATUS: Record<ErrorCode, HttpStatusCode> = {
   CATEGORY_CYCLE: HTTP_STATUS.UNPROCESSABLE_ENTITY,
   CATEGORY_IN_USE: HTTP_STATUS.CONFLICT,
   CATEGORY_HAS_TRANSACTIONS: HTTP_STATUS.CONFLICT,
+  CATEGORY_PARENT_ARCHIVED: HTTP_STATUS.CONFLICT,
   TRANSACTION_NOT_FOUND: HTTP_STATUS.NOT_FOUND,
   TRANSACTION_IMMUTABLE: HTTP_STATUS.CONFLICT,
   TRANSACTION_ALREADY_DELETED: HTTP_STATUS.CONFLICT,
@@ -350,6 +352,7 @@ export interface TransactionResponse {
   fromAccount: TransactionAccountRef | null;
   toAccount: TransactionAccountRef | null;
   category: Pick<CategoryResponse, 'id' | 'name' | 'type' | 'icon' | 'color'> | null;
+  goalId: string | null;
   createdBy: Pick<UserResponse, 'id' | 'displayName'>;
   /** True when the two accounts sit in different wallets. */
   isCrossWallet: boolean;
@@ -367,7 +370,9 @@ export interface BudgetResponse {
   startDate: string;
   endDate: string;
   status: BudgetStatus;
-  category: Pick<CategoryResponse, 'id' | 'name' | 'icon' | 'color'>;
+  categoryId: string | null;
+  goalId: string | null;
+  category: Pick<CategoryResponse, 'id' | 'name' | 'icon' | 'color'> | null;
   spent: MoneyString;
   /** Negative once overspent — the number a user needs when they are over. */
   remaining: MoneyString;

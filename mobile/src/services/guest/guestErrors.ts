@@ -32,6 +32,7 @@ const GUEST_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   CATEGORY_IN_USE: 'An active budget still references this category',
   CATEGORY_HAS_TRANSACTIONS:
     'This category has transactions — rename or archive it instead of deleting it permanently',
+  CATEGORY_PARENT_ARCHIVED: 'Its parent category is archived — restore the parent first',
   TRANSACTION_NOT_FOUND: 'Transaction not found',
   TRANSACTION_IMMUTABLE: 'Amount, type and accounts cannot be changed — delete and re-record instead',
   TRANSACTION_ALREADY_DELETED: 'This transaction is already deleted',

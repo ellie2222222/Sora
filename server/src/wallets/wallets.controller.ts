@@ -44,6 +44,7 @@ import {
 } from '../common/decorators.ts';
 import { type Enveloped, paginated } from '../common/envelope.ts';
 import { paginationMeta } from '../common/pagination.ts';
+import { queryFlag } from '../common/query-flag.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';
 import { InvitationsService } from './invitations.service.ts';
 import { MembersService } from './members.service.ts';
@@ -59,8 +60,8 @@ import { WalletsService } from './wallets.service.ts';
  */
 const walletListQuerySchema = z.object({
   status: z.enum(WALLET_STATUSES).default(WalletStatus.ACTIVE),
-  includeOwn: z.coerce.boolean().default(true),
-  includeShared: z.coerce.boolean().default(true),
+  includeOwn: queryFlag(true),
+  includeShared: queryFlag(true),
 });
 
 const memberListQuerySchema = z.object({

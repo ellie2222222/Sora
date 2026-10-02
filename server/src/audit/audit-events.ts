@@ -15,6 +15,9 @@ export const AUDIT_EVENTS = {
   /** A revoked refresh token was presented, i.e. replayed — every session ended. */
   TOKEN_REPLAY_DETECTED: 'TOKEN_REPLAY_DETECTED',
 
+  /** A member's request refused with 403; a 404 is not recorded, since no membership resolved. */
+  ACCESS_DENIED: 'ACCESS_DENIED',
+
   WALLET_CREATED: 'WALLET_CREATED',
   WALLET_UPDATED: 'WALLET_UPDATED',
   WALLET_ARCHIVED: 'WALLET_ARCHIVED',

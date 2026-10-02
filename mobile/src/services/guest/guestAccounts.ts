@@ -159,16 +159,24 @@ export const guestAccountsApi = {
     if (!parsed.success) throw fromZodError(parsed.error);
     const patch = parsed.data;
 
-    const { accounts } = guestStore.current();
+    const { accounts, transactions, contributions } = guestStore.current();
     const existing = findAccount(accounts, accountId);
 
     if (patch.status === AccountStatus.ARCHIVED && existing.status === AccountStatus.ACTIVE) {
       assertNotLastActiveAccount(accounts, accountId);
     }
+    // Mirrors accounts.service.ts: currency moves only while nothing is recorded in it (§9.4).
+    if (patch.currency !== undefined && patch.currency !== existing.currency) {
+      const named =
+        transactions.some((transaction) => transaction.fromAccountId === accountId || transaction.toAccountId === accountId) ||
+        contributions.some((contribution) => contribution.accountId === accountId);
+      if (named) throw guestError('ACCOUNT_CURRENCY_MISMATCH');
+    }
 
     const updated: GuestAccount = {
       ...existing,
       name: patch.name ?? existing.name,
+      currency: patch.currency ?? existing.currency,
       status: patch.status ?? existing.status,
       updatedAt: new Date().toISOString(),
     };

@@ -10,6 +10,7 @@ import {
   Catch,
   HttpException,
   Logger,
+  Optional,
   type ArgumentsHost,
   type ExceptionFilter,
 } from '@nestjs/common';
@@ -20,6 +21,8 @@ import { ZodError } from 'zod';
 
 import { ERROR_STATUS, HTTP_STATUS, type ApiErrorBody, type ErrorCode } from '@sora/contracts';
 
+import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
+import { AuditService } from '../audit/audit.service.ts';
 import { AppError, defaultMessage } from './app-error.ts';
 import { pathOf, type RequestWithId } from './request-logging.ts';
 
@@ -42,10 +45,12 @@ const FRAMEWORK_CODES: Record<number, ErrorCode> = {
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger('Http');
 
+  constructor(@Optional() private readonly audit?: AuditService) {}
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
     const response = http.getResponse<Response>();
-    const request = http.getRequest<RequestWithId & { user?: { id: string } }>();
+    const request = http.getRequest<RequestWithId & { user?: { id: string }; ip?: string }>();
 
     const { code, message, status, fields, params, internal } = classify(exception);
 
@@ -78,7 +83,26 @@ export class AllExceptionsFilter implements ExceptionFilter {
       response.setHeader('Retry-After', String(Math.max(1, Math.ceil(retryAfter))));
     }
 
-    response.status(status).json(body);
+    const send = () => response.status(status).json(body);
+    const deniedWalletId = exception instanceof AppError ? exception.deniedWalletId : undefined;
+    if (!deniedWalletId || !this.audit) {
+      send();
+      return;
+    }
+    // Written before the response, so the denial is in the trail by the time the caller sees it.
+    void this.audit
+      .record({
+        event: AUDIT_EVENTS.ACCESS_DENIED,
+        entityType: ENTITY_TYPES.WALLET,
+        entityId: deniedWalletId,
+        walletId: deniedWalletId,
+        actorId: request.user?.id ?? null,
+        actorRole: exception instanceof AppError ? (exception.resolvedRole ?? null) : null,
+        result: 'DENIED',
+        note: `${request.method} ${pathOf(request)}`,
+        ip: request.ip ?? null,
+      })
+      .finally(send);
   }
 }
 
