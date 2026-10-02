@@ -57,15 +57,27 @@ export function toBalanceRelevant(transaction: GuestTransaction): BalanceRelevan
   };
 }
 
-export function toSpendRelevant(transaction: GuestTransaction): SpendRelevantTransaction {
+/** `walletId` is the guest's one wallet, which every guest account belongs to. */
+export function toSpendRelevant(transaction: GuestTransaction, walletId: string): SpendRelevantTransaction {
   return {
     type: transaction.type,
     status: transaction.status,
     amount: parseMoney(transaction.amount),
     currency: transaction.currency,
     categoryId: transaction.categoryId,
+    goalId: transaction.goalId,
+    walletId: transaction.fromAccountId === null ? null : walletId,
     transactionDate: transaction.transactionDate,
   };
+}
+
+/** API spec §11.2: only an expense carries a goal, and only one of the wallet's own goals. */
+function assertGoalTag(type: TransactionType, goalId: string, walletId: string): void {
+  if (type !== TransactionType.EXPENSE) {
+    throw guestError('VALIDATION_FAILED', { goalId: ['Only an expense can be tagged with a goal'] });
+  }
+  const goal = guestStore.current().goals.find((candidate) => candidate.id === goalId);
+  if (!goal || goal.walletId !== walletId) throw guestError('GOAL_NOT_FOUND');
 }
 
 function requireWallet(): GuestWallet {
@@ -135,6 +147,7 @@ export function toTransactionResponse(
       ? accountRef(findAccount(accounts, transaction.toAccountId), wallet)
       : null,
     category: transaction.categoryId ? categoryRef(findCategory(categories, transaction.categoryId)) : null,
+    goalId: transaction.goalId,
     createdBy: GUEST_USER,
     // Guest mode is single-wallet by scope decision — a transaction here can
     // never name two different wallets the way a real transfer can (BR-02).
@@ -243,14 +256,17 @@ export const guestTransactionsApi = {
 
     for (const account of touchedAccounts) {
       if (account.status === AccountStatus.ARCHIVED) throw guestError('ACCOUNT_ARCHIVED');
-      if (account.currency !== request.currency) throw guestError('ACCOUNT_CURRENCY_MISMATCH');
     }
 
     const fromAccount = request.type !== TransactionType.INCOME ? findAccount(accounts, request.fromAccountId) : undefined;
     const toAccount = request.type !== TransactionType.EXPENSE ? findAccount(accounts, request.toAccountId) : undefined;
 
+    // Before the per-account check: a cross-currency transfer always mismatches one side, and this names why.
     if (request.type === TransactionType.TRANSFER && fromAccount!.currency !== toAccount!.currency) {
       throw guestError('TRANSFER_CURRENCY_MISMATCH');
+    }
+    for (const account of touchedAccounts) {
+      if (account.currency !== request.currency) throw guestError('ACCOUNT_CURRENCY_MISMATCH');
     }
 
     const categoryId = request.categoryId ?? null;
@@ -259,6 +275,8 @@ export const guestTransactionsApi = {
       if (category.type !== request.type) throw guestError('CATEGORY_WRONG_TYPE');
       if (category.walletId !== wallet.id) throw guestError('CATEGORY_WRONG_WALLET');
     }
+    const goalId = request.goalId ?? null;
+    if (goalId !== null) assertGoalTag(request.type, goalId, wallet.id);
 
     const now = new Date().toISOString();
     const transaction: GuestTransaction = {
@@ -273,6 +291,7 @@ export const guestTransactionsApi = {
       fromAccountId: request.type === TransactionType.INCOME ? null : request.fromAccountId,
       toAccountId: request.type === TransactionType.EXPENSE ? null : request.toAccountId,
       categoryId,
+      goalId,
       createdAt: now,
       updatedAt: now,
     };
@@ -303,12 +322,14 @@ export const guestTransactionsApi = {
       if (category.type !== existing.type) throw guestError('CATEGORY_WRONG_TYPE');
       if (category.walletId !== wallet.id) throw guestError('CATEGORY_WRONG_WALLET');
     }
+    if (patch.goalId != null) assertGoalTag(existing.type, patch.goalId, wallet.id);
 
     const updated: GuestTransaction = {
       ...existing,
       description: patch.description !== undefined ? patch.description : existing.description,
       transactionDate: patch.transactionDate !== undefined ? patch.transactionDate : existing.transactionDate,
       categoryId: patch.categoryId !== undefined ? patch.categoryId : existing.categoryId,
+      goalId: patch.goalId !== undefined ? patch.goalId : existing.goalId,
       reference: patch.reference !== undefined ? patch.reference : existing.reference,
       updatedAt: new Date().toISOString(),
     };

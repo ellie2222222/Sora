@@ -38,6 +38,7 @@ function tx(overrides: Partial<TransactionResponse>): TransactionResponse {
     fromAccount: ref('acc-bank', 'w-me'),
     toAccount: null,
     category: food,
+    goalId: null,
     createdBy: { id: 'user-me', displayName: 'Me' },
     isCrossWallet: false,
     createdAt: '2026-09-10T08:00:00.000Z',
@@ -78,6 +79,8 @@ function budget(overrides: Partial<BudgetResponse> = {}): BudgetResponse {
     startDate: '2026-09-01',
     endDate: '2026-09-30',
     status: 'ACTIVE',
+    categoryId: 'cat-food',
+    goalId: null,
     category: { id: 'cat-food', name: 'Food', icon: null, color: null },
     spent: '950.0000',
     remaining: '50.0000',
@@ -224,6 +227,19 @@ describe('applyToBudget', () => {
   it('counts an expense stamped late on the last day of the window', () => {
     const b = budget();
     applyToBudget(b, ledgerChangeOf('create', tx({ transactionDate: '2026-09-30T23:30:00.000Z' })));
+    assert.equal(b.spent, '1050.0000');
+  });
+  it('BUD-US-02: counts any expense paid from the wallet toward a wallet-wide budget, and none from another wallet', () => {
+    const b = budget({ categoryId: null, category: null, goalId: null });
+    applyToBudget(b, ledgerChangeOf('create', tx({ category: { ...food!, id: 'cat-rent' } })));
+    applyToBudget(b, ledgerChangeOf('create', tx({ fromAccount: ref('acc-partner', 'w-partner') })));
+    assert.equal(b.spent, '1050.0000');
+  });
+
+  it('BUD-US-02: counts only expenses tagged with the goal toward a goal budget', () => {
+    const b = budget({ categoryId: null, category: null, goalId: 'goal-laptop', periodType: 'GOAL' });
+    applyToBudget(b, ledgerChangeOf('create', tx({ goalId: 'goal-laptop' })));
+    applyToBudget(b, ledgerChangeOf('create', tx({ goalId: null })));
     assert.equal(b.spent, '1050.0000');
   });
 });

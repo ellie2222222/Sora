@@ -331,6 +331,7 @@ finance/
 ├── scripts/                   # check-contract-parity.mjs, migrate.mjs, sync-agent-skills.mjs
 ├── .github/workflows/ci.yml   # contracts → database → server; contracts → mobile; server + mobile → e2e
 ├── docs/API_SPECIFICATION.md
+├── docs/test-plans/           # per-feature test plans: SRS §9 story → test case → test file:line
 ├── SRS.md  SDS.md
 ├── plans/
 │   ├── architecture/          # domain-database-design.md, multi-currency-plan.md, exchange-rate-resilience-plan.md
@@ -455,11 +456,12 @@ boundary, and read access to someone's wallet must not let you push money into i
 TRANSACTION_IMMUTABLE`). A recorded movement of money is a historical fact, and every balance,
 budget figure and goal total is derived from it — rewriting one silently rewrites all of them.
 Correcting a mistake is delete + create, which leaves both rows visible. Only `description`,
-`transactionDate`, `categoryId` and `reference` are mutable.
+`transactionDate`, `categoryId`, `goalId` (an expense's goal tag) and `reference` are mutable.
 
 **BR-04 — Budget windows do not overlap.**
 At most one `ACTIVE` budget per category per overlapping date range, enforced by the GIST
-exclusion constraint `excl_budget_overlap`. Two windows can overlap without sharing an
+exclusion constraint `excl_budget_category_overlap`; goal and wallet-wide budgets have their own
+(`excl_budget_goal_overlap`, `excl_budget_overall_overlap`, migration 008). Two windows can overlap without sharing an
 endpoint, which no unique index can express. Archived budgets are excluded, so last August does
 not block this August.
 
@@ -843,7 +845,7 @@ rewriting it.
    re-derives DDL from models and would quietly drop the constraints it does not model.
 
 5. **A budget overlap cannot be expressed as a unique index.** Two windows can overlap without
-   sharing either endpoint, so `excl_budget_overlap` is a GIST exclusion constraint over
+   sharing either endpoint, so each `excl_budget_*_overlap` is a GIST exclusion constraint over
    `daterange(start_date, end_date, '[]')`. Reaching for a `UNIQUE (category_id, start_date)`
    here looks right and enforces almost nothing.
 

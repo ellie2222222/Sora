@@ -318,52 +318,76 @@ SELECT expect_reject($$
 $$, 'goal_contributions: the same transaction linked twice');
 
 -- ---------------------------------------------------------------------------
--- Derived reads: printed for a human reading the run, not asserted. The API's own balance,
--- spent and dashboard SQL is asserted over HTTP in server/test/integration.{ledger,planning}.test.ts.
+-- budgets by kind (008, 010): each kind has its own overlap rule, and kinds never block each other
 -- ---------------------------------------------------------------------------
 
-\echo ''
-\echo '--- Derived: account balances (initial + income - expense + in - out) ---'
-SELECT a.name,
-       a.initial_balance
-         + COALESCE((SELECT SUM(t.amount) FROM transactions t
-                     WHERE t.to_account_id = a.id AND t.status = 'COMPLETED'), 0)
-         - COALESCE((SELECT SUM(t.amount) FROM transactions t
-                     WHERE t.from_account_id = a.id AND t.status = 'COMPLETED'), 0)
-       AS balance
-FROM accounts a
-ORDER BY a.name;
+SELECT expect_accept($$
+    INSERT INTO budgets (wallet_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Whole wallet, 1 Nov', 500000, 'VND', 'DAILY', '2026-11-01', '2026-11-01')
+$$, 'budgets: a wallet-wide DAILY budget, with no category and no goal');
 
-\echo ''
-\echo '--- Derived: budget spent / remaining ---'
-SELECT b.name, b.amount,
-       COALESCE(SUM(t.amount), 0) AS spent,
-       b.amount - COALESCE(SUM(t.amount), 0) AS remaining
-FROM budgets b
-LEFT JOIN transactions t
-       ON t.category_id = b.category_id
-      AND t.type = 'EXPENSE'
-      AND t.status = 'COMPLETED'
-      AND t.transaction_date::date BETWEEN b.start_date AND b.end_date
-WHERE b.status = 'ACTIVE'
-GROUP BY b.id, b.name, b.amount
-ORDER BY b.name;
+SELECT expect_reject($$
+    INSERT INTO budgets (wallet_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Whole wallet, November', 9000000, 'VND', 'MONTHLY', '2026-11-01', '2026-11-30')
+$$, 'budgets: a second active wallet-wide budget overlapping the first');
 
-\echo ''
-\echo '--- Derived: goal progress ---'
-SELECT g.name, g.target_amount,
-       COALESCE(SUM(gc.amount), 0) AS current_amount,
-       GREATEST(g.target_amount - COALESCE(SUM(gc.amount), 0), 0) AS remaining,
-       LEAST(ROUND(COALESCE(SUM(gc.amount), 0) * 100.0 / g.target_amount, 1), 100) AS progress_pct
-FROM goals g
-LEFT JOIN goal_contributions gc ON gc.goal_id = g.id
-GROUP BY g.id, g.name, g.target_amount;
+SELECT expect_accept($$
+    INSERT INTO budgets (wallet_id, category_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'c0000001-0000-0000-0000-000000000001',
+            'Food November', 3000000, 'VND', 'MONTHLY', '2026-11-01', '2026-11-30')
+$$, 'budgets: a category budget over the same days as a wallet-wide one');
 
-\echo ''
-\echo '--- Critical rule: a transfer is not spending ---'
-SELECT
-    (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE type = 'EXPENSE'  AND status = 'COMPLETED') AS total_expense,
-    (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE type = 'TRANSFER' AND status = 'COMPLETED') AS total_transfer;
+SELECT expect_accept($$
+    INSERT INTO budgets (wallet_id, goal_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '40000001-0000-0000-0000-000000000001',
+            'Laptop fund', 10000000, 'VND', 'GOAL', '2026-11-01', '2026-12-31')
+$$, 'budgets: a GOAL budget tied to a goal');
+
+SELECT expect_reject($$
+    INSERT INTO budgets (wallet_id, goal_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '40000001-0000-0000-0000-000000000001',
+            'Laptop fund, December', 2000000, 'VND', 'GOAL', '2026-12-01', '2026-12-31')
+$$, 'budgets: a second active budget on the same goal overlapping the first');
+
+SELECT expect_accept($$
+    INSERT INTO budgets (wallet_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Whole wallet, 2027', 90000000, 'VND', 'YEARLY', '2027-01-01', '2027-12-31')
+$$, 'budgets: a YEARLY period');
+
+SELECT expect_reject($$
+    INSERT INTO budgets (wallet_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Hourly', 1000, 'VND', 'HOURLY', '2028-01-01', '2028-01-01')
+$$, 'budgets: a period type outside chk_budget_period');
+
+-- 011: a budget is exactly one kind, and only an expense carries a goal tag.
+SELECT expect_reject($$
+    INSERT INTO budgets (wallet_id, category_id, goal_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'c0000001-0000-0000-0000-000000000001', '40000001-0000-0000-0000-000000000001',
+            'Both', 1000, 'VND', 'GOAL', '2029-01-01', '2029-01-31')
+$$, 'budgets: naming both a category and a goal');
+
+SELECT expect_reject($$
+    INSERT INTO budgets (wallet_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Goal period, no goal', 1000, 'VND', 'GOAL', '2029-02-01', '2029-02-28')
+$$, 'budgets: the GOAL period without a goal');
+
+SELECT expect_reject($$
+    INSERT INTO budgets (wallet_id, goal_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '40000001-0000-0000-0000-000000000001',
+            'Goal, monthly', 1000, 'VND', 'MONTHLY', '2029-03-01', '2029-03-31')
+$$, 'budgets: a goal with a period other than GOAL');
+
+SELECT expect_accept($$
+    INSERT INTO transactions (created_by_user_id, from_account_id, category_id, goal_id, type, amount, currency, transaction_date)
+    VALUES ('11111111-1111-1111-1111-111111111111', 'a0000001-0000-0000-0000-000000000001',
+            'c0000001-0000-0000-0000-000000000001', '40000001-0000-0000-0000-000000000001', 'EXPENSE', 1000, 'VND', NOW())
+$$, 'transactions: an EXPENSE tagged with a goal');
+
+SELECT expect_reject($$
+    INSERT INTO transactions (created_by_user_id, to_account_id, category_id, goal_id, type, amount, currency, transaction_date)
+    VALUES ('11111111-1111-1111-1111-111111111111', 'a0000001-0000-0000-0000-000000000001',
+            'c0000002-0000-0000-0000-000000000002', '40000001-0000-0000-0000-000000000001', 'INCOME', 1000, 'VND', NOW())
+$$, 'transactions: an INCOME tagged with a goal');
 
 ROLLBACK;
 

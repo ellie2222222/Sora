@@ -23,7 +23,6 @@ import {
   type CreateTransactionRequest,
 } from '@sora/contracts';
 
-import { isApiError } from '../../utils/errors.ts';
 import { guestAccountsApi } from './guestAccounts.ts';
 import { guestBudgetsApi } from './guestBudgets.ts';
 import { guestGoalsApi } from './guestGoals.ts';
@@ -32,23 +31,14 @@ import { guestTransactionsApi, toBalanceRelevant, toSpendRelevant } from './gues
 import { guestWalletsApi } from './guestWallets.ts';
 import {
   ACCOUNT_ID,
+  codeOf,
   EXPENSE_CATEGORY_ID,
   INCOME_CATEGORY_ID,
   OTHER_ACCOUNT_ID,
-  WALLET_ID,
   seedFixture,
+  WALLET_ID,
   withFreshStore,
 } from './testSupport.ts';
-
-async function codeOf(work: () => Promise<unknown>): Promise<string> {
-  try {
-    await work();
-  } catch (error) {
-    if (isApiError(error)) return error.code;
-    throw error;
-  }
-  throw new Error('expected a rejection, got none');
-}
 
 function tx(overrides: Partial<CreateTransactionRequest> = {}): CreateTransactionRequest {
   return {
@@ -194,8 +184,8 @@ describe('guestBudgetsApi — spend (BR-06)', () => {
     const created = await guestBudgetsApi.create(budget);
 
     const spent = calculateBudgetSpent(
-      { categoryId: EXPENSE_CATEGORY_ID, currency: budget.currency, startDate: budget.startDate, endDate: budget.endDate },
-      guestStore.current().transactions.map(toSpendRelevant),
+      { walletId: WALLET_ID, categoryId: EXPENSE_CATEGORY_ID, goalId: null, currency: budget.currency, startDate: budget.startDate, endDate: budget.endDate },
+      guestStore.current().transactions.map((transaction) => toSpendRelevant(transaction, WALLET_ID)),
     );
 
     assert.equal(created.spent, formatMoney(spent));
@@ -268,6 +258,63 @@ describe('guestBudgetsApi — spend (BR-06)', () => {
   it('refuses an INCOME category, which cannot be budgeted', async () => {
     const code = await codeOf(() => guestBudgetsApi.create({ ...budget, categoryId: INCOME_CATEGORY_ID }));
     assert.equal(code, 'CATEGORY_WRONG_TYPE');
+  });
+});
+
+describe('guestBudgetsApi — budget kinds (API spec §12.2)', () => {
+  const window = { walletId: WALLET_ID, amount: '1000000', currency: 'VND', startDate: '2026-09-01', endDate: '2026-09-30' };
+  const wholeWallet = { ...window, name: 'Everything, September', periodType: 'MONTHLY' as const };
+  const laptopGoal = { walletId: WALLET_ID, name: 'Laptop', targetAmount: '30000000', currency: 'VND' };
+
+  it('BUD-US-02: counts every expense paid from the wallet toward a wallet-wide budget, but no transfer', async () => {
+    await guestTransactionsApi.create(tx({ amount: '150000' }));
+    await guestTransactionsApi.create(tx({ amount: '50000', fromAccountId: OTHER_ACCOUNT_ID }));
+    await guestTransactionsApi.create(tx({ type: 'TRANSFER', fromAccountId: ACCOUNT_ID, toAccountId: OTHER_ACCOUNT_ID, categoryId: null, amount: '900000' }));
+
+    const created = await guestBudgetsApi.create(wholeWallet);
+    assert.equal(created.spent, '200000.0000');
+    assert.deepEqual([created.categoryId, created.goalId, created.category], [null, null, null]);
+  });
+
+  it('BUD-US-02: counts a goal-tagged expense and a contribution that moved money toward the goal budget', async () => {
+    const goal = await guestGoalsApi.create(laptopGoal);
+    await guestTransactionsApi.create(tx({ amount: '70000', goalId: goal.id }));
+    await guestTransactionsApi.create(tx({ amount: '999' }));
+    await guestGoalsApi.addContribution(goal.id, {
+      accountId: ACCOUNT_ID,
+      amount: '30000',
+      currency: 'VND',
+      contributionDate: '2026-09-10T10:00:00.000Z',
+      recordAsTransaction: true,
+      categoryId: EXPENSE_CATEGORY_ID,
+    });
+
+    const created = await guestBudgetsApi.create({ ...window, name: 'Laptop fund', goalId: goal.id, periodType: 'GOAL' });
+    assert.equal(created.spent, '100000.0000');
+  });
+
+  it('BUD-US-01: lets budgets of different kinds share days, but not two of the same kind', async () => {
+    await guestBudgetsApi.create(wholeWallet);
+    await guestBudgetsApi.create({ ...window, name: 'Food', categoryId: EXPENSE_CATEGORY_ID, periodType: 'MONTHLY' });
+    const code = await codeOf(() => guestBudgetsApi.create({ ...wholeWallet, name: 'Everything again' }));
+    assert.equal(code, 'BUDGET_PERIOD_OVERLAP');
+  });
+
+  it('BUD-US-01: refuses a goal budget for an unknown goal, and for a cancelled one', async () => {
+    const missing = await codeOf(() =>
+      guestBudgetsApi.create({ ...window, name: 'Ghost', goalId: '3f1a7c62-0000-4000-8000-0000000000ff', periodType: 'GOAL' }),
+    );
+    assert.equal(missing, 'GOAL_NOT_FOUND');
+
+    const goal = await guestGoalsApi.create(laptopGoal);
+    await guestGoalsApi.cancel(goal.id);
+    const cancelled = await codeOf(() => guestBudgetsApi.create({ ...window, name: 'Too late', goalId: goal.id, periodType: 'GOAL' }));
+    assert.equal(cancelled, 'GOAL_NOT_ACTIVE');
+  });
+
+  it("TXN-US-02: refuses to tag an expense with a goal that is not the wallet's", async () => {
+    const code = await codeOf(() => guestTransactionsApi.create(tx({ goalId: '3f1a7c62-0000-4000-8000-0000000000ff' })));
+    assert.equal(code, 'GOAL_NOT_FOUND');
   });
 });
 

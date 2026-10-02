@@ -60,6 +60,14 @@ describe('GuestStore.hydrate', () => {
     assert.deepEqual(data.goals, []);
     assert.equal(data.uploadProgress, null);
   });
+
+  it('reads a budget or transaction saved before goal tags existed as untagged, not undefined', async () => {
+    const stored = { wallet: walletOf('Old'), budgets: [{ id: 'b1', categoryId: 'c1' }], transactions: [{ id: 't1', type: 'EXPENSE' }] };
+    const data = await new GuestStore(memoryPersistence(JSON.stringify(stored))).hydrate();
+
+    assert.equal(data.budgets[0]?.goalId, null);
+    assert.equal(data.transactions[0]?.goalId, null);
+  });
 });
 
 describe('GuestStore.mutate', () => {

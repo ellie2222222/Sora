@@ -7,8 +7,8 @@
  * `isOverBudget` over the local transaction list through `toSpendRelevant`.
  *
  * The overlap rule the server enforces at the database via the
- * `excl_budget_overlap` GIST exclusion (same category, overlapping inclusive
- * `daterange`, ACTIVE only — db/migrations/001_initial_wallet_schema.sql:299-304)
+ * `excl_budget_*_overlap` GIST exclusions (same category, goal or wallet-wide target,
+ * overlapping inclusive `daterange`, ACTIVE only — db/migrations/008_redesign_budgets.sql)
  * has no database to enforce it here, so it is checked explicitly in
  * `assertNoOverlap` instead of relying on `translatingPgErrors`.
  */
@@ -23,6 +23,7 @@ import {
   parseMoney,
   updateBudgetSchema,
   BudgetStatus,
+  GoalStatus,
   CategoryType,
   type BudgetResponse,
   type CreateBudgetRequest,
@@ -59,9 +60,15 @@ function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: strin
   return aStart <= bEnd && bStart <= aEnd;
 }
 
+/** Same kind and target (API spec §12.2): one category, one goal, or the wallet as a whole. */
+function sameTarget(budget: GuestBudget, categoryId: string | null, goalId: string | null): boolean {
+  return budget.categoryId === categoryId && budget.goalId === goalId;
+}
+
 function assertNoOverlap(
   budgets: readonly GuestBudget[],
-  categoryId: string,
+  categoryId: string | null,
+  goalId: string | null,
   startDate: string,
   endDate: string,
   excludingBudgetId?: string,
@@ -69,14 +76,22 @@ function assertNoOverlap(
   const collides = budgets.some(
     (budget) =>
       budget.id !== excludingBudgetId &&
-      budget.categoryId === categoryId &&
+      sameTarget(budget, categoryId, goalId) &&
       budget.status === BudgetStatus.ACTIVE &&
       rangesOverlap(budget.startDate, budget.endDate, startDate, endDate),
   );
   if (collides) throw guestError('BUDGET_PERIOD_OVERLAP');
 }
 
-function assertBudgetableCategory(walletId: string, categoryId: string): void {
+function assertBudgetableGoal(walletId: string, goalId: string | null): void {
+  if (!goalId) return;
+  const goal = guestStore.current().goals.find((candidate) => candidate.id === goalId);
+  if (!goal || goal.walletId !== walletId) throw guestError('GOAL_NOT_FOUND');
+  if (goal.status !== GoalStatus.ACTIVE) throw guestError('GOAL_NOT_ACTIVE');
+}
+
+function assertBudgetableCategory(walletId: string, categoryId: string | null): void {
+  if (!categoryId) return;
   const { categories } = guestStore.current();
   const category = categories.find((candidate) => candidate.id === categoryId);
   if (!category) throw guestError('CATEGORY_NOT_FOUND');
@@ -86,11 +101,18 @@ function assertBudgetableCategory(walletId: string, categoryId: string): void {
 
 function toBudgetResponse(budget: GuestBudget): BudgetResponse {
   const { categories, transactions } = guestStore.current();
-  const category = categories.find((candidate) => candidate.id === budget.categoryId);
+  const category = budget.categoryId ? categories.find((candidate) => candidate.id === budget.categoryId) : null;
   const amount = parseMoney(budget.amount);
   const spent = calculateBudgetSpent(
-    { categoryId: budget.categoryId, currency: budget.currency, startDate: budget.startDate, endDate: budget.endDate },
-    transactions.map(toSpendRelevant),
+    {
+      walletId: budget.walletId,
+      categoryId: budget.categoryId,
+      goalId: budget.goalId,
+      currency: budget.currency,
+      startDate: budget.startDate,
+      endDate: budget.endDate,
+    },
+    transactions.map((transaction) => toSpendRelevant(transaction, budget.walletId)),
   );
   const remaining = calculateBudgetRemaining(amount, spent);
 
@@ -104,9 +126,13 @@ function toBudgetResponse(budget: GuestBudget): BudgetResponse {
     startDate: budget.startDate,
     endDate: budget.endDate,
     status: budget.status,
+    categoryId: budget.categoryId,
+    goalId: budget.goalId,
     category: category
       ? { id: category.id, name: category.name, icon: category.icon, color: category.color }
-      : { id: budget.categoryId, name: '', icon: null, color: null },
+      : budget.categoryId 
+        ? { id: budget.categoryId, name: '', icon: null, color: null }
+        : null,
     spent: formatMoney(spent),
     remaining: formatMoney(remaining),
     usagePercentage: calculateBudgetUsage(amount, spent),
@@ -139,15 +165,17 @@ export const guestBudgetsApi = {
     if (!parsed.success) throw fromZodError(parsed.error);
     const request = parsed.data;
 
-    assertBudgetableCategory(wallet.id, request.categoryId);
+    assertBudgetableCategory(wallet.id, request.categoryId ?? null);
+    assertBudgetableGoal(wallet.id, request.goalId ?? null);
     const { budgets } = guestStore.current();
-    assertNoOverlap(budgets, request.categoryId, request.startDate, request.endDate);
+    assertNoOverlap(budgets, request.categoryId ?? null, request.goalId ?? null, request.startDate, request.endDate);
 
     const now = new Date().toISOString();
     const budget: GuestBudget = {
       id: newLocalId(),
       walletId: wallet.id,
-      categoryId: request.categoryId,
+      categoryId: request.categoryId ?? null,
+      goalId: request.goalId ?? null,
       name: request.name,
       amount: request.amount,
       currency: request.currency,

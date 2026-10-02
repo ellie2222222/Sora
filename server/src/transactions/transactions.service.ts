@@ -36,6 +36,7 @@ import { Enveloped, paginated } from '../common/envelope.ts';
 import { paginationMeta, parseSort } from '../common/pagination.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
+import { requireGoalInWallet } from '../goals/goal-access.ts';
 import { AccountAccess, WalletAccessService } from '../wallets/wallet-access.service.ts';
 import { assertCategoryFits, assertCategoryRemovable, categorisedAccountId, type CategoryFacts } from './transaction-category.ts';
 
@@ -130,6 +131,7 @@ interface TransactionJoinRow {
   category_type: CategoryType | null;
   category_icon: string | null;
   category_color: string | null;
+  goal_id: string | null;
 }
 
 const TRANSACTION_COLUMNS = [
@@ -141,6 +143,7 @@ const TRANSACTION_COLUMNS = [
   'transactions.description as description',
   'transactions.transaction_date as transaction_date',
   'transactions.reference as reference',
+  'transactions.goal_id as goal_id',
   'transactions.created_at as created_at',
   'transactions.updated_at as updated_at',
   'transactions.created_by_user_id as created_by_user_id',
@@ -336,14 +339,17 @@ export class TransactionsService {
 
     for (const access of accessMap.values()) {
       if (access.accountStatus === AccountStatus.ARCHIVED) throw new AppError('ACCOUNT_ARCHIVED');
-      if (access.currency !== request.currency) throw new AppError('ACCOUNT_CURRENCY_MISMATCH');
     }
 
     const fromAccess = request.type !== TransactionType.INCOME ? accessMap.get(request.fromAccountId) : undefined;
     const toAccess = request.type !== TransactionType.EXPENSE ? accessMap.get(request.toAccountId) : undefined;
 
+    // Before the per-account check: a cross-currency transfer always mismatches one side, and this names why.
     if (request.type === TransactionType.TRANSFER && fromAccess!.currency !== toAccess!.currency) {
       throw new AppError('TRANSFER_CURRENCY_MISMATCH');
+    }
+    for (const access of accessMap.values()) {
+      if (access.currency !== request.currency) throw new AppError('ACCOUNT_CURRENCY_MISMATCH');
     }
 
     const categoryId = request.categoryId ?? null;
@@ -356,6 +362,9 @@ export class TransactionsService {
       assertCategoryFits(await this.categoryFacts(categoryId, user.id), request.type, accessMap.get(namedAccountId)!.walletId);
     }
 
+    const goalId = request.goalId ?? null;
+    if (goalId !== null) await this.assertGoalTag(request.type, goalId, fromAccess?.walletId ?? null);
+
     const withTrx = async (t: Transaction<DB>) => {
       const inserted = await t
         .insertInto('transactions')
@@ -364,6 +373,7 @@ export class TransactionsService {
           from_account_id: request.type === TransactionType.INCOME ? null : request.fromAccountId,
           to_account_id: request.type === TransactionType.EXPENSE ? null : request.toAccountId,
           category_id: categoryId,
+          goal_id: goalId,
           type: request.type,
           amount: request.amount,
           currency: request.currency,
@@ -389,6 +399,14 @@ export class TransactionsService {
     const row = await (trx ? withTrx(trx) : this.database.db.transaction().execute(withTrx));
 
     return this.toResponse(row.id, trx);
+  }
+
+  /** Only an expense is spending toward a goal, and only toward one of its paying wallet's goals (§11.2). */
+  private async assertGoalTag(type: TransactionType, goalId: string, payingWalletId: string | null): Promise<void> {
+    if (type !== TransactionType.EXPENSE || payingWalletId === null) {
+      throw new AppError('VALIDATION_FAILED', undefined, { goalId: ['Only an expense can be tagged with a goal'] });
+    }
+    await requireGoalInWallet(this.database.db, payingWalletId, goalId);
   }
 
   /**
@@ -430,6 +448,10 @@ export class TransactionsService {
       const namedAccountId = categorisedAccountId(row.type, row.from_account_id, row.to_account_id);
       assertCategoryFits(await this.categoryFacts(body.categoryId, user.id), row.type, accessMap.get(namedAccountId)!.walletId);
     }
+    if (body.goalId != null) {
+      const payingWalletId = row.from_account_id === null ? null : accessMap.get(row.from_account_id)!.walletId;
+      await this.assertGoalTag(row.type, body.goalId, payingWalletId);
+    }
 
     const changedFields = Object.keys(body);
 
@@ -440,6 +462,7 @@ export class TransactionsService {
           ...(body.description !== undefined ? { description: body.description } : {}),
           ...(body.transactionDate !== undefined ? { transaction_date: body.transactionDate } : {}),
           ...(body.categoryId !== undefined ? { category_id: body.categoryId } : {}),
+          ...(body.goalId !== undefined ? { goal_id: body.goalId } : {}),
           ...(body.reference !== undefined ? { reference: body.reference } : {}),
           updated_at: new Date(),
         })
@@ -556,6 +579,7 @@ function toTransactionResponse(row: TransactionJoinRow): TransactionResponse {
     amount: row.amount,
     currency: row.currency,
     description: row.description,
+    goalId: row.goal_id,
     transactionDate: row.transaction_date.toISOString(),
     reference: row.reference,
     fromAccount,

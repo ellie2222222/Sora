@@ -49,6 +49,7 @@ import {
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { BalanceService } from '../accounts/balance.service.ts';
+import { spendableExpenses } from '../budgets/budget-spend.ts';
 import { CurrencyLedger, netOf } from '../common/currency-totals.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service.ts';
@@ -294,6 +295,7 @@ export class DashboardService {
         't.description as description',
         't.transaction_date as transaction_date',
         't.reference as reference',
+        't.goal_id as goal_id',
         't.created_at as created_at',
         't.updated_at as updated_at',
         'fa.id as from_account_id',
@@ -354,6 +356,7 @@ export class DashboardService {
         amount: row.amount,
         currency: row.currency,
         description: row.description,
+        goalId: row.goal_id,
         transactionDate: row.transaction_date.toISOString(),
         reference: row.reference,
         fromAccount,
@@ -380,10 +383,11 @@ export class DashboardService {
   private async activeBudgets(walletId: string): Promise<BudgetResponse[]> {
     const budgets = await this.database.db
       .selectFrom('budgets as b')
-      .innerJoin('categories as c', 'c.id', 'b.category_id')
+      .leftJoin('categories as c', 'c.id', 'b.category_id')
       .select([
         'b.id as id',
         'b.wallet_id as wallet_id',
+        'b.goal_id as goal_id',
         'b.name as name',
         'b.amount as amount',
         'b.currency as currency',
@@ -404,34 +408,18 @@ export class DashboardService {
 
     if (budgets.length === 0) return [];
 
-    const categoryIds = [...new Set(budgets.map((budget) => budget.category_id))];
-    const expenseRows = await this.database.db
-      .selectFrom('transactions')
-      .select(['status', 'amount', 'currency', 'category_id', 'transaction_date'])
-      .where('type', '=', TransactionType.EXPENSE)
-      .where('category_id', 'in', categoryIds)
-      .execute();
+    const spendable = await spendableExpenses(this.database.db, budgets);
 
     return budgets.map((budget) => {
-      const relevant = expenseRows
-        .filter((row) => row.category_id === budget.category_id)
-        .map((row) => ({
-          type: TransactionType.EXPENSE,
-          status: row.status,
-          amount: parseMoney(row.amount),
-          currency: row.currency,
-          categoryId: row.category_id as string,
-          transactionDate: row.transaction_date.toISOString(),
-        }));
-
       const amount = parseMoney(budget.amount);
       const spent = calculateBudgetSpent(
-        { categoryId: budget.category_id, currency: budget.currency, startDate: budget.start_date, endDate: budget.end_date },
-        relevant,
+        { walletId: budget.wallet_id, categoryId: budget.category_id, goalId: budget.goal_id, currency: budget.currency, startDate: budget.start_date, endDate: budget.end_date },
+        spendable,
       );
 
       return {
         id: budget.id,
+        goalId: budget.goal_id,
         walletId: budget.wallet_id,
         name: budget.name,
         amount: budget.amount,
@@ -440,12 +428,13 @@ export class DashboardService {
         startDate: budget.start_date,
         endDate: budget.end_date,
         status: budget.status,
-        category: {
+        categoryId: budget.category_id,
+        category: budget.category_id !== null ? {
           id: budget.category_id,
-          name: budget.category_name,
+          name: budget.category_name as string,
           icon: budget.category_icon,
           color: budget.category_color,
-        },
+        } : null,
         spent: formatMoney(spent),
         remaining: formatMoney(calculateBudgetRemaining(amount, spent)),
         usagePercentage: calculateBudgetUsage(amount, spent),
@@ -548,10 +537,15 @@ function resolvePeriod(query: DashboardQuery): { dateFrom: string; dateTo: strin
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
 
-  return {
+  const period = {
     dateFrom: query.dateFrom ?? toCalendarDate(monthStart),
     dateTo: query.dateTo ?? toCalendarDate(monthEnd),
   };
+  // The schema refuses an inverted pair; a lone bound can still invert against the default other end.
+  if (period.dateFrom > period.dateTo) {
+    throw new AppError('VALIDATION_FAILED', 'dateFrom must not be after dateTo', { dateTo: ['dateFrom must not be after dateTo'] });
+  }
+  return period;
 }
 
 function toCalendarDate(date: Date): string {

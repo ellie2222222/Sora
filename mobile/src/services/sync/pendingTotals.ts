@@ -15,6 +15,7 @@ import {
   calculateGoalProgress,
   calculateGoalRemaining,
   formatMoney,
+  isBudgetTarget,
   isOverBudget,
   isWithinPeriod,
   parseMoney,
@@ -149,11 +150,17 @@ export function applyNewAccountToDashboard(dashboard: DashboardResponse, account
   addToTotals(dashboard.totalBalance, account.currency, parseMoney(account.initialBalance));
 }
 
-/** `calculateBudgetSpent`: completed EXPENSE in the budget's category, currency and window. */
+/** `calculateBudgetSpent`: completed EXPENSE on the budget's target, in its currency and window. */
 export function applyToBudget(budget: BudgetResponse, change: LedgerChange): void {
   const { transaction } = change;
   if (transaction.type !== TransactionType.EXPENSE) return;
-  if (transaction.category?.id !== budget.category.id || transaction.currency !== budget.currency) return;
+  const target = {
+    categoryId: transaction.category?.id ?? null,
+    goalId: transaction.goalId,
+    walletId: transaction.fromAccount?.walletId ?? null,
+  };
+  if (!isBudgetTarget(budget, target)) return;
+  if (transaction.currency !== budget.currency) return;
   if (!isWithinPeriod(transaction.transactionDate, budget.startDate, budget.endDate)) return;
   const amount = signedAmount(change);
   if (amount === null) return;

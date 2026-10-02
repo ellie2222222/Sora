@@ -150,6 +150,36 @@ if (codeListMatch && statusMapMatch) {
 }
 
 // ---------------------------------------------------------------------------
+// 4. Every constraint the API translates still exists after the last migration
+// ---------------------------------------------------------------------------
+
+// A mapping keyed on a dropped name never fires, so its violation reaches the client as a 500.
+function liveConstraints() {
+  const live = new Set();
+  const pattern = /(DROP\s+)?(?:CONSTRAINT|INDEX)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([a-z][a-z0-9_]*)/gi;
+  for (const [, dropped, name] of SCHEMA_SQL.matchAll(pattern)) {
+    if (dropped) live.delete(name);
+    else live.add(name);
+  }
+  return live;
+}
+
+const PG_ERROR_TS = readFileSync(join(ROOT, 'server/src/common/pg-error.ts'), 'utf8');
+const constraintMapMatch = PG_ERROR_TS.match(/const CONSTRAINT_CODES[^=]*= \{([^}]*)\}/s);
+
+if (constraintMapMatch) {
+  const live = liveConstraints();
+  const mapped = [...constraintMapMatch[1].matchAll(/([a-z][a-z0-9_]*):/g)].map((m) => m[1]);
+  const stale = mapped.filter((name) => !live.has(name));
+  const unmappedExclusions = [...live].filter((name) => name.startsWith('excl_') && !mapped.includes(name));
+
+  check('every CONSTRAINT_CODES key names a live constraint', stale.length === 0, `dropped or unknown: ${stale}`);
+  check('every exclusion constraint maps to an error code', unmappedExclusions.length === 0, `unmapped: ${unmappedExclusions}`);
+} else {
+  check('CONSTRAINT_CODES is declared in pg-error.ts', false);
+}
+
+// ---------------------------------------------------------------------------
 // Report
 // ---------------------------------------------------------------------------
 

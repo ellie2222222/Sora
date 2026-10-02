@@ -33,11 +33,11 @@ One canonical term per concept across code, SQL, API, and UI:
 ### BR-03 — Transaction Immutability
 - `amount`, `type`, `fromAccountId`, and `toAccountId` cannot be edited (`409 TRANSACTION_IMMUTABLE`).
 - Financial transactions are historical facts. Editing them rewrites balances, budget figures, and goal progress.
-- Correcting an entry is delete + create (the transaction is marked `DELETED`, so both rows stay visible). Only `description`, `transactionDate`, `categoryId`, and `reference` are mutable.
+- Correcting an entry is delete + create (the transaction is marked `DELETED`, so both rows stay visible). Only `description`, `transactionDate`, `categoryId`, `goalId` (an expense's goal tag), and `reference` are mutable.
 
 ### BR-04 — Non-Overlapping Budget Windows
 - At most one `ACTIVE` budget per category per overlapping date range.
-- Enforced at the database level by the Postgres GIST exclusion constraint `excl_budget_overlap`, not by a simple unique index. Archived budgets are excluded.
+- Enforced at the database level by the Postgres GIST exclusion constraint `excl_budget_category_overlap` (goal and wallet-wide budgets: `excl_budget_goal_overlap`, `excl_budget_overall_overlap`), not by a simple unique index. Archived budgets are excluded.
 
 ### BR-05 — Derived Values are Never Stored
 - Account balances, wallet totals, budget spend/remaining/usage, and saving goal progress are **computed dynamically from ledger transactions on every read**.

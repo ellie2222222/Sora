@@ -80,12 +80,15 @@ export const TransactionStatus = {
   DELETED: 'DELETED',
 } as const;
 
-export const BUDGET_PERIOD_TYPES = ['WEEKLY', 'MONTHLY', 'CUSTOM'] as const;
+export const BUDGET_PERIOD_TYPES = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY', 'CUSTOM', 'GOAL'] as const;
 export type BudgetPeriodType = (typeof BUDGET_PERIOD_TYPES)[number];
 export const BudgetPeriodType = {
+  DAILY: 'DAILY',
   WEEKLY: 'WEEKLY',
   MONTHLY: 'MONTHLY',
+  YEARLY: 'YEARLY',
   CUSTOM: 'CUSTOM',
+  GOAL: 'GOAL',
 } as const;
 
 export const BUDGET_STATUSES = ['ACTIVE', 'ARCHIVED'] as const;

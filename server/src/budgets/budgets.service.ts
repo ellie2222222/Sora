@@ -20,12 +20,11 @@ import {
   roleSatisfies,
   BudgetStatus,
   CategoryType,
+  GoalStatus,
   MemberStatus,
-  TransactionType,
   type BudgetPeriodType,
   type BudgetResponse,
   type CreateBudgetRequest,
-  type SpendRelevantTransaction,
   type UpdateBudgetRequest,
   type WalletRole,
 } from '@sora/contracts';
@@ -36,7 +35,9 @@ import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { translatingPgErrors } from '../common/pg-error.ts';
 import { DatabaseService } from '../database/database.service.ts';
+import { requireGoalInWallet } from '../goals/goal-access.ts';
 import { WalletAccessService } from '../wallets/wallet-access.service.ts';
+import { spendableExpenses } from './budget-spend.ts';
 
 export interface BudgetListQuery {
   walletId: string;
@@ -47,7 +48,8 @@ export interface BudgetListQuery {
 interface BudgetRow {
   id: string;
   wallet_id: string;
-  category_id: string;
+  category_id: string | null;
+  goal_id: string | null;
   name: string;
   amount: string;
   currency: string;
@@ -103,14 +105,21 @@ export class BudgetsService {
     ip: string | null,
   ): Promise<BudgetResponse> {
     await this.access.requireWritable(user.id, request.walletId, 'EDITOR');
-    await this.assertBudgetableCategory(user.id, request.walletId, request.categoryId);
+    if (request.categoryId != null) {
+      await this.assertBudgetableCategory(user.id, request.walletId, request.categoryId);
+    }
+    if (request.goalId != null) {
+      const status = await requireGoalInWallet(this.database.db, request.walletId, request.goalId);
+      if (status !== GoalStatus.ACTIVE) throw new AppError('GOAL_NOT_ACTIVE');
+    }
 
     const row = await translatingPgErrors(() =>
       this.database.db
         .insertInto('budgets')
         .values({
           wallet_id: request.walletId,
-          category_id: request.categoryId,
+          category_id: request.categoryId ?? null,
+          goal_id: request.goalId ?? null,
           name: request.name,
           amount: request.amount,
           currency: request.currency,
@@ -227,6 +236,7 @@ export class BudgetsService {
         'budgets.id as id',
         'budgets.wallet_id as wallet_id',
         'budgets.category_id as category_id',
+        'budgets.goal_id as goal_id',
         'budgets.name as name',
         'budgets.amount as amount',
         'budgets.currency as currency',
@@ -242,7 +252,7 @@ export class BudgetsService {
       .executeTakeFirst();
 
     if (!found || found.member_role === null) throw new AppError('BUDGET_NOT_FOUND');
-    if (!roleSatisfies(found.member_role, required)) throw AppError.forbidden(found.member_role);
+    if (!roleSatisfies(found.member_role, required)) throw AppError.forbidden(found.member_role, found.wallet_id);
 
     const { member_role, ...row } = found;
     return { row, walletId: row.wallet_id, role: member_role };
@@ -268,24 +278,26 @@ export class BudgetsService {
   private async toResponses(rows: readonly BudgetRow[]): Promise<BudgetResponse[]> {
     if (rows.length === 0) return [];
 
-    const categoryIds = [...new Set(rows.map((row) => row.category_id))];
-    const [categories, spentByCategory] = await Promise.all([
+    const categoryIds = [...new Set(rows.map((row) => row.category_id).filter((id): id is string => id !== null))];
+    const [categories, spendable] = await Promise.all([
       this.categoriesByIds(categoryIds),
-      this.spendableTransactionsByCategory(categoryIds),
+      spendableExpenses(this.database.db, rows),
     ]);
 
     return rows.map((row) => {
-      const category = categories.get(row.category_id);
+      const category = row.category_id !== null ? categories.get(row.category_id) : undefined;
       const amount = parseMoney(row.amount);
       const spent = calculateBudgetSpent(
-        { categoryId: row.category_id, currency: row.currency, startDate: row.start_date, endDate: row.end_date },
-        spentByCategory.get(row.category_id) ?? [],
+        { walletId: row.wallet_id, categoryId: row.category_id, goalId: row.goal_id, currency: row.currency, startDate: row.start_date, endDate: row.end_date },
+        spendable,
       );
       const remaining = calculateBudgetRemaining(amount, spent);
 
       return {
         id: row.id,
         walletId: row.wallet_id,
+        categoryId: row.category_id,
+        goalId: row.goal_id,
         name: row.name,
         amount: row.amount,
         currency: row.currency,
@@ -293,7 +305,7 @@ export class BudgetsService {
         startDate: row.start_date,
         endDate: row.end_date,
         status: row.status,
-        category: category ?? { id: row.category_id, name: '', icon: null, color: null },
+        category: category ?? (row.category_id !== null ? { id: row.category_id, name: '', icon: null, color: null } : null),
         spent: formatMoney(spent),
         remaining: formatMoney(remaining),
         usagePercentage: calculateBudgetUsage(amount, spent),
@@ -305,43 +317,13 @@ export class BudgetsService {
   }
 
   private async categoriesByIds(categoryIds: readonly string[]): Promise<Map<string, CategoryRef>> {
+    // Wallet-wide and goal budgets name no category, and Postgres rejects an empty IN ().
+    if (categoryIds.length === 0) return new Map();
     const rows = await this.database.db
       .selectFrom('categories')
       .select(['id', 'name', 'icon', 'color'])
       .where('id', 'in', categoryIds)
       .execute();
     return new Map(rows.map((row) => [row.id, row]));
-  }
-
-  /**
-   * Every EXPENSE transaction for these categories, any status or date —
-   * `calculateBudgetSpent` is what filters to COMPLETED, the budget's currency
-   * and its window, so the SQL side only narrows to the type that can ever count.
-   */
-  private async spendableTransactionsByCategory(
-    categoryIds: readonly string[],
-  ): Promise<Map<string, SpendRelevantTransaction[]>> {
-    const rows = await this.database.db
-      .selectFrom('transactions')
-      .select(['type', 'status', 'amount', 'currency', 'category_id', 'transaction_date'])
-      .where('category_id', 'in', categoryIds)
-      .where('type', '=', TransactionType.EXPENSE)
-      .execute();
-
-    const byCategory = new Map<string, SpendRelevantTransaction[]>();
-    for (const row of rows) {
-      const categoryId = row.category_id!;
-      const list = byCategory.get(categoryId) ?? [];
-      list.push({
-        type: row.type,
-        status: row.status,
-        amount: parseMoney(row.amount),
-        currency: row.currency,
-        categoryId,
-        transactionDate: row.transaction_date.toISOString(),
-      });
-      byCategory.set(categoryId, list);
-    }
-    return byCategory;
   }
 }

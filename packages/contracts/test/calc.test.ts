@@ -12,6 +12,7 @@ import {
   calculateGoalProgress,
   calculateGoalRemaining,
   calculateWalletBalance,
+  isBudgetTarget,
   countsAsPeriodActivity,
   isGoalReached,
   isOverBudget,
@@ -23,13 +24,17 @@ import { formatMoneyCompact, parseMoney } from '../src/money.ts';
 
 /**
  * Modelled on the fixture db/tests/001_constraints.sql seeds, without the rows its
- * constraint probes add; that suite prints its derived figures rather than asserting them.
+ * constraint probes add. The API's own SQL for these figures is asserted over HTTP in
+ * server/test/integration.{ledger,planning}.test.ts.
  */
 const VIETCOMBANK = 'a0000001';
 const CASH = 'a0000002';
 const TECHCOMBANK = 'b0000001';
 const FOOD = 'c0000001';
 const SALARY = 'c0000002';
+/** Tam's wallet, which holds VIETCOMBANK and CASH; Linh's holds TECHCOMBANK. */
+const TAM_WALLET = 'aaaaaaaa';
+const LINH_WALLET = 'bbbbbbbb';
 
 const ledger: BalanceRelevantTransaction[] = [
   {
@@ -63,7 +68,7 @@ const ledger: BalanceRelevantTransaction[] = [
 ];
 
 describe('calculateAccountBalance', () => {
-  it('reproduces the figures the SQL suite reports', () => {
+  it("reproduces the fixture ledger's balances", () => {
     assert.equal(
       formatMoneyCompact(calculateAccountBalance(parseMoney('1000000'), ledger, VIETCOMBANK)),
       '14350000',
@@ -150,6 +155,8 @@ const spending: SpendRelevantTransaction[] = [
     amount: parseMoney('150000'),
     currency: 'VND',
     categoryId: FOOD,
+    goalId: null,
+    walletId: TAM_WALLET,
     transactionDate: '2026-08-22T12:30:00Z',
   },
   {
@@ -158,6 +165,8 @@ const spending: SpendRelevantTransaction[] = [
     amount: parseMoney('1000000'),
     currency: 'VND',
     categoryId: FOOD,
+    goalId: null,
+    walletId: TAM_WALLET,
     transactionDate: '2026-08-10T09:00:00Z',
   },
   {
@@ -166,6 +175,8 @@ const spending: SpendRelevantTransaction[] = [
     amount: parseMoney('2000000'),
     currency: 'VND',
     categoryId: null,
+    goalId: null,
+    walletId: TAM_WALLET,
     transactionDate: '2026-08-15T09:00:00Z',
   },
   {
@@ -174,6 +185,8 @@ const spending: SpendRelevantTransaction[] = [
     amount: parseMoney('700000'),
     currency: 'VND',
     categoryId: FOOD,
+    goalId: null,
+    walletId: TAM_WALLET,
     transactionDate: '2026-08-12T09:00:00Z',
   },
   {
@@ -182,6 +195,8 @@ const spending: SpendRelevantTransaction[] = [
     amount: parseMoney('300000'),
     currency: 'VND',
     categoryId: FOOD,
+    goalId: null,
+    walletId: TAM_WALLET,
     transactionDate: '2026-09-02T09:00:00Z',
   },
   {
@@ -190,14 +205,16 @@ const spending: SpendRelevantTransaction[] = [
     amount: parseMoney('15000000'),
     currency: 'VND',
     categoryId: SALARY,
+    goalId: null,
+    walletId: null,
     transactionDate: '2026-08-01T09:00:00Z',
   },
 ];
 
-const augustFood = { categoryId: FOOD, currency: 'VND', startDate: '2026-08-01', endDate: '2026-08-31' };
+const augustFood = { walletId: TAM_WALLET, categoryId: FOOD, goalId: null, currency: 'VND', startDate: '2026-08-01', endDate: '2026-08-31' };
 
 describe('calculateBudgetSpent', () => {
-  it('matches the SQL suite: 1,150,000 spent of the August food budget', () => {
+  it('spends 1,150,000 of the August food budget', () => {
     assert.equal(formatMoneyCompact(calculateBudgetSpent(augustFood, spending)), '1150000');
   });
 
@@ -236,7 +253,7 @@ describe('calculateBudgetSpent', () => {
 describe('budget remaining and usage', () => {
   const amount = parseMoney('3000000');
 
-  it('matches the SQL suite: 1,850,000 remaining', () => {
+  it('leaves 1,850,000 remaining', () => {
     const spent = calculateBudgetSpent(augustFood, spending);
     assert.equal(formatMoneyCompact(calculateBudgetRemaining(amount, spent)), '1850000');
     assert.equal(calculateBudgetUsage(amount, spent), 38.3);
@@ -255,7 +272,7 @@ describe('goal progress', () => {
   const target = parseMoney('30000000');
   const contributions = [parseMoney('12000000'), parseMoney('1000000')];
 
-  it('matches the SQL suite: 13,000,000 of 30,000,000 at 43.3%', () => {
+  it('reaches 13,000,000 of 30,000,000, at 43.3%', () => {
     const current = calculateGoalCurrent(contributions);
     assert.equal(formatMoneyCompact(current), '13000000');
     assert.equal(formatMoneyCompact(calculateGoalRemaining(target, current)), '17000000');
@@ -360,6 +377,8 @@ describe('budget and goal edges a mutation run found untested', () => {
     amount: parseMoney('2000000'),
     currency: 'VND',
     categoryId,
+    goalId: null,
+    walletId: TAM_WALLET,
     transactionDate: '2026-08-15',
   });
 
@@ -379,5 +398,52 @@ describe('budget and goal edges a mutation run found untested', () => {
 
   it('compares the full calendar day, not just the month', () => {
     assert.equal(isWithinPeriod('2026-08-15T10:00:00Z', '2026-08-20', '2026-08-31'), false);
+  });
+});
+
+describe('budget kinds (API spec §12.2)', () => {
+  const GOAL = 'g0000001';
+  const window = { currency: 'VND', startDate: '2026-08-01', endDate: '2026-08-31' };
+  const wholeWallet = { ...window, walletId: TAM_WALLET, categoryId: null, goalId: null };
+  const laptop = { ...window, walletId: TAM_WALLET, categoryId: null, goalId: GOAL };
+  const expense = (overrides: Partial<SpendRelevantTransaction>): SpendRelevantTransaction => ({
+    type: TransactionType.EXPENSE,
+    status: TransactionStatus.COMPLETED,
+    amount: parseMoney('100'),
+    currency: 'VND',
+    categoryId: FOOD,
+    goalId: null,
+    walletId: TAM_WALLET,
+    transactionDate: '2026-08-15T09:00:00Z',
+    ...overrides,
+  });
+
+  it('BUD-US-02: counts every completed expense paid from the wallet toward a wallet-wide budget', () => {
+    assert.equal(formatMoneyCompact(calculateBudgetSpent(wholeWallet, spending)), '1150000');
+  });
+
+  it("BUD-US-02: leaves another wallet's expenses out of a wallet-wide budget, whatever their category", () => {
+    assert.equal(formatMoneyCompact(calculateBudgetSpent(wholeWallet, [expense({ walletId: LINH_WALLET })])), '0');
+  });
+
+  it('BUD-US-02: never counts a transfer toward a wallet-wide budget (BR-06)', () => {
+    assert.equal(formatMoneyCompact(calculateBudgetSpent(wholeWallet, [expense({ type: TransactionType.TRANSFER })])), '0');
+  });
+
+  it('BUD-US-02: counts only expenses tagged with the goal toward a goal budget, whatever their category', () => {
+    const tagged = expense({ goalId: GOAL, categoryId: SALARY });
+    assert.equal(formatMoneyCompact(calculateBudgetSpent(laptop, [tagged, expense({}), expense({ goalId: 'g-other' })])), '100');
+  });
+
+  it('BUD-US-02: lets a category budget ignore goal tags, so a tagged expense still counts in its category', () => {
+    assert.equal(formatMoneyCompact(calculateBudgetSpent(augustFood, [expense({ goalId: GOAL })])), '100');
+  });
+
+  it('decides the target by goal, then category, then wallet', () => {
+    const tagged = { categoryId: FOOD, goalId: GOAL, walletId: TAM_WALLET };
+    assert.equal(isBudgetTarget({ walletId: TAM_WALLET, categoryId: null, goalId: GOAL }, tagged), true);
+    assert.equal(isBudgetTarget({ walletId: TAM_WALLET, categoryId: FOOD, goalId: null }, tagged), true);
+    assert.equal(isBudgetTarget({ walletId: TAM_WALLET, categoryId: null, goalId: null }, tagged), true);
+    assert.equal(isBudgetTarget({ walletId: LINH_WALLET, categoryId: null, goalId: null }, tagged), false);
   });
 });

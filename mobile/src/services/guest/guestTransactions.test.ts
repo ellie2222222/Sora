@@ -3,15 +3,17 @@ import { beforeEach, describe, it } from 'node:test';
 
 import { parseMoney, type CreateTransactionRequest } from '@sora/contracts';
 
-import { isApiError } from '../../utils/errors.ts';
+import { guestAccountsApi } from './guestAccounts.ts';
 import { guestStore } from './guestStorage.ts';
 import { guestTransactionsApi, toBalanceRelevant, toSpendRelevant } from './guestTransactions.ts';
 import {
   ACCOUNT_ID,
+  codeOf,
   EXPENSE_CATEGORY_ID,
   INCOME_CATEGORY_ID,
   OTHER_ACCOUNT_ID,
   seedFixture,
+  WALLET_ID,
   withFreshStore,
 } from './testSupport.ts';
 
@@ -32,16 +34,6 @@ function expense(overrides: Partial<CreateTransactionRequest> = {}): CreateTrans
 }
 
 /** The error code a guest-layer rejection carries, or the raw error if it is not one. */
-async function codeOf(work: () => Promise<unknown>): Promise<string> {
-  try {
-    await work();
-  } catch (error) {
-    if (isApiError(error)) return error.code;
-    throw error;
-  }
-  throw new Error('expected a rejection, got none');
-}
-
 beforeEach(async () => {
   await withFreshStore();
   await seedFixture();
@@ -74,6 +66,22 @@ describe('guestTransactionsApi.create', () => {
     );
 
     assert.equal(code, 'VALIDATION_FAILED');
+  });
+
+  it('names a cross-currency transfer as such, not as an account currency mismatch (BR-07)', async () => {
+    const usd = await guestAccountsApi.create({ walletId: WALLET_ID, name: 'USD cash', type: 'CASH', currency: 'USD', initialBalance: '0' });
+    const code = await codeOf(() =>
+      guestTransactionsApi.create({
+        type: 'TRANSFER',
+        fromAccountId: ACCOUNT_ID,
+        toAccountId: usd.id,
+        amount: '1',
+        currency: 'VND',
+        transactionDate: DATE,
+        status: 'COMPLETED',
+      }),
+    );
+    assert.equal(code, 'TRANSFER_CURRENCY_MISMATCH');
   });
 
   it('rejects an amount whose currency differs from the account (BR-07)', async () => {
@@ -366,9 +374,10 @@ describe('calc.ts converters', () => {
     await guestTransactionsApi.create(expense({ amount: '150000' }));
     const [row] = guestStore.current().transactions;
 
-    const relevant = toSpendRelevant(row!);
+    const relevant = toSpendRelevant(row!, WALLET_ID);
     assert.equal(relevant.amount, parseMoney('150000'));
     assert.equal(relevant.categoryId, EXPENSE_CATEGORY_ID);
+    assert.equal(relevant.walletId, WALLET_ID, 'the paying wallet, which a wallet-wide budget is scoped by');
     assert.equal(relevant.transactionDate, DATE);
   });
 
@@ -387,6 +396,6 @@ describe('calc.ts converters', () => {
     const relevant = toBalanceRelevant(row!);
     assert.equal(relevant.fromAccountId, ACCOUNT_ID);
     assert.equal(relevant.toAccountId, OTHER_ACCOUNT_ID);
-    assert.equal(toSpendRelevant(row!).categoryId, null);
+    assert.equal(toSpendRelevant(row!, WALLET_ID).categoryId, null);
   });
 });

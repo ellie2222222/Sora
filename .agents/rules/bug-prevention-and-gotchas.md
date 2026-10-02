@@ -29,7 +29,7 @@ Each rule below was established to permanently prevent a regression of a specifi
 
 ### 5. Budget Overlap Cannot Be Expressed with Unique Indexes
 - Two date ranges can overlap without sharing a common start or end date.
-- Enforce non-overlapping active budgets using the Postgres GIST exclusion constraint `excl_budget_overlap` on `daterange(start_date, end_date, '[]')`.
+- Enforce non-overlapping active budgets using the Postgres GIST exclusion constraints `excl_budget_category_overlap`, `excl_budget_goal_overlap` and `excl_budget_overall_overlap` on `daterange(start_date, end_date, '[]')`.
 
 ### 6. Invitations Are Not Pending Member Rows
 - `wallet_members.status` is strictly `ACTIVE` or `REVOKED`.

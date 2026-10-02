@@ -15,6 +15,7 @@ import {
   updatePreferencesSchema,
   updateTransactionSchema,
 } from '../src/schemas.ts';
+import { BUDGET_PERIOD_TYPES } from '../src/enums.ts';
 
 /** The field paths a failed parse complained about. */
 function issuePaths(result: { success: boolean; error?: { issues: { path: unknown[] }[] } }) {
@@ -25,6 +26,7 @@ const baseDate = '2026-08-22T12:30:00Z';
 const ACCOUNT_A = '11111111-1111-4111-8111-111111111111';
 const ACCOUNT_B = '22222222-2222-4222-8222-222222222222';
 const CATEGORY = '33333333-3333-4333-8333-333333333333';
+const GOAL = '44444444-4444-4444-8444-444444444444';
 
 describe('createTransactionSchema — per-type shape', () => {
   it('accepts a well-formed expense', () => {
@@ -179,6 +181,27 @@ describe('createTransactionSchema — per-type shape', () => {
   });
 });
 
+describe('createTransactionSchema — goal tag', () => {
+  const base = { amount: '10', currency: 'VND', transactionDate: '2026-08-22T12:30:00Z' };
+
+  it('TXN-US-02: lets an expense carry a goal', () => {
+    const result = createTransactionSchema.safeParse({ ...base, type: 'EXPENSE', fromAccountId: ACCOUNT_A, categoryId: CATEGORY, goalId: GOAL });
+    assert.equal(result.success, true, JSON.stringify(issuePaths(result)));
+  });
+
+  it('refuses a goal on income or a transfer, which is not spending (chk_transaction_goal)', () => {
+    const income = createTransactionSchema.safeParse({ ...base, type: 'INCOME', toAccountId: ACCOUNT_A, categoryId: CATEGORY, goalId: GOAL });
+    const transfer = createTransactionSchema.safeParse({ ...base, type: 'TRANSFER', fromAccountId: ACCOUNT_A, toAccountId: ACCOUNT_B, goalId: GOAL });
+    assert.ok(issuePaths(income).includes('goalId'));
+    assert.ok(issuePaths(transfer).includes('goalId'));
+  });
+
+  it('accepts an explicit null goal on any type, as a client sending a blank field does', () => {
+    const income = createTransactionSchema.safeParse({ ...base, type: 'INCOME', toAccountId: ACCOUNT_A, categoryId: CATEGORY, goalId: null });
+    assert.equal(income.success, true, JSON.stringify(issuePaths(income)));
+  });
+});
+
 describe('updateTransactionSchema — category', () => {
   it('accepts a category id, or null to remove one (the service allows null only on a transfer)', () => {
     assert.equal(updateTransactionSchema.safeParse({ categoryId: CATEGORY }).success, true);
@@ -290,6 +313,38 @@ describe('createBudgetSchema', () => {
       endDate: '2026-10-01',
     });
     assert.equal(result.success, true, JSON.stringify(issuePaths(result)));
+  });
+
+  const walletWide = {
+    walletId: ACCOUNT_A,
+    name: 'Whole wallet',
+    amount: '1000',
+    currency: 'VND',
+    startDate: '2026-10-01',
+    endDate: '2026-10-31',
+  };
+
+  it('accepts a wallet-wide budget naming neither a category nor a goal (migration 008)', () => {
+    const result = createBudgetSchema.safeParse({ ...walletWide, periodType: 'MONTHLY' });
+    assert.equal(result.success, true, JSON.stringify(issuePaths(result)));
+  });
+
+  it('accepts every period chk_budget_period admits, and nothing else', () => {
+    for (const periodType of BUDGET_PERIOD_TYPES) {
+      const body = periodType === 'GOAL' ? { ...walletWide, goalId: GOAL, periodType } : { ...walletWide, periodType };
+      assert.equal(createBudgetSchema.safeParse(body).success, true, periodType);
+    }
+    assert.ok(issuePaths(createBudgetSchema.safeParse({ ...walletWide, periodType: 'HOURLY' })).includes('periodType'));
+  });
+
+  it('BUD-US-01: refuses a budget naming both a category and a goal (chk_budget_kind)', () => {
+    const result = createBudgetSchema.safeParse({ ...walletWide, categoryId: CATEGORY, goalId: GOAL, periodType: 'GOAL' });
+    assert.ok(issuePaths(result).includes('goalId'));
+  });
+
+  it('BUD-US-01: pairs the goal period with a goal, and a goal with the goal period', () => {
+    assert.ok(issuePaths(createBudgetSchema.safeParse({ ...walletWide, periodType: 'GOAL' })).includes('goalId'));
+    assert.ok(issuePaths(createBudgetSchema.safeParse({ ...walletWide, goalId: GOAL, periodType: 'MONTHLY' })).includes('periodType'));
   });
 });
 

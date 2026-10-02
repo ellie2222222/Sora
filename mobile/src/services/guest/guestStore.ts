@@ -77,6 +77,7 @@ export interface GuestTransaction {
   fromAccountId: string | null;
   toAccountId: string | null;
   categoryId: string | null;
+  goalId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -84,7 +85,8 @@ export interface GuestTransaction {
 export interface GuestBudget {
   id: string;
   walletId: string;
-  categoryId: string;
+  categoryId: string | null;
+  goalId: string | null;
   name: string;
   amount: MoneyString;
   currency: string;
@@ -168,6 +170,16 @@ function emptyData(): GuestData {
     contributions: [],
     uploadProgress: null,
     starterCategoriesVersion: 0,
+  };
+}
+
+/** Rows saved before a field existed read it as undefined, which `=== null` checks would miss. */
+function withStoredDefaults(stored: Partial<GuestData>): GuestData {
+  const data = { ...emptyData(), ...stored };
+  return {
+    ...data,
+    transactions: data.transactions.map((transaction) => ({ ...transaction, goalId: transaction.goalId ?? null })),
+    budgets: data.budgets.map((budget) => ({ ...budget, goalId: budget.goalId ?? null })),
   };
 }
 
@@ -263,7 +275,7 @@ export class GuestStore {
 
     if (raw !== null) {
       try {
-        this.data = { ...emptyData(), ...(JSON.parse(raw) as Partial<GuestData>) };
+        this.data = withStoredDefaults(JSON.parse(raw) as Partial<GuestData>);
       } catch {
         this.data = emptyData();
       }

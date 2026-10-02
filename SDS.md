@@ -303,7 +303,7 @@ wallets at once and a single FK could only name one of them ([BR-03](SRS.md#4-bu
 | Account | `accounts` | `initial_balance` has no `CHECK (>= 0)` — a credit card legitimately opens negative |
 | Category | `categories` | Self-referencing `parent_id`; `chk_category_not_own_parent` blocks the one-hop cycle, deeper cycles are a service-layer check |
 | Transaction | `transactions` | `chk_transaction_shape` enforces the account/category shape per type (income has no `from_account_id`, transfer has no `category_id`, etc.) at the database level |
-| Budget | `budgets` | `excl_budget_overlap` is a GIST exclusion constraint over `daterange(start_date, end_date, '[]')` — a plain unique index cannot express "no overlapping window" |
+| Budget | `budgets` | `excl_budget_category_overlap`, `excl_budget_goal_overlap` and `excl_budget_overall_overlap` are GIST exclusion constraints over `daterange(start_date, end_date, '[]')` — a plain unique index cannot express "no overlapping window" |
 | Goal | `goals` | No stored progress; see GoalContribution |
 | GoalContribution | `goal_contributions` | `transaction_id` is nullable **and** unique — nullable because an earmark backs nothing, unique because one payment cannot fund two goals |
 | AuditLog | `audit_logs` | Append-only by convention: no update/delete path exists in the API |
@@ -821,11 +821,12 @@ grouped here for readability only.
 | `CATEGORY_DUPLICATE_NAME` | 409 | Sibling name collision (case-insensitive) |
 | `CATEGORY_CYCLE` | 422 | Parent assignment would create a cycle |
 | `CATEGORY_IN_USE` | 409 | Archive refused — an active budget still plans for it |
-| `CATEGORY_HAS_TRANSACTIONS` | 409 | (reserved) |
+| `CATEGORY_HAS_TRANSACTIONS` | 409 | Permanent delete refused — the category or a child has transactions |
+| `CATEGORY_PARENT_ARCHIVED` | 409 | Restore refused — the parent is still archived |
 | `TRANSACTION_NOT_FOUND` | 404 | No such transaction |
 | `TRANSACTION_IMMUTABLE` | 409 | Edit attempted on a field that cannot change |
 | `TRANSACTION_ALREADY_CANCELLED` | 409 | Cancel attempted twice |
-| `TRANSFER_SAME_ACCOUNT` | 422 | Transfer source and destination are the same account |
+| `TRANSFER_SAME_ACCOUNT` | 422 | Service backstop for a same-account transfer; over HTTP `createTransactionSchema` answers `VALIDATION_FAILED` first |
 | `TRANSFER_CURRENCY_MISMATCH` | 422 | The two accounts don't share a currency |
 | `BUDGET_NOT_FOUND` | 404 | No such budget |
 | `BUDGET_PERIOD_OVERLAP` | 409 | Overlaps another active budget for the same category |
@@ -866,7 +867,7 @@ not referenced by `check-contract-parity.mjs`, since it backs a computed respons
 | Constraint | Table | What it actually prevents |
 | --- | --- | --- |
 | `uq_wallet_single_owner` | `wallet_members` | Two `ACTIVE` `OWNER` rows on one wallet, even momentarily — see [CLAUDE.md](CLAUDE.md) Part 7, rule 3 on why ownership transfer must demote before it promotes |
-| `excl_budget_overlap` (GIST) | `budgets` | Two `ACTIVE` budgets for one category with overlapping `daterange(start_date, end_date, '[]')` — a plain unique index cannot express "overlap," only "identical" |
+| `excl_budget_category_overlap`, `excl_budget_goal_overlap`, `excl_budget_overall_overlap` (GIST) | `budgets` | Two `ACTIVE` budgets of the same kind (one category, one goal, or wallet-wide) with overlapping `daterange(start_date, end_date, '[]')` — a plain unique index cannot express "overlap," only "identical" |
 | `chk_transaction_shape` | `transactions` | A row whose account/category combination doesn't match its `type` (e.g. an `EXPENSE` with no `category_id`, or an `INCOME` with a `from_account_id`) |
 | `uq_wallet_invitation_open` | `wallet_invitations` | Two live (unaccepted, unrevoked) invitations for the same wallet+email |
 | `chk_user_has_credential` | `users` | A row with neither a password nor a Google identity — unable to authenticate through any path |

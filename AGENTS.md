@@ -49,7 +49,7 @@ When requirements or documentation disagree, authority is strictly prioritized (
 5. **Transfers are Neither Income nor Expense**: Transfers are excluded from income, expense, and budget spend calculations. Cross-wallet transfers require `EDITOR` on **both** wallets.
 6. **Derived Values are Never Stored**: Balances, spent totals, budget usage, and goal progress are computed dynamically on every read via [`packages/contracts/src/calc.ts`](packages/contracts/src/calc.ts). Never add a cached balance column.
 7. **Single Active Owner**: Enforced by partial unique index `uq_wallet_single_owner`. Ownership transfer must demote the current owner before promoting the new owner in a single transaction with `SELECT ... FOR UPDATE`.
-8. **Budget Windows Do Not Overlap**: Enforced by Postgres GIST exclusion constraint `excl_budget_overlap`, not a unique index.
+8. **Budget Windows Do Not Overlap**: Enforced by Postgres GIST exclusion constraints (`excl_budget_category_overlap`, plus `excl_budget_goal_overlap` and `excl_budget_overall_overlap` for goal and wallet-wide budgets), not a unique index.
 9. **Active Locales**: English (`en`) and Vietnamese (`vi`) only. Never translate or touch inactive locales (`de`, `es`, `fr`, `hi`, `ja`, `ko`, `ru`, `zh`).
 10. **NativeWind v4 Pressable Style**: Never pass a function to a `Pressable`'s `style` prop (`style={({ pressed }) => ...}` silently fails in NativeWind v4). Track `pressed` with local state + `onPressIn`/`onPressOut`.
 11. **Barrel Imports Boundary**: Use `@/...` barrel aliases for imports outside the directory; use direct relative paths for siblings inside the same directory. Orchestrators importing across multiple features use direct paths to prevent require cycles.

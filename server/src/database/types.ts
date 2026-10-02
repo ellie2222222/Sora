@@ -131,6 +131,7 @@ export interface TransactionsTable {
   from_account_id: string | null;
   to_account_id: string | null;
   category_id: string | null;
+  goal_id: string | null;
   type: TransactionType;
   amount: Money;
   currency: string;
@@ -145,7 +146,8 @@ export interface TransactionsTable {
 export interface BudgetsTable {
   id: Generated<string>;
   wallet_id: string;
-  category_id: string;
+  category_id: string | null;
+  goal_id: string | null;
   name: string;
   amount: Money;
   currency: string;

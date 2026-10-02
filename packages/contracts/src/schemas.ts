@@ -240,10 +240,14 @@ const transactionCommon = {
   reference: z.string().trim().max(100).nullish(),
 };
 
+// Only an expense is spending toward a goal (chk_transaction_goal); the other types may send null.
+const noGoalTag = z.null({ invalid_type_error: 'Only an expense can be tagged with a goal' }).optional();
+
 export const createIncomeSchema = z.object({
   type: z.literal('INCOME'),
   toAccountId: uuidSchema,
   categoryId: uuidSchema,
+  goalId: noGoalTag,
   ...transactionCommon,
 });
 
@@ -251,6 +255,7 @@ export const createExpenseSchema = z.object({
   type: z.literal('EXPENSE'),
   fromAccountId: uuidSchema,
   categoryId: uuidSchema,
+  goalId: uuidSchema.nullish(),
   ...transactionCommon,
 });
 
@@ -261,6 +266,7 @@ export const createTransferSchema = z
     toAccountId: uuidSchema,
     // Optional, unlike income/expense: a transfer is neither (BR-06), so labelling one is a choice.
     categoryId: uuidSchema.nullish(),
+    goalId: noGoalTag,
     ...transactionCommon,
   })
   .refine((value) => value.fromAccountId !== value.toAccountId, {
@@ -298,6 +304,8 @@ export const updateTransactionSchema = z
     transactionDate: isoDateTimeSchema.optional(),
     // null removes a transfer's category; the service refuses it for income and expense.
     categoryId: uuidSchema.nullable().optional(),
+    // The service refuses a goal on anything but an expense, as it needs the stored type.
+    goalId: uuidSchema.nullable().optional(),
     reference: z.string().trim().max(100).nullish(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
@@ -329,7 +337,8 @@ export const transactionQuerySchema = z.object({
 export const createBudgetSchema = z
   .object({
     walletId: uuidSchema,
-    categoryId: uuidSchema,
+    categoryId: uuidSchema.nullish(),
+    goalId: uuidSchema.nullish(),
     name: nameSchema(100),
     amount: positiveAmountSchema,
     currency: currencySchema,
@@ -340,6 +349,18 @@ export const createBudgetSchema = z
   .refine((value) => value.endDate >= value.startDate, {
     message: 'End date cannot be before start date',
     path: ['endDate'],
+  })
+  // Exactly one kind (chk_budget_kind): category, goal (period GOAL) or wallet-wide.
+  .superRefine((value, ctx) => {
+    if (value.categoryId != null && value.goalId != null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A budget covers a category or a goal, not both', path: ['goalId'] });
+    }
+    if (value.periodType === 'GOAL' && value.goalId == null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A goal budget needs a goal', path: ['goalId'] });
+    }
+    if (value.periodType !== 'GOAL' && value.goalId != null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A budget for a goal uses the goal period', path: ['periodType'] });
+    }
   });
 
 export const updateBudgetSchema = z
@@ -392,14 +413,19 @@ export const createContributionSchema = z.object({
 // Dashboard
 // ---------------------------------------------------------------------------
 
-export const dashboardQuerySchema = z.object({
-  walletId: uuidSchema,
-  /** Narrows every figure to one of the wallet's accounts; transfers to its sibling accounts then count as in/out. */
-  accountId: uuidSchema.optional(),
-  dateFrom: isoDateSchema.optional(),
-  dateTo: isoDateSchema.optional(),
-  displayCurrency: currencySchema.optional(),
-});
+export const dashboardQuerySchema = z
+  .object({
+    walletId: uuidSchema,
+    /** Narrows every figure to one of the wallet's accounts; transfers to its sibling accounts then count as in/out. */
+    accountId: uuidSchema.optional(),
+    dateFrom: isoDateSchema.optional(),
+    dateTo: isoDateSchema.optional(),
+    displayCurrency: currencySchema.optional(),
+  })
+  .refine((value) => !value.dateFrom || !value.dateTo || value.dateFrom <= value.dateTo, {
+    message: 'dateFrom must not be after dateTo',
+    path: ['dateTo'],
+  });
 
 // ---------------------------------------------------------------------------
 // AI assistant

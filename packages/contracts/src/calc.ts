@@ -70,8 +70,14 @@ export function calculateWalletBalance(accountBalances: readonly Scaled[]): Scal
   return add(...accountBalances);
 }
 
+/**
+ * A budget's kind is its target: a category, a goal, or — naming neither — the whole wallet
+ * (API spec §12.2, `chk_budget_kind`). A goal and a category are never both set.
+ */
 export interface BudgetSpendInput {
-  categoryId: string;
+  walletId: string;
+  categoryId: string | null;
+  goalId: string | null;
   currency: string;
   startDate: string;
   endDate: string;
@@ -83,13 +89,28 @@ export interface SpendRelevantTransaction {
   amount: Scaled;
   currency: string;
   categoryId: string | null;
+  goalId: string | null;
+  /** The paying account's wallet, which is what a wallet-wide budget is scoped by. */
+  walletId: string | null;
   transactionDate: string;
+}
+
+export type BudgetTarget = Pick<BudgetSpendInput, 'walletId' | 'categoryId' | 'goalId'>;
+
+/** Whether an expense falls under a budget's target, whatever its date, status or currency. */
+export function isBudgetTarget(
+  budget: BudgetTarget,
+  transaction: Pick<SpendRelevantTransaction, 'categoryId' | 'goalId' | 'walletId'>,
+): boolean {
+  if (budget.goalId != null) return transaction.goalId === budget.goalId;
+  if (budget.categoryId != null) return transaction.categoryId === budget.categoryId;
+  return transaction.walletId === budget.walletId;
 }
 
 /**
  * TRANSFER is excluded by the type test, which is the whole "a transfer is not
  * spending" rule: moving 2,000,000 from a bank account to cash, or to a
- * partner's wallet, must not consume a food budget.
+ * partner's wallet, must not consume a food budget — or a wallet-wide one.
  */
 export function calculateBudgetSpent(
   budget: BudgetSpendInput,
@@ -100,7 +121,7 @@ export function calculateBudgetSpent(
   for (const transaction of transactions) {
     if (transaction.type !== TransactionType.EXPENSE) continue;
     if (transaction.status !== TransactionStatus.COMPLETED) continue;
-    if (transaction.categoryId !== budget.categoryId) continue;
+    if (!isBudgetTarget(budget, transaction)) continue;
     // BR-07: a category can hold expenses in several currencies, and summing them is meaningless.
     if (transaction.currency !== budget.currency) continue;
     if (!isWithinPeriod(transaction.transactionDate, budget.startDate, budget.endDate)) continue;

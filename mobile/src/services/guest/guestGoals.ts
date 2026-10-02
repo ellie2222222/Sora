@@ -239,6 +239,7 @@ export const guestGoalsApi = {
         fromAccountId: request.accountId,
         toAccountId: null,
         categoryId: request.categoryId!,
+        goalId: goal.id,
         createdAt: now,
         updatedAt: now,
       };

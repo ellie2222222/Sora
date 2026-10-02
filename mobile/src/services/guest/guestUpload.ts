@@ -234,6 +234,8 @@ function buildTransactionRequest(
       type: TransactionType.EXPENSE,
       fromAccountId: progress.accountMap[transaction.fromAccountId!]!,
       categoryId: progress.categoryMap[transaction.categoryId!]!,
+      // Goals upload before transactions, so a tagged expense's goal is already mapped.
+      goalId: transaction.goalId ? progress.goalMap[transaction.goalId]! : undefined,
     };
   }
   return {
@@ -272,7 +274,8 @@ async function uploadBudgets(walletId: string, apis: UploadApis): Promise<void> 
     const progress = progressOf(guestStore.current());
     const response = await apis.budgets.create({
       walletId,
-      categoryId: progress.categoryMap[budget.categoryId]!,
+      categoryId: budget.categoryId ? progress.categoryMap[budget.categoryId]! : undefined,
+      goalId: budget.goalId ? progress.goalMap[budget.goalId]! : undefined,
       name: budget.name,
       amount: budget.amount,
       currency: budget.currency,
@@ -416,6 +419,10 @@ export async function uploadGuestData(
   await uploadAccounts(walletId, apis);
   onProgress?.('accounts', true);
 
+  onProgress?.('goals', false);
+  await uploadGoals(walletId, apis);
+  onProgress?.('goals', true);
+
   onProgress?.('transactions', false);
   await uploadTransactions(apis);
   onProgress?.('transactions', true);
@@ -423,10 +430,6 @@ export async function uploadGuestData(
   onProgress?.('budgets', false);
   await uploadBudgets(walletId, apis);
   onProgress?.('budgets', true);
-
-  onProgress?.('goals', false);
-  await uploadGoals(walletId, apis);
-  onProgress?.('goals', true);
 
   onProgress?.('archives', false);
   await archiveLocallyArchived(apis);

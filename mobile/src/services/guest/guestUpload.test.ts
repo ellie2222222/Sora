@@ -130,6 +130,7 @@ function recordingApis(options: {
           fromAccount: null,
           toAccount: null,
           category: null,
+          goalId: body.goalId ?? null,
           createdBy: { id: 'server-user', displayName: 'Real User' },
           isCrossWallet: false,
           createdAt: NOW,
@@ -150,7 +151,9 @@ function recordingApis(options: {
           startDate: body.startDate,
           endDate: body.endDate,
           status: 'ACTIVE' as const,
-          category: { id: body.categoryId, name: '', icon: null, color: null },
+          categoryId: body.categoryId ?? null,
+          goalId: body.goalId ?? null,
+          category: body.categoryId ? { id: body.categoryId, name: '', icon: null, color: null } : null,
           spent: '0.0000',
           remaining: body.amount,
           usagePercentage: 0,
@@ -248,6 +251,7 @@ async function seedFullLedger(): Promise<void> {
         fromAccountId: ACCOUNT_ID,
         toAccountId: null,
         categoryId: EXPENSE_CATEGORY_ID,
+        goalId: null,
         createdAt: NOW,
         updatedAt: NOW,
       },
@@ -257,6 +261,7 @@ async function seedFullLedger(): Promise<void> {
         id: '3f1a7c62-0000-4000-8000-000000000021',
         walletId: WALLET_ID,
         categoryId: EXPENSE_CATEGORY_ID,
+        goalId: null,
         name: 'Food, September',
         amount: '1000000',
         currency: 'VND',
@@ -314,10 +319,10 @@ describe('uploadGuestData — ordering', () => {
     const firstIndexOf = (method: string) => order.indexOf(method);
 
     assert.ok(firstIndexOf('categories.create') < firstIndexOf('accounts.create'));
-    assert.ok(firstIndexOf('accounts.create') < firstIndexOf('transactions.create'));
-    assert.ok(firstIndexOf('transactions.create') < firstIndexOf('budgets.create'));
-    assert.ok(firstIndexOf('budgets.create') < firstIndexOf('goals.create'));
+    assert.ok(firstIndexOf('accounts.create') < firstIndexOf('goals.create'));
     assert.ok(firstIndexOf('goals.create') < firstIndexOf('goals.addContribution'));
+    assert.ok(firstIndexOf('goals.addContribution') < firstIndexOf('transactions.create'));
+    assert.ok(firstIndexOf('transactions.create') < firstIndexOf('budgets.create'));
   });
 
   it('does nothing at all when there is no local wallet', async () => {
@@ -464,6 +469,7 @@ describe('uploadGuestData — resume after failure', () => {
     // Everything before budgets landed and was recorded.
     const progress = guestStore.current().uploadProgress!;
     assert.equal(Object.keys(progress.accountMap).length, 2);
+    assert.equal(Object.keys(progress.goalMap).length, 1);
     assert.equal(Object.keys(progress.transactionMap).length, 1);
     assert.equal(Object.keys(progress.budgetMap).length, 0);
 
@@ -473,9 +479,9 @@ describe('uploadGuestData — resume after failure', () => {
     // The second pass creates only what the first never finished.
     assert.equal(resumed.of('categories.create').length, 0);
     assert.equal(resumed.of('accounts.create').length, 0);
+    assert.equal(resumed.of('goals.create').length, 0);
     assert.equal(resumed.of('transactions.create').length, 0);
     assert.equal(resumed.of('budgets.create').length, 1);
-    assert.equal(resumed.of('goals.create').length, 1);
   });
 
   it('reuses the pinned idempotency key on a retried transaction', async () => {
@@ -567,6 +573,7 @@ describe('uploadGuestData — contribution-backed transactions', () => {
           fromAccountId: ACCOUNT_ID,
           toAccountId: null,
           categoryId: EXPENSE_CATEGORY_ID,
+          goalId: '3f1a7c62-0000-4000-8000-000000000031',
           createdAt: NOW,
           updatedAt: NOW,
         },

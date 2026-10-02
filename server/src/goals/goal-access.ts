@@ -65,8 +65,23 @@ export async function requireGoalAccess(
     .executeTakeFirst();
 
   if (!found || found.member_role === null) throw new AppError('GOAL_NOT_FOUND');
-  if (!roleSatisfies(found.member_role, required)) throw AppError.forbidden(found.member_role);
+  if (!roleSatisfies(found.member_role, required)) throw AppError.forbidden(found.member_role, found.wallet_id);
 
   const { member_role, ...goal } = found;
   return { goal, role: member_role };
+}
+
+/**
+ * A goal named from inside another resource (a budget, an expense's tag) must be one of that
+ * wallet's own goals. A goal anywhere else reads as missing (AC-01), whoever can see it.
+ */
+export async function requireGoalInWallet(db: Executor, walletId: string, goalId: string): Promise<GoalStatus> {
+  const goal = await db
+    .selectFrom('goals')
+    .select('status')
+    .where('id', '=', goalId)
+    .where('wallet_id', '=', walletId)
+    .executeTakeFirst();
+  if (!goal) throw new AppError('GOAL_NOT_FOUND');
+  return goal.status;
 }

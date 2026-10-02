@@ -98,6 +98,7 @@ export function buildOptimisticTransaction(
     fromAccount,
     toAccount,
     category,
+    goalId: body.goalId ?? null,
     createdBy: PENDING_CREATED_BY,
     isCrossWallet:
       body.type === TransactionType.TRANSFER && !!fromAccount && !!toAccount
@@ -129,7 +130,7 @@ export function buildOptimisticBudget(
   localId: string,
   apiState: unknown,
 ): BudgetResponse {
-  const category = findCachedById<CategoryResponse>(apiState, 'listCategories', body.categoryId);
+  const category = body.categoryId ? findCachedById<CategoryResponse>(apiState, 'listCategories', body.categoryId) : null;
   const now = new Date().toISOString();
   return {
     id: localId,
@@ -141,9 +142,13 @@ export function buildOptimisticBudget(
     startDate: body.startDate,
     endDate: body.endDate,
     status: BudgetStatus.ACTIVE,
+    categoryId: body.categoryId ?? null,
+    goalId: body.goalId ?? null,
     category: category
       ? { id: category.id, name: category.name, icon: category.icon, color: category.color }
-      : { id: body.categoryId, name: '', icon: null, color: null },
+      : body.categoryId 
+        ? { id: body.categoryId, name: '', icon: null, color: null }
+        : null,
     spent: ZERO,
     remaining: body.amount,
     usagePercentage: 0,

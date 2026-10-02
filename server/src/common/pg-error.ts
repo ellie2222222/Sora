@@ -2,8 +2,8 @@
  * Translating a constraint violation into the error code it means.
  *
  * The schema's unique and exclusion constraints are the real enforcement — the
- * `uq_wallet_single_owner` partial index and the `excl_budget_overlap` GIST
- * constraint reject races a pre-check cannot see, because between the check and
+ * `uq_wallet_single_owner` partial index and the `excl_budget_*_overlap` GIST
+ * constraints reject races a pre-check cannot see, because between the check and
  * the insert another request can commit. So the insert is attempted and the
  * violation is translated, rather than trusting a SELECT that was true a
  * moment ago.
@@ -35,10 +35,14 @@ const CONSTRAINT_CODES: Record<string, ErrorCode> = {
   uq_wallet_single_owner: 'WALLET_LAST_OWNER',
   uq_wallet_invitation_open: 'INVITATION_ALREADY_OPEN',
   uq_category_name_per_parent: 'CATEGORY_DUPLICATE_NAME',
-  excl_budget_overlap: 'BUDGET_PERIOD_OVERLAP',
+  excl_budget_category_overlap: 'BUDGET_PERIOD_OVERLAP',
+  excl_budget_goal_overlap: 'BUDGET_PERIOD_OVERLAP',
+  excl_budget_overall_overlap: 'BUDGET_PERIOD_OVERLAP',
   chk_invitation_role: 'VALIDATION_FAILED',
   chk_transaction_shape: 'VALIDATION_FAILED',
   chk_budget_dates: 'VALIDATION_FAILED',
+  chk_budget_kind: 'VALIDATION_FAILED',
+  chk_transaction_goal: 'VALIDATION_FAILED',
 };
 
 /**

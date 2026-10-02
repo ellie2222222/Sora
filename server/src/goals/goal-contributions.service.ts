@@ -99,11 +99,11 @@ export class GoalContributionsService {
     request: CreateContributionRequest,
     ip: string | null,
   ): Promise<ContributionResponse> {
-    const { goal } = await requireGoalAccess(this.database.db, user.id, goalId, 'EDITOR');
+    const { goal, role } = await requireGoalAccess(this.database.db, user.id, goalId, 'EDITOR');
     if (goal.status !== GoalStatus.ACTIVE) throw new AppError('GOAL_NOT_ACTIVE');
 
     const account = await this.access.requireAccount(user.id, request.accountId, 'VIEWER');
-    if (account.walletId !== goal.wallet_id) throw AppError.forbidden(account.role);
+    if (account.walletId !== goal.wallet_id) throw AppError.forbidden(role, goal.wallet_id);
     if (request.currency !== goal.currency || request.currency !== account.currency) {
       throw new AppError('ACCOUNT_CURRENCY_MISMATCH');
     }
@@ -131,6 +131,8 @@ export class GoalContributionsService {
             from_account_id: request.accountId,
             to_account_id: null,
             category_id: request.categoryId!,
+            // Tagged so this goal's budget counts the money that left for it (§12.2).
+            goal_id: goalId,
             type: TransactionType.EXPENSE,
             amount: request.amount,
             currency: request.currency,
