@@ -1,0 +1,3 @@
+# LF everywhere, whatever core.autocrlf says: CI runs on Linux, and generated files
+# (scripts/sync-agent-skills.mjs) are written with LF.
+* text=auto eol=lf
