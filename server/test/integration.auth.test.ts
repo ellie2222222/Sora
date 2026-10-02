@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 
-import { STARTER_CATEGORIES } from '@sora/contracts';
+import { API_PREFIX, STARTER_CATEGORIES } from '@sora/contracts';
 
 import { integrationSkipReason, registerProbeUser, startTestApi, type TestApi } from './support/integration.ts';
 
@@ -109,24 +109,30 @@ describe('auth against a real database', { skip: integrationSkipReason() }, () =
     assert.equal((await api.call('POST', '/auth/refresh', { body: { refreshToken: user.refreshToken } })).status, 401);
   });
 
-  it('refuses every wallet-scoped read and write without a bearer token', async () => {
-    const walletId = randomUUID();
-    const protectedCalls: [string, string][] = [
-      ['GET', '/auth/me'],
-      ['GET', '/wallets'],
-      ['GET', `/wallets/${walletId}`],
-      ['GET', `/accounts?walletId=${walletId}`],
-      ['GET', `/transactions?walletId=${walletId}`],
-      ['POST', '/transactions'],
-      ['GET', `/budgets?walletId=${walletId}`],
-      ['GET', `/goals?walletId=${walletId}`],
-      ['GET', `/categories?walletId=${walletId}`],
-      ['GET', `/dashboard?walletId=${walletId}`],
-      ['GET', `/wallets/${walletId}/audit-logs`],
-    ];
-    for (const [method, path] of protectedCalls) {
-      const response = await api.call(method, path, method === 'POST' ? { body: {} } : {});
-      assert.equal(response.status, 401, `${method} ${path} returned ${response.status}`);
+  it('refuses every mounted route without a bearer token, except the few that are public by design', async () => {
+    // A guard missing from a new controller is the defect this catches, so the list is read off
+    // the running app rather than written down here.
+    const PUBLIC = new Set([
+      `GET ${API_PREFIX}/health`,
+      `POST ${API_PREFIX}/auth/register`,
+      `POST ${API_PREFIX}/auth/login`,
+      `POST ${API_PREFIX}/auth/google`,
+      `POST ${API_PREFIX}/auth/refresh`,
+      `POST ${API_PREFIX}/invitations/preview`,
+    ]);
+    const router = (api.app.getHttpAdapter().getInstance() as { router: { stack: { route?: { path: string; methods: Record<string, boolean> } }[] } }).router;
+    const routes = router.stack.flatMap((layer) =>
+      layer.route ? Object.keys(layer.route.methods).map((method) => `${method.toUpperCase()} ${layer.route!.path}`) : [],
+    );
+    assert.ok(routes.length > 40, `read only ${routes.length} routes off the router`);
+
+    const unguarded: string[] = [];
+    for (const route of routes.filter((candidate) => !PUBLIC.has(candidate))) {
+      const [method, path] = route.split(' ') as [string, string];
+      const concrete = path.slice(API_PREFIX.length).replace(/:[A-Za-z]+/g, randomUUID());
+      const response = await api.call(method, concrete, method === 'GET' ? {} : { body: {} });
+      if (response.status !== 401) unguarded.push(`${route} → ${response.status}`);
     }
+    assert.deepEqual(unguarded, []);
   });
 });

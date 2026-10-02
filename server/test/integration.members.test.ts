@@ -157,7 +157,7 @@ describe('membership and invitations against a real database', { skip: integrati
       const email = `probe+inv-revoke-${randomUUID()}@example.invalid`;
       const first = await api.call('POST', `/wallets/${owner.walletId}/invitations`, { token: owner.token, body: { email, role: 'VIEWER' } });
       const revoked = await api.call('DELETE', `/wallets/${owner.walletId}/invitations/${first.body!.data.id}`, { token: owner.token });
-      assert.ok(revoked.status === 200 || revoked.status === 204, `revoke returned ${revoked.status}`);
+      assert.equal(revoked.status, 204, 'revoke answers 204 No Content (API spec)');
       const second = await api.call('POST', `/wallets/${owner.walletId}/invitations`, { token: owner.token, body: { email, role: 'VIEWER' } });
       assert.equal(second.status, 201);
       const oldToken = await api.call('POST', '/invitations/preview', { body: { token: first.body!.data.token } });

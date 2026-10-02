@@ -1,6 +1,5 @@
 /**
- * Preloaded via `node --import` before any test file runs (see package.json's
- * `test` script). Makes an unstubbed `fetch` fail loudly instead of silently
+ * Preloaded via `node --import` before any test file runs (see test/run.mjs). Makes an unstubbed `fetch` fail loudly instead of silently
  * reaching a real external API — `ExchangeRateService` is the one caller today,
  * and every test that exercises it already stubs `globalThis.fetch` itself
  * (see exchange-rate.service.test.ts's beforeEach/afterEach); this is the

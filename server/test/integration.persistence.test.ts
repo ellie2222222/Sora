@@ -8,12 +8,12 @@ import { createAccount, integrationSkipReason, registerProbeUser, startTestApi, 
 
 const blockedFetch = globalThis.fetch;
 
-function stubRates(vndPerUsd: number | null): { calls: () => number } {
+function stubRates(vndPerUsd: number | null, updatedAt = new Date()): { calls: () => number } {
   let calls = 0;
   globalThis.fetch = (async () => {
     calls += 1;
     if (vndPerUsd === null) throw new TypeError('fetch failed');
-    return new Response(JSON.stringify({ result: 'success', base_code: 'USD', time_last_update_utc: new Date().toUTCString(), rates: { USD: 1, VND: vndPerUsd } }), {
+    return new Response(JSON.stringify({ result: 'success', base_code: 'USD', time_last_update_utc: updatedAt.toUTCString(), rates: { USD: 1, VND: vndPerUsd } }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -37,11 +37,27 @@ describe('persistence paths against a real database', { skip: integrationSkipRea
     }
 
     async function snapshots(api: TestApi) {
-      return api.sql<{ rates: Record<string, number> }>(
-        "SELECT rates FROM exchange_rate_snapshots WHERE base_currency = 'USD' AND snapshot_date = $1",
+      return api.sql<{ rates: Record<string, number>; fetched_at: Date }>(
+        "SELECT rates, fetched_at FROM exchange_rate_snapshots WHERE base_currency = 'USD' AND snapshot_date = $1",
         [today],
       );
     }
+
+    /**
+     * The snapshot is written in the background after the response, so wait for the row this phase
+     * stamped. A row left by an earlier run has an older stamp and is upserted, never deleted.
+     */
+    async function snapshotsOnceSaved(api: TestApi, stamp: Date) {
+      const deadline = Date.now() + 5000;
+      for (;;) {
+        const rows = await snapshots(api);
+        if (rows.some((row) => row.fetched_at.getTime() === stamp.getTime()) || Date.now() > deadline) return rows;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    }
+
+    /** Whole seconds, since the provider's timestamp is an RFC 1123 date. */
+    const phaseStamp = (offsetSeconds: number) => new Date(Math.floor(Date.now() / 1000 + offsetSeconds) * 1000);
 
     // Each phase boots its own app, so the in-process cache can't answer and the database must.
     async function withFreshApp<T>(run: (api: TestApi) => Promise<T>): Promise<T> {
@@ -58,26 +74,25 @@ describe('persistence paths against a real database', { skip: integrationSkipRea
         user = await registerProbeUser(api, 'fx');
         await createAccount(api, user, user.walletId, { initialBalance: '1000000' });
         today = (await api.sql<{ day: string }>("SELECT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day"))[0]!.day;
-        await api.sql("DELETE FROM exchange_rate_snapshots WHERE base_currency = 'USD' AND snapshot_date = $1", [today]);
       });
     });
 
     it('saves a snapshot on a fresh fetch, updates the same day\'s row in place, and falls back to it when the provider is down', async () => {
-      const first = stubRates(25000);
+      const firstStamp = phaseStamp(-2);
+      const first = stubRates(25000, firstStamp);
       const fresh = await withFreshApp(async (api) => {
         const result = await valuation(api);
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        return { result, rows: await snapshots(api) };
+        return { result, rows: await snapshotsOnceSaved(api, firstStamp) };
       });
       assert.equal(first.calls(), 1);
       assert.deepEqual([fresh.result.amount, fresh.result.status], ['40.0000', 'FRESH']);
       assert.deepEqual(fresh.rows.map((row) => row.rates.VND), [25000]);
 
-      stubRates(20000);
+      const secondStamp = phaseStamp(-1);
+      stubRates(20000, secondStamp);
       const updated = await withFreshApp(async (api) => {
         const result = await valuation(api);
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        return { result, rows: await snapshots(api) };
+        return { result, rows: await snapshotsOnceSaved(api, secondStamp) };
       });
       assert.deepEqual([updated.result.amount, updated.result.status], ['50.0000', 'FRESH']);
       assert.deepEqual(updated.rows.map((row) => row.rates.VND), [20000], 'one row per day and base, updated rather than duplicated');

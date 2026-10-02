@@ -41,6 +41,8 @@ export function integrationSkipReason(): string | false {
         ? false
         : `database "${name}" does not look disposable (needs test, scratch or ci in its name)`;
   if (reason && process.env.CI === 'true') throw new Error(`Integration tests cannot run in CI: ${reason}`);
+  // node --test counts a skipped suite as "skipped 0", so a local run would otherwise look complete.
+  if (reason) console.warn(`[integration] SKIPPED — ${reason}. Set DATABASE_URL to a scratch database to run it.`);
   return reason;
 }
 

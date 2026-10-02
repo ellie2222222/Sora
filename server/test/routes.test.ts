@@ -100,11 +100,10 @@ describe('mounted routes', () => {
   it('mounts at least one route per resource group', () => {
     // A module missing from AppModule takes its entire group down at once, which a
     // per-path assertion reports as a wall of noise rather than one cause.
-    const groups = ['wallets', 'accounts', 'categories', 'transactions', 'budgets', 'goals', 'invitations', 'auth', 'dashboard', 'health'];
-
-    const empty = groups.filter(
-      (group) => ![...mounted].some((route) => route.startsWith(`${API_PREFIX}/${group}`)),
-    );
+    // Groups come from ROUTES itself, so a new resource is covered without editing this list.
+    const empty = Object.entries(ROUTES)
+      .filter(([, group]) => ![...declaredRoutes(group)].some((route) => mounted.has(normalize(`${API_PREFIX}${route}`))))
+      .map(([name]) => name);
 
     assert.deepEqual(empty, [], `resource groups with no mounted route: ${empty.join(', ')}`);
   });

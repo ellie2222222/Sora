@@ -137,7 +137,7 @@ describe('access control against a real database', { skip: integrationSkipReason
     const members = await api.call('GET', `/wallets/${ids.wallet}/members`, { token: owner.token });
     const membership = members.body!.data.find((member: { userId: string }) => member.userId === extra.id);
     const removed = await api.call('DELETE', `/wallets/${ids.wallet}/members/${membership.id}`, { token: owner.token });
-    assert.ok(removed.status === 200 || removed.status === 204, `remove returned ${removed.status}`);
+    assert.equal(removed.status, 204, 'remove answers 204 No Content (API spec)');
 
     const read = await api.call('GET', `/accounts/${ids.account}`, { token: extra.token });
     assert.equal(read.status, 404);

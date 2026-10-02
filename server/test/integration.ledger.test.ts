@@ -30,7 +30,6 @@ describe('the ledger against a real database', { skip: integrationSkipReason() }
   let cash = '';
   let savings = '';
   let food = '';
-  let salary = '';
 
   async function transact(body: Record<string, unknown>, user: ProbeUser = owner) {
     return api.call('POST', '/transactions', { token: user.token, body: { currency: 'VND', transactionDate: IN_PERIOD, ...body } });
@@ -50,7 +49,6 @@ describe('the ledger against a real database', { skip: integrationSkipReason() }
     cash = await createAccount(api, owner, walletA);
     savings = await createAccount(api, owner, walletB);
     food = await categoryOf(api, owner, walletA, 'EXPENSE');
-    salary = await categoryOf(api, owner, walletA, 'INCOME');
   });
 
   after(async () => {
@@ -104,6 +102,94 @@ describe('the ledger against a real database', { skip: integrationSkipReason() }
     const readOnly = await transact({ type: 'TRANSFER', fromAccountId: bank, toAccountId: partnerAccount, amount: '1' });
     assert.deepEqual([readOnly.status, readOnly.body?.error?.code], [403, 'FORBIDDEN']);
     assert.equal(await balanceOf(bank), before, 'a refused transfer leaves no row and moves nothing');
+  });
+
+  it('TXN-US-04: refuses a transfer pulling money out of a wallet where the caller is only a VIEWER (BR-02)', async () => {
+    const partner = await registerProbeUser(api, 'ledger-source');
+    const partnerAccount = await createAccount(api, partner, partner.walletId, { initialBalance: '1000' });
+    await addMember(api, partner, partner.walletId, owner, 'VIEWER');
+    const bankBefore = await balanceOf(bank);
+
+    const pulled = await transact({ type: 'TRANSFER', fromAccountId: partnerAccount, toAccountId: bank, amount: '1' });
+    assert.deepEqual([pulled.status, pulled.body?.error?.code], [403, 'FORBIDDEN'], 'EDITOR on the destination does not cover the source');
+    assert.equal(await balanceOf(bank), bankBefore);
+    assert.equal(await balanceOf(partnerAccount, partner), '1000.0000');
+  });
+
+  it('TXN-US-08: refuses to delete a cross-wallet transfer as a VIEWER on either side (BR-02)', async () => {
+    const created = await transact({ type: 'TRANSFER', fromAccountId: bank, toAccountId: savings, amount: '3' });
+    const id = created.body!.data.id as string;
+    const helper = await registerProbeUser(api, 'ledger-half-editor');
+    await addMember(api, owner, walletA, helper, 'EDITOR');
+    await addMember(api, owner, walletB, helper, 'VIEWER');
+
+    const refused = await api.call('POST', `/transactions/${id}/delete`, { token: helper.token, body: {} });
+    assert.deepEqual([refused.status, refused.body?.error?.code], [403, 'FORBIDDEN']);
+    const [row] = await api.sql<{ status: string }>('SELECT status FROM transactions WHERE id = $1', [id]);
+    assert.equal(row?.status, 'COMPLETED', 'nothing changes on either wallet');
+  });
+
+  it('TXN-US-01/04: refuses entries on an archived account or into an archived wallet, and leaves no row', async () => {
+    const description = `probe-archived-${randomUUID()}`;
+    const retired = await createAccount(api, owner, walletA);
+    assert.equal((await api.call('DELETE', `/accounts/${retired}`, { token: owner.token })).status, 204);
+    const onArchivedAccount = await transact({ type: 'EXPENSE', fromAccountId: retired, categoryId: food, amount: '1', description });
+    assert.deepEqual([onArchivedAccount.status, onArchivedAccount.body?.error?.code], [409, 'ACCOUNT_ARCHIVED']);
+
+    const closedWallet = await api.call('POST', '/wallets', { token: owner.token, body: { name: `probe-${randomUUID()}` } });
+    const closedAccount = await createAccount(api, owner, closedWallet.body!.data.id);
+    assert.equal((await api.call('DELETE', `/wallets/${closedWallet.body!.data.id}`, { token: owner.token })).status, 204);
+    const intoArchivedWallet = await transact({ type: 'TRANSFER', fromAccountId: bank, toAccountId: closedAccount, amount: '1', description });
+    assert.deepEqual([intoArchivedWallet.status, intoArchivedWallet.body?.error?.code], [409, 'WALLET_ARCHIVED']);
+
+    assert.deepEqual(await api.sql('SELECT id FROM transactions WHERE description = $1', [description]), []);
+  });
+
+  it('WAL-US-12: keeps an archived wallet readable and renamable, refuses new entries, and audits both', async () => {
+    const user = await registerProbeUser(api, 'ledger-archive-wallet');
+    const mine = await createAccount(api, user, user.walletId, { initialBalance: '100' });
+    const shelved = (await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}` } })).body!.data.id as string;
+    const shelvedAccount = await createAccount(api, user, shelved);
+    const transfer = await api.call('POST', '/transactions', {
+      token: user.token,
+      body: { type: 'TRANSFER', fromAccountId: mine, toAccountId: shelvedAccount, amount: '40', currency: 'VND', transactionDate: IN_PERIOD },
+    });
+    assert.equal(transfer.status, 201);
+
+    assert.equal((await api.call('DELETE', `/wallets/${shelved}`, { token: user.token })).status, 204);
+    const read = await api.call('GET', `/wallets/${shelved}`, { token: user.token });
+    assert.deepEqual([read.status, read.body?.data.status], [200, 'ARCHIVED']);
+    assert.equal((await api.call('GET', `/accounts/${shelvedAccount}`, { token: user.token })).body!.data.balance, '40.0000');
+    const fromOtherSide = await api.call('GET', `/transactions?walletId=${user.walletId}`, { token: user.token });
+    assert.ok(fromOtherSide.body!.data.some((row: { id: string }) => row.id === transfer.body!.data.id), 'the cross-wallet transfer stays visible');
+
+    const newAccount = await api.call('POST', '/accounts', { token: user.token, body: { walletId: shelved, name: `probe-${randomUUID()}`, type: 'BANK_ACCOUNT', currency: 'VND', initialBalance: '0' } });
+    assert.deepEqual([newAccount.status, newAccount.body?.error?.code], [409, 'WALLET_ARCHIVED']);
+    const outOf = await api.call('POST', '/transactions', {
+      token: user.token,
+      body: { type: 'TRANSFER', fromAccountId: shelvedAccount, toAccountId: mine, amount: '1', currency: 'VND', transactionDate: IN_PERIOD },
+    });
+    assert.deepEqual([outOf.status, outOf.body?.error?.code], [409, 'WALLET_ARCHIVED']);
+
+    const renamed = await api.call('PATCH', `/wallets/${shelved}`, { token: user.token, body: { name: 'probe-renamed' } });
+    assert.deepEqual([renamed.status, renamed.body?.data.name, renamed.body?.data.status], [200, 'probe-renamed', 'ARCHIVED']);
+    const audit = await api.sql<{ event: string }>('SELECT event FROM audit_logs WHERE entity_id = $1 ORDER BY created_at', [shelved]);
+    assert.ok(['WALLET_ARCHIVED', 'WALLET_UPDATED'].every((event) => audit.some((row) => row.event === event)));
+  });
+
+  it('records one transaction for two concurrent creates sharing an Idempotency-Key (API spec §2.10)', async () => {
+    const description = `probe-idem-${randomUUID()}`;
+    const send = () =>
+      api.call('POST', '/transactions', {
+        token: owner.token,
+        headers: { 'Idempotency-Key': description },
+        body: { type: 'EXPENSE', fromAccountId: cash, categoryId: food, amount: '7', currency: 'VND', transactionDate: IN_PERIOD, description },
+      });
+    const [first, retry] = await Promise.all([send(), send()]);
+    assert.deepEqual([first.status, retry.status], [201, 201]);
+    assert.equal(retry.body!.data.id, first.body!.data.id, 'the retry gets the original response');
+    const rows = await api.sql('SELECT id FROM transactions WHERE description = $1', [description]);
+    assert.equal(rows.length, 1);
   });
 
   it('refuses a transaction whose currency differs from its account (BR-07)', async () => {
