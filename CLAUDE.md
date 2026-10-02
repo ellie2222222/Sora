@@ -315,7 +315,7 @@ finance/
 │   │   └── main.ts
 │   └── test/                  # node --test; unit tests boot the DI graph, integration.*.test.ts also a real Postgres
 ├── mobile/                    # @sora/mobile — Expo + React Native
-│   ├── app.config.js           # app.json as-is, except SORA_E2E_BUILD=1 allows cleartext for the E2E build
+│   ├── app.config.js           # app.json plus GWP-ASan off for every build; SORA_E2E_BUILD=1 also allows cleartext
 │   ├── e2e/                    # Maestro flows, API seed and helper scripts (see its README)
 │   └── src/
 │       ├── App.tsx

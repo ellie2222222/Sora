@@ -21,9 +21,11 @@ tags:
 - assertNotVisible:
     text: ${output.description}
 
+# Must start on list-transactions, below the period bar and summary card (from ~52% down); the
+# card above it can't be pulled. 56%→95% is ~250dp, past the ~146dp a 110dp refresh pull needs.
 - swipe:
-    start: 50%, 35%
-    end: 50%, 85%
+    start: 50%, 56%
+    end: 50%, 95%
     duration: 800
 - extendedWaitUntil:
     visible:
