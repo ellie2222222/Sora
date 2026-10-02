@@ -1,0 +1,24 @@
+appId: com.sora.app
+name: A guest's data survives killing and relaunching the app
+tags:
+  - guest
+---
+- evalScript: ${output.description = 'E2E guest expense ' + Date.now()}
+- runFlow:
+    file: ../subflows/guest-with-expense.yaml
+    env:
+      DESCRIPTION: ${output.description}
+
+- stopApp
+# No clearState: the guest store on the device must bring the guest straight back with their data.
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "screen-home"
+    timeout: 30000
+- assertNotVisible:
+    id: "screen-login"
+- extendedWaitUntil:
+    visible:
+      text: ${output.description}
+    timeout: 10000

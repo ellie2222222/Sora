@@ -1,0 +1,46 @@
+appId: com.sora.app
+name: An expense recorded offline waits as pending, then syncs once on reconnect
+tags:
+  - sync
+# Runs even when a step fails, so a broken run never leaves later flows without a network.
+onFlowComplete:
+  - setAirplaneMode: disabled
+---
+- runFlow: ../subflows/login.yaml
+# Unique per run, so a rerun against the same user can't match an earlier run's row.
+- evalScript: ${output.description = 'E2E offline expense ' + Date.now()}
+# The sheet needs the categories, which only an online read brings onto the device.
+- extendedWaitUntil:
+    visible:
+      id: "list-transactions"
+    timeout: 15000
+
+- setAirplaneMode: enabled
+# The connection icon's accessibility label, e.g. "Offline" or "Offline, Saved 14:32".
+- extendedWaitUntil:
+    visible:
+      text: "Offline.*"
+    timeout: 15000
+- runFlow:
+    file: ../subflows/add-expense.yaml
+    env:
+      DESCRIPTION: ${output.description}
+- extendedWaitUntil:
+    visible:
+      text: "Changes waiting to sync"
+    timeout: 10000
+- assertVisible:
+    text: ${output.description}
+
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    visible:
+      text: "Data synced"
+    timeout: 60000
+- runScript:
+    file: ../scripts/api-login.js
+- runScript:
+    file: ../scripts/count-transactions.js
+    env:
+      DESCRIPTION: ${output.description}
+- assertTrue: ${output.matches == 1}

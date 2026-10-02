@@ -1,0 +1,34 @@
+# Records a 12,000 expense described ${DESCRIPTION} through the sheet, starting from a screen with btn-add-transaction.
+appId: com.sora.app
+---
+- tapOn:
+    id: "btn-add-transaction"
+- extendedWaitUntil:
+    visible:
+      id: "sheet-transaction"
+    timeout: 10000
+- tapOn:
+    id: "btn-transaction-type-EXPENSE"
+- tapOn:
+    id: "option-category-.*"
+    index: 0
+- tapOn:
+    id: "keypad-transaction-key-1"
+- tapOn:
+    id: "keypad-transaction-key-2"
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          id: "keypad-transaction-key-0"
+- tapOn:
+    id: "input-transaction-description"
+- inputText: ${DESCRIPTION}
+# Not hideKeyboard: on Android that sends Back, which closes the sheet.
+- pressKey: Enter
+- tapOn:
+    id: "keypad-transaction-key-confirm"
+- extendedWaitUntil:
+    notVisible:
+      id: "sheet-transaction"
+    timeout: 15000

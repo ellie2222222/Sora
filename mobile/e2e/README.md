@@ -8,6 +8,8 @@ Selectors are the NC-04 `testID`s (CLAUDE.md).
 |---|---|
 | `flows/` | One journey per file; `config.yaml` runs them all |
 | `subflows/login.yaml` | Fresh install, then sign in as the seeded user |
+| `subflows/add-expense.yaml` | Record a 12,000 expense described `DESCRIPTION` through the sheet |
+| `subflows/guest-with-expense.yaml`, `guest-to-sign-in.yaml` | Fresh install as a guest with one expense; then from the guest to the sign-in screen |
 | `scripts/` | Maestro JS run on the host: records or reads data through the API |
 | `seed.mts` | Creates the probe user the flows sign in as |
 
@@ -54,4 +56,6 @@ CI does the same in the `e2e` job of `.github/workflows/ci.yml`.
 - Check the `screen-*` root before acting. Tabs and stacked screens stay mounted, so some ids
   appear on more than one screen.
 - Inspect what Maestro sees with `maestro hierarchy`, or with `maestro studio`.
-- Prove writes through the API (`scripts/find-transaction.js`), not only on screen.
+- Prove writes through the API (`scripts/find-transaction.js`, `count-transactions.js`), not only on screen.
+- A flow that turns the network off (`setAirplaneMode`) turns it back on in `onFlowComplete`, so a
+  failure never strands the flows after it offline.

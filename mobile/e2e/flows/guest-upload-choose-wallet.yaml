@@ -1,0 +1,65 @@
+appId: com.sora.app
+name: Signing in as a guest with data asks which wallet receives it, asks again after leaving, then uploads into the choice
+tags:
+  - guest
+---
+- evalScript: ${output.description = 'E2E chosen-wallet guest expense ' + Date.now()}
+- runScript:
+    file: ../scripts/register-two-wallet-user.js
+- runFlow:
+    file: ../subflows/guest-with-expense.yaml
+    env:
+      DESCRIPTION: ${output.description}
+- runFlow: ../subflows/guest-to-sign-in.yaml
+
+- tapOn:
+    id: "input-login-email"
+- inputText: ${output.userEmail}
+- tapOn:
+    id: "input-login-password"
+- inputText: ${output.userPassword}
+# Not hideKeyboard: Back could pop this screen; Enter only closes the keyboard.
+- pressKey: Enter
+- tapOn:
+    id: "btn-submit-login"
+- extendedWaitUntil:
+    visible:
+      id: "btn-use-wallet-${output.targetWalletId}"
+    timeout: 30000
+
+# Declining is leaving without choosing: the guest data stays and the same choice comes back.
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "btn-use-wallet-${output.targetWalletId}"
+    timeout: 30000
+
+- tapOn:
+    id: "btn-use-wallet-${output.targetWalletId}"
+- extendedWaitUntil:
+    visible:
+      id: "screen-home"
+    timeout: 60000
+
+- runScript:
+    file: ../scripts/api-login.js
+    env:
+      EMAIL: ${output.userEmail}
+      PASSWORD: ${output.userPassword}
+- runScript:
+    file: ../scripts/count-transactions.js
+    env:
+      WALLET_ID: ${output.targetWalletId}
+      DESCRIPTION: ${output.description}
+- assertTrue: ${output.matches == 1}
+
+# Discarded locally only after the upload: a relaunch no longer offers the choice.
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "screen-home"
+    timeout: 30000
+- assertNotVisible:
+    id: "screen-guest-upload"

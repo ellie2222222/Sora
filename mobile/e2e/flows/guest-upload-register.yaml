@@ -1,0 +1,58 @@
+appId: com.sora.app
+name: Registering as a guest with data uploads it into the one new wallet without asking
+tags:
+  - guest
+---
+- evalScript: ${output.description = 'E2E uploaded guest expense ' + Date.now()}
+- evalScript: ${output.userEmail = 'probe+e2e-register-' + Date.now() + '@example.invalid'}
+- evalScript: ${output.userPassword = 'probe-pw-' + Date.now()}
+- runFlow:
+    file: ../subflows/guest-with-expense.yaml
+    env:
+      DESCRIPTION: ${output.description}
+- runFlow: ../subflows/guest-to-sign-in.yaml
+
+- tapOn:
+    id: "login-go-register"
+- extendedWaitUntil:
+    visible:
+      id: "screen-register"
+    timeout: 10000
+- tapOn:
+    id: "input-register-name"
+- inputText: "probe-e2e-register"
+- tapOn:
+    id: "input-register-email"
+- inputText: ${output.userEmail}
+- tapOn:
+    id: "input-register-password"
+- inputText: ${output.userPassword}
+# Not hideKeyboard: Back could pop this screen; Enter only closes the keyboard.
+- pressKey: Enter
+- tapOn:
+    id: "btn-submit-register"
+
+# A new account owns exactly one wallet, so the upload starts without the choice screen and
+# lands on home once every entry has a real counterpart.
+- extendedWaitUntil:
+    visible:
+      id: "screen-home"
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      text: ${output.description}
+    timeout: 15000
+
+- runScript:
+    file: ../scripts/api-login.js
+    env:
+      EMAIL: ${output.userEmail}
+      PASSWORD: ${output.userPassword}
+- runScript:
+    file: ../scripts/first-wallet.js
+- runScript:
+    file: ../scripts/count-transactions.js
+    env:
+      WALLET_ID: ${output.walletId}
+      DESCRIPTION: ${output.description}
+- assertTrue: ${output.matches == 1}

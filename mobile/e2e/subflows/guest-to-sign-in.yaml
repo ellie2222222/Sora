@@ -1,0 +1,16 @@
+# From a guest's home screen to the sign-in screen, keeping the guest data on the device.
+appId: com.sora.app
+---
+- tapOn:
+    id: "tab-settings"
+- scrollUntilVisible:
+    element:
+      id: "settings-guest-sign-up-or-in"
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: "settings-guest-sign-up-or-in"
+- extendedWaitUntil:
+    visible:
+      id: "screen-login"
+    timeout: 15000

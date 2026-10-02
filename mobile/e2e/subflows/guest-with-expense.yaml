@@ -1,0 +1,23 @@
+# Fresh install, enters guest mode and records one expense described ${DESCRIPTION} in the guest store.
+appId: com.sora.app
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "screen-login"
+    timeout: 60000
+- tapOn:
+    id: "login-continue-as-guest"
+- extendedWaitUntil:
+    visible:
+      id: "screen-home"
+    timeout: 30000
+- runFlow:
+    file: add-expense.yaml
+    env:
+      DESCRIPTION: ${DESCRIPTION}
+- extendedWaitUntil:
+    visible:
+      text: ${DESCRIPTION}
+    timeout: 10000
