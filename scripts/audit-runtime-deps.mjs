@@ -21,6 +21,11 @@ const ACCEPTED = {
     reason:
       'node-forge <=1.4.0 has no fixed release; only @expo/cli (build tooling, not bundled into the app) depends on it',
   },
+  'GHSA-vfj7-8cjw-p6xm': {
+    reviewBy: '2026-11-02',
+    reason:
+      'braces <=3.0.3 has no fixed release; only tailwindcss 3 (nativewind\'s build-time compiler, never bundled into the app) depends on it, and npm\'s only fix is a major tailwindcss 4 upgrade',
+  },
 };
 
 // A fixed command string through the shell, so Windows resolves npm.cmd.
