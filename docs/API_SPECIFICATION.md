@@ -372,9 +372,9 @@ Every wallet the caller can reach — owned and shared-with alike.
 | **Auth** | Bearer |
 | **Authorization** | Implicit: the result *is* the caller's membership list |
 
-**Query** — `?status=ACTIVE|ARCHIVED` (default `ACTIVE`), `?includeOwn=true|false`, `?includeShared=true|false` (both default `true`; any other value is `422`)
+**Query** — `?status=ACTIVE|ARCHIVED` (default `ACTIVE`), `?includeOwn=true|false`, `?includeShared=true|false` (both default `true`; any other value is `422`), `?page&pageSize` (§2.8)
 
-**Response `200`** — `WalletResponse[]`. Each carries the caller's own `role`, their `relationLabel` ("Girlfriend"), `isOwn`, and `balances` **per currency**.
+**Response `200`** — `WalletResponse[]`, oldest first, plus `meta.pagination`. Each carries the caller's own `role`, their `relationLabel` ("Girlfriend"), `isOwn`, and `balances` **per currency**.
 
 > `balances` is an array, not a scalar. A wallet holding a VND and a USD account has no single total, and inventing one by adding the two numbers together produces a figure that is silently meaningless. Conversion is out of scope for v1.
 
@@ -453,9 +453,9 @@ Every wallet the caller can reach — owned and shared-with alike.
 | **Auth** | Bearer |
 | **Min role** | `VIEWER` — you can see who else can see your money |
 
-**Query** — `?status=ACTIVE|REVOKED` (default `ACTIVE`)
+**Query** — `?status=ACTIVE|REVOKED` (default `ACTIVE`), `?page&pageSize` (§2.8)
 
-**Response `200`** — `WalletMemberResponse[]`.
+**Response `200`** — `WalletMemberResponse[]`, in joining order, plus `meta.pagination`.
 
 **Errors** — `404 WALLET_NOT_FOUND`
 
@@ -533,9 +533,9 @@ Invitations are addressed to an **email**, not a user id, so you can invite some
 |---|---|
 | **Auth** | Bearer · **Min role** `OWNER` |
 
-**Query** — `?state=open|accepted|revoked|expired` (default `open`)
+**Query** — `?state=open|accepted|revoked|expired` (default `open`), `?page&pageSize` (§2.8)
 
-**Response `200`** — `WalletInvitationResponse[]`. The `token` is **never** returned here — only once, at creation (§8.2). A list endpoint that re-emitted live tokens would turn read access to the invitation list into the ability to join the wallet.
+**Response `200`** — `WalletInvitationResponse[]`, newest first, plus `meta.pagination`. The `token` is **never** returned here — only once, at creation (§8.2). A list endpoint that re-emitted live tokens would turn read access to the invitation list into the ability to join the wallet.
 
 **Errors** — `403 FORBIDDEN` · `404 WALLET_NOT_FOUND`
 
@@ -627,9 +627,9 @@ Lets an invitee see what they are being offered *before* signing up.
 |---|---|
 | **Auth** | Bearer · **Min role** `VIEWER` on the wallet filtered to |
 
-**Query** — `?walletId=uuid` (optional; omitted returns accounts across **every** wallet the caller can reach), `?status=ACTIVE|ARCHIVED`, `?type=`
+**Query** — `?walletId=uuid` (optional; omitted returns accounts across **every** wallet the caller can reach), `?status=ACTIVE|ARCHIVED`, `?type=`, `?page&pageSize` (§2.8)
 
-**Response `200`** — `AccountResponse[]`, each with a **derived** `balance`.
+**Response `200`** — `AccountResponse[]`, oldest first, plus `meta.pagination`, each with a **derived** `balance`.
 
 **Errors** — `404 WALLET_NOT_FOUND` when `walletId` names a wallet the caller cannot see.
 
@@ -715,9 +715,9 @@ Archives.
 |---|---|
 | **Auth** | Bearer · **Min role** `VIEWER` |
 
-**Query** — `?walletId=uuid` (required), `?type=INCOME|EXPENSE|TRANSFER`, `?status=`, `?tree=true|false` (default `false`; any other value is `422`)
+**Query** — `?walletId=uuid` (required), `?type=INCOME|EXPENSE|TRANSFER`, `?status=`, `?tree=true|false` (default `false`; any other value is `422`), `?page&pageSize` (§2.8)
 
-**Response `200`** — `CategoryResponse[]`, each carrying `transactionCount` — how many transactions (any status) point at it. The app reads this before offering to delete a category: non-zero means "delete" must mean archive, not permanent removal (§10.4). With `tree=true`, roots carry populated `children`, each with its own `transactionCount`.
+**Response `200`** — `CategoryResponse[]` by name, plus `meta.pagination`, each carrying `transactionCount` — how many transactions (any status) point at it. The app reads this before offering to delete a category: non-zero means "delete" must mean archive, not permanent removal (§10.4). With `tree=true`, roots carry populated `children`, each with its own `transactionCount`, and the whole tree comes back unpaged: a page of a tree would cut children off from their parents.
 
 **Errors** — `404 WALLET_NOT_FOUND` · `422 VALIDATION_FAILED`
 

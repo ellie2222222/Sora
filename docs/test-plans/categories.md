@@ -38,6 +38,8 @@
 | TC-CAT-15 | CAT-US-03 | Restore a child while its parent is archived; restore the parent, then the child | Integration + Mobile unit | 409 `CATEGORY_PARENT_ARCHIVED`, child stays archived; after the parent, 200 | [integration.categories:135](../../server/test/integration.categories.test.ts#L135), guest copy [guestCategories:160](../../mobile/src/services/guest/guestCategories.test.ts#L160) | Covered |
 | TC-CAT-16 | CAT-US-02 | Create a child while its parent's archive is in flight | Integration (two DB transactions) | Waits on the parent row, then 409 `CATEGORY_PARENT_ARCHIVED` | [integration.concurrency:195](../../server/test/integration.concurrency.test.ts#L195) | Covered |
 | TC-CAT-17 | CAT-US-04 | Permanently delete a category an archived budget still names | Integration | 409 `CATEGORY_IN_USE`, not a 500 from the foreign key | [integration.concurrency:305](../../server/test/integration.concurrency.test.ts#L305) | Covered |
+| TC-CAT-18 | CAT-US-01 | Page through a wallet's 38+ categories (API-05) | Integration + Mobile unit | Each page has `meta.pagination`; walking the pages yields every category once; the app follows `hasMore` | [integration.pagination:41](../../server/test/integration.pagination.test.ts#L41), [collectPages:17](../../mobile/src/services/api/collectPages.test.ts#L17) | Covered |
+| TC-CAT-19 | CAT-US-01 | `tree=true` with a page size of 1 | Integration | The whole tree, every root, with no `meta.pagination` (§10.1) | [integration.pagination:75](../../server/test/integration.pagination.test.ts#L75) | Covered |
 
 ## Gaps, by risk
 

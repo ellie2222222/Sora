@@ -12,6 +12,8 @@ import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
+import { paginated, type Enveloped } from '../common/envelope.ts';
+import { offsetOf, paginationMeta, type PageQuery } from '../common/pagination.ts';
 import { translatingPgErrors } from '../common/pg-error.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
@@ -41,11 +43,19 @@ export class MembersService {
   async list(
     user: AuthenticatedUser,
     walletId: string,
-    status: MemberStatus,
-  ): Promise<WalletMemberResponse[]> {
+    query: { status: MemberStatus } & PageQuery,
+  ): Promise<Enveloped<WalletMemberResponse[]>> {
     const access = await this.access.require(user.id, walletId, WalletRole.VIEWER);
-    const rows = await this.rows(access.walletId, status);
-    return rows.map(toMemberResponse);
+    const [rows, totalRow] = await Promise.all([
+      this.rows(access.walletId, query.status, query),
+      this.database.db
+        .selectFrom('wallet_members')
+        .select((eb) => eb.fn.countAll<string>().as('count'))
+        .where('wallet_id', '=', access.walletId)
+        .where('status', '=', query.status)
+        .executeTakeFirstOrThrow(),
+    ]);
+    return paginated(rows.map(toMemberResponse), paginationMeta(query.page, query.pageSize, Number(totalRow.count)));
   }
 
   /**
@@ -253,8 +263,9 @@ export class MembersService {
     });
   }
 
-  private async rows(walletId: string, status: MemberStatus): Promise<MemberRow[]> {
-    return this.database.db
+  /** Every matching member, or one page of them; ordered by join time, then id, so pages never overlap. */
+  private async rows(walletId: string, status: MemberStatus, page?: PageQuery): Promise<MemberRow[]> {
+    let query = this.database.db
       .selectFrom('wallet_members')
       .innerJoin('users', 'users.id', 'wallet_members.user_id')
       .select([
@@ -271,7 +282,9 @@ export class MembersService {
       .where('wallet_members.wallet_id', '=', walletId)
       .where('wallet_members.status', '=', status)
       .orderBy('wallet_members.joined_at', 'asc')
-      .execute();
+      .orderBy('wallet_members.id', 'asc');
+    if (page) query = query.limit(page.pageSize).offset(offsetOf(page));
+    return query.execute();
   }
 
   private async member(walletId: string, memberId: string, executor: Executor = this.database.db): Promise<MemberRow> {

@@ -9,17 +9,13 @@ import {
   type WalletResponse,
 } from '@sora/contracts';
 
-import { deleteVoid, getList, postOne } from './client.ts';
+import { deleteVoid, getAll, postOne } from './client.ts';
 
 export type InvitationState = 'open' | 'accepted' | 'revoked' | 'expired';
 
 export const invitationsApi = {
-  async list(walletId: string, state: InvitationState = 'open'): Promise<WalletInvitationResponse[]> {
-    const { items } = await getList<WalletInvitationResponse>(
-      apiUrl(ROUTES.wallets.invitations(walletId)),
-      { state },
-    );
-    return items;
+  list(walletId: string, state: InvitationState = 'open'): Promise<WalletInvitationResponse[]> {
+    return getAll<WalletInvitationResponse>(apiUrl(ROUTES.wallets.invitations(walletId)), { state });
   },
   create(walletId: string, body: InviteMemberRequest): Promise<WalletInvitationCreatedResponse> {
     return postOne<WalletInvitationCreatedResponse>(

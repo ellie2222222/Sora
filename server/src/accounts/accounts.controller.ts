@@ -24,6 +24,8 @@ import {
 } from '@sora/contracts';
 
 import { ClientIp, CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
+import type { Enveloped } from '../common/envelope.ts';
+import { pageQuery } from '../common/pagination.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';
 import { AccountsService } from './accounts.service.ts';
 
@@ -32,6 +34,7 @@ const accountListQuerySchema = z.object({
   walletId: uuidSchema.optional(),
   status: z.enum(ACCOUNT_STATUSES).optional(),
   type: z.enum(ACCOUNT_TYPES).optional(),
+  ...pageQuery,
 });
 
 @Controller()
@@ -42,7 +45,7 @@ export class AccountsController {
   list(
     @CurrentUser() user: AuthenticatedUser,
     @Query(zodPipe(accountListQuerySchema)) query: z.infer<typeof accountListQuerySchema>,
-  ): Promise<AccountResponse[]> {
+  ): Promise<Enveloped<AccountResponse[]>> {
     return this.accounts.list(user, query);
   }
 

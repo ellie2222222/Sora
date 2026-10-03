@@ -9,7 +9,7 @@ import {
   type UpdateAccountRequest,
 } from '@sora/contracts';
 
-import { deleteVoid, getList, getOne, idempotencyHeaders, patchOne, postOne } from './client.ts';
+import { deleteVoid, getAll, getOne, idempotencyHeaders, patchOne, postOne } from './client.ts';
 
 export interface AccountListQuery {
   walletId?: string | undefined;
@@ -18,9 +18,8 @@ export interface AccountListQuery {
 }
 
 export const accountsApi = {
-  async list(query: AccountListQuery = {}): Promise<AccountResponse[]> {
-    const { items } = await getList<AccountResponse>(apiUrl(ROUTES.accounts.list()), query);
-    return items;
+  list(query: AccountListQuery = {}): Promise<AccountResponse[]> {
+    return getAll<AccountResponse>(apiUrl(ROUTES.accounts.list()), query);
   },
   detail(accountId: string): Promise<AccountDetailResponse> {
     return getOne<AccountDetailResponse>(apiUrl(ROUTES.accounts.detail(accountId)));

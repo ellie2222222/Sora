@@ -23,6 +23,8 @@ import {
 } from '@sora/contracts';
 
 import { ClientIp, CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
+import type { Enveloped } from '../common/envelope.ts';
+import { pageQuery } from '../common/pagination.ts';
 import { queryFlag } from '../common/query-flag.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';
 import { CategoriesService } from './categories.service.ts';
@@ -33,6 +35,7 @@ const categoryListQuerySchema = z.object({
   type: z.enum(CATEGORY_TYPES).optional(),
   status: z.enum(CATEGORY_STATUSES).optional(),
   tree: queryFlag(false),
+  ...pageQuery,
 });
 
 /** `mode` is DELETE-only and never validated client-side, so it stays local too. */
@@ -48,7 +51,7 @@ export class CategoriesController {
   list(
     @CurrentUser() user: AuthenticatedUser,
     @Query(zodPipe(categoryListQuerySchema)) query: z.infer<typeof categoryListQuerySchema>,
-  ): Promise<CategoryResponse[]> {
+  ): Promise<CategoryResponse[] | Enveloped<CategoryResponse[]>> {
     return this.categories.list(user, query);
   }
 

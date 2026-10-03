@@ -1,4 +1,21 @@
-import type { PaginationMeta } from '@sora/contracts';
+import { z } from 'zod';
+
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, type PaginationMeta } from '@sora/contracts';
+
+/** API-05's `?page&pageSize`, spread into a list endpoint's own query schema. */
+export const pageQuery = {
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+};
+
+export interface PageQuery {
+  page: number;
+  pageSize: number;
+}
+
+export function offsetOf(query: PageQuery): number {
+  return (query.page - 1) * query.pageSize;
+}
 
 export function paginationMeta(page: number, pageSize: number, total: number): PaginationMeta {
   return { page, pageSize, total, hasMore: page * pageSize < total };

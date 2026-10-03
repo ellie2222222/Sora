@@ -36,7 +36,7 @@ import { AuditService } from '../audit/audit.service.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { paginated, type Enveloped } from '../common/envelope.ts';
-import { paginationMeta } from '../common/pagination.ts';
+import { offsetOf, paginationMeta } from '../common/pagination.ts';
 import { translatingPgErrors } from '../common/pg-error.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
@@ -101,7 +101,7 @@ export class BudgetsService {
         // A tie would otherwise let offset paging repeat or skip a row between pages.
         .orderBy('id', 'desc')
         .limit(query.pageSize)
-        .offset((query.page - 1) * query.pageSize)
+        .offset(offsetOf(query))
         .execute(),
       builder.select((eb) => eb.fn.countAll<string>().as('count')).executeTakeFirstOrThrow(),
     ]);

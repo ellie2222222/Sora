@@ -6,7 +6,7 @@ import {
   type WalletMemberResponse,
 } from '@sora/contracts';
 
-import { deleteVoid, getList, patchOne, postOne } from './client.ts';
+import { deleteVoid, getAll, patchOne, postOne } from './client.ts';
 
 /**
  * `POST /wallets/{id}/transfer-ownership` has no schema in @sora/contracts —
@@ -18,11 +18,8 @@ export interface TransferOwnershipRequest {
 }
 
 export const membersApi = {
-  async list(walletId: string, status: MemberStatus = 'ACTIVE'): Promise<WalletMemberResponse[]> {
-    const { items } = await getList<WalletMemberResponse>(apiUrl(ROUTES.wallets.members(walletId)), {
-      status,
-    });
-    return items;
+  list(walletId: string, status: MemberStatus = 'ACTIVE'): Promise<WalletMemberResponse[]> {
+    return getAll<WalletMemberResponse>(apiUrl(ROUTES.wallets.members(walletId)), { status });
   },
   updateRole(
     walletId: string,

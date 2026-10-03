@@ -13,9 +13,7 @@ import {
 import { z } from 'zod';
 
 import {
-  DEFAULT_PAGE_SIZE,
   GOAL_STATUSES,
-  MAX_PAGE_SIZE,
   ROUTES,
   createContributionSchema,
   createGoalSchema,
@@ -27,19 +25,18 @@ import {
 
 import { ClientIp, CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
 import type { Enveloped } from '../common/envelope.ts';
+import { pageQuery } from '../common/pagination.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';
 import { GoalContributionsService } from './goal-contributions.service.ts';
 import { GoalsService } from './goals.service.ts';
 
 /** List/pagination filters have no contracts schema — see WalletsController's identical note. */
-const contributionListQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
-});
+const contributionListQuerySchema = z.object(pageQuery);
 
-const goalListQuerySchema = contributionListQuerySchema.extend({
+const goalListQuerySchema = z.object({
   walletId: uuidSchema,
   status: z.enum(GOAL_STATUSES).optional(),
+  ...pageQuery,
 });
 
 @Controller()

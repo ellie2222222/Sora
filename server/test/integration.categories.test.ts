@@ -54,7 +54,7 @@ describe('categories against a real database', { skip: integrationSkipReason() }
     assert.deepEqual(roots.find((root) => root.id === parent)?.children.map((node) => node.id), [child]);
     assert.ok(!roots.some((root) => root.id === child || root.id === retired), 'a child is not also a root; an archived one is filtered out');
 
-    const flat = await api.call('GET', `/categories?walletId=${user.walletId}&tree=false`, { token: user.token });
+    const flat = await api.call('GET', `/categories?walletId=${user.walletId}&tree=false&pageSize=200`, { token: user.token });
     assert.ok(flat.body!.data.some((row: { id: string }) => row.id === child), 'tree=false lists children flat, not nested');
     assert.equal((await api.call('GET', `/categories?walletId=${user.walletId}&tree=yes`, { token: user.token })).status, 422);
 

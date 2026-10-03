@@ -38,6 +38,7 @@
 | TC-ACC-15 | ACC-US-01 | Account created offline | Mobile unit | Its signed opening balance shows in its wallet's total and dashboard, in its own currency only | [pendingTotals:192](../../mobile/src/services/sync/pendingTotals.test.ts#L192), [:199](../../mobile/src/services/sync/pendingTotals.test.ts#L199) | Covered |
 | TC-ACC-17 | ACC-US-05 | Archive the wallet's other active account while one archive is in flight | Integration (two DB transactions) | Waits on the wallet's active accounts, then 409 `ACCOUNT_LAST_ACTIVE`; one account stays active | [integration.concurrency:114](../../server/test/integration.concurrency.test.ts#L114) | Covered |
 | TC-ACC-18 | ACC-US-05 | Record a transaction on an account being archived | Integration (two DB transactions) | Waits on the account row, then 409 `ACCOUNT_ARCHIVED`; nothing written | [integration.concurrency:133](../../server/test/integration.concurrency.test.ts#L133) | Covered |
+| TC-ACC-19 | ACC-US-02 | Page through a wallet's accounts (API-05) | Integration + Mobile unit | Each page has `meta.pagination`; walking the pages yields every account once; the app follows `hasMore` | [integration.pagination:41](../../server/test/integration.pagination.test.ts#L41), [collectPages:17](../../mobile/src/services/api/collectPages.test.ts#L17) | Covered |
 
 ## Gaps, by risk
 

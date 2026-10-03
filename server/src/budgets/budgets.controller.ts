@@ -14,8 +14,6 @@ import { z } from 'zod';
 
 import {
   BUDGET_STATUSES,
-  DEFAULT_PAGE_SIZE,
-  MAX_PAGE_SIZE,
   ROUTES,
   createBudgetSchema,
   isoDateSchema,
@@ -26,6 +24,7 @@ import {
 
 import { ClientIp, CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
 import type { Enveloped } from '../common/envelope.ts';
+import { pageQuery } from '../common/pagination.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';
 import { BudgetsService } from './budgets.service.ts';
 
@@ -34,8 +33,7 @@ const budgetListQuerySchema = z.object({
   walletId: uuidSchema,
   status: z.enum(BUDGET_STATUSES).optional(),
   activeOn: isoDateSchema.optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  ...pageQuery,
 });
 
 @Controller()

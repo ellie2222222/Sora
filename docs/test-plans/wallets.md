@@ -58,6 +58,7 @@
 | TC-WAL-33 | WAL-US-11 | A member leaves while a transfer making them owner is in flight | Integration (two DB transactions) | Waits, then 409 `WALLET_LAST_OWNER`; exactly one owner | [integration.concurrency:73](../../server/test/integration.concurrency.test.ts#L73) | Covered |
 | TC-WAL-34 | WAL-US-05 | Accept while a revoke of the same invitation is in flight | Integration (two DB transactions) | Waits on the invitation row, then 404 `INVITATION_NOT_FOUND`; no member row; never both revoked and accepted (BR-08) | [integration.concurrency:93](../../server/test/integration.concurrency.test.ts#L93) | Covered |
 | TC-WAL-35 | WAL-US-12 | Create an account, category, goal or budget while the wallet's archive is in flight | Integration (two DB transactions) | Each create waits on the wallet row, then 409 `WALLET_ARCHIVED`; nothing written (§6.5) | [integration.concurrency:212](../../server/test/integration.concurrency.test.ts#L212) | Covered |
+| TC-WAL-36 | WAL-US-02, WAL-US-07 | Page through the wallet list, a wallet's members and its open invitations (API-05) | Integration + Mobile unit | Each page has `meta.pagination` with the same total; walking the pages yields every row once; the app follows `hasMore` | [integration.pagination:41](../../server/test/integration.pagination.test.ts#L41), [collectPages:17](../../mobile/src/services/api/collectPages.test.ts#L17) | Covered |
 
 ## Gaps, by risk
 

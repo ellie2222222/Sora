@@ -23,13 +23,15 @@ import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
+import { paginated, type Enveloped } from '../common/envelope.ts';
+import { offsetOf, paginationMeta, type PageQuery } from '../common/pagination.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
 import { lockWalletWritable, WalletAccessService } from '../wallets/wallet-access.service.ts';
 import { lockAccountForCurrencyChange, lockForArchive } from './account-write-lock.ts';
 import { BalanceService } from './balance.service.ts';
 
-export interface AccountListQuery {
+export interface AccountListQuery extends PageQuery {
   walletId?: string;
   status?: AccountStatus;
   type?: AccountType;
@@ -56,24 +58,34 @@ export class AccountsService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(user: AuthenticatedUser, query: AccountListQuery): Promise<AccountResponse[]> {
+  async list(user: AuthenticatedUser, query: AccountListQuery): Promise<Enveloped<AccountResponse[]>> {
     const walletIds = query.walletId
       ? [(await this.access.require(user.id, query.walletId, 'VIEWER')).walletId]
       : await this.access.accessibleWalletIds(user.id);
 
-    if (walletIds.length === 0) return [];
+    if (walletIds.length === 0) return paginated([], paginationMeta(query.page, query.pageSize, 0));
 
-    let builder = this.database.db
-      .selectFrom('accounts')
-      .selectAll()
-      .where('wallet_id', 'in', walletIds);
+    let builder = this.database.db.selectFrom('accounts').where('wallet_id', 'in', walletIds);
     if (query.status) builder = builder.where('status', '=', query.status);
     if (query.type) builder = builder.where('type', '=', query.type);
 
-    const rows = await builder.orderBy('created_at', 'asc').execute();
-    const balances = await this.balances.balancesForWallets(walletIds);
+    const [rows, totalRow, balances] = await Promise.all([
+      builder
+        .selectAll()
+        .orderBy('created_at', 'asc')
+        // A tie would otherwise let offset paging repeat or skip a row between pages.
+        .orderBy('id', 'asc')
+        .limit(query.pageSize)
+        .offset(offsetOf(query))
+        .execute(),
+      builder.select((eb) => eb.fn.countAll<string>().as('count')).executeTakeFirstOrThrow(),
+      this.balances.balancesForWallets(walletIds),
+    ]);
 
-    return rows.map((row) => toAccountResponse(row, balances.get(row.id)?.balance));
+    return paginated(
+      rows.map((row) => toAccountResponse(row, balances.get(row.id)?.balance)),
+      paginationMeta(query.page, query.pageSize, Number(totalRow.count)),
+    );
   }
 
   async create(

@@ -14,10 +14,12 @@ import { AuditService } from '../audit/audit.service.ts';
 import { BalanceService } from '../accounts/balance.service.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
+import { paginated, type Enveloped } from '../common/envelope.ts';
+import { offsetOf, paginationMeta, type PageQuery } from '../common/pagination.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import { WalletAccessService } from './wallet-access.service.ts';
 
-export interface WalletListFilter {
+export interface WalletListFilter extends PageQuery {
   status: WalletStatus;
   includeOwn: boolean;
   includeShared: boolean;
@@ -50,32 +52,40 @@ export class WalletsService {
    * rows, so there is no wallet in the result they are not a member of and no
    * separate check to forget.
    */
-  async list(user: AuthenticatedUser, filter: WalletListFilter): Promise<WalletResponse[]> {
-    const rows = await this.database.db
+  async list(user: AuthenticatedUser, filter: WalletListFilter): Promise<Enveloped<WalletResponse[]>> {
+    if (!filter.includeOwn && !filter.includeShared) return paginated([], paginationMeta(filter.page, filter.pageSize, 0));
+
+    let builder = this.database.db
       .selectFrom('wallet_members')
       .innerJoin('wallets', 'wallets.id', 'wallet_members.wallet_id')
-      .select([
-        'wallets.id as id',
-        'wallets.name as name',
-        'wallets.status as status',
-        'wallets.owner_user_id as owner_user_id',
-        'wallets.created_at as created_at',
-        'wallets.updated_at as updated_at',
-        'wallet_members.role as role',
-        'wallet_members.relation_label as relation_label',
-      ])
       .where('wallet_members.user_id', '=', user.id)
       .where('wallet_members.status', '=', MemberStatus.ACTIVE)
-      .where('wallets.status', '=', filter.status)
-      .orderBy('wallets.created_at', 'asc')
-      .execute();
+      .where('wallets.status', '=', filter.status);
+    if (!filter.includeOwn) builder = builder.where('wallets.owner_user_id', '!=', user.id);
+    if (!filter.includeShared) builder = builder.where('wallets.owner_user_id', '=', user.id);
 
-    const visible = rows.filter((row) => {
-      const isOwn = row.owner_user_id === user.id;
-      return isOwn ? filter.includeOwn : filter.includeShared;
-    });
+    const [rows, totalRow] = await Promise.all([
+      builder
+        .select([
+          'wallets.id as id',
+          'wallets.name as name',
+          'wallets.status as status',
+          'wallets.owner_user_id as owner_user_id',
+          'wallets.created_at as created_at',
+          'wallets.updated_at as updated_at',
+          'wallet_members.role as role',
+          'wallet_members.relation_label as relation_label',
+        ])
+        .orderBy('wallets.created_at', 'asc')
+        // A tie would otherwise let offset paging repeat or skip a row between pages.
+        .orderBy('wallets.id', 'asc')
+        .limit(filter.pageSize)
+        .offset(offsetOf(filter))
+        .execute(),
+      builder.select((eb) => eb.fn.countAll<string>().as('count')).executeTakeFirstOrThrow(),
+    ]);
 
-    return this.decorate(user, visible);
+    return paginated(await this.decorate(user, rows), paginationMeta(filter.page, filter.pageSize, Number(totalRow.count)));
   }
 
   async get(user: AuthenticatedUser, walletId: string): Promise<WalletResponse> {

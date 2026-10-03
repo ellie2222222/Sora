@@ -6,7 +6,7 @@ import {
   type WalletResponse,
 } from '@sora/contracts';
 
-import { deleteVoid, getList, getOne, patchOne, postOne } from './client.ts';
+import { deleteVoid, getAll, getOne, patchOne, postOne } from './client.ts';
 
 export interface WalletListQuery {
   status?: 'ACTIVE' | 'ARCHIVED';
@@ -15,9 +15,8 @@ export interface WalletListQuery {
 }
 
 export const walletsApi = {
-  async list(query: WalletListQuery = {}): Promise<WalletResponse[]> {
-    const { items } = await getList<WalletResponse>(apiUrl(ROUTES.wallets.list()), query);
-    return items;
+  list(query: WalletListQuery = {}): Promise<WalletResponse[]> {
+    return getAll<WalletResponse>(apiUrl(ROUTES.wallets.list()), query);
   },
   detail(walletId: string): Promise<WalletResponse> {
     return getOne<WalletResponse>(apiUrl(ROUTES.wallets.detail(walletId)));

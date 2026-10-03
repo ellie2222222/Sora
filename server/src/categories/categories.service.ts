@@ -23,6 +23,8 @@ import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
+import { paginated, type Enveloped } from '../common/envelope.ts';
+import { offsetOf, paginationMeta, type PageQuery } from '../common/pagination.ts';
 import { translatingPgErrors } from '../common/pg-error.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
@@ -30,7 +32,7 @@ import { lockWalletWritable, WalletAccessService, type WalletAccess } from '../w
 
 export type CategoryDeleteMode = 'archive' | 'permanent';
 
-export interface CategoryListQuery {
+export interface CategoryListQuery extends PageQuery {
   walletId: string;
   type?: CategoryType;
   status?: CategoryStatus;
@@ -58,21 +60,28 @@ export class CategoriesService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(user: AuthenticatedUser, query: CategoryListQuery): Promise<CategoryResponse[]> {
+  /** The flat list is paged; `tree` returns the whole tree, since a page of one would cut children from their parents. */
+  async list(user: AuthenticatedUser, query: CategoryListQuery): Promise<CategoryResponse[] | Enveloped<CategoryResponse[]>> {
     await this.access.require(user.id, query.walletId, 'VIEWER');
 
-    let builder = this.database.db
-      .selectFrom('categories')
-      .selectAll()
-      .where('wallet_id', '=', query.walletId);
+    let builder = this.database.db.selectFrom('categories').where('wallet_id', '=', query.walletId);
     if (query.type) builder = builder.where('type', '=', query.type);
     if (query.status) builder = builder.where('status', '=', query.status);
+    // An id tie-break, so offset paging never repeats or skips a row between pages.
+    const ordered = builder.selectAll().orderBy('name', 'asc').orderBy('id', 'asc');
 
-    const rows = await builder.orderBy('name', 'asc').execute();
+    if (query.tree) return buildTree(await this.withCounts(await ordered.execute()));
+
+    const [rows, totalRow] = await Promise.all([
+      ordered.limit(query.pageSize).offset(offsetOf(query)).execute(),
+      builder.select((eb) => eb.fn.countAll<string>().as('count')).executeTakeFirstOrThrow(),
+    ]);
+    return paginated(await this.withCounts(rows), paginationMeta(query.page, query.pageSize, Number(totalRow.count)));
+  }
+
+  private async withCounts(rows: readonly CategoryRow[]): Promise<CategoryResponse[]> {
     const counts = await this.transactionCounts(rows.map((row) => row.id));
-    const responses = rows.map((row) => toCategoryResponse(row, counts.get(row.id) ?? 0));
-
-    return query.tree ? buildTree(responses) : responses;
+    return rows.map((row) => toCategoryResponse(row, counts.get(row.id) ?? 0));
   }
 
   /**

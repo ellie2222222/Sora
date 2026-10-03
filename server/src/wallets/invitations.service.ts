@@ -16,6 +16,8 @@ import { AuditService } from '../audit/audit.service.ts';
 import { TokenService } from '../auth/token.service.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
+import { paginated, type Enveloped } from '../common/envelope.ts';
+import { offsetOf, paginationMeta, type PageQuery } from '../common/pagination.ts';
 import { translatingPgErrors } from '../common/pg-error.ts';
 import { CONFIG, type AppConfig } from '../config/env.ts';
 import { DatabaseService } from '../database/database.service.ts';
@@ -59,8 +61,8 @@ export class InvitationsService {
   async list(
     user: AuthenticatedUser,
     walletId: string,
-    state: InvitationState,
-  ): Promise<WalletInvitationResponse[]> {
+    { state, ...page }: { state: InvitationState } & PageQuery,
+  ): Promise<Enveloped<WalletInvitationResponse[]>> {
     const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
 
     let query = this.baseQuery().where('wallet_invitations.wallet_id', '=', access.walletId);
@@ -82,8 +84,20 @@ export class InvitationsService {
         .where('wallet_invitations.expires_at', '<=', now);
     }
 
-    const rows = await query.orderBy('wallet_invitations.created_at', 'desc').execute();
-    return rows.map(toInvitationResponse);
+    const [rows, totalRow] = await Promise.all([
+      query
+        .orderBy('wallet_invitations.created_at', 'desc')
+        // A tie would otherwise let offset paging repeat or skip a row between pages.
+        .orderBy('wallet_invitations.id', 'desc')
+        .limit(page.pageSize)
+        .offset(offsetOf(page))
+        .execute(),
+      query
+        .clearSelect()
+        .select((eb) => eb.fn.countAll<string>().as('count'))
+        .executeTakeFirstOrThrow(),
+    ]);
+    return paginated(rows.map(toInvitationResponse), paginationMeta(page.page, page.pageSize, Number(totalRow.count)));
   }
 
   async create(

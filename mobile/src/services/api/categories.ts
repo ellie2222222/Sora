@@ -8,7 +8,7 @@ import {
   type UpdateCategoryRequest,
 } from '@sora/contracts';
 
-import { deleteVoid, getList, idempotencyHeaders, patchOne, postOne } from './client.ts';
+import { deleteVoid, getAll, idempotencyHeaders, patchOne, postOne } from './client.ts';
 
 export interface CategoryListQuery {
   walletId: string;
@@ -18,9 +18,8 @@ export interface CategoryListQuery {
 }
 
 export const categoriesApi = {
-  async list(query: CategoryListQuery): Promise<CategoryResponse[]> {
-    const { items } = await getList<CategoryResponse>(apiUrl(ROUTES.categories.list()), query);
-    return items;
+  list(query: CategoryListQuery): Promise<CategoryResponse[]> {
+    return getAll<CategoryResponse>(apiUrl(ROUTES.categories.list()), query);
   },
   create(body: CreateCategoryRequest, idempotencyKey?: string): Promise<CategoryResponse> {
     return postOne<CategoryResponse>(apiUrl(ROUTES.categories.create()), body, idempotencyHeaders(idempotencyKey));

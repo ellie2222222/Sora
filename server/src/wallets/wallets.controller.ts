@@ -14,8 +14,6 @@ import {
 import { z } from 'zod';
 
 import {
-  DEFAULT_PAGE_SIZE,
-  MAX_PAGE_SIZE,
   MEMBER_STATUSES,
   MemberStatus,
   ROUTES,
@@ -43,7 +41,7 @@ import {
   type AuthenticatedUser,
 } from '../common/decorators.ts';
 import { type Enveloped, paginated } from '../common/envelope.ts';
-import { paginationMeta } from '../common/pagination.ts';
+import { pageQuery, paginationMeta } from '../common/pagination.ts';
 import { queryFlag } from '../common/query-flag.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';
 import { InvitationsService } from './invitations.service.ts';
@@ -62,14 +60,17 @@ const walletListQuerySchema = z.object({
   status: z.enum(WALLET_STATUSES).default(WalletStatus.ACTIVE),
   includeOwn: queryFlag(true),
   includeShared: queryFlag(true),
+  ...pageQuery,
 });
 
 const memberListQuerySchema = z.object({
   status: z.enum(MEMBER_STATUSES).default(MemberStatus.ACTIVE),
+  ...pageQuery,
 });
 
 const invitationListQuerySchema = z.object({
   state: z.enum(['open', 'accepted', 'revoked', 'expired']).default('open'),
+  ...pageQuery,
 });
 
 const transferOwnershipSchema = z.object({ toUserId: uuidSchema });
@@ -79,8 +80,7 @@ const auditLogQuerySchema = z.object({
   event: z.string().trim().min(1).optional(),
   dateFrom: isoDateSchema.optional(),
   dateTo: isoDateSchema.optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  ...pageQuery,
 });
 
 @UseGuards(RequireWalletRoleGuard)
@@ -97,7 +97,7 @@ export class WalletsController {
   list(
     @CurrentUser() user: AuthenticatedUser,
     @Query(zodPipe(walletListQuerySchema)) query: z.infer<typeof walletListQuerySchema>,
-  ): Promise<WalletResponse[]> {
+  ): Promise<Enveloped<WalletResponse[]>> {
     return this.wallets.list(user, query);
   }
 
@@ -147,8 +147,8 @@ export class WalletsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') walletId: string,
     @Query(zodPipe(memberListQuerySchema)) query: z.infer<typeof memberListQuerySchema>,
-  ): Promise<WalletMemberResponse[]> {
-    return this.members.list(user, walletId, query.status);
+  ): Promise<Enveloped<WalletMemberResponse[]>> {
+    return this.members.list(user, walletId, query);
   }
 
   @RequireWalletRole(WalletRole.OWNER)
@@ -204,8 +204,8 @@ export class WalletsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') walletId: string,
     @Query(zodPipe(invitationListQuerySchema)) query: z.infer<typeof invitationListQuerySchema>,
-  ): Promise<WalletInvitationResponse[]> {
-    return this.invitations.list(user, walletId, query.state);
+  ): Promise<Enveloped<WalletInvitationResponse[]>> {
+    return this.invitations.list(user, walletId, query);
   }
 
   @RequireWalletRole(WalletRole.OWNER)
