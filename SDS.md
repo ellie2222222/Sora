@@ -573,7 +573,9 @@ the real API — it is not a second local dataset.
   last said. Every successful signed-in read is saved to SQLite (`cached_responses` in the
   sync database, via `LocalCache`), keyed by account, endpoint, argument and page. A read
   that finds no network answers from that copy (`readSignedIn`), so screens stay populated
-  offline and after a restart. An offline write's in-place list patch is saved too
+  offline and after a restart. A copy only exists for a read that has run, so the transaction list
+  prefetches the add sheet's accounts and categories (`useWarmAddTransactionReads`): an expense
+  can be recorded offline even if the sheet was never opened online. An offline write's in-place list patch is saved too
   (`localCacheMiddleware`), so a queued row is still listed after a restart. The guest store is
   never read for a signed-in user: it is a different ledger, and seeding it would route the user
   to guest upload.

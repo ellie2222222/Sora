@@ -9,11 +9,12 @@ onFlowComplete:
 - runFlow: ../subflows/login.yaml
 # Unique per run, so a rerun against the same user can't match an earlier run's row.
 - evalScript: ${output.description = 'E2E offline expense ' + Date.now()}
-# The sheet needs the categories, which only an online read brings onto the device.
+# The list warms the sheet's accounts and categories while online; offline, the sheet reads those saved copies.
 - extendedWaitUntil:
     visible:
       id: "list-transactions"
     timeout: 15000
+- waitForAnimationToEnd
 
 - setAirplaneMode: enabled
 # The connection icon's accessibility label, e.g. "Offline" or "Offline, Saved 14:32".

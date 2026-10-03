@@ -1,8 +1,21 @@
-# Records a 12,000 expense described ${DESCRIPTION} through the sheet, starting from a screen with btn-add-transaction.
+# Records a 12,000 expense described ${DESCRIPTION} through the sheet, starting from the transaction list.
 appId: com.sora.app
 ---
-- tapOn:
-    id: "btn-add-transaction"
+# An empty list offers its own Create button; the floating one appears only once there are rows.
+- runFlow:
+    when:
+      visible:
+        id: "btn-add-transaction"
+    commands:
+      - tapOn:
+          id: "btn-add-transaction"
+- runFlow:
+    when:
+      visible:
+        id: "home-empty-action"
+    commands:
+      - tapOn:
+          id: "home-empty-action"
 - extendedWaitUntil:
     visible:
       id: "sheet-transaction"

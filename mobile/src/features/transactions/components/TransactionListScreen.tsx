@@ -24,6 +24,7 @@ import {
 import { useAuth, useModal, useTheme, useWallets } from '@/app/providers';
 import { useListTransactionsInfiniteQuery } from '@/app/store';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
+import { useWarmAddTransactionReads } from '../hooks/useWarmAddTransactionReads.ts';
 import { TransactionDetailModal } from './TransactionDetailModal';
 import { TransactionListSkeleton } from './TransactionListSkeleton';
 import {
@@ -81,6 +82,8 @@ export function TransactionListScreen({
   const [filterType, setFilterType] = useState<'ALL' | TransactionType>('ALL');
 
   const walletId = activeWalletId ?? undefined;
+  // Guest reads come from the device itself, so only a signed-in session has anything to warm.
+  useWarmAddTransactionReads(walletId, isGuest);
   // One source for the window, so the day strip and the query cannot disagree.
   const { dateFrom, dateTo } = windowFor(period, selectedDay);
 

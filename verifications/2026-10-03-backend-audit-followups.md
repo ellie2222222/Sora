@@ -70,7 +70,28 @@ Results:
 - 656 plan links, 0 broken. The 3 that don't land on a test title point at fixtures, as before.
 - Plans: TC-WAL-35, TC-DASH-22, TC-BUD-20, TC-SAV-22, TC-SAV-23 and TC-AUTH-30 added, giving 250 cases, 244 covered.
 
+### Second pass: the remaining unpaginated lists
+
+`GET /wallets`, `/accounts`, `/categories`, `/wallets/{id}/members` and `/wallets/{id}/invitations` now page the same way, under the owner's earlier decision.
+- **Shared query shape:** `pageQuery` and `offsetOf` in `server/src/common/pagination.ts`, used by every server-local list schema.
+- **Wallet list:** the own/shared filter moved into SQL, so it can page.
+- **Categories:** `?tree=true` still returns the whole tree, unpaged, because a page of a tree would cut children off from their parents.
+- **App:** all five list calls use `getAll`.
+- **One test fix:** a new wallet gets 38 starter categories, more than the default page of 25, so `integration.categories:57` now asks for `pageSize=200`.
+- Re-verified by `integration.pagination:41` (walks each list 2 or 10 per page and compares against SQL) and `:75` (the tree comes back whole).
+- Results: server 217/217, mobile 580/580, typecheck exit 0, parity 40/40, 663 plan links with 0 broken. Plans now have 255 cases, 249 covered.
+
+### E2E run `37105774939` (first run with the guest and offline fixes)
+
+`gh run view 37105774939 --log-failed`: 3 of 7 flows passed (sign-in relaunch, add expense, pull to refresh), 4 failed. Artifacts came from `gh run download 37105774939`.
+
+| # | Observed | Cause | Fix |
+|---|---|---|---|
+| 10 | The 3 guest flows fail at `btn-add-transaction`. The screenshot shows the guest's "Your wallet" home with "No transactions yet" and a "+ Create" button. | The guest home now renders, which confirms the 401 fix from 2026-10-02 (finding 19). An empty list shows `home-empty-action` instead of the floating `btn-add-transaction` (`TransactionListScreen.tsx:130`, `showFab`), and the guest starts with no rows. | `subflows/add-expense.yaml` taps whichever of the two is visible; both call `onAddTransaction`. |
+| 11 | The offline flow fails at `option-category-.*`. The sheet shows no categories and "Select an account". | A saved copy exists only for a read that has run (`readSignedIn`). The sheet's category read `{walletId, type, status: ACTIVE}` and account read never ran online, so offline there was nothing to read. This is a real product gap, not only a test one. | `useWarmAddTransactionReads` (on the transaction list) prefetches the sheet's account read and its three category reads for the active wallet while signed in. SDS §4.3 records it. |
+
+Verified locally: `tsc -p mobile` exit 0, mobile 580/580, `expo export` exported. The device-level proof is the next E2E run.
+
 ## Follow-ups
 
-- **Other unpaginated lists:** `GET /accounts`, `GET /categories`, `GET /wallets/{id}/members` and `GET /wallets/{id}/invitations` still return every row, against API-05's "every list endpoint". Each is small per wallet; the same `getAll` pattern would apply.
 - **E2E:** the guest and offline fixes from the 2026-10-02 report still need a CI run (push).
