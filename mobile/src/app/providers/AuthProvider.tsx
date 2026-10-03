@@ -88,16 +88,20 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   const [user, setUser] = useState<UserResponse | null>(null);
   const [stored, setStored] = useState<StoredSession | null>(session.current());
   const [restoring, setRestoring] = useState(true);
-  const [isGuest, setIsGuest] = useState(false);
+  const [isGuest, setIsGuestState] = useState(false);
   const [guestHasData, setGuestHasData] = useState(false);
   const [otherAccountNotice, setOtherAccountNotice] = useState<string[] | null>(null);
 
-  // Mirrored into Redux so RTK Query `queryFn` endpoints — which only see
-  // Redux state — can branch guest vs. real the same way this context's
-  // consumers do.
-  useEffect(() => {
-    dispatch(setIsGuestInStore(isGuest));
-  }, [isGuest, dispatch]);
+  // RTK Query `queryFn` endpoints see only Redux state, so Redux takes the flag first, before the
+  // re-render: copied in an effect, it landed after the guest screens' own effects had already
+  // started their queries, which then went to the API with no session.
+  const setIsGuest = useCallback(
+    (value: boolean) => {
+      dispatch(setIsGuestInStore(value));
+      setIsGuestState(value);
+    },
+    [dispatch],
+  );
 
   // RTK Query's apiSlice is the server-state cache that actually holds data (MB-02).
   const clearServerCache = useCallback(() => {
@@ -166,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     await ensureSeeded();
     await preferencesStore.set(GUEST_MODE_STORAGE_KEY, 'true');
     setIsGuest(true);
-  }, []);
+  }, [setIsGuest]);
 
   const exitGuestModeToAuth = useCallback(async () => {
     await preferencesStore.remove(GUEST_MODE_STORAGE_KEY);
@@ -175,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     // entries must not survive into the real account's cache — the same
     // reasoning as logout's reset.
     clearServerCache();
-  }, [clearServerCache]);
+  }, [clearServerCache, setIsGuest]);
 
   const resolveGuestUpload = useCallback(
     async (walletId: string, onProgress?: (phase: string, completed: boolean) => void) => {

@@ -251,7 +251,9 @@ jobs:
         working-directory: mobile
         env:
           SORA_E2E_BUILD: '1'
-          EXPO_PUBLIC_API_BASE_URL: http://localhost:3000
+          # The emulator's alias for the host's loopback. Unlike `adb reverse`, it goes through the
+          # emulator's own network, so airplane mode really cuts the app off (offline-sync flow).
+          EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:3000
           EXPO_PUBLIC_ALLOW_INSECURE_API: 'true'
           NODE_ENV: production
         run: |
@@ -280,7 +282,6 @@ jobs:
           target: google_apis
           disable-animations: true
           script: |
-            adb reverse tcp:3000 tcp:3000
             adb install mobile/android/app/build/outputs/apk/release/app-release.apk
             maestro test mobile/e2e -e E2E_API_BASE="$E2E_API_BASE" -e E2E_EMAIL="$E2E_EMAIL" -e E2E_PASSWORD="$E2E_PASSWORD" -e E2E_WALLET_ID="$E2E_WALLET_ID" --format junit --output "$RUNNER_TEMP/maestro-report.xml"
 

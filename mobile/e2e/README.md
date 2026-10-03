@@ -33,13 +33,14 @@ flows write data and never clean it up.
    cd mobile
    SORA_E2E_BUILD=1 npx expo prebuild --platform android --clean --no-install
    cd android
-   EXPO_PUBLIC_API_BASE_URL=http://localhost:3417 EXPO_PUBLIC_ALLOW_INSECURE_API=true NODE_ENV=production ./gradlew assembleRelease
+   EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3417 EXPO_PUBLIC_ALLOW_INSECURE_API=true NODE_ENV=production ./gradlew assembleRelease
    ```
 
-4. Install it and run the flows. `adb reverse` makes the emulator's `localhost:3417` reach the host:
+4. Install it and run the flows. `10.0.2.2` is the emulator's route to the host's loopback. Use it,
+   not `adb reverse`: a reversed port bypasses airplane mode, so the offline-sync flow would never go
+   offline.
 
    ```bash
-   adb reverse tcp:3417 tcp:3417
    adb install -r mobile/android/app/build/outputs/apk/release/app-release.apk
    maestro test mobile/e2e -e E2E_API_BASE=… -e E2E_EMAIL=… -e E2E_PASSWORD=… -e E2E_WALLET_ID=…
    ```
