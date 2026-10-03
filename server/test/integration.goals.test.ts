@@ -174,6 +174,16 @@ describe('goals and contributions against a real database', { skip: integrationS
     assert.deepEqual(await ids('ACTIVE'), [goalId]);
     assert.deepEqual(await ids('COMPLETED'), [completed]);
     assert.deepEqual(await ids('CANCELLED'), [cancelled]);
+
+    // API-05: newest first, paged with a total.
+    const goalPage = (n: number) => api.call('GET', `/goals?walletId=${user.walletId}&page=${n}&pageSize=2`, { token: user.token });
+    const firstGoals = await goalPage(1);
+    assert.deepEqual(firstGoals.body!.meta.pagination, { page: 1, pageSize: 2, total: 3, hasMore: true });
+    assert.equal((firstGoals.body!.data as { id: string }[])[0]!.id, cancelled);
+    const secondGoals = await goalPage(2);
+    assert.deepEqual(secondGoals.body!.meta.pagination, { page: 2, pageSize: 2, total: 3, hasMore: false });
+    const paged = [...firstGoals.body!.data, ...secondGoals.body!.data] as { id: string }[];
+    assert.deepEqual(paged.map((goal) => goal.id).sort(), [goalId, completed, cancelled].sort(), 'no row repeated or skipped');
   });
 
   it('SAV-US-04: changing the target moves remaining and progress on the next read, not the contributions; currency stays', async () => {
@@ -222,5 +232,23 @@ describe('goals and contributions against a real database', { skip: integrationS
       ['GOAL_CONTRIBUTION_ADDED', 'GOAL_CONTRIBUTION_REMOVED'],
     );
     assert.deepEqual(rows.at(-1), { event: 'GOAL_CONTRIBUTION_REMOVED', result: 'SUCCESS', actor_id: user.id, wallet_id: user.walletId });
+  });
+
+  it('§6.5: in an archived wallet an earmark can still be removed, a transaction-backed contribution cannot', async () => {
+    const user = await registerProbeUser(api, 'goals-archived-wallet');
+    const account = await createAccount(api, user, user.walletId, { initialBalance: '1000' });
+    const food = await categoryOf(api, user, user.walletId, 'EXPENSE');
+    const goalId = await goalOf(user);
+    const backed = await contribute(user, goalId, { accountId: account, recordAsTransaction: true, categoryId: food });
+    const earmark = await contribute(user, goalId, { accountId: account });
+    assert.deepEqual([backed.status, earmark.status], [201, 201]);
+    assert.equal((await api.call('DELETE', `/wallets/${user.walletId}`, { token: user.token })).status, 204);
+
+    const refused = await api.call('DELETE', `/goals/${goalId}/contributions/${backed.body!.data.id}`, { token: user.token });
+    assert.deepEqual([refused.status, refused.body?.error?.code], [409, 'WALLET_ARCHIVED']);
+    assert.deepEqual(await api.sql('SELECT status FROM transactions WHERE id = $1', [backed.body!.data.transactionId]), [{ status: 'COMPLETED' }]);
+
+    const removed = await api.call('DELETE', `/goals/${goalId}/contributions/${earmark.body!.data.id}`, { token: user.token });
+    assert.equal(removed.status, 204);
   });
 });

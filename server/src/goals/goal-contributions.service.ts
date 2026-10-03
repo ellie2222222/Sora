@@ -22,14 +22,14 @@ import {
   type CreateContributionRequest,
 } from '@sora/contracts';
 
-import { lockAccountsInCurrency } from '../accounts/account-currency-lock.ts';
+import { lockAccountsForWrite } from '../accounts/account-write-lock.ts';
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { Enveloped, paginated } from '../common/envelope.ts';
 import { DatabaseService } from '../database/database.service.ts';
-import { WalletAccessService } from '../wallets/wallet-access.service.ts';
+import { lockWalletWritable, WalletAccessService } from '../wallets/wallet-access.service.ts';
 import { requireGoalAccess } from './goal-access.ts';
 
 export interface ContributionListQuery {
@@ -122,7 +122,12 @@ export class GoalContributionsService {
     }
 
     const row = await this.database.db.transaction().execute(async (trx) => {
-      await lockAccountsInCurrency(trx, [request.accountId], request.currency);
+      // Re-read under a share lock: a cancel or complete (an UPDATE) committed after the check
+      // above would otherwise still take this contribution.
+      const lockedGoal = await trx.selectFrom('goals').select('status').where('id', '=', goalId).forShare().executeTakeFirst();
+      if (lockedGoal?.status !== GoalStatus.ACTIVE) throw new AppError('GOAL_NOT_ACTIVE');
+      // An earmark moves no money, so only a recorded payment must avoid an archived account (§13.6).
+      await lockAccountsForWrite(trx, [request.accountId], request.currency, { allowArchived: !request.recordAsTransaction });
       let transactionId: string | null = null;
 
       if (request.recordAsTransaction) {
@@ -199,15 +204,22 @@ export class GoalContributionsService {
     if (!contribution) throw new AppError('CONTRIBUTION_NOT_FOUND');
 
     await this.database.db.transaction().execute(async (trx) => {
-      await trx.deleteFrom('goal_contributions').where('id', '=', contributionId).execute();
-
+      // The backing transaction's row is taken before the contribution's, the order
+      // TransactionsService#delete uses, so the two paths can never deadlock on the pair.
       if (contribution.transaction_id) {
+        // Deleting the backing transaction is a ledger write, which an archived wallet refuses (§6.5).
+        await lockWalletWritable(trx, goal.wallet_id);
         await trx
           .updateTable('transactions')
           .set({ status: TransactionStatus.DELETED, updated_at: new Date() })
           .where('id', '=', contribution.transaction_id)
           .execute();
       }
+
+      // Conditional on the row still existing: of two concurrent removals, or a removal racing the
+      // backing transaction's delete (which removes this row too), exactly one is applied and audited.
+      const removed = await trx.deleteFrom('goal_contributions').where('id', '=', contributionId).returning('id').executeTakeFirst();
+      if (!removed) throw new AppError('CONTRIBUTION_NOT_FOUND');
 
       await this.audit.record(
         {

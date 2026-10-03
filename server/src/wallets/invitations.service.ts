@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { Kysely, Transaction } from 'kysely';
 
 import {
   WalletRole,
@@ -18,6 +19,7 @@ import type { AuthenticatedUser } from '../common/decorators.ts';
 import { translatingPgErrors } from '../common/pg-error.ts';
 import { CONFIG, type AppConfig } from '../config/env.ts';
 import { DatabaseService } from '../database/database.service.ts';
+import type { DB } from '../database/types.ts';
 import { WalletAccessService } from './wallet-access.service.ts';
 import { WalletsService } from './wallets.service.ts';
 
@@ -98,7 +100,7 @@ export class InvitationsService {
       .select('wallet_members.id')
       .where('wallet_members.wallet_id', '=', access.walletId)
       .where('wallet_members.status', '=', MemberStatus.ACTIVE)
-      .where('users.email', '=', request.email)
+      .where((eb) => eb(eb.fn('lower', ['users.email']), '=', request.email.toLowerCase()))
       .executeTakeFirst();
 
     if (existingMember) throw new AppError('MEMBER_ALREADY_EXISTS');
@@ -139,7 +141,7 @@ export class InvitationsService {
 
       // uq_wallet_invitation_open is what actually rejects a second live invitation
       // for the same (wallet, email); a pre-check could pass and still race.
-      return translatingPgErrors(() =>
+      const inserted = await translatingPgErrors(() =>
         trx
           .insertInto('wallet_invitations')
           .values({
@@ -154,17 +156,21 @@ export class InvitationsService {
           .returning(['id', 'created_at'])
           .executeTakeFirstOrThrow(),
       );
-    });
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.MEMBER_INVITED,
-      entityType: ENTITY_TYPES.WALLET_INVITATION,
-      entityId: created.id,
-      actorId: user.id,
-      walletId: access.walletId,
-      actorRole: access.role,
-      note: `Invited ${request.email} as ${request.role}`,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.MEMBER_INVITED,
+          entityType: ENTITY_TYPES.WALLET_INVITATION,
+          entityId: inserted.id,
+          actorId: user.id,
+          walletId: access.walletId,
+          actorRole: access.role,
+          note: `Invited ${request.email} as ${request.role}`,
+          ip,
+        },
+        trx,
+      );
+      return inserted;
     });
 
     return {
@@ -189,30 +195,43 @@ export class InvitationsService {
   ): Promise<void> {
     const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
 
-    const invitation = await this.baseQuery()
-      .where('wallet_invitations.id', '=', invitationId)
-      .where('wallet_invitations.wallet_id', '=', access.walletId)
-      .executeTakeFirst();
+    await this.database.db.transaction().execute(async (trx) => {
+      // Only an open invitation is revoked; the row lock makes a concurrent accept either finish
+      // first (and this matches nothing) or wait and find it revoked.
+      const revoked = await trx
+        .updateTable('wallet_invitations')
+        .set({ revoked_at: new Date() })
+        .where('id', '=', invitationId)
+        .where('wallet_id', '=', access.walletId)
+        .where('revoked_at', 'is', null)
+        .where('accepted_at', 'is', null)
+        .returning(['id', 'invited_email'])
+        .executeTakeFirst();
 
-    if (!invitation) throw new AppError('INVITATION_NOT_FOUND');
-    if (invitation.accepted_at !== null) throw new AppError('INVITATION_ALREADY_USED');
+      if (!revoked) {
+        const invitation = await this.baseQuery(trx)
+          .where('wallet_invitations.id', '=', invitationId)
+          .where('wallet_invitations.wallet_id', '=', access.walletId)
+          .executeTakeFirst();
+        if (!invitation) throw new AppError('INVITATION_NOT_FOUND');
+        if (invitation.accepted_at !== null) throw new AppError('INVITATION_ALREADY_USED');
+        // Already revoked: nothing changed, so nothing new to audit.
+        return;
+      }
 
-    await this.database.db
-      .updateTable('wallet_invitations')
-      .set({ revoked_at: new Date() })
-      .where('id', '=', invitation.id)
-      .where('revoked_at', 'is', null)
-      .execute();
-
-    await this.audit.record({
-      event: AUDIT_EVENTS.INVITATION_REVOKED,
-      entityType: ENTITY_TYPES.WALLET_INVITATION,
-      entityId: invitation.id,
-      actorId: user.id,
-      walletId: access.walletId,
-      actorRole: access.role,
-      note: `Revoked invitation for ${invitation.invited_email}`,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.INVITATION_REVOKED,
+          entityType: ENTITY_TYPES.WALLET_INVITATION,
+          entityId: revoked.id,
+          actorId: user.id,
+          walletId: access.walletId,
+          actorRole: access.role,
+          note: `Revoked invitation for ${revoked.invited_email}`,
+          ip,
+        },
+        trx,
+      );
     });
   }
 
@@ -254,17 +273,32 @@ export class InvitationsService {
       throw new AppError('INVITATION_EMAIL_MISMATCH');
     }
 
-    const existing = await this.database.db
-      .selectFrom('wallet_members')
-      .select(['id', 'status'])
-      .where('wallet_id', '=', invitation.wallet_id)
-      .where('user_id', '=', user.id)
-      .executeTakeFirst();
-
-    if (existing?.status === MemberStatus.ACTIVE) throw new AppError('MEMBER_ALREADY_EXISTS');
-
     await translatingPgErrors(() =>
       this.database.db.transaction().execute(async (trx) => {
+        // The claim is the check: it matches only while the invitation is still open, and its row
+        // lock makes a concurrent accept or revoke wait and then find it used.
+        const claimed = await trx
+          .updateTable('wallet_invitations')
+          .set({ accepted_at: new Date() })
+          .where('id', '=', invitation.id)
+          .where('accepted_at', 'is', null)
+          .where('revoked_at', 'is', null)
+          .where('expires_at', '>', new Date())
+          .returning(['id'])
+          .executeTakeFirst();
+        if (!claimed) {
+          this.assertOpen(await this.byToken(token, trx));
+          throw new AppError('INVITATION_ALREADY_USED');
+        }
+
+        const existing = await trx
+          .selectFrom('wallet_members')
+          .select(['id', 'status'])
+          .where('wallet_id', '=', invitation.wallet_id)
+          .where('user_id', '=', user.id)
+          .executeTakeFirst();
+        if (existing?.status === MemberStatus.ACTIVE) throw new AppError('MEMBER_ALREADY_EXISTS');
+
         if (existing) {
           // A previously revoked membership is reinstated rather than inserted:
           // uq_wallet_member is on (wallet_id, user_id) regardless of status.
@@ -291,12 +325,6 @@ export class InvitationsService {
             .execute();
         }
 
-        await trx
-          .updateTable('wallet_invitations')
-          .set({ accepted_at: new Date() })
-          .where('id', '=', invitation.id)
-          .execute();
-
         await this.audit.record(
           {
             event: AUDIT_EVENTS.INVITATION_ACCEPTED,
@@ -316,8 +344,8 @@ export class InvitationsService {
     return this.wallets.get(user, invitation.wallet_id);
   }
 
-  private baseQuery() {
-    return this.database.db
+  private baseQuery(executor: Kysely<DB> | Transaction<DB> = this.database.db) {
+    return executor
       .selectFrom('wallet_invitations')
       .innerJoin('wallets', 'wallets.id', 'wallet_invitations.wallet_id')
       .select([
@@ -334,8 +362,8 @@ export class InvitationsService {
       ]);
   }
 
-  private async byToken(token: string): Promise<InvitationRow> {
-    const row = await this.baseQuery()
+  private async byToken(token: string, executor?: Transaction<DB>): Promise<InvitationRow> {
+    const row = await this.baseQuery(executor)
       .where('wallet_invitations.token_hash', '=', this.tokens.hashToken(token))
       .executeTakeFirst();
 

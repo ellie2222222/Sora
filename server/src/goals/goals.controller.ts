@@ -32,14 +32,14 @@ import { GoalContributionsService } from './goal-contributions.service.ts';
 import { GoalsService } from './goals.service.ts';
 
 /** List/pagination filters have no contracts schema — see WalletsController's identical note. */
-const goalListQuerySchema = z.object({
-  walletId: uuidSchema,
-  status: z.enum(GOAL_STATUSES).optional(),
-});
-
 const contributionListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+});
+
+const goalListQuerySchema = contributionListQuerySchema.extend({
+  walletId: uuidSchema,
+  status: z.enum(GOAL_STATUSES).optional(),
 });
 
 @Controller()
@@ -53,7 +53,7 @@ export class GoalsController {
   list(
     @CurrentUser() user: AuthenticatedUser,
     @Query(zodPipe(goalListQuerySchema)) query: z.infer<typeof goalListQuerySchema>,
-  ): Promise<GoalResponse[]> {
+  ): Promise<Enveloped<GoalResponse[]>> {
     return this.goals.list(user, query);
   }
 

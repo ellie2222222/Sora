@@ -20,7 +20,7 @@ import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
-import { translatingPgErrors } from '../common/pg-error.ts';
+import { isUniqueViolation, rethrowPgError, translatingPgErrors } from '../common/pg-error.ts';
 import { RateLimitService } from '../common/rate-limit.service.ts';
 import { CONFIG, type AppConfig } from '../config/env.ts';
 import { DatabaseService } from '../database/database.service.ts';
@@ -40,6 +40,12 @@ const ARGON2_OPTIONS = {
 
 /** Base currency for an account with no explicit preference (Google sign-up supplies none). */
 const DEFAULT_CURRENCY = 'VND';
+
+interface GoogleIdentity {
+  googleId: string;
+  email: string;
+  displayName: string;
+}
 
 interface UserRow {
   id: string;
@@ -138,7 +144,11 @@ export class AuthService {
    * body nor the timing reveals whether an address is registered.
    */
   async login(request: LoginRequest, ip: string | null): Promise<AuthResponse> {
-    const lockout = this.rateLimit.lockoutFor(request.email);
+    const lockout = this.rateLimit.beginLoginAttempt(
+      request.email,
+      this.config.LOGIN_FAILURE_LIMIT,
+      this.config.LOGIN_LOCKOUT_MINUTES * 60 * 1000,
+    );
     if (!lockout.allowed) {
       throw new AppError(
         'RATE_LIMITED',
@@ -152,7 +162,7 @@ export class AuthService {
     const user = await this.database.db
       .selectFrom('users')
       .select(USER_COLUMNS)
-      .where('email', '=', request.email)
+      .where((eb) => eb(eb.fn('lower', ['email']), '=', request.email.toLowerCase()))
       .executeTakeFirst();
 
     // A Google-only user has no password_hash at all; that must fail the same
@@ -163,11 +173,6 @@ export class AuthService {
         : await this.burnTime(request.password);
 
     if (!user || !valid) {
-      this.rateLimit.recordLoginFailure(
-        request.email,
-        this.config.LOGIN_FAILURE_LIMIT,
-        this.config.LOGIN_LOCKOUT_MINUTES * 60 * 1000,
-      );
       await this.audit.record({
         event: AUDIT_EVENTS.USER_LOGIN,
         entityType: ENTITY_TYPES.USER,
@@ -212,55 +217,14 @@ export class AuthService {
   async loginWithGoogle(request: GoogleAuthRequest, ip: string | null): Promise<AuthResponse> {
     const payload = await this.verifyGoogleIdToken(request.idToken);
 
-    const result = await translatingPgErrors(() =>
-      this.database.db.transaction().execute(async (trx) => {
-        const byGoogleId = await trx
-          .selectFrom('users')
-          .select(USER_COLUMNS)
-          .where('google_id', '=', payload.googleId)
-          .executeTakeFirst();
-
-        if (byGoogleId) return { user: byGoogleId, event: AUDIT_EVENTS.USER_LOGIN, isNew: false };
-
-        const byEmail = await trx
-          .selectFrom('users')
-          .select(USER_COLUMNS)
-          .where('email', '=', payload.email)
-          .executeTakeFirst();
-
-        if (byEmail) {
-          const linked = await trx
-            .updateTable('users')
-            .set({ google_id: payload.googleId })
-            .where('id', '=', byEmail.id)
-            .returning(USER_COLUMNS)
-            .executeTakeFirstOrThrow();
-          return { user: linked, event: AUDIT_EVENTS.USER_LOGIN, isNew: false };
-        }
-
-        const created = await trx
-          .insertInto('users')
-          .values({
-            email: payload.email,
-            google_id: payload.googleId,
-            password_hash: null,
-            display_name: payload.displayName,
-            base_currency: DEFAULT_CURRENCY,
-            ...(request.locale ? { locale: request.locale } : {}),
-          })
-          .returning(USER_COLUMNS)
-          .executeTakeFirstOrThrow();
-
-        await this.seedWallet(
-          trx,
-          created.id,
-          created.display_name,
-          created.base_currency,
-          created.locale,
-        );
-        return { user: created, event: AUDIT_EVENTS.USER_REGISTERED, isNew: true };
-      }),
-    );
+    // Two first sign-ins for one Google account both miss the lookups and both insert; the loser's
+    // unique violation means the user now exists, so one retry finds it and signs in instead.
+    const result = await this.resolveGoogleUser(payload, request)
+      .catch((error: unknown) => {
+        if (!isUniqueViolation(error, ['uq_users_email', 'uq_users_google_id'])) throw error;
+        return this.resolveGoogleUser(payload, request);
+      })
+      .catch((error: unknown) => rethrowPgError(error));
 
     const refresh = await this.tokens.issueRefreshToken(result.user.id);
     await this.audit.record({
@@ -277,6 +241,61 @@ export class AuthService {
       user: toUserResponse(result.user),
       tokens: this.tokenPair(identityOf(result.user), refresh.token),
     };
+  }
+
+  private resolveGoogleUser(payload: GoogleIdentity, request: GoogleAuthRequest) {
+    return this.database.db.transaction().execute(async (trx) => {
+      const byGoogleId = await trx
+        .selectFrom('users')
+        .select(USER_COLUMNS)
+        .where('google_id', '=', payload.googleId)
+        .executeTakeFirst();
+
+      if (byGoogleId) return { user: byGoogleId, event: AUDIT_EVENTS.USER_LOGIN, isNew: false };
+
+      const byEmail = await trx
+        .selectFrom('users')
+        .select('id')
+        .where((eb) => eb(eb.fn('lower', ['email']), '=', payload.email.toLowerCase()))
+        .executeTakeFirst();
+
+      if (byEmail) {
+        // A verified email proves who owns the address, not that this Google account should replace
+        // the one already linked. Conditional, so a concurrent link by another Google account can't win
+        // either, while a concurrent sign-in by this same one still matches.
+        const linked = await trx
+          .updateTable('users')
+          .set({ google_id: payload.googleId })
+          .where('id', '=', byEmail.id)
+          .where((eb) => eb.or([eb('google_id', 'is', null), eb('google_id', '=', payload.googleId)]))
+          .returning(USER_COLUMNS)
+          .executeTakeFirst();
+        if (!linked) throw new AppError('GOOGLE_ACCOUNT_MISMATCH');
+        return { user: linked, event: AUDIT_EVENTS.USER_LOGIN, isNew: false };
+      }
+
+      const created = await trx
+        .insertInto('users')
+        .values({
+          email: payload.email,
+          google_id: payload.googleId,
+          password_hash: null,
+          display_name: payload.displayName,
+          base_currency: DEFAULT_CURRENCY,
+          ...(request.locale ? { locale: request.locale } : {}),
+        })
+        .returning(USER_COLUMNS)
+        .executeTakeFirstOrThrow();
+
+      await this.seedWallet(
+        trx,
+        created.id,
+        created.display_name,
+        created.base_currency,
+        created.locale,
+      );
+      return { user: created, event: AUDIT_EVENTS.USER_REGISTERED, isNew: true };
+    });
   }
 
   /**
@@ -452,7 +471,7 @@ export class AuthService {
 
   private async verifyGoogleIdToken(
     idToken: string,
-  ): Promise<{ googleId: string; email: string; displayName: string }> {
+  ): Promise<GoogleIdentity> {
     let payload: import('google-auth-library').TokenPayload | undefined;
     try {
       const ticket = await this.googleClient.verifyIdToken({

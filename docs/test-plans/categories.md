@@ -36,6 +36,8 @@
 | TC-CAT-13 | DASH-US-01 | Dashboard groups child categories under their parent | Mobile unit | Children summed under the parent; ordered by group total | [dashboardAnalytics:95](../../mobile/src/utils/dashboardAnalytics.test.ts#L95)–[:135](../../mobile/src/utils/dashboardAnalytics.test.ts#L135) | Covered |
 | TC-CAT-14 | API §10.4 | `DELETE /categories/{id}?mode=permanent` on a category with transactions (or a child with them); on an unused one | Integration | 409 `CATEGORY_HAS_TRANSACTIONS`; unused: 204, row gone, `CATEGORY_DELETED` audit row (not `CATEGORY_ARCHIVED`) | [integration.categories:173](../../server/test/integration.categories.test.ts#L173); client side: TC-CAT-12 | Covered |
 | TC-CAT-15 | CAT-US-03 | Restore a child while its parent is archived; restore the parent, then the child | Integration + Mobile unit | 409 `CATEGORY_PARENT_ARCHIVED`, child stays archived; after the parent, 200 | [integration.categories:135](../../server/test/integration.categories.test.ts#L135), guest copy [guestCategories:160](../../mobile/src/services/guest/guestCategories.test.ts#L160) | Covered |
+| TC-CAT-16 | CAT-US-02 | Create a child while its parent's archive is in flight | Integration (two DB transactions) | Waits on the parent row, then 409 `CATEGORY_PARENT_ARCHIVED` | [integration.concurrency:195](../../server/test/integration.concurrency.test.ts#L195) | Covered |
+| TC-CAT-17 | CAT-US-04 | Permanently delete a category an archived budget still names | Integration | 409 `CATEGORY_IN_USE`, not a 500 from the foreign key | [integration.concurrency:305](../../server/test/integration.concurrency.test.ts#L305) | Covered |
 
 ## Gaps, by risk
 

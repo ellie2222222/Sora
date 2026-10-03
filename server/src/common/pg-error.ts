@@ -28,9 +28,16 @@ function asPgError(error: unknown): PgDatabaseError | null {
   return typeof candidate.code === 'string' ? candidate : null;
 }
 
+/** Whether `error` is a unique violation of one of `constraints`, for a caller that resolves it itself. */
+export function isUniqueViolation(error: unknown, constraints: readonly string[]): boolean {
+  const pgError = asPgError(error);
+  return pgError?.code === UNIQUE_VIOLATION && constraints.includes(pgError.constraint ?? '');
+}
+
 /** The constraint each violation maps onto, when the API has a code for it. */
 const CONSTRAINT_CODES: Record<string, ErrorCode> = {
   uq_users_email: 'EMAIL_ALREADY_REGISTERED',
+  uq_users_google_id: 'EMAIL_ALREADY_REGISTERED',
   uq_wallet_member: 'MEMBER_ALREADY_EXISTS',
   uq_wallet_single_owner: 'WALLET_LAST_OWNER',
   uq_wallet_invitation_open: 'INVITATION_ALREADY_OPEN',

@@ -133,6 +133,16 @@ describe('budgets against a real database', { skip: integrationSkipReason() }, (
     assert.deepEqual(await ids('&activeOn=2026-12-01'), [december]);
     assert.deepEqual(await ids('&status=ACTIVE&activeOn=2026-11-15'), [november]);
 
+    // API-05: newest window first, paged with a total.
+    const page = (n: number) => api.call('GET', `/budgets?walletId=${user.walletId}&page=${n}&pageSize=2`, { token: user.token });
+    const first = await page(1);
+    assert.deepEqual(first.body!.meta.pagination, { page: 1, pageSize: 2, total: 3, hasMore: true });
+    assert.equal((first.body!.data as { id: string }[])[0]!.id, december);
+    const second = await page(2);
+    assert.deepEqual(second.body!.meta.pagination, { page: 2, pageSize: 2, total: 3, hasMore: false });
+    const paged = [...first.body!.data, ...second.body!.data] as { id: string }[];
+    assert.deepEqual(paged.map((budget) => budget.id).sort(), [november, december, archived].sort(), 'no row repeated or skipped');
+
     const stranger = await registerProbeUser(api, 'budgets-list-stranger');
     const detail = await api.call('GET', `/budgets/${november}`, { token: stranger.token });
     assert.deepEqual([detail.status, detail.body?.error?.code], [404, 'BUDGET_NOT_FOUND']);

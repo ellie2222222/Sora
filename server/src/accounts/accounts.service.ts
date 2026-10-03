@@ -25,8 +25,8 @@ import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
-import { WalletAccessService } from '../wallets/wallet-access.service.ts';
-import { lockAccountForCurrencyChange } from './account-currency-lock.ts';
+import { lockWalletWritable, WalletAccessService } from '../wallets/wallet-access.service.ts';
+import { lockAccountForCurrencyChange, lockForArchive } from './account-write-lock.ts';
 import { BalanceService } from './balance.service.ts';
 
 export interface AccountListQuery {
@@ -83,25 +83,32 @@ export class AccountsService {
   ): Promise<AccountResponse> {
     await this.access.requireWritable(user.id, request.walletId, 'EDITOR');
 
-    const row = await this.database.db
-      .insertInto('accounts')
-      .values({
-        wallet_id: request.walletId,
-        name: request.name,
-        type: request.type,
-        currency: request.currency,
-        initial_balance: request.initialBalance,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    const row = await this.database.db.transaction().execute(async (trx) => {
+      await lockWalletWritable(trx, request.walletId);
+      const inserted = await trx
+        .insertInto('accounts')
+        .values({
+          wallet_id: request.walletId,
+          name: request.name,
+          type: request.type,
+          currency: request.currency,
+          initial_balance: request.initialBalance,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.ACCOUNT_CREATED,
-      entityType: ENTITY_TYPES.ACCOUNT,
-      entityId: row.id,
-      actorId: user.id,
-      walletId: request.walletId,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.ACCOUNT_CREATED,
+          entityType: ENTITY_TYPES.ACCOUNT,
+          entityId: inserted.id,
+          actorId: user.id,
+          walletId: request.walletId,
+          ip,
+        },
+        trx,
+      );
+      return inserted;
     });
 
     // A brand-new account has no transactions, so its balance is its opening one.
@@ -135,13 +142,11 @@ export class AccountsService {
   ): Promise<AccountResponse> {
     const access = await this.access.requireAccount(user.id, accountId, 'EDITOR');
 
-    if (request.status === AccountStatus.ARCHIVED && access.accountStatus === AccountStatus.ACTIVE) {
-      await this.assertNotLastActiveAccount(access.walletId, accountId);
-    }
-
     const row = await this.database.db.transaction().execute(async (trx) => {
-      if (request.currency !== undefined && request.currency !== access.currency) {
-        await lockAccountForCurrencyChange(trx, accountId);
+      if (request.status === AccountStatus.ARCHIVED) await lockForArchive(trx, access.walletId, accountId);
+      // Decided on the currency read under the lock, never on the earlier unlocked read: a change
+      // committed in between would otherwise let this one skip the check.
+      if (request.currency !== undefined && (await lockAccountForCurrencyChange(trx, accountId)) !== request.currency) {
         await this.assertNothingNamesAccount(trx, accountId);
       }
 
@@ -183,43 +188,27 @@ export class AccountsService {
     const access = await this.access.requireAccount(user.id, accountId, 'EDITOR');
     if (access.accountStatus === AccountStatus.ARCHIVED) return;
 
-    await this.assertNotLastActiveAccount(access.walletId, accountId);
+    await this.database.db.transaction().execute(async (trx) => {
+      if (!(await lockForArchive(trx, access.walletId, accountId))) return;
 
-    await this.database.db
-      .updateTable('accounts')
-      .set({ status: AccountStatus.ARCHIVED, updated_at: new Date() })
-      .where('id', '=', accountId)
-      .execute();
+      await trx
+        .updateTable('accounts')
+        .set({ status: AccountStatus.ARCHIVED, updated_at: new Date() })
+        .where('id', '=', accountId)
+        .execute();
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.ACCOUNT_ARCHIVED,
-      entityType: ENTITY_TYPES.ACCOUNT,
-      entityId: accountId,
-      actorId: user.id,
-      walletId: access.walletId,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.ACCOUNT_ARCHIVED,
+          entityType: ENTITY_TYPES.ACCOUNT,
+          entityId: accountId,
+          actorId: user.id,
+          walletId: access.walletId,
+          ip,
+        },
+        trx,
+      );
     });
-  }
-
-  /**
-   * A wallet must always keep at least one active account — the same reasoning
-   * as `uq_wallet_single_owner`, expressed here rather than as a CHECK because
-   * "how many *other* rows are ACTIVE" is not something a single-row
-   * constraint can see.
-   */
-  private async assertNotLastActiveAccount(
-    walletId: string,
-    excludingAccountId: string,
-  ): Promise<void> {
-    const remaining = await this.database.db
-      .selectFrom('accounts')
-      .select((eb) => eb.fn.countAll<string>().as('count'))
-      .where('wallet_id', '=', walletId)
-      .where('status', '=', AccountStatus.ACTIVE)
-      .where('id', '!=', excludingAccountId)
-      .executeTakeFirstOrThrow();
-
-    if (Number(remaining.count) === 0) throw new AppError('ACCOUNT_LAST_ACTIVE');
   }
 
   /** Run under the account's `FOR UPDATE`, so no writer can name it between this check and the update. */

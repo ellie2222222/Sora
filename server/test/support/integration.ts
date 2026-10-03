@@ -15,9 +15,12 @@ import type { AddressInfo } from 'node:net';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { API_PREFIX } from '@sora/contracts';
+import type { Transaction } from 'kysely';
 import pg from 'pg';
 
 import { AppModule } from '../../src/app.module.ts';
+import { DatabaseService } from '../../src/database/database.service.ts';
+import type { DB } from '../../src/database/types.ts';
 import type { ApiCaller } from './probe-data.ts';
 
 const DISPOSABLE_NAME = /(^|[_-])(test|scratch|ci)([_-]|$)/i;
@@ -108,6 +111,59 @@ export async function startTestApi(): Promise<TestApi> {
       await app.close();
     },
   };
+}
+
+/**
+ * Runs `statements` in a database transaction left open until the returned commit is called, so a
+ * test can hold a lock or an uncommitted change while it sends a competing request.
+ */
+export async function openTransaction(
+  api: TestApi,
+  statements: (trx: Transaction<DB>) => Promise<void>,
+): Promise<() => Promise<void>> {
+  let commit!: () => void;
+  const committed = new Promise<void>((resolve) => (commit = resolve));
+  let started!: () => void;
+  const ready = new Promise<void>((resolve) => (started = resolve));
+  const done = api.app.get(DatabaseService).db.transaction().execute(async (trx) => {
+    await statements(trx);
+    started();
+    await committed;
+  });
+  await ready;
+  return async () => {
+    commit();
+    await done;
+  };
+}
+
+/** Whether `request` is still unanswered after `ms`: blocked on a lock the test holds. */
+export async function stillWaiting(request: Promise<unknown>, ms = 300): Promise<boolean> {
+  const settled = request.then(() => false, () => false);
+  return (await Promise.race([settled, new Promise<boolean>((resolve) => setTimeout(() => resolve(true), ms))])) === true;
+}
+
+/**
+ * Holds `hold`'s transaction open while `send` runs, notes whether `send` was still waiting after
+ * `ms`, then commits and returns its answer. The commit is in a `finally`: a request that did not
+ * wait must still release the lock, or closing the test API waits on that connection forever.
+ */
+export async function whileHeld<T>(
+  api: TestApi,
+  hold: (trx: Transaction<DB>) => Promise<void>,
+  send: () => Promise<T>,
+  ms = 300,
+): Promise<{ waited: boolean; result: T }> {
+  const commit = await openTransaction(api, hold);
+  let pending: Promise<T> | undefined;
+  let waited = false;
+  try {
+    pending = send();
+    waited = await stillWaiting(pending, ms);
+  } finally {
+    await commit();
+  }
+  return { waited, result: await pending };
 }
 
 export { addMember, categoryOf, createAccount, nowIso, registerProbeUser, type ApiResponse, type ProbeUser } from './probe-data.ts';

@@ -9,6 +9,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import type { Transaction } from 'kysely';
 
 import {
   calculateBudgetRemaining,
@@ -19,6 +20,7 @@ import {
   parseMoney,
   roleSatisfies,
   BudgetStatus,
+  CategoryStatus,
   CategoryType,
   GoalStatus,
   MemberStatus,
@@ -33,16 +35,21 @@ import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
+import { paginated, type Enveloped } from '../common/envelope.ts';
+import { paginationMeta } from '../common/pagination.ts';
 import { translatingPgErrors } from '../common/pg-error.ts';
 import { DatabaseService } from '../database/database.service.ts';
+import type { DB } from '../database/types.ts';
 import { requireGoalInWallet } from '../goals/goal-access.ts';
-import { WalletAccessService } from '../wallets/wallet-access.service.ts';
+import { lockWalletWritable, WalletAccessService } from '../wallets/wallet-access.service.ts';
 import { spendableExpenses } from './budget-spend.ts';
 
 export interface BudgetListQuery {
   walletId: string;
   status?: BudgetStatus;
   activeOn?: string;
+  page: number;
+  pageSize: number;
 }
 
 interface BudgetRow {
@@ -76,13 +83,10 @@ export class BudgetsService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(user: AuthenticatedUser, query: BudgetListQuery): Promise<BudgetResponse[]> {
+  async list(user: AuthenticatedUser, query: BudgetListQuery): Promise<Enveloped<BudgetResponse[]>> {
     await this.access.require(user.id, query.walletId, 'VIEWER');
 
-    let builder = this.database.db
-      .selectFrom('budgets')
-      .selectAll()
-      .where('wallet_id', '=', query.walletId);
+    let builder = this.database.db.selectFrom('budgets').where('wallet_id', '=', query.walletId);
     if (query.status) builder = builder.where('status', '=', query.status);
     if (query.activeOn) {
       builder = builder
@@ -90,8 +94,18 @@ export class BudgetsService {
         .where('end_date', '>=', query.activeOn);
     }
 
-    const rows = await builder.orderBy('start_date', 'desc').execute();
-    return this.toResponses(rows);
+    const [rows, totalRow] = await Promise.all([
+      builder
+        .selectAll()
+        .orderBy('start_date', 'desc')
+        // A tie would otherwise let offset paging repeat or skip a row between pages.
+        .orderBy('id', 'desc')
+        .limit(query.pageSize)
+        .offset((query.page - 1) * query.pageSize)
+        .execute(),
+      builder.select((eb) => eb.fn.countAll<string>().as('count')).executeTakeFirstOrThrow(),
+    ]);
+    return paginated(await this.toResponses(rows), paginationMeta(query.page, query.pageSize, Number(totalRow.count)));
   }
 
   /**
@@ -113,31 +127,39 @@ export class BudgetsService {
       if (status !== GoalStatus.ACTIVE) throw new AppError('GOAL_NOT_ACTIVE');
     }
 
-    const row = await translatingPgErrors(() =>
-      this.database.db
-        .insertInto('budgets')
-        .values({
-          wallet_id: request.walletId,
-          category_id: request.categoryId ?? null,
-          goal_id: request.goalId ?? null,
-          name: request.name,
-          amount: request.amount,
-          currency: request.currency,
-          period_type: request.periodType,
-          start_date: request.startDate,
-          end_date: request.endDate,
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow(),
-    );
+    const row = await this.database.db.transaction().execute(async (trx) => {
+      await lockWalletWritable(trx, request.walletId);
+      await lockBudgetTarget(trx, request.categoryId ?? null, request.goalId ?? null);
+      const inserted = await translatingPgErrors(() =>
+        trx
+          .insertInto('budgets')
+          .values({
+            wallet_id: request.walletId,
+            category_id: request.categoryId ?? null,
+            goal_id: request.goalId ?? null,
+            name: request.name,
+            amount: request.amount,
+            currency: request.currency,
+            period_type: request.periodType,
+            start_date: request.startDate,
+            end_date: request.endDate,
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow(),
+      );
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.BUDGET_CREATED,
-      entityType: ENTITY_TYPES.BUDGET,
-      entityId: row.id,
-      actorId: user.id,
-      walletId: request.walletId,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.BUDGET_CREATED,
+          entityType: ENTITY_TYPES.BUDGET,
+          entityId: inserted.id,
+          actorId: user.id,
+          walletId: request.walletId,
+          ip,
+        },
+        trx,
+      );
+      return inserted;
     });
 
     const [response] = await this.toResponses([row]);
@@ -162,30 +184,39 @@ export class BudgetsService {
     request: UpdateBudgetRequest,
     ip: string | null,
   ): Promise<BudgetResponse> {
-    const { walletId } = await this.requireBudgetAccess(user.id, budgetId, 'EDITOR');
+    const { walletId, row: current } = await this.requireBudgetAccess(user.id, budgetId, 'EDITOR');
 
-    const row = await translatingPgErrors(() =>
-      this.database.db
-        .updateTable('budgets')
-        .set({
-          ...(request.name !== undefined ? { name: request.name } : {}),
-          ...(request.amount !== undefined ? { amount: request.amount } : {}),
-          ...(request.status !== undefined ? { status: request.status } : {}),
-          updated_at: new Date(),
-        })
-        .where('id', '=', budgetId)
-        .returningAll()
-        .executeTakeFirst(),
-    );
-    if (!row) throw new AppError('BUDGET_NOT_FOUND');
+    const row = await this.database.db.transaction().execute(async (trx) => {
+      // Reactivating must meet create's rule: its category or goal may have been archived since.
+      if (request.status === BudgetStatus.ACTIVE) await lockBudgetTarget(trx, current.category_id, current.goal_id);
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.BUDGET_UPDATED,
-      entityType: ENTITY_TYPES.BUDGET,
-      entityId: budgetId,
-      actorId: user.id,
-      walletId,
-      ip,
+      const updated = await translatingPgErrors(() =>
+        trx
+          .updateTable('budgets')
+          .set({
+            ...(request.name !== undefined ? { name: request.name } : {}),
+            ...(request.amount !== undefined ? { amount: request.amount } : {}),
+            ...(request.status !== undefined ? { status: request.status } : {}),
+            updated_at: new Date(),
+          })
+          .where('id', '=', budgetId)
+          .returningAll()
+          .executeTakeFirst(),
+      );
+      if (!updated) throw new AppError('BUDGET_NOT_FOUND');
+
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.BUDGET_UPDATED,
+          entityType: ENTITY_TYPES.BUDGET,
+          entityId: budgetId,
+          actorId: user.id,
+          walletId,
+          ip,
+        },
+        trx,
+      );
+      return updated;
     });
 
     const [response] = await this.toResponses([row]);
@@ -197,19 +228,28 @@ export class BudgetsService {
     const { walletId, row } = await this.requireBudgetAccess(user.id, budgetId, 'EDITOR');
     if (row.status === BudgetStatus.ARCHIVED) return;
 
-    await this.database.db
-      .updateTable('budgets')
-      .set({ status: BudgetStatus.ARCHIVED, updated_at: new Date() })
-      .where('id', '=', budgetId)
-      .execute();
+    await this.database.db.transaction().execute(async (trx) => {
+      // Conditional, so of two concurrent archives only the one that changed the row is audited.
+      const archived = await trx
+        .updateTable('budgets')
+        .set({ status: BudgetStatus.ARCHIVED, updated_at: new Date() })
+        .where('id', '=', budgetId)
+        .where('status', '!=', BudgetStatus.ARCHIVED)
+        .returning('id')
+        .executeTakeFirst();
+      if (!archived) return;
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.BUDGET_ARCHIVED,
-      entityType: ENTITY_TYPES.BUDGET,
-      entityId: budgetId,
-      actorId: user.id,
-      walletId,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.BUDGET_ARCHIVED,
+          entityType: ENTITY_TYPES.BUDGET,
+          entityId: budgetId,
+          actorId: user.id,
+          walletId,
+          ip,
+        },
+        trx,
+      );
     });
   }
 
@@ -325,5 +365,21 @@ export class BudgetsService {
       .where('id', 'in', categoryIds)
       .execute();
     return new Map(rows.map((row) => [row.id, row]));
+  }
+}
+
+/**
+ * Re-reads a budget's category or goal under a share lock: a category archive (which locks the
+ * wallet's categories FOR UPDATE) or a goal cancel (an UPDATE) committed after the pre-checks would
+ * otherwise leave an active budget on a target that can no longer carry one.
+ */
+async function lockBudgetTarget(trx: Transaction<DB>, categoryId: string | null, goalId: string | null): Promise<void> {
+  if (categoryId !== null) {
+    const category = await trx.selectFrom('categories').select('status').where('id', '=', categoryId).forShare().executeTakeFirst();
+    if (category?.status === CategoryStatus.ARCHIVED) throw new AppError('CATEGORY_ARCHIVED');
+  }
+  if (goalId !== null) {
+    const goal = await trx.selectFrom('goals').select('status').where('id', '=', goalId).forShare().executeTakeFirst();
+    if (goal?.status !== GoalStatus.ACTIVE) throw new AppError('GOAL_NOT_ACTIVE');
   }
 }

@@ -8,7 +8,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import type { Transaction } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 
 import {
   BudgetStatus,
@@ -26,7 +26,7 @@ import type { AuthenticatedUser } from '../common/decorators.ts';
 import { translatingPgErrors } from '../common/pg-error.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
-import { WalletAccessService, type WalletAccess } from '../wallets/wallet-access.service.ts';
+import { lockWalletWritable, WalletAccessService, type WalletAccess } from '../wallets/wallet-access.service.ts';
 
 export type CategoryDeleteMode = 'archive' | 'permanent';
 
@@ -99,29 +99,46 @@ export class CategoriesService {
       await this.assertNoCycle(parent.id);
     }
 
-    const row = await translatingPgErrors(() =>
-      this.database.db
-        .insertInto('categories')
-        .values({
-          wallet_id: request.walletId,
-          parent_id: request.parentId ?? null,
-          name: request.name,
-          type: request.type,
-          icon: request.icon ?? null,
-          color: request.color ?? null,
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow(),
-    );
+    const row = await this.database.db.transaction().execute(async (trx) => {
+      await lockWalletWritable(trx, request.walletId);
+      if (request.parentId) {
+        const parent = await trx
+          .selectFrom('categories')
+          .select('status')
+          .where('id', '=', request.parentId)
+          .forShare()
+          .executeTakeFirst();
+        if (parent?.status === CategoryStatus.ARCHIVED) throw new AppError('CATEGORY_PARENT_ARCHIVED');
+      }
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.CATEGORY_CREATED,
-      entityType: ENTITY_TYPES.CATEGORY,
-      entityId: row.id,
-      actorId: user.id,
-      walletId: request.walletId,
-      actorRole: access.role,
-      ip,
+      const inserted = await translatingPgErrors(() =>
+        trx
+          .insertInto('categories')
+          .values({
+            wallet_id: request.walletId,
+            parent_id: request.parentId ?? null,
+            name: request.name,
+            type: request.type,
+            icon: request.icon ?? null,
+            color: request.color ?? null,
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow(),
+      );
+
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.CATEGORY_CREATED,
+          entityType: ENTITY_TYPES.CATEGORY,
+          entityId: inserted.id,
+          actorId: user.id,
+          walletId: request.walletId,
+          actorRole: access.role,
+          ip,
+        },
+        trx,
+      );
+      return inserted;
     });
 
     return toCategoryResponse(row, 0);
@@ -134,16 +151,25 @@ export class CategoriesService {
     ip: string | null,
   ): Promise<CategoryResponse> {
     const { category, access } = await this.requireCategoryAccess(user.id, categoryId, 'EDITOR');
-    // Archiving through PATCH holds the same guard and cascade as DELETE (§10.4).
-    const archiving = request.status === CategoryStatus.ARCHIVED && category.status !== CategoryStatus.ARCHIVED;
-    const subtree = archiving ? await this.archivableSubtree(category.id) : [];
-    // Restoring a child under an archived parent would leave it selectable inside a hidden subtree.
-    if (request.status === CategoryStatus.ACTIVE && category.parent_id) {
-      const parent = await this.categoryRow(category.parent_id);
-      if (parent.status === CategoryStatus.ARCHIVED) throw new AppError('CATEGORY_PARENT_ARCHIVED');
-    }
 
     const updated = await this.database.db.transaction().execute(async (trx) => {
+      let subtree: string[] = [];
+      if (request.status !== undefined) {
+        const locked = await lockWalletCategories(trx, category.wallet_id);
+        const current = locked.find((row) => row.id === category.id);
+        if (!current) throw new AppError('CATEGORY_NOT_FOUND');
+        // Archiving through PATCH holds the same guard and cascade as DELETE (§10.4).
+        if (request.status === CategoryStatus.ARCHIVED && current.status !== CategoryStatus.ARCHIVED) {
+          subtree = [category.id, ...descendantLevels(locked, category.id).flat()];
+          await assertNotBudgeted(trx, subtree);
+        }
+        // Restoring a child under an archived parent would leave it selectable inside a hidden subtree.
+        const parent = current.parent_id ? locked.find((row) => row.id === current.parent_id) : undefined;
+        if (request.status === CategoryStatus.ACTIVE && parent?.status === CategoryStatus.ARCHIVED) {
+          throw new AppError('CATEGORY_PARENT_ARCHIVED');
+        }
+      }
+
       const row = await translatingPgErrors(() =>
         trx
           .updateTable('categories')
@@ -159,7 +185,7 @@ export class CategoriesService {
           .executeTakeFirst(),
       );
       if (!row) throw new AppError('CATEGORY_NOT_FOUND');
-      if (archiving) await this.archiveSubtree(trx, user, category, subtree, access, ip);
+      if (subtree.length > 0) await this.archiveSubtree(trx, user, category, subtree, access, ip);
 
       await this.audit.record(
         {
@@ -208,24 +234,13 @@ export class CategoriesService {
     ip: string | null,
   ): Promise<void> {
     if (category.status === CategoryStatus.ARCHIVED) return;
-    const subtree = await this.archivableSubtree(category.id);
-    await this.database.db.transaction().execute((trx) => this.archiveSubtree(trx, user, category, subtree, access, ip));
-  }
-
-  /**
-   * The category and its descendants, refused while an active budget plans for any of them:
-   * that budget would lose its category and never compute a period again.
-   */
-  private async archivableSubtree(categoryId: string): Promise<string[]> {
-    const subtree = [categoryId, ...(await this.collectDescendantLevels(categoryId)).flat()];
-    const activeBudget = await this.database.db
-      .selectFrom('budgets')
-      .select('id')
-      .where('category_id', 'in', subtree)
-      .where('status', '=', BudgetStatus.ACTIVE)
-      .executeTakeFirst();
-    if (activeBudget) throw new AppError('CATEGORY_IN_USE');
-    return subtree;
+    await this.database.db.transaction().execute(async (trx) => {
+      const locked = await lockWalletCategories(trx, category.wallet_id);
+      if (locked.find((row) => row.id === category.id)?.status !== CategoryStatus.ACTIVE) return;
+      const subtree = [category.id, ...descendantLevels(locked, category.id).flat()];
+      await assertNotBudgeted(trx, subtree);
+      await this.archiveSubtree(trx, user, category, subtree, access, ip);
+    });
   }
 
   private async archiveSubtree(
@@ -270,16 +285,15 @@ export class CategoriesService {
     access: WalletAccess,
     ip: string | null,
   ): Promise<void> {
-    const levels = await this.collectDescendantLevels(category.id);
-    const descendantIds = levels.flat();
-    const counts = await this.transactionCounts([category.id, ...descendantIds]);
-
-    if ((counts.get(category.id) ?? 0) > 0) throw new AppError('CATEGORY_HAS_TRANSACTIONS');
-    if (descendantIds.some((id) => (counts.get(id) ?? 0) > 0)) {
-      throw new AppError('CATEGORY_HAS_TRANSACTIONS');
-    }
-
     await this.database.db.transaction().execute(async (trx) => {
+      const levels = descendantLevels(await lockWalletCategories(trx, category.wallet_id), category.id);
+      const subtree = [category.id, ...levels.flat()];
+      const counts = await this.transactionCounts(subtree, trx);
+      if (subtree.some((id) => (counts.get(id) ?? 0) > 0)) throw new AppError('CATEGORY_HAS_TRANSACTIONS');
+      // A budget of any status still names the category (FK), so it is in use rather than deletable.
+      const budget = await trx.selectFrom('budgets').select('id').where('category_id', 'in', subtree).executeTakeFirst();
+      if (budget) throw new AppError('CATEGORY_IN_USE');
+
       await this.audit.record(
         {
           event: AUDIT_EVENTS.CATEGORY_DELETED,
@@ -354,31 +368,14 @@ export class CategoriesService {
     }
   }
 
-  /** Direct-children levels below `rootId`, shallowest first. */
-  private async collectDescendantLevels(rootId: string): Promise<string[][]> {
-    const levels: string[][] = [];
-    let frontier = [rootId];
-
-    while (frontier.length > 0) {
-      const rows = await this.database.db
-        .selectFrom('categories')
-        .select('id')
-        .where('parent_id', 'in', frontier)
-        .execute();
-      if (rows.length === 0) break;
-
-      frontier = rows.map((row) => row.id);
-      levels.push(frontier);
-    }
-
-    return levels;
-  }
-
   /** How many transactions (any status — a deleted one still happened) name each id. */
-  private async transactionCounts(categoryIds: readonly string[]): Promise<Map<string, number>> {
+  private async transactionCounts(
+    categoryIds: readonly string[],
+    executor: Kysely<DB> | Transaction<DB> = this.database.db,
+  ): Promise<Map<string, number>> {
     if (categoryIds.length === 0) return new Map();
 
-    const rows = await this.database.db
+    const rows = await executor
       .selectFrom('transactions')
       .select(({ fn }) => ['category_id', fn.countAll<string>().as('total')])
       .where('category_id', 'in', [...categoryIds])
@@ -387,6 +384,52 @@ export class CategoriesService {
 
     return new Map(rows.map((row) => [row.category_id as string, Number(row.total)]));
   }
+}
+
+interface LockedCategory {
+  id: string;
+  parent_id: string | null;
+  status: CategoryStatus;
+}
+
+/**
+ * Locks every category of the wallet, in id order, before an archive, restore or permanent delete
+ * reads the tree. A create under any of them share-locks its parent and a budget create its
+ * category, so neither can land on a category this is about to archive, and the subtree read from
+ * the locked rows is complete: no child can be added under it meanwhile.
+ */
+async function lockWalletCategories(trx: Transaction<DB>, walletId: string): Promise<LockedCategory[]> {
+  return trx
+    .selectFrom('categories')
+    .select(['id', 'parent_id', 'status'])
+    .where('wallet_id', '=', walletId)
+    .orderBy('id')
+    .forUpdate()
+    .execute();
+}
+
+/** Direct-children levels below `rootId`, shallowest first. */
+function descendantLevels(rows: readonly LockedCategory[], rootId: string): string[][] {
+  const levels: string[][] = [];
+  let frontier = new Set([rootId]);
+  while (frontier.size > 0) {
+    const level = rows.filter((row) => row.parent_id !== null && frontier.has(row.parent_id)).map((row) => row.id);
+    if (level.length === 0) break;
+    levels.push(level);
+    frontier = new Set(level);
+  }
+  return levels;
+}
+
+/** Refused while an active budget plans for any of them: it would lose its category and never compute a period again. */
+async function assertNotBudgeted(trx: Transaction<DB>, subtree: readonly string[]): Promise<void> {
+  const activeBudget = await trx
+    .selectFrom('budgets')
+    .select('id')
+    .where('category_id', 'in', [...subtree])
+    .where('status', '=', BudgetStatus.ACTIVE)
+    .executeTakeFirst();
+  if (activeBudget) throw new AppError('CATEGORY_IN_USE');
 }
 
 function toCategoryResponse(row: CategoryRow, transactionCount: number): CategoryResponse {

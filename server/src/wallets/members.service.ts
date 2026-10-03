@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Kysely, Transaction } from 'kysely';
 
 import {
   WalletRole,
@@ -13,6 +14,7 @@ import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { translatingPgErrors } from '../common/pg-error.ts';
 import { DatabaseService } from '../database/database.service.ts';
+import type { DB } from '../database/types.ts';
 import { WalletAccessService } from './wallet-access.service.ts';
 
 interface MemberRow {
@@ -71,28 +73,35 @@ export class MembersService {
       );
     }
 
-    const target = await this.member(access.walletId, memberId);
-    if (target.status !== MemberStatus.ACTIVE) throw new AppError('MEMBER_NOT_FOUND');
+    const target = await this.database.db.transaction().execute(async (trx) => {
+      await lockOwnerAuthority(trx, access.walletId, user.id);
+      const target = await this.member(access.walletId, memberId, trx);
+      if (target.status !== MemberStatus.ACTIVE) throw new AppError('MEMBER_NOT_FOUND');
 
-    // A wallet has exactly one active owner, so demoting whoever holds the role
-    // always leaves none — which is the unadministrable state §7.5 also guards.
-    if (target.role === WalletRole.OWNER) throw new AppError('WALLET_LAST_OWNER');
+      // A wallet has exactly one active owner, so demoting whoever holds the role
+      // always leaves none — which is the unadministrable state §7.5 also guards.
+      if (target.role === WalletRole.OWNER) throw new AppError('WALLET_LAST_OWNER');
 
-    await this.database.db
-      .updateTable('wallet_members')
-      .set({ role: request.role, updated_at: new Date() })
-      .where('id', '=', target.id)
-      .execute();
+      await trx
+        .updateTable('wallet_members')
+        .set({ role: request.role, updated_at: new Date() })
+        .where('id', '=', target.id)
+        .execute();
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.MEMBER_ROLE_CHANGED,
-      entityType: ENTITY_TYPES.WALLET_MEMBER,
-      entityId: target.id,
-      actorId: user.id,
-      walletId: access.walletId,
-      actorRole: access.role,
-      note: `${target.email}: ${target.role} -> ${request.role}`,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.MEMBER_ROLE_CHANGED,
+          entityType: ENTITY_TYPES.WALLET_MEMBER,
+          entityId: target.id,
+          actorId: user.id,
+          walletId: access.walletId,
+          actorRole: access.role,
+          note: `${target.email}: ${target.role} -> ${request.role}`,
+          ip,
+        },
+        trx,
+      );
+      return target;
     });
 
     return toMemberResponse({ ...target, role: request.role });
@@ -111,26 +120,32 @@ export class MembersService {
     ip: string | null,
   ): Promise<void> {
     const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
-    const target = await this.member(access.walletId, memberId);
 
-    if (target.status !== MemberStatus.ACTIVE) throw new AppError('MEMBER_NOT_FOUND');
-    if (target.role === WalletRole.OWNER) throw new AppError('WALLET_LAST_OWNER');
+    await this.database.db.transaction().execute(async (trx) => {
+      await lockOwnerAuthority(trx, access.walletId, user.id);
+      const target = await this.member(access.walletId, memberId, trx);
+      if (target.status !== MemberStatus.ACTIVE) throw new AppError('MEMBER_NOT_FOUND');
+      if (target.role === WalletRole.OWNER) throw new AppError('WALLET_LAST_OWNER');
 
-    await this.database.db
-      .updateTable('wallet_members')
-      .set({ status: MemberStatus.REVOKED, updated_at: new Date() })
-      .where('id', '=', target.id)
-      .execute();
+      await trx
+        .updateTable('wallet_members')
+        .set({ status: MemberStatus.REVOKED, updated_at: new Date() })
+        .where('id', '=', target.id)
+        .execute();
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.MEMBER_REMOVED,
-      entityType: ENTITY_TYPES.WALLET_MEMBER,
-      entityId: target.id,
-      actorId: user.id,
-      walletId: access.walletId,
-      actorRole: access.role,
-      note: `Removed ${target.email} (${target.role})`,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.MEMBER_REMOVED,
+          entityType: ENTITY_TYPES.WALLET_MEMBER,
+          entityId: target.id,
+          actorId: user.id,
+          walletId: access.walletId,
+          actorRole: access.role,
+          note: `Removed ${target.email} (${target.role})`,
+          ip,
+        },
+        trx,
+      );
     });
   }
 
@@ -153,25 +168,9 @@ export class MembersService {
 
     await translatingPgErrors(() =>
       this.database.db.transaction().execute(async (trx) => {
-        const members = await trx
-          .selectFrom('wallet_members')
-          .select(['id', 'user_id', 'role', 'status'])
-          .where('wallet_id', '=', access.walletId)
-          .where('status', '=', MemberStatus.ACTIVE)
-          .forUpdate()
-          .execute();
-
-        const currentOwner = members.find((member) => member.role === WalletRole.OWNER);
+        const members = await lockOwnerAuthority(trx, access.walletId, user.id);
+        const currentOwner = members.find((member) => member.user_id === user.id)!;
         const incoming = members.find((member) => member.user_id === toUserId);
-
-        // Re-checked under the lock: the OWNER check above ran before it, so a concurrent
-        // transfer may already have demoted this caller, who must not hand ownership on again.
-        if (currentOwner?.user_id !== user.id) {
-          const caller = members.find((member) => member.user_id === user.id);
-          // Revoked meanwhile: a non-member now, so 404 rather than a 403 with a made-up role (AC-01).
-          if (!caller) throw new AppError('WALLET_NOT_FOUND');
-          throw AppError.forbidden(caller.role, access.walletId);
-        }
 
         if (!incoming) throw new AppError('MEMBER_NOT_FOUND');
         if (incoming.role === WalletRole.OWNER) {
@@ -180,13 +179,11 @@ export class MembersService {
           });
         }
 
-        if (currentOwner) {
-          await trx
-            .updateTable('wallet_members')
-            .set({ role: WalletRole.EDITOR, updated_at: new Date() })
-            .where('id', '=', currentOwner.id)
-            .execute();
-        }
+        await trx
+          .updateTable('wallet_members')
+          .set({ role: WalletRole.EDITOR, updated_at: new Date() })
+          .where('id', '=', currentOwner.id)
+          .execute();
 
         await trx
           .updateTable('wallet_members')
@@ -229,20 +226,30 @@ export class MembersService {
     const access = await this.access.require(user.id, walletId, WalletRole.VIEWER);
     if (access.role === WalletRole.OWNER) throw new AppError('WALLET_LAST_OWNER');
 
-    await this.database.db
-      .updateTable('wallet_members')
-      .set({ status: MemberStatus.REVOKED, updated_at: new Date() })
-      .where('id', '=', access.memberId)
-      .execute();
+    await this.database.db.transaction().execute(async (trx) => {
+      // Re-read under the lock: a transfer committed meanwhile may have made this caller the owner.
+      const caller = (await lockActiveMembers(trx, access.walletId)).find((member) => member.user_id === user.id);
+      if (!caller) throw new AppError('WALLET_NOT_FOUND');
+      if (caller.role === WalletRole.OWNER) throw new AppError('WALLET_LAST_OWNER');
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.MEMBER_LEFT,
-      entityType: ENTITY_TYPES.WALLET_MEMBER,
-      entityId: access.memberId,
-      actorId: user.id,
-      walletId: access.walletId,
-      actorRole: access.role,
-      ip,
+      await trx
+        .updateTable('wallet_members')
+        .set({ status: MemberStatus.REVOKED, updated_at: new Date() })
+        .where('id', '=', caller.id)
+        .execute();
+
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.MEMBER_LEFT,
+          entityType: ENTITY_TYPES.WALLET_MEMBER,
+          entityId: caller.id,
+          actorId: user.id,
+          walletId: access.walletId,
+          actorRole: caller.role,
+          ip,
+        },
+        trx,
+      );
     });
   }
 
@@ -267,8 +274,8 @@ export class MembersService {
       .execute();
   }
 
-  private async member(walletId: string, memberId: string): Promise<MemberRow> {
-    const row = await this.database.db
+  private async member(walletId: string, memberId: string, executor: Executor = this.database.db): Promise<MemberRow> {
+    const row = await executor
       .selectFrom('wallet_members')
       .innerJoin('users', 'users.id', 'wallet_members.user_id')
       .select([
@@ -289,6 +296,34 @@ export class MembersService {
     if (!row) throw new AppError('MEMBER_NOT_FOUND');
     return row;
   }
+}
+
+type Executor = Kysely<DB> | Transaction<DB>;
+
+/**
+ * Every membership write locks the wallet's active member rows first, in one order, so role
+ * changes, removals, leaves and transfers queue instead of each acting on a read another has
+ * already invalidated: an unlocked pair could leave the wallet with no owner (BR-01).
+ */
+async function lockActiveMembers(trx: Transaction<DB>, walletId: string) {
+  return trx
+    .selectFrom('wallet_members')
+    .select(['id', 'user_id', 'role', 'status'])
+    .where('wallet_id', '=', walletId)
+    .where('status', '=', MemberStatus.ACTIVE)
+    .orderBy('id')
+    .forUpdate()
+    .execute();
+}
+
+/** Under the lock the caller must still own the wallet: a transfer may have demoted them since the guard ran. */
+async function lockOwnerAuthority(trx: Transaction<DB>, walletId: string, callerId: string) {
+  const members = await lockActiveMembers(trx, walletId);
+  const caller = members.find((member) => member.user_id === callerId);
+  // Revoked meanwhile: a non-member now, so 404 rather than a 403 with a made-up role (AC-01).
+  if (!caller) throw new AppError('WALLET_NOT_FOUND');
+  if (caller.role !== WalletRole.OWNER) throw AppError.forbidden(caller.role, walletId);
+  return members;
 }
 
 function toMemberResponse(row: MemberRow): WalletMemberResponse {

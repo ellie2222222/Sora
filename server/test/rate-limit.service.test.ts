@@ -20,21 +20,43 @@ describe('RateLimitService.sweep', () => {
 
   it('keeps a lockout until it lapses, then drops it', () => {
     service = new RateLimitService();
-    service.recordLoginFailure('probe@example.invalid', 1, HOUR, 0);
+    service.beginLoginAttempt('probe@example.invalid', 1, HOUR, 0);
 
     service.sweep(HOUR - 1);
-    assert.equal(service.lockoutFor('probe@example.invalid', HOUR - 1).allowed, false);
+    assert.equal(service.beginLoginAttempt('probe@example.invalid', 1, HOUR, HOUR - 1).allowed, false);
 
     service.sweep(HOUR);
-    assert.equal(service.lockoutFor('probe@example.invalid', HOUR).allowed, true);
+    assert.equal(service.beginLoginAttempt('probe@example.invalid', 1, HOUR, HOUR).allowed, true);
   });
 
   it('drops an unlocked failure streak after a day, so it cannot count toward a lockout later', () => {
     service = new RateLimitService();
-    service.recordLoginFailure('probe@example.invalid', 2, HOUR, 0);
+    service.beginLoginAttempt('probe@example.invalid', 2, HOUR, 0);
 
     service.sweep(24 * HOUR);
-    service.recordLoginFailure('probe@example.invalid', 2, HOUR, 24 * HOUR);
-    assert.equal(service.lockoutFor('probe@example.invalid', 24 * HOUR).allowed, true);
+    // Had the first attempt still counted, the second of these would be the third and refused.
+    assert.equal(service.beginLoginAttempt('probe@example.invalid', 2, HOUR, 24 * HOUR).allowed, true);
+    assert.equal(service.beginLoginAttempt('probe@example.invalid', 2, HOUR, 24 * HOUR).allowed, true);
+  });
+});
+
+describe('RateLimitService.beginLoginAttempt', () => {
+  let service: RateLimitService;
+  afterEach(() => service.onModuleDestroy());
+
+  it('refuses the attempt past the limit while earlier ones are still being checked', () => {
+    service = new RateLimitService();
+    // Five concurrent sign-ins, none finished yet: each counts the moment it is admitted.
+    const admitted = Array.from({ length: 5 }, () => service.beginLoginAttempt('probe@example.invalid', 5, HOUR, 0).allowed);
+    assert.deepEqual(admitted, [true, true, true, true, true]);
+    assert.equal(service.beginLoginAttempt('probe@example.invalid', 5, HOUR, 0).allowed, false);
+  });
+
+  it('clears the streak on a success, so only consecutive failures lock an email out', () => {
+    service = new RateLimitService();
+    service.beginLoginAttempt('probe@example.invalid', 2, HOUR, 0);
+    service.recordLoginSuccess('probe@example.invalid');
+    assert.equal(service.beginLoginAttempt('probe@example.invalid', 2, HOUR, 0).allowed, true);
+    assert.equal(service.beginLoginAttempt('probe@example.invalid', 2, HOUR, 0).allowed, true);
   });
 });

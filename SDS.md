@@ -648,6 +648,8 @@ field entirely rather than sending `null`.
   src/enums.ts`) — an in-memory cache serves `FRESH` within the TTL; a failed live fetch falls back
   first to an expired cache entry, then to the most recent row in `exchange_rate_snapshots`
   (§2.0), marking the result `STALE` either way; no cache and no snapshot is `UNAVAILABLE`.
+  Concurrent lookups for one base currency share a single provider request, and after a failure
+  the provider is skipped for 60 seconds, so an outage costs one timeout rather than one per request.
   Requesting all currencies already matching the target currency short-circuits to an exact sum
   with no fetch at all (`isApproximate: false`).
 - **All-or-nothing conversion:** if any currency actually contributing a non-zero balance has no
@@ -677,6 +679,35 @@ field entirely rather than sending `null`.
   `dashboard.convertedTotal`, etc. in `en.ts`/`vi.ts`) but no screen currently renders a converted
   total, a currency selector, or a stale/unavailable indicator — this is API-and-contract-complete,
   UI-pending.
+
+### 4.6 Concurrency control
+
+Postgres runs at its default READ COMMITTED. A rule that a constraint can express is left to the
+constraint (`uq_*`, `excl_budget_*_overlap`, `chk_*`), and its violation is mapped to a 409/422 by
+`server/src/common/pg-error.ts`. A rule that reads other rows before writing ("the last active
+account", "the goal is still active") is protected by a row lock taken inside the write's own
+transaction, then re-checked on the locked rows. A check made before the lock only picks the error
+early. It never decides the outcome.
+
+| Invariant | Writer takes | The competing change takes |
+|---|---|---|
+| A wallet has exactly one active owner (BR-01) | `FOR UPDATE` on the wallet's active member rows (role change, removal, leave, transfer) | the same lock, so they queue |
+| An invitation is used at most once, never after a revoke (BR-08) | accept: a conditional `UPDATE … WHERE accepted_at IS NULL AND revoked_at IS NULL` | revoke: a conditional `UPDATE … WHERE accepted_at IS NULL` |
+| A wallet keeps one active account | archive: `FOR UPDATE` on the wallet's active accounts | the same lock |
+| An archived wallet takes no new account, category, budget or goal (§6.5) | `FOR SHARE` on the wallet row (`lockWalletWritable`) | wallet archive is an `UPDATE` |
+| A write names only active accounts in an active wallet, in their currency (BR-07) | `FOR SHARE` on the accounts and their wallets (`lockAccountsForWrite`) | archive is an `UPDATE`; currency change takes `FOR UPDATE` |
+| A contribution or budget names an active goal | `FOR SHARE` on the goal | cancel/complete is an `UPDATE` |
+| A budget names an unarchived category; a category is created under an unarchived parent | `FOR SHARE` on that category | archive, restore and permanent delete take `FOR UPDATE` on all of the wallet's categories |
+
+Every multi-row lock is taken in `id` order, so two lockers of overlapping sets queue instead of
+deadlocking. When two paths both touch a transaction and its goal contribution, they take the
+transaction row first. Each audit row is written inside the transaction of the change it records
+(LA-02). A delete or archive that may race itself is a conditional `UPDATE`, so only the request
+that changed the row is audited. There is no retry layer, since no path runs at SERIALIZABLE and the
+lock orders above leave nothing to deadlock. The one retry is a first Google sign-in that loses a
+unique-insert race and runs once more to find the account the winner created.
+`server/test/integration.concurrency.test.ts` stages each race by holding one side's transaction
+open.
 
 ---
 
@@ -822,7 +853,8 @@ grouped here for readability only.
 | `CATEGORY_CYCLE` | 422 | Parent assignment would create a cycle |
 | `CATEGORY_IN_USE` | 409 | Archive refused — an active budget still plans for it |
 | `CATEGORY_HAS_TRANSACTIONS` | 409 | Permanent delete refused — the category or a child has transactions |
-| `CATEGORY_PARENT_ARCHIVED` | 409 | Restore refused — the parent is still archived |
+| `CATEGORY_PARENT_ARCHIVED` | 409 | Restore refused — the parent is still archived; or a child created under an archived parent |
+| `CATEGORY_ARCHIVED` | 409 | A budget created on, or reactivated against, an archived category |
 | `TRANSACTION_NOT_FOUND` | 404 | No such transaction |
 | `TRANSACTION_IMMUTABLE` | 409 | Edit attempted on a field that cannot change |
 | `TRANSACTION_ALREADY_CANCELLED` | 409 | Cancel attempted twice |
@@ -836,6 +868,7 @@ grouped here for readability only.
 | `RATE_LIMITED` | 429 | Auth rate limit or per-email lockout |
 | `INTERNAL_ERROR` | 500 | Unexpected |
 | `GOOGLE_TOKEN_INVALID` | 401 | Google ID token failed verification |
+| `GOOGLE_ACCOUNT_MISMATCH` | 409 | Google sign-in whose verified email belongs to an account already linked to a different Google account |
 | `VALUATION_UNAVAILABLE` | 503 | Reserved for the dashboard's converted-total feature ([§4.5](#45-exchange-rate--dashboard-valuation)) — defined and status-mapped, but not currently thrown by any code path; an unavailable conversion is reported in-band today (`valuation.status === 'UNAVAILABLE'` in a normal `200`), not as this error |
 
 ---

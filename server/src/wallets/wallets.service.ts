@@ -146,26 +146,32 @@ export class WalletsService {
     // archived wallet has to accept this one.
     const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
 
-    const updated = await this.database.db
-      .updateTable('wallets')
-      .set({
-        ...(request.name !== undefined ? { name: request.name } : {}),
-        ...(request.status !== undefined ? { status: request.status } : {}),
-        updated_at: new Date(),
-      })
-      .where('id', '=', access.walletId)
-      .returning(['id', 'name', 'status', 'owner_user_id', 'created_at', 'updated_at'])
-      .executeTakeFirstOrThrow();
+    const updated = await this.database.db.transaction().execute(async (trx) => {
+      const changed = await trx
+        .updateTable('wallets')
+        .set({
+          ...(request.name !== undefined ? { name: request.name } : {}),
+          ...(request.status !== undefined ? { status: request.status } : {}),
+          updated_at: new Date(),
+        })
+        .where('id', '=', access.walletId)
+        .returning(['id', 'name', 'status', 'owner_user_id', 'created_at', 'updated_at'])
+        .executeTakeFirstOrThrow();
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.WALLET_UPDATED,
-      entityType: ENTITY_TYPES.WALLET,
-      entityId: access.walletId,
-      actorId: user.id,
-      walletId: access.walletId,
-      actorRole: access.role,
-      note: `Changed: ${Object.keys(request).join(', ')}`,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.WALLET_UPDATED,
+          entityType: ENTITY_TYPES.WALLET,
+          entityId: access.walletId,
+          actorId: user.id,
+          walletId: access.walletId,
+          actorRole: access.role,
+          note: `Changed: ${Object.keys(request).join(', ')}`,
+          ip,
+        },
+        trx,
+      );
+      return changed;
     });
 
     const [response] = await this.decorate(user, [
@@ -185,20 +191,29 @@ export class WalletsService {
   async archive(user: AuthenticatedUser, walletId: string, ip: string | null): Promise<void> {
     const access = await this.access.require(user.id, walletId, WalletRole.OWNER);
 
-    await this.database.db
-      .updateTable('wallets')
-      .set({ status: WalletStatus.ARCHIVED, updated_at: new Date() })
-      .where('id', '=', access.walletId)
-      .execute();
+    await this.database.db.transaction().execute(async (trx) => {
+      // Conditional, so archiving twice writes one audit row, not two.
+      const archived = await trx
+        .updateTable('wallets')
+        .set({ status: WalletStatus.ARCHIVED, updated_at: new Date() })
+        .where('id', '=', access.walletId)
+        .where('status', '!=', WalletStatus.ARCHIVED)
+        .returning('id')
+        .executeTakeFirst();
+      if (!archived) return;
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.WALLET_ARCHIVED,
-      entityType: ENTITY_TYPES.WALLET,
-      entityId: access.walletId,
-      actorId: user.id,
-      walletId: access.walletId,
-      actorRole: access.role,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.WALLET_ARCHIVED,
+          entityType: ENTITY_TYPES.WALLET,
+          entityId: access.walletId,
+          actorId: user.id,
+          walletId: access.walletId,
+          actorRole: access.role,
+          ip,
+        },
+        trx,
+      );
     });
   }
 

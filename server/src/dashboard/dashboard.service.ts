@@ -133,7 +133,8 @@ export class DashboardService {
    *
    * The date window is applied in JS, the same calendar-day comparison
    * `calculateBudgetSpent` uses, rather than a second SQL-side rule for what
-   * "within the period" means.
+   * "within the period" means. The SQL bounds select exactly those UTC days,
+   * only so the read stops at the period instead of the whole ledger.
    */
   private async periodActivity(
     accountIds: readonly string[],
@@ -174,6 +175,8 @@ export class DashboardService {
         'u.display_name as display_name',
       ])
       .where('t.status', '=', TransactionStatus.COMPLETED)
+      .where('t.transaction_date', '>=', new Date(`${dateFrom}T00:00:00.000Z`))
+      .where('t.transaction_date', '<', new Date(Date.parse(`${dateTo}T00:00:00.000Z`) + 86_400_000))
       .where((eb) =>
         eb.or([
           eb('t.to_account_id', 'in', [...accountIds]),

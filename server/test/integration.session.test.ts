@@ -251,6 +251,19 @@ describe('session lifecycle against a real database', { skip: integrationSkipRea
       assert.equal(passwordLogin.status, 200);
     });
 
+    it('AUTH-US-02: a second Google account with the same verified email is refused, not swapped in for the linked one', async () => {
+      const user = await registerProbeUser(api, 'google-relink');
+      const first = googleIdentity('google-relink', user.email);
+      assert.equal((await api.call('POST', '/auth/google', { body: { idToken: first.idToken } })).status, 200);
+
+      const second = googleIdentity('google-relink-other', user.email);
+      const refused = await api.call('POST', '/auth/google', { body: { idToken: second.idToken } });
+      assert.deepEqual([refused.status, refused.body?.error?.code], [409, 'GOOGLE_ACCOUNT_MISMATCH']);
+      assert.deepEqual(await api.sql('SELECT google_id FROM users WHERE id = $1', [user.id]), [{ google_id: payloads.get(first.idToken)!.sub }]);
+
+      assert.equal((await api.call('POST', '/auth/google', { body: { idToken: first.idToken } })).status, 200, 'the linked one still signs in');
+    });
+
     it('AUTH-US-02: a Google ID token that fails verification is 401 GOOGLE_TOKEN_INVALID and creates nothing', async () => {
       const refused = await api.call('POST', '/auth/google', { body: { idToken: `probe-google-forged-${randomUUID()}` } });
       assert.equal(refused.status, 401);

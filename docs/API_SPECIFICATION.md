@@ -126,7 +126,7 @@ Ranks compare (`roleSatisfies()`): OWNER ⊇ EDITOR ⊇ VIEWER. Everything under
 
 ### 2.9 Rate limiting
 
-`/auth/login`, `/auth/register` and `/auth/refresh`: 10 requests per minute per IP, and for login additionally 5 consecutive failures per email before a 15-minute lockout. Exceeding either returns `429 RATE_LIMITED` with a `Retry-After` header.
+`/auth/login`, `/auth/register` and `/auth/refresh`: 10 requests per minute per IP, and for login additionally 5 consecutive failures per email before a 15-minute lockout. An attempt counts toward the lockout from the moment it starts, before its password is checked, so a burst of concurrent guesses cannot all slip under it; a success clears the count. Exceeding either returns `429 RATE_LIMITED` with a `Retry-After` header.
 
 ### 2.10 Idempotency
 
@@ -339,9 +339,9 @@ Mutating endpoints accept an optional `Idempotency-Key` header. A replay with th
 
 **Request** — `googleAuthSchema`: `{ "idToken": "..." }`, the ID token Google's SDK returns to the client. The API verifies its signature and `aud` claim against `GOOGLE_CLIENT_ID` server-side — the client's own decoding of the token is never trusted.
 
-**Response `200`** — `AuthResponse`. A first sign-in for that Google account creates the user (email taken from the verified token, `password_hash` null — `chk_user_has_credential` (migration 002) requires a password hash or a Google id, so password sign-in stays refused for it), a default wallet named `"{displayName}'s Wallet"`, its starter categories, and one default `CASH` account — the same seeding `POST /auth/register` performs. A Google account whose email already has a password-based `users` row is linked to it (`google_id` is set on the existing row) rather than creating a second user, so a person who registered with a password and later taps "Sign in with Google" keeps one account, one set of wallets.
+**Response `200`** — `AuthResponse`. A first sign-in for that Google account creates the user (email taken from the verified token, `password_hash` null — `chk_user_has_credential` (migration 002) requires a password hash or a Google id, so password sign-in stays refused for it), a default wallet named `"{displayName}'s Wallet"`, its starter categories, and one default `CASH` account — the same seeding `POST /auth/register` performs. A Google account whose email already has a password-based `users` row is linked to it (`google_id` is set on the existing row) rather than creating a second user, so a person who registered with a password and later taps "Sign in with Google" keeps one account, one set of wallets. Linking happens only while the row has no Google account yet: a different Google account with the same verified email is refused, never swapped in for the one already linked.
 
-**Errors** — `401 GOOGLE_TOKEN_INVALID` (bad signature, wrong audience, or expired) · `429 RATE_LIMITED`
+**Errors** — `401 GOOGLE_TOKEN_INVALID` (bad signature, wrong audience, or expired) · `409 GOOGLE_ACCOUNT_MISMATCH` (the email's account is already linked to a different Google account) · `429 RATE_LIMITED`
 
 **Side effects** — issues a token pair; audit `USER_REGISTERED` (first sign-in) or `USER_LOGIN` (returning).
 
@@ -440,7 +440,7 @@ Every wallet the caller can reach — owned and shared-with alike.
 
 **Errors** — `403 FORBIDDEN` · `404 WALLET_NOT_FOUND`
 
-**Side effects** — sets `status = ARCHIVED`. Accounts, categories and transactions are left intact and readable; an archived wallet rejects new writes. Hard deletion is not exposed: transactions are the ledger, and destroying one wallet's rows would silently rewrite the other side of every cross-wallet transfer it participated in. Audit `WALLET_ARCHIVED`.
+**Side effects** — sets `status = ARCHIVED`. Accounts, categories and transactions are left intact and readable. An archived wallet rejects new writes with `409 WALLET_ARCHIVED`: no new account, category, budget or goal, and the ledger is frozen (no transaction is created, edited or deleted, including a contribution's backing one). An earmark contribution, which moves no money, is still accepted and removable (§13.7). Existing accounts, categories, budgets and goals can still be edited or archived, so an owner can tidy what is left; restoring the wallet is `PATCH /wallets/{id}` with `status: ACTIVE`. Hard deletion is not exposed: transactions are the ledger, and destroying one wallet's rows would silently rewrite the other side of every cross-wallet transfer it participated in. Audit `WALLET_ARCHIVED`.
 
 ---
 
@@ -573,11 +573,11 @@ Rejected when the email already belongs to an `ACTIVE` member, or when an open i
 |---|---|
 | **Auth** | Bearer · **Min role** `OWNER` |
 
-**Response `204`**. Sets `revoked_at`, which also frees the `(wallet, email)` slot for a fresh invite.
+**Response `204`**. Sets `revoked_at`, which also frees the `(wallet, email)` slot for a fresh invite. Revoking an already-revoked invitation is a no-op `204`. A revoke and an accept racing on one invitation are serialised on its row: whichever commits first wins, and the other sees it (`409 INVITATION_ALREADY_USED` here, `404 INVITATION_NOT_FOUND` for the accept).
 
 **Errors** — `404 INVITATION_NOT_FOUND` · `409 INVITATION_ALREADY_USED`
 
-**Side effects** — audit `INVITATION_REVOKED`.
+**Side effects** — audit `INVITATION_REVOKED`, only when this request revoked it.
 
 ### 8.4 POST /invitations/preview
 
@@ -701,7 +701,7 @@ Archives.
 
 **Response `204`**. Sets `status = ARCHIVED`; the account stops appearing in pickers but its transactions and history remain. Hard delete is not exposed — it would orphan the other side of every transfer.
 
-**Errors** — `404 ACCOUNT_NOT_FOUND`
+**Errors** — `404 ACCOUNT_NOT_FOUND` · `409 ACCOUNT_LAST_ACTIVE` (a wallet keeps at least one active account; checked under a lock on the wallet's active accounts, so two archives at once cannot remove both)
 
 **Side effects** — audit `ACCOUNT_ARCHIVED`.
 
@@ -731,13 +731,13 @@ Archives.
 
 **Validation**
 
-- `parentId`, when given, must belong to the **same wallet** and have the **same `type`** — an expense category nested under an income parent would make a category tree that cannot be summed.
+- `parentId`, when given, must belong to the **same wallet** and have the **same `type`** — an expense category nested under an income parent would make a category tree that cannot be summed — and must not be archived (`409 CATEGORY_PARENT_ARCHIVED`).
 - Name unique case-insensitively among siblings (`uq_category_name_per_parent`).
 - A category cannot be its own parent (`chk_category_not_own_parent`); deeper cycles are rejected in the service layer as `CATEGORY_CYCLE`.
 
 **Response `201`** — `CategoryResponse`.
 
-**Errors** — `409 CATEGORY_DUPLICATE_NAME` · `422 CATEGORY_WRONG_TYPE` · `403 CATEGORY_WRONG_WALLET` · `422 CATEGORY_CYCLE` · `404 CATEGORY_NOT_FOUND` (unknown parent, or one in a wallet the caller cannot see — AC-01)
+**Errors** — `409 WALLET_ARCHIVED` · `409 CATEGORY_DUPLICATE_NAME` · `409 CATEGORY_PARENT_ARCHIVED` · `422 CATEGORY_WRONG_TYPE` · `403 CATEGORY_WRONG_WALLET` · `422 CATEGORY_CYCLE` · `404 CATEGORY_NOT_FOUND` (unknown parent, or one in a wallet the caller cannot see — AC-01)
 
 **Side effects** — audit `CATEGORY_CREATED`.
 
@@ -771,7 +771,9 @@ A category with transactions on it is not something the app silently loses histo
 
 **Response `204`**.
 
-**Errors** — `404 CATEGORY_NOT_FOUND` · `409 CATEGORY_IN_USE` when archiving and an **active** budget still references it (archiving it would leave a budget that can never compute a period again) · `409 CATEGORY_HAS_TRANSACTIONS` when `mode=permanent` and `transactionCount > 0`, or when it has any non-archived child category with transactions.
+**Errors** — `404 CATEGORY_NOT_FOUND` · `409 CATEGORY_IN_USE` when archiving and an **active** budget still references it or any descendant (archiving it would leave a budget that can never compute a period again), or when `mode=permanent` and a budget of **any** status still references it or a descendant · `409 CATEGORY_HAS_TRANSACTIONS` when `mode=permanent` and it, or any descendant whatever its status, has transactions.
+
+Archive, restore and permanent delete lock every category of the wallet before reading the tree, and a category or budget create share-locks the category it names, so none of them can act on a tree another is changing.
 
 **Side effects** — `mode=archive` (default): `status = ARCHIVED`. Historical transactions keep pointing at it and still render; it disappears from pickers. Child categories are archived with it. Audit `CATEGORY_ARCHIVED`. `mode=permanent`: the row is deleted outright — only reachable when nothing references it. Audit `CATEGORY_DELETED` (distinct from `CATEGORY_ARCHIVED`, so the audit trail says which one actually happened), recorded before the delete commits since `audit_logs.entity_id` is a bare column with no FK to a live category row.
 
@@ -906,9 +908,9 @@ A changed `goalId` follows the §11.2 rules: an `EXPENSE` only (`422 VALIDATION_
 |---|---|
 | **Auth** | Bearer · **Min role** `VIEWER` |
 
-**Query** — `?walletId=uuid` (required), `?status=`, `?activeOn=YYYY-MM-DD` (budgets whose window contains that day)
+**Query** — `?walletId=uuid` (required), `?status=`, `?activeOn=YYYY-MM-DD` (budgets whose window contains that day), `?page&pageSize` (§2.8)
 
-**Response `200`** — `BudgetResponse[]`, each with derived `spent`, `remaining`, `usagePercentage`, `isOverBudget`.
+**Response `200`** — `BudgetResponse[]`, newest window first, plus `meta.pagination`. Each carries derived `spent`, `remaining`, `usagePercentage`, `isOverBudget`.
 
 **Errors** — `404 WALLET_NOT_FOUND`
 
@@ -943,6 +945,7 @@ A budget is exactly one kind, and its kind decides what `spent` counts. In every
 | `amount > 0` | `422` |
 | `endDate >= startDate` | `422` (`chk_budget_dates`) |
 | Category is `EXPENSE` and belongs to `walletId` | `422 CATEGORY_WRONG_TYPE` / `403 CATEGORY_WRONG_WALLET`; `404 CATEGORY_NOT_FOUND` when the category's wallet is not visible to the caller (AC-01) |
+| Category is not archived | `409 CATEGORY_ARCHIVED` |
 | Exactly one kind, as in the table above | `422 VALIDATION_FAILED` (`chk_budget_kind`) |
 | Goal exists and belongs to `walletId` | `404 GOAL_NOT_FOUND` |
 | Goal is `ACTIVE` | `409 GOAL_NOT_ACTIVE` |
@@ -952,7 +955,7 @@ A budget is exactly one kind, and its kind decides what `spent` counts. In every
 
 **Response `201`** — `BudgetResponse` with `spent` already computed over existing transactions — creating a budget mid-month must immediately show what has been spent so far, not zero.
 
-**Errors** — `409 BUDGET_PERIOD_OVERLAP` · `409 GOAL_NOT_ACTIVE` · `404 GOAL_NOT_FOUND` · `422 VALIDATION_FAILED` · `403 FORBIDDEN`
+**Errors** — `409 WALLET_ARCHIVED` · `409 BUDGET_PERIOD_OVERLAP` · `409 CATEGORY_ARCHIVED` · `409 GOAL_NOT_ACTIVE` · `404 GOAL_NOT_FOUND` · `422 VALIDATION_FAILED` · `403 FORBIDDEN`
 
 **Side effects** — audit `BUDGET_CREATED`.
 
@@ -968,7 +971,7 @@ A budget is exactly one kind, and its kind decides what `spent` counts. In every
 
 **Request** — `updateBudgetSchema`: `{ "name"?, "amount"?, "status"? }`
 
-**Validation** — `categoryId`, `goalId`, `periodType`, `startDate` and `endDate` are immutable; moving a window changes which transactions the budget ever covered, which is a different budget. Archive and create instead.
+**Validation** — `categoryId`, `goalId`, `periodType`, `startDate` and `endDate` are immutable; moving a window changes which transactions the budget ever covered, which is a different budget. Archive and create instead. Setting `status: ACTIVE` meets §12.2's rules again: its category must not be archived (`409 CATEGORY_ARCHIVED`), its goal must be `ACTIVE` (`409 GOAL_NOT_ACTIVE`), and it must not overlap (`409 BUDGET_PERIOD_OVERLAP`).
 
 **Response `200`** — `BudgetResponse`. **Errors** — `404` · `409` · `422`.
 
@@ -976,7 +979,7 @@ A budget is exactly one kind, and its kind decides what `spent` counts. In every
 
 ### 12.5 DELETE /budgets/{id}
 
-Archives (`status = ARCHIVED`), which also releases its slot in the overlap constraint. `204`. Audit `BUDGET_ARCHIVED`.
+Archives (`status = ARCHIVED`), which also releases its slot in the overlap constraint. `204`. Audit `BUDGET_ARCHIVED`, once: archiving an archived budget is a no-op.
 
 ---
 
@@ -984,7 +987,7 @@ Archives (`status = ARCHIVED`), which also releases its slot in the overlap cons
 
 ### 13.1 GET /goals
 
-Min role `VIEWER`. Query: `?walletId=` (required), `?status=`. Response `200` — `GoalResponse[]` with derived `currentAmount`, `remaining` (floored at zero), `progressPercentage` (capped at 100).
+Min role `VIEWER`. Query: `?walletId=` (required), `?status=`, `?page&pageSize` (§2.8). Response `200` — `GoalResponse[]`, newest first, plus `meta.pagination`, with derived `currentAmount`, `remaining` (floored at zero), `progressPercentage` (capped at 100).
 
 ### 13.2 POST /goals
 
@@ -996,7 +999,7 @@ Min role `VIEWER`. Query: `?walletId=` (required), `?status=`. Response `200` �
 
 **Validation** — `targetAmount > 0`; `targetDate` may be null (a goal without a deadline is valid).
 
-**Response `201`** — `GoalResponse`. **Errors** — `422` · `403` · `404 WALLET_NOT_FOUND`.
+**Response `201`** — `GoalResponse`. **Errors** — `422` · `403` · `404 WALLET_NOT_FOUND` · `409 WALLET_ARCHIVED`.
 
 **Side effects** — audit `GOAL_CREATED`.
 
@@ -1051,7 +1054,7 @@ Min role `VIEWER`. Paginated. `200` — `ContributionResponse[]`.
 
 ### 13.8 DELETE /goals/{id}/contributions/{cId}
 
-Min role `EDITOR`. `204`. Removes the contribution row outright; when it was transaction-backed, the backing transaction only has its status flipped to `DELETED` — the transaction row itself is never removed, keeping the ledger intact. Audit `GOAL_CONTRIBUTION_REMOVED`.
+Min role `EDITOR`. `204`. Removes the contribution row outright; when it was transaction-backed, the backing transaction only has its status flipped to `DELETED` — the transaction row itself is never removed, keeping the ledger intact. That delete is a ledger write, so in an archived wallet a transaction-backed contribution can't be removed (`409 WALLET_ARCHIVED`); an earmark still can. Audit `GOAL_CONTRIBUTION_REMOVED`. `404 CONTRIBUTION_NOT_FOUND` when it is already gone — including when a concurrent removal, or the delete of its backing transaction (§11.5), took it first.
 
 ---
 

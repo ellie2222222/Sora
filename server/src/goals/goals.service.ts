@@ -26,13 +26,17 @@ import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
+import { paginated, type Enveloped } from '../common/envelope.ts';
+import { paginationMeta } from '../common/pagination.ts';
 import { DatabaseService } from '../database/database.service.ts';
-import { WalletAccessService } from '../wallets/wallet-access.service.ts';
+import { lockWalletWritable, WalletAccessService } from '../wallets/wallet-access.service.ts';
 import { requireGoalAccess, type GoalRow } from './goal-access.ts';
 
 export interface GoalListQuery {
   walletId: string;
   status?: GoalStatus;
+  page: number;
+  pageSize: number;
 }
 
 @Injectable()
@@ -43,17 +47,24 @@ export class GoalsService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(user: AuthenticatedUser, query: GoalListQuery): Promise<GoalResponse[]> {
+  async list(user: AuthenticatedUser, query: GoalListQuery): Promise<Enveloped<GoalResponse[]>> {
     await this.access.require(user.id, query.walletId, 'VIEWER');
 
-    let builder = this.database.db
-      .selectFrom('goals')
-      .selectAll()
-      .where('wallet_id', '=', query.walletId);
+    let builder = this.database.db.selectFrom('goals').where('wallet_id', '=', query.walletId);
     if (query.status) builder = builder.where('status', '=', query.status);
 
-    const rows = await builder.orderBy('created_at', 'desc').execute();
-    return this.toResponses(rows);
+    const [rows, totalRow] = await Promise.all([
+      builder
+        .selectAll()
+        .orderBy('created_at', 'desc')
+        // A tie would otherwise let offset paging repeat or skip a row between pages.
+        .orderBy('id', 'desc')
+        .limit(query.pageSize)
+        .offset((query.page - 1) * query.pageSize)
+        .execute(),
+      builder.select((eb) => eb.fn.countAll<string>().as('count')).executeTakeFirstOrThrow(),
+    ]);
+    return paginated(await this.toResponses(rows), paginationMeta(query.page, query.pageSize, Number(totalRow.count)));
   }
 
   async create(
@@ -63,26 +74,33 @@ export class GoalsService {
   ): Promise<GoalResponse> {
     await this.access.requireWritable(user.id, request.walletId, 'EDITOR');
 
-    const row = await this.database.db
-      .insertInto('goals')
-      .values({
-        wallet_id: request.walletId,
-        name: request.name,
-        description: request.description ?? null,
-        target_amount: request.targetAmount,
-        currency: request.currency,
-        target_date: request.targetDate ?? null,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    const row = await this.database.db.transaction().execute(async (trx) => {
+      await lockWalletWritable(trx, request.walletId);
+      const inserted = await trx
+        .insertInto('goals')
+        .values({
+          wallet_id: request.walletId,
+          name: request.name,
+          description: request.description ?? null,
+          target_amount: request.targetAmount,
+          currency: request.currency,
+          target_date: request.targetDate ?? null,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.GOAL_CREATED,
-      entityType: ENTITY_TYPES.GOAL,
-      entityId: row.id,
-      actorId: user.id,
-      walletId: request.walletId,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.GOAL_CREATED,
+          entityType: ENTITY_TYPES.GOAL,
+          entityId: inserted.id,
+          actorId: user.id,
+          walletId: request.walletId,
+          ip,
+        },
+        trx,
+      );
+      return inserted;
     });
 
     const [response] = await this.toResponses([row]);
@@ -104,28 +122,34 @@ export class GoalsService {
   ): Promise<GoalResponse> {
     const { goal } = await requireGoalAccess(this.database.db, user.id, goalId, 'EDITOR');
 
-    const row = await this.database.db
-      .updateTable('goals')
-      .set({
-        ...(request.name !== undefined ? { name: request.name } : {}),
-        ...(request.description !== undefined ? { description: request.description } : {}),
-        ...(request.targetAmount !== undefined ? { target_amount: request.targetAmount } : {}),
-        ...(request.targetDate !== undefined ? { target_date: request.targetDate } : {}),
-        ...(request.status !== undefined ? { status: request.status } : {}),
-        updated_at: new Date(),
-      })
-      .where('id', '=', goalId)
-      .returningAll()
-      .executeTakeFirst();
-    if (!row) throw new AppError('GOAL_NOT_FOUND');
+    const row = await this.database.db.transaction().execute(async (trx) => {
+      const updated = await trx
+        .updateTable('goals')
+        .set({
+          ...(request.name !== undefined ? { name: request.name } : {}),
+          ...(request.description !== undefined ? { description: request.description } : {}),
+          ...(request.targetAmount !== undefined ? { target_amount: request.targetAmount } : {}),
+          ...(request.targetDate !== undefined ? { target_date: request.targetDate } : {}),
+          ...(request.status !== undefined ? { status: request.status } : {}),
+          updated_at: new Date(),
+        })
+        .where('id', '=', goalId)
+        .returningAll()
+        .executeTakeFirst();
+      if (!updated) throw new AppError('GOAL_NOT_FOUND');
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.GOAL_UPDATED,
-      entityType: ENTITY_TYPES.GOAL,
-      entityId: goalId,
-      actorId: user.id,
-      walletId: goal.wallet_id,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.GOAL_UPDATED,
+          entityType: ENTITY_TYPES.GOAL,
+          entityId: goalId,
+          actorId: user.id,
+          walletId: goal.wallet_id,
+          ip,
+        },
+        trx,
+      );
+      return updated;
     });
 
     const [response] = await this.toResponses([row]);
@@ -137,19 +161,28 @@ export class GoalsService {
     const { goal } = await requireGoalAccess(this.database.db, user.id, goalId, 'EDITOR');
     if (goal.status === GoalStatus.CANCELLED) return;
 
-    await this.database.db
-      .updateTable('goals')
-      .set({ status: GoalStatus.CANCELLED, updated_at: new Date() })
-      .where('id', '=', goalId)
-      .execute();
+    await this.database.db.transaction().execute(async (trx) => {
+      // Conditional, so of two concurrent cancels only the one that changed the row is audited.
+      const cancelled = await trx
+        .updateTable('goals')
+        .set({ status: GoalStatus.CANCELLED, updated_at: new Date() })
+        .where('id', '=', goalId)
+        .where('status', '!=', GoalStatus.CANCELLED)
+        .returning('id')
+        .executeTakeFirst();
+      if (!cancelled) return;
 
-    await this.audit.record({
-      event: AUDIT_EVENTS.GOAL_CANCELLED,
-      entityType: ENTITY_TYPES.GOAL,
-      entityId: goalId,
-      actorId: user.id,
-      walletId: goal.wallet_id,
-      ip,
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.GOAL_CANCELLED,
+          entityType: ENTITY_TYPES.GOAL,
+          entityId: goalId,
+          actorId: user.id,
+          walletId: goal.wallet_id,
+          ip,
+        },
+        trx,
+      );
     });
   }
 

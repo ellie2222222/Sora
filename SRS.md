@@ -1009,12 +1009,12 @@ This is the feature the product exists for. Its density reflects that.
 
 - Archiving is the only removal offered; **there is no delete**.
 - Accounts, categories, transactions, budgets and goals stay intact and readable.
-- The archived wallet rejects new writes.
+- The archived wallet rejects new writes: no new account, category, budget or goal, and no transaction is recorded, edited or deleted. Existing entries can still be edited or archived, so the owner can tidy what is left.
 - Cross-wallet transfers it took part in are unaffected and still readable from the other side — which is precisely why hard deletion is not offered: destroying one wallet's rows would silently rewrite the other side of every such transfer.
 - Renaming a wallet is available to the owner alongside archiving.
 - Both are audited.
 
-**Error cases:** `FORBIDDEN` · `WALLET_NOT_FOUND`
+**Error cases:** `FORBIDDEN` · `WALLET_NOT_FOUND` · `WALLET_ARCHIVED` (a refused write afterwards)
 
 ---
 

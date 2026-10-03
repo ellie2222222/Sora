@@ -41,6 +41,16 @@ export interface AccountAccess extends WalletAccess {
 
 type Executor = Kysely<DB> | Transaction<DB>;
 
+/**
+ * For a create under a wallet: share-locks the wallet row and re-checks what `requireWritable` read
+ * unlocked. A wallet archive (an UPDATE) then waits for the create to commit, or commits first and fails it.
+ */
+export async function lockWalletWritable(trx: Transaction<DB>, walletId: string): Promise<void> {
+  const wallet = await trx.selectFrom('wallets').select('status').where('id', '=', walletId).forShare().executeTakeFirst();
+  if (!wallet) throw new AppError('WALLET_NOT_FOUND');
+  if (wallet.status === WalletStatus.ARCHIVED) throw new AppError('WALLET_ARCHIVED');
+}
+
 @Injectable()
 export class WalletAccessService {
   constructor(private readonly database: DatabaseService) {}

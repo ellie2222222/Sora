@@ -5,7 +5,6 @@ import { AuthModule } from '../auth/auth.module.ts';
 import { InvitationsController } from './invitations.controller.ts';
 import { InvitationsService } from './invitations.service.ts';
 import { MembersService } from './members.service.ts';
-import { RequireWalletRoleGuard } from './require-wallet-role.guard.ts';
 import { WalletAccessModule } from './wallet-access.module.ts';
 import { WalletsController } from './wallets.controller.ts';
 import { WalletsService } from './wallets.service.ts';

@@ -56,25 +56,28 @@ export class RateLimitService implements OnModuleDestroy {
     return ALLOWED;
   }
 
-  /** Whether an email is currently locked out by consecutive login failures. */
-  lockoutFor(email: string, now = Date.now()): RateDecision {
-    const record = this.failures.get(email);
-    if (!record?.lockedUntil) return ALLOWED;
-
-    if (record.lockedUntil <= now) {
+  /**
+   * Admits one sign-in attempt for an email, or refuses it while the email is locked out.
+   *
+   * An admitted attempt counts as a failure from this moment, before the password is checked:
+   * the check awaits Argon2, and counting only afterwards let a burst of concurrent guesses all
+   * pass a lockout none of them had recorded yet. A success clears the streak.
+   */
+  beginLoginAttempt(email: string, limit: number, lockoutMs: number, now = Date.now()): RateDecision {
+    const existing = this.failures.get(email);
+    if (existing?.lockedUntil) {
+      if (existing.lockedUntil > now) {
+        return { allowed: false, retryAfterSeconds: Math.ceil((existing.lockedUntil - now) / 1000) };
+      }
       this.failures.delete(email);
-      return ALLOWED;
     }
 
-    return { allowed: false, retryAfterSeconds: Math.ceil((record.lockedUntil - now) / 1000) };
-  }
-
-  recordLoginFailure(email: string, limit: number, lockoutMs: number, now = Date.now()): void {
     const record = this.failures.get(email) ?? { count: 0, lockedUntil: null, lastFailureAt: now };
     record.count += 1;
     record.lastFailureAt = now;
     if (record.count >= limit) record.lockedUntil = now + lockoutMs;
     this.failures.set(email, record);
+    return ALLOWED;
   }
 
   /** A success clears the streak: the limit counts *consecutive* failures. */

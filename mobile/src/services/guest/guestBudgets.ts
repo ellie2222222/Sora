@@ -24,6 +24,7 @@ import {
   updateBudgetSchema,
   BudgetStatus,
   GoalStatus,
+  CategoryStatus,
   CategoryType,
   type BudgetResponse,
   type CreateBudgetRequest,
@@ -97,6 +98,7 @@ function assertBudgetableCategory(walletId: string, categoryId: string | null): 
   if (!category) throw guestError('CATEGORY_NOT_FOUND');
   if (category.walletId !== walletId) throw guestError('CATEGORY_WRONG_WALLET');
   if (category.type !== CategoryType.EXPENSE) throw guestError('CATEGORY_WRONG_TYPE');
+  if (category.status === CategoryStatus.ARCHIVED) throw guestError('CATEGORY_ARCHIVED');
 }
 
 function toBudgetResponse(budget: GuestBudget): BudgetResponse {
@@ -199,6 +201,18 @@ export const guestBudgetsApi = {
 
     const { budgets } = guestStore.current();
     const existing = findBudget(budgets, budgetId);
+    // Reactivating meets create's rules, as the server's lock and exclusion constraint enforce.
+    if (patch.status === BudgetStatus.ACTIVE && existing.status !== BudgetStatus.ACTIVE) {
+      assertBudgetableCategory(existing.walletId, existing.categoryId);
+      assertBudgetableGoal(existing.walletId, existing.goalId);
+      assertNoOverlap(
+        budgets.filter((candidate) => candidate.id !== budgetId),
+        existing.categoryId,
+        existing.goalId,
+        existing.startDate,
+        existing.endDate,
+      );
+    }
 
     const updated: GuestBudget = {
       ...existing,

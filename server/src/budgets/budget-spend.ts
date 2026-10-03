@@ -7,7 +7,7 @@
 
 import type { Kysely } from 'kysely';
 
-import { parseMoney, TransactionType, type SpendRelevantTransaction } from '@sora/contracts';
+import { parseMoney, TransactionStatus, TransactionType, type SpendRelevantTransaction } from '@sora/contracts';
 
 import type { DB } from '../database/types.ts';
 
@@ -22,7 +22,8 @@ export interface BudgetTargetRow {
 /**
  * Every EXPENSE matching any budget's target: its category, its goal tag, or — for a
  * wallet-wide budget — the paying account's wallet, within the span the budgets' windows cover.
- * Status, currency and each budget's own window are left to `calculateBudgetSpent`.
+ * Currency and each budget's own window are left to `calculateBudgetSpent`; only COMPLETED rows
+ * are read, matching its own rule, so the partial `idx_transactions_budget_scan` index can serve it.
  */
 export async function spendableExpenses(
   db: Kysely<DB>,
@@ -44,13 +45,17 @@ export async function spendableExpenses(
     .innerJoin('accounts as a', 'a.id', 't.from_account_id')
     .select(['t.type', 't.status', 't.amount', 't.currency', 't.category_id', 't.goal_id', 't.transaction_date', 'a.wallet_id'])
     .where('t.type', '=', TransactionType.EXPENSE)
+    .where('t.status', '=', TransactionStatus.COMPLETED)
     .where('t.transaction_date', '>=', new Date(spanStart))
     .where('t.transaction_date', '<', new Date(spanEnd))
     .where((eb) =>
       eb.or([
         ...(categoryIds.length > 0 ? [eb('t.category_id', 'in', categoryIds)] : []),
         ...(goalIds.length > 0 ? [eb('t.goal_id', 'in', goalIds)] : []),
-        ...(walletIds.length > 0 ? [eb('a.wallet_id', 'in', walletIds)] : []),
+        // On the transaction's own column, which its index covers, not on the joined account's wallet.
+        ...(walletIds.length > 0
+          ? [eb('t.from_account_id', 'in', eb.selectFrom('accounts').select('id').where('wallet_id', 'in', walletIds))]
+          : []),
       ]),
     )
     .execute();
