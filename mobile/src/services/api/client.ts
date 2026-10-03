@@ -13,11 +13,12 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from 'axios';
-import type { ApiEnvelope, PaginationMeta } from '@sora/contracts';
+import { MAX_PAGE_SIZE, type ApiEnvelope, type PaginationMeta } from '@sora/contracts';
 
 import { env } from '@/app/config';
 import { toApiError } from '@/utils';
 import { AUTH_PATHS_WITHOUT_RETRY, session } from '@/services/auth';
+import { collectPages } from './collectPages.ts';
 import { handleFailedResponse, type RetryableRequest } from './refreshRetry.ts';
 
 interface RetryableConfig extends InternalAxiosRequestConfig, RetryableRequest {}
@@ -77,6 +78,11 @@ export async function getOne<T>(path: string, params?: unknown): Promise<T> {
 export async function getList<T>(path: string, params?: unknown): Promise<ListResult<T>> {
   const response = await http.get<ApiEnvelope<T[]>>(path, { params });
   return { items: response.data.data, pagination: response.data.meta?.pagination };
+}
+
+/** Every page of a paginated list, for screens that work on the whole set rather than scroll through it. */
+export function getAll<T>(path: string, params: object): Promise<T[]> {
+  return collectPages((page) => getList<T>(path, { ...params, page, pageSize: MAX_PAGE_SIZE }));
 }
 
 export async function postOne<T>(

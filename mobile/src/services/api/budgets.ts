@@ -7,7 +7,7 @@ import {
   type UpdateBudgetRequest,
 } from '@sora/contracts';
 
-import { deleteVoid, getList, getOne, idempotencyHeaders, patchOne, postOne } from './client.ts';
+import { deleteVoid, getAll, getOne, idempotencyHeaders, patchOne, postOne } from './client.ts';
 
 export interface BudgetListQuery {
   walletId: string;
@@ -17,9 +17,8 @@ export interface BudgetListQuery {
 }
 
 export const budgetsApi = {
-  async list(query: BudgetListQuery): Promise<BudgetResponse[]> {
-    const { items } = await getList<BudgetResponse>(apiUrl(ROUTES.budgets.list()), query);
-    return items;
+  list(query: BudgetListQuery): Promise<BudgetResponse[]> {
+    return getAll<BudgetResponse>(apiUrl(ROUTES.budgets.list()), query);
   },
 
   detail(budgetId: string): Promise<BudgetResponse> {

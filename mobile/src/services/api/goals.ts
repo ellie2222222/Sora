@@ -9,7 +9,7 @@ import {
   type UpdateGoalRequest,
 } from '@sora/contracts';
 
-import { deleteVoid, getList, getOne, idempotencyHeaders, patchOne, postOne, type ListResult, type PageQuery } from './client.ts';
+import { deleteVoid, getAll, getList, getOne, idempotencyHeaders, patchOne, postOne, type ListResult, type PageQuery } from './client.ts';
 
 export interface GoalListQuery {
   walletId: string;
@@ -17,9 +17,8 @@ export interface GoalListQuery {
 }
 
 export const goalsApi = {
-  async list(query: GoalListQuery): Promise<GoalResponse[]> {
-    const { items } = await getList<GoalResponse>(apiUrl(ROUTES.goals.list()), query);
-    return items;
+  list(query: GoalListQuery): Promise<GoalResponse[]> {
+    return getAll<GoalResponse>(apiUrl(ROUTES.goals.list()), query);
   },
 
   detail(goalId: string): Promise<GoalResponse> {
