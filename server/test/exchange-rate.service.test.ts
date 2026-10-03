@@ -219,6 +219,44 @@ describe('ExchangeRateService', () => {
     assert.equal(result.isApproximate, true);
   });
 
+  it('concurrent lookups for one base currency share a single provider request', async () => {
+    let fetchCount = 0;
+    let respond!: () => void;
+    const released = new Promise<void>((resolve) => (respond = resolve));
+    globalThis.fetch = async () => {
+      fetchCount++;
+      await released;
+      return new Response(JSON.stringify({ result: 'success', base_code: 'USD', rates: { USD: 1, VND: 25000 } }), { status: 200 });
+    };
+
+    const lookups = Promise.all([service.getRates('USD'), service.getRates('USD'), service.getRates('USD')]);
+    respond();
+    const results = await lookups;
+
+    assert.equal(fetchCount, 1);
+    assert.deepEqual(results.map((result) => result?.status), [ValuationStatus.FRESH, ValuationStatus.FRESH, ValuationStatus.FRESH]);
+  });
+
+  it('after a provider failure, skips the provider until the cooldown passes', async () => {
+    let fetchCount = 0;
+    globalThis.fetch = async () => {
+      fetchCount++;
+      throw new Error('Provider unreachable');
+    };
+
+    assert.equal(await service.getRates('USD'), null);
+    assert.equal(await service.getRates('USD'), null);
+    assert.equal(fetchCount, 1, 'the second lookup must not wait on the provider again');
+
+    (service as any).failedUntil.set('USD', Date.now() - 1);
+    globalThis.fetch = async () => {
+      fetchCount++;
+      return new Response(JSON.stringify({ result: 'success', base_code: 'USD', rates: { USD: 1, VND: 25000 } }), { status: 200 });
+    };
+    assert.equal((await service.getRates('USD'))?.status, ValuationStatus.FRESH);
+    assert.equal(fetchCount, 2);
+  });
+
   it('historical rates: retrieves snapshot when present and returns null when missing', async () => {
     const mockDb: any = {
       db: {

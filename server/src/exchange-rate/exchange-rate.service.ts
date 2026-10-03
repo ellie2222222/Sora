@@ -45,11 +45,14 @@ export interface RateLookupOptions {
 
 const RATE_PRECISION_SCALE = 100_000_000n; // 10^8
 const RATE_PRECISION_FLOAT = 100_000_000;
+const FAILURE_COOLDOWN_MS = 60_000;
 
 @Injectable()
 export class ExchangeRateService {
   private readonly logger = new Logger(ExchangeRateService.name);
   private readonly cache = new Map<string, CacheEntry>();
+  private readonly inFlight = new Map<string, Promise<CacheEntry | null>>();
+  private readonly failedUntil = new Map<string, number>();
 
   constructor(
     @Inject(CONFIG) private readonly config: AppConfig,
@@ -74,11 +77,31 @@ export class ExchangeRateService {
     }
 
     const cached = this.cache.get(baseCurrency);
-    const now = Date.now();
-    if (cached && cached.expiresAt > now) {
+    if (cached && cached.expiresAt > Date.now()) {
       return { rates: cached.rates, timestamp: cached.timestamp, status: ValuationStatus.FRESH };
     }
 
+    const fetched = await this.fetchLatest(baseCurrency);
+    if (fetched) return { rates: fetched.rates, timestamp: fetched.timestamp, status: ValuationStatus.FRESH };
+    return this.getStaleFallback(baseCurrency, options?.allowStale);
+  }
+
+  /**
+   * One provider request per base currency at a time, shared by every concurrent caller. After a
+   * failure the provider is skipped for a cooldown, so an outage doesn't cost each request the timeout.
+   */
+  private fetchLatest(baseCurrency: string): Promise<CacheEntry | null> {
+    if ((this.failedUntil.get(baseCurrency) ?? 0) > Date.now()) return Promise.resolve(null);
+
+    let pending = this.inFlight.get(baseCurrency);
+    if (!pending) {
+      pending = this.requestLatest(baseCurrency).finally(() => this.inFlight.delete(baseCurrency));
+      this.inFlight.set(baseCurrency, pending);
+    }
+    return pending;
+  }
+
+  private async requestLatest(baseCurrency: string): Promise<CacheEntry | null> {
     const apiUrl = `${this.config.EXCHANGE_RATE_API_URL.replace(/\/+$/, '')}/${encodeURIComponent(baseCurrency)}`;
     const timeoutMs = this.config.EXCHANGE_RATE_TIMEOUT_SECONDS * 1000;
 
@@ -90,13 +113,13 @@ export class ExchangeRateService {
 
       if (!response.ok) {
         this.logger.warn(`Exchange rate provider returned status ${response.status} for base ${baseCurrency}`);
-        return this.getStaleFallback(baseCurrency, options?.allowStale);
+        return this.markFailed(baseCurrency);
       }
 
       const data = (await response.json()) as OpenErApiResponse;
       if (data.result !== 'success' || !data.rates || typeof data.rates !== 'object') {
         this.logger.warn(`Exchange rate provider returned invalid response structure for base ${baseCurrency}`);
-        return this.getStaleFallback(baseCurrency, options?.allowStale);
+        return this.markFailed(baseCurrency);
       }
 
       const timestamp = data.time_last_update_utc ?? new Date().toISOString();
@@ -104,21 +127,27 @@ export class ExchangeRateService {
       const entry: CacheEntry = {
         rates: data.rates,
         timestamp,
-        expiresAt: now + ttlMs,
+        expiresAt: Date.now() + ttlMs,
       };
 
       this.cache.set(baseCurrency, entry);
+      this.failedUntil.delete(baseCurrency);
 
       // Persist daily snapshot asynchronously in the background (idempotent upsert)
       const snapshotDate = this.deriveSnapshotDate(timestamp);
       void this.saveDailySnapshot(snapshotDate, baseCurrency, data.rates, timestamp);
 
-      return { rates: entry.rates, timestamp: entry.timestamp, status: ValuationStatus.FRESH };
+      return entry;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Failed to fetch exchange rates for ${baseCurrency}: ${message}`);
-      return this.getStaleFallback(baseCurrency, options?.allowStale);
+      return this.markFailed(baseCurrency);
     }
+  }
+
+  private markFailed(baseCurrency: string): null {
+    this.failedUntil.set(baseCurrency, Date.now() + FAILURE_COOLDOWN_MS);
+    return null;
   }
 
   /**
@@ -366,5 +395,6 @@ export class ExchangeRateService {
   /** Clear the in-memory cache (primarily for unit testing). */
   clearCache(): void {
     this.cache.clear();
+    this.failedUntil.clear();
   }
 }
