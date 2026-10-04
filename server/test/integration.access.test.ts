@@ -145,6 +145,84 @@ describe('access control against a real database', { skip: integrationSkipReason
     assert.equal(row?.status, 'REVOKED', 'the row stays so the creator name still resolves (BR-01)');
   });
 
+  it('§2.5 role matrix: every wallet-scoped route answers a stranger 404 and each role below its minimum 403', async () => {
+    const memberIdOf = async (user: ProbeUser) =>
+      ((await api.call('GET', `/wallets/${ids.wallet}/members`, { token: owner.token })).body!.data as { id: string; userId: string }[]).find(
+        (member) => member.userId === user.id,
+      )!.id;
+    const invitation = await api.call('POST', `/wallets/${ids.wallet}/invitations`, {
+      token: owner.token,
+      body: { email: `probe+matrix-${randomUUID()}@example.invalid`, role: 'VIEWER' },
+    });
+    const contribution = await api.call('POST', `/goals/${ids.goal}/contributions`, {
+      token: owner.token,
+      body: { accountId: ids.account, amount: '1', currency: 'VND', contributionDate: nowIso() },
+    });
+    assert.deepEqual([invitation.status, contribution.status], [201, 201]);
+    const [editorMember, viewerMember] = [await memberIdOf(editor), await memberIdOf(viewer)];
+
+    type Route = [method: string, path: string, body: unknown, minimum: 'VIEWER' | 'EDITOR' | 'OWNER'];
+    const routes: Route[] = [
+      ['GET', `/accounts?walletId=${ids.wallet}`, undefined, 'VIEWER'],
+      ['GET', `/categories?walletId=${ids.wallet}`, undefined, 'VIEWER'],
+      ['GET', `/transactions?walletId=${ids.wallet}`, undefined, 'VIEWER'],
+      ['GET', `/budgets?walletId=${ids.wallet}`, undefined, 'VIEWER'],
+      ['GET', `/goals?walletId=${ids.wallet}`, undefined, 'VIEWER'],
+      ['GET', `/goals/${ids.goal}/contributions`, undefined, 'VIEWER'],
+      ['POST', '/accounts', { walletId: ids.wallet, name: 'probe-matrix', type: 'CASH', currency: 'VND' }, 'EDITOR'],
+      ['PATCH', `/accounts/${ids.account}`, { name: 'probe-matrix' }, 'EDITOR'],
+      ['DELETE', `/accounts/${ids.account}`, undefined, 'EDITOR'],
+      ['POST', '/categories', { walletId: ids.wallet, name: `probe-${randomUUID()}`, type: 'EXPENSE' }, 'EDITOR'],
+      ['PATCH', `/categories/${ids.category}`, { name: 'probe-matrix' }, 'EDITOR'],
+      ['DELETE', `/categories/${ids.category}`, undefined, 'EDITOR'],
+      ['POST', '/transactions', { type: 'EXPENSE', fromAccountId: ids.account, categoryId: ids.category, amount: '1', currency: 'VND', transactionDate: nowIso() }, 'EDITOR'],
+      ['PATCH', `/transactions/${ids.transaction}`, { description: 'probe-matrix' }, 'EDITOR'],
+      ['POST', `/transactions/${ids.transaction}/delete`, {}, 'EDITOR'],
+      [
+        'POST',
+        '/budgets',
+        { walletId: ids.wallet, categoryId: ids.category, name: 'probe-matrix', amount: '1', currency: 'VND', periodType: 'CUSTOM', startDate: '2026-02-01', endDate: '2026-02-28' },
+        'EDITOR',
+      ],
+      ['PATCH', `/budgets/${ids.budget}`, { name: 'probe-matrix' }, 'EDITOR'],
+      ['DELETE', `/budgets/${ids.budget}`, undefined, 'EDITOR'],
+      ['POST', '/goals', { walletId: ids.wallet, name: 'probe-matrix', targetAmount: '1', currency: 'VND' }, 'EDITOR'],
+      ['PATCH', `/goals/${ids.goal}`, { name: 'probe-matrix' }, 'EDITOR'],
+      ['DELETE', `/goals/${ids.goal}`, undefined, 'EDITOR'],
+      ['POST', `/goals/${ids.goal}/contributions`, { accountId: ids.account, amount: '1', currency: 'VND', contributionDate: nowIso() }, 'EDITOR'],
+      ['DELETE', `/goals/${ids.goal}/contributions/${contribution.body!.data.id}`, undefined, 'EDITOR'],
+      ['PATCH', `/wallets/${ids.wallet}`, { name: 'probe-matrix' }, 'OWNER'],
+      ['DELETE', `/wallets/${ids.wallet}`, undefined, 'OWNER'],
+      ['PATCH', `/wallets/${ids.wallet}/members/${viewerMember}`, { role: 'EDITOR' }, 'OWNER'],
+      ['DELETE', `/wallets/${ids.wallet}/members/${viewerMember}`, undefined, 'OWNER'],
+      ['POST', `/wallets/${ids.wallet}/transfer-ownership`, { toUserId: editor.id }, 'OWNER'],
+      ['GET', `/wallets/${ids.wallet}/invitations`, undefined, 'OWNER'],
+      ['POST', `/wallets/${ids.wallet}/invitations`, { email: `probe+matrix-${randomUUID()}@example.invalid`, role: 'VIEWER' }, 'OWNER'],
+      ['DELETE', `/wallets/${ids.wallet}/invitations/${invitation.body!.data.id}`, undefined, 'OWNER'],
+      ['GET', `/wallets/${ids.wallet}/audit-logs`, undefined, 'OWNER'],
+    ];
+    const below = { VIEWER: [], EDITOR: [viewer], OWNER: [editor, viewer] } satisfies Record<Route[3], ProbeUser[]>;
+
+    for (const [method, path, body, minimum] of routes) {
+      const asStranger = await api.call(method, path, { token: stranger.token, body });
+      assert.equal(asStranger.status, 404, `stranger ${method} ${path} → ${JSON.stringify(asStranger.body?.error)}`);
+      for (const user of below[minimum]) {
+        const refused = await api.call(method, path, { token: user.token, body });
+        const role = user === editor ? 'EDITOR' : 'VIEWER';
+        assert.deepEqual([refused.status, refused.body?.error?.code], [403, 'FORBIDDEN'], `${role} ${method} ${path}`);
+      }
+    }
+
+    // Nothing a refused call touched changed: the shared fixture is intact.
+    const [wallet] = await api.sql<{ status: string; owner_user_id: string }>('SELECT status, owner_user_id FROM wallets WHERE id = $1', [ids.wallet]);
+    assert.deepEqual(wallet, { status: 'ACTIVE', owner_user_id: owner.id });
+    const roles = await api.sql<{ id: string; role: string; status: string }>('SELECT id, role, status FROM wallet_members WHERE id = ANY($1::uuid[]) ORDER BY role', [[editorMember, viewerMember]]);
+    assert.deepEqual(roles.map((row) => [row.role, row.status]), [['EDITOR', 'ACTIVE'], ['VIEWER', 'ACTIVE']]);
+    const [txn] = await api.sql<{ status: string; description: string | null }>('SELECT status, description FROM transactions WHERE id = $1', [ids.transaction]);
+    assert.equal(txn?.status, 'COMPLETED');
+    assert.notEqual(txn?.description, 'probe-matrix');
+  });
+
   it('does not reveal another wallet\'s category through a cross-wallet reference', async () => {
     const strangerAccount = await createAccount(api, stranger, stranger.walletId);
     const response = await api.call('POST', '/transactions', {

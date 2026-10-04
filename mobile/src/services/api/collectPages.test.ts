@@ -39,4 +39,15 @@ describe('collectPages', () => {
     assert.deepEqual(items, ['a', 'b']);
     assert.equal(calls, 1);
   });
+
+  it('stops at an empty page even if the server still says there is more', async () => {
+    const requested: number[] = [];
+    const items = await collectPages(async (page) => {
+      requested.push(page);
+      return { items: page === 1 ? ['a'] : [], pagination: { page, pageSize: 1, total: 5, hasMore: true } };
+    });
+
+    assert.deepEqual(items, ['a']);
+    assert.deepEqual(requested, [1, 2]);
+  });
 });
