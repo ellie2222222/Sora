@@ -64,9 +64,9 @@ function GuestPrompt() {
   const theme = useTheme();
   const { t } = useTranslation();
   const { exitGuestModeToAuth } = useAuth();
-  
+
   return (
-    <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View className="flex-1">
       <AssistantHeader />
 
       <View className="flex-1 justify-center" style={{ paddingHorizontal: theme.spacing.xl, paddingBottom: theme.spacing.xl }}>
@@ -80,9 +80,7 @@ function GuestPrompt() {
           entrance="none"
         />
       </View>
-
-      <ChatInputBar disabled={true} onSend={async () => false} />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
