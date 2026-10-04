@@ -11,6 +11,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/app/providers';
@@ -168,7 +169,8 @@ export function BottomSheetModal({
       onRequestClose={() => dismissModal()}
       testID={testID}
     >
-      <View style={{ flex: 1 }}>
+      {/* Android renders a Modal in its own window, outside the app root's gesture handling: swipeable rows in a sheet need their own root. */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
         <Animated.View
           style={[
             StyleSheet.absoluteFill,
@@ -235,7 +237,7 @@ export function BottomSheetModal({
             </Animated.View>
           </Pressable>
         </KeyboardAvoidingView>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

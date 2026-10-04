@@ -1,30 +1,64 @@
 import { useState } from 'react';
-import { PiggyBank, Plus, Target } from 'lucide-react-native';
+import { Archive, Ban, Pencil, PiggyBank, Plus, Target } from 'lucide-react-native';
 import { Platform, Pressable, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { BudgetStatus, GoalStatus, type BudgetResponse, type GoalResponse } from '@sora/contracts';
 
-import { AnimatedScreen, Card, ListItemEnter, Money, ProgressBar, RefreshableFlatList, Skeleton, SlideSwap, StateView, SyncStatusDot, Text } from '@/components';
-import { useModal, useTheme, useWallets } from '@/app/providers';
+import {
+  AnimatedScreen,
+  Card,
+  closeOpenSwipeRow,
+  ListItemEnter,
+  Money,
+  ProgressBar,
+  RefreshableFlatList,
+  Skeleton,
+  SlideSwap,
+  StateView,
+  SwipeableRow,
+  SyncStatusDot,
+  Text,
+  type SwipeRowAction,
+} from '@/components';
+import { useModal, useTheme, useToast, useWallets } from '@/app/providers';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
-import { BudgetDetailModal } from '@/features/budgets';
-import { GoalDetailModal } from '@/features/goals';
+import { ArchiveBudgetDialog, BudgetDetailModal } from '@/features/budgets';
+import { CancelGoalDialog, GoalDetailModal } from '@/features/goals';
 import { today, formatMoneyString, isNetworkError } from '@/utils';
 import { selectQueueEntryFor, useListBudgetsQuery, useListGoalsQuery } from '@/app/store';
-import type { MainTabScreenProps } from '@/app/navigation';
 
 type PlanningSection = 'budgets' | 'goals';
 
-export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
+export function PlanningScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const { activeWalletId, permissions } = useWallets();
   const { openModal } = useModal();
+  const { showToast } = useToast();
   const [section, setSection] = useState<PlanningSection>('budgets');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+  const [archivingBudgetId, setArchivingBudgetId] = useState<string | null>(null);
+  const [cancellingGoalId, setCancellingGoalId] = useState<string | null>(null);
+
+  // Editing lives in each detail sheet, so Edit opens it; the list shows ACTIVE rows only, all editable.
+  const budgetActions = (budget: BudgetResponse): SwipeRowAction[] =>
+    permissions.canWrite
+      ? [
+          { key: 'edit', label: t('common.edit'), icon: Pencil, tone: 'primary', onPress: () => setSelectedBudgetId(budget.id), testID: 'btn-edit-budget' },
+          { key: 'archive', label: t('common.archive'), icon: Archive, tone: 'danger', onPress: () => setArchivingBudgetId(budget.id), testID: 'btn-archive-budget' },
+        ]
+      : [];
+  const goalActions = (goal: GoalResponse): SwipeRowAction[] =>
+    permissions.canWrite
+      ? [
+          { key: 'edit', label: t('common.edit'), icon: Pencil, tone: 'primary', onPress: () => setSelectedGoalId(goal.id), testID: 'btn-edit-goal' },
+          // Not btn-cancel-goal: that id is the add-goal sheet's Cancel (NC-04).
+          { key: 'cancelGoal', label: t('goals.cancelGoalShort'), icon: Ban, tone: 'danger', onPress: () => setCancellingGoalId(goal.id), testID: 'btn-cancel-goal-status' },
+        ]
+      : [];
 
   const budgets = useListBudgetsQuery(
     { walletId: activeWalletId ?? '', status: BudgetStatus.ACTIVE, activeOn: today() },
@@ -115,11 +149,11 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
             </View>
           ) : null
         }
+        onScrollBeginDrag={closeOpenSwipeRow}
         renderItem={({ item }) => (
-          <BudgetCard
-            budget={item}
-            onPress={() => setSelectedBudgetId(item.id)}
-          />
+          <SwipeableRow actions={budgetActions(item)} radius={theme.radius.lg} onActivate={() => setSelectedBudgetId(item.id)}>
+            <BudgetCard budget={item} onPress={() => setSelectedBudgetId(item.id)} />
+          </SwipeableRow>
         )}
       />
     );
@@ -189,12 +223,12 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
             </View>
           ) : null
         }
+        onScrollBeginDrag={closeOpenSwipeRow}
         renderItem={({ item }) => (
           <ListItemEnter>
-            <GoalCard
-              goal={item}
-              onPress={() => setSelectedGoalId(item.id)}
-            />
+            <SwipeableRow actions={goalActions(item)} radius={theme.radius.lg} onActivate={() => setSelectedGoalId(item.id)}>
+              <GoalCard goal={item} onPress={() => setSelectedGoalId(item.id)} />
+            </SwipeableRow>
           </ListItemEnter>
         )}
       />
@@ -295,6 +329,24 @@ export function PlanningScreen({ navigation }: MainTabScreenProps<'Planning'>) {
       </WalletContextBar>
       <BudgetDetailModal budgetId={selectedBudgetId} onClose={() => setSelectedBudgetId(null)} />
       <GoalDetailModal goalId={selectedGoalId} onClose={() => setSelectedGoalId(null)} />
+      <ArchiveBudgetDialog
+        budgetId={archivingBudgetId}
+        onCancel={() => setArchivingBudgetId(null)}
+        onArchived={() => setArchivingBudgetId(null)}
+        onError={(message) => {
+          setArchivingBudgetId(null);
+          showToast(message, 'error');
+        }}
+      />
+      <CancelGoalDialog
+        goalId={cancellingGoalId}
+        onCancel={() => setCancellingGoalId(null)}
+        onCancelled={() => setCancellingGoalId(null)}
+        onError={(message) => {
+          setCancellingGoalId(null);
+          showToast(message, 'error');
+        }}
+      />
     </AnimatedScreen>
   );
 }
@@ -305,34 +357,36 @@ function BudgetCard({ budget, onPress }: { budget: BudgetResponse; onPress: () =
   const syncStatus = useSelector(selectQueueEntryFor('budget', budget.id))?.status;
 
   return (
-    <Card testID={`row-budget-${budget.id}`} onTouchEnd={onPress}>
-      <View className="flex-row items-center justify-between" style={{ marginBottom: theme.spacing.xs }}>
-        <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
-          <Text weight="semibold">{budget.name}</Text>
-          <SyncStatusDot status={syncStatus} />
+    <Pressable testID={`row-budget-${budget.id}`} accessibilityRole="button" onPress={onPress}>
+      <Card>
+        <View className="flex-row items-center justify-between" style={{ marginBottom: theme.spacing.xs }}>
+          <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
+            <Text weight="semibold">{budget.name}</Text>
+            <SyncStatusDot status={syncStatus} />
+          </View>
+          {budget.isOverBudget ? (
+            <Text variant="caption" tone="danger">
+              {t('budgets.overBudget')}
+            </Text>
+          ) : null}
         </View>
-        {budget.isOverBudget ? (
-          <Text variant="caption" tone="danger">
-            {t('budgets.overBudget')}
-          </Text>
-        ) : null}
-      </View>
 
-      <ProgressBar percentage={budget.usagePercentage} danger={budget.isOverBudget} />
+        <ProgressBar percentage={budget.usagePercentage} danger={budget.isOverBudget} />
 
-      <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
-        <View className="flex-row" style={{ gap: theme.spacing.xs }}>
-          <Money amount={budget.spent} currency={budget.currency} variant="caption" />
-          <Text variant="caption" tone="muted">
-            /
+        <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
+          <View className="flex-row" style={{ gap: theme.spacing.xs }}>
+            <Money amount={budget.spent} currency={budget.currency} variant="caption" />
+            <Text variant="caption" tone="muted">
+              /
+            </Text>
+            <Money amount={budget.amount} currency={budget.currency} variant="caption" />
+          </View>
+          <Text variant="caption" tone={budget.isOverBudget ? 'danger' : 'muted'} weight="semibold">
+            {formatMoneyString(budget.remaining, budget.currency, { signDisplay: 'always' })} {t('budgets.remaining').toLowerCase()}
           </Text>
-          <Money amount={budget.amount} currency={budget.currency} variant="caption" />
         </View>
-        <Text variant="caption" tone={budget.isOverBudget ? 'danger' : 'muted'} weight="semibold">
-          {formatMoneyString(budget.remaining, budget.currency, { signDisplay: 'always' })} {t('budgets.remaining').toLowerCase()}
-        </Text>
-      </View>
-    </Card>
+      </Card>
+    </Pressable>
   );
 }
 
@@ -342,33 +396,35 @@ function GoalCard({ goal, onPress }: { goal: GoalResponse; onPress: () => void }
   const syncStatus = useSelector(selectQueueEntryFor('goal', goal.id))?.status;
 
   return (
-    <Card testID={`row-goal-${goal.id}`} onTouchEnd={onPress}>
-      <View className="flex-row items-center" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.xs }}>
-        <Text weight="semibold">{goal.name}</Text>
-        <SyncStatusDot status={syncStatus} />
-      </View>
+    <Pressable testID={`row-goal-${goal.id}`} accessibilityRole="button" onPress={onPress}>
+      <Card>
+        <View className="flex-row items-center" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.xs }}>
+          <Text weight="semibold">{goal.name}</Text>
+          <SyncStatusDot status={syncStatus} />
+        </View>
 
-      <View className="flex-row" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.sm }}>
-        <Money amount={goal.currentAmount} currency={goal.currency} variant="title" />
-        <Text variant="title" tone="muted">
-          /
-        </Text>
-        <Money amount={goal.targetAmount} currency={goal.currency} variant="title" style={{ opacity: 0.6 }} />
-      </View>
-
-      <ProgressBar percentage={goal.progressPercentage} tone="income" />
-
-      <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
-        <Text variant="caption" tone="muted">
-          {goal.progressPercentage.toFixed(0)}%
-        </Text>
-        {goal.targetDate !== null ? (
-          <Text variant="caption" tone="muted">
-            {t('goals.deadline')}: {goal.targetDate}
+        <View className="flex-row" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.sm }}>
+          <Money amount={goal.currentAmount} currency={goal.currency} variant="title" />
+          <Text variant="title" tone="muted">
+            /
           </Text>
-        ) : null}
-      </View>
-    </Card>
+          <Money amount={goal.targetAmount} currency={goal.currency} variant="title" style={{ opacity: 0.6 }} />
+        </View>
+
+        <ProgressBar percentage={goal.progressPercentage} tone="income" />
+
+        <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
+          <Text variant="caption" tone="muted">
+            {goal.progressPercentage.toFixed(0)}%
+          </Text>
+          {goal.targetDate !== null ? (
+            <Text variant="caption" tone="muted">
+              {t('goals.deadline')}: {goal.targetDate}
+            </Text>
+          ) : null}
+        </View>
+      </Card>
+    </Pressable>
   );
 }
 

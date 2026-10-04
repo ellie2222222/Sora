@@ -1,11 +1,11 @@
-import { MoreVertical, UsersRound, X, UserPlus } from 'lucide-react-native';
+import { MoreVertical, Pencil, UserMinus, UsersRound, X, UserPlus } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { WalletRole, type WalletInvitationResponse, type WalletMemberResponse } from '@sora/contracts';
 
-import { ActionSheet, Button, Card, ConfirmDialog, ListItemEnter, Skeleton, StateView, Text } from '@/components';
-import type { ActionSheetAction } from '@/components';
+import { ActionSheet, Button, Card, closeOpenSwipeRow, ConfirmDialog, ListItemEnter, Skeleton, StateView, SwipeableRow, Text } from '@/components';
+import type { ActionSheetAction, SwipeRowAction } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
 import {
   useGetWalletQuery,
@@ -16,7 +16,7 @@ import {
   useTransferOwnershipMutation,
   useUpdateMemberRoleMutation,
 } from '@/app/store';
-import { canAdminister, getRoleLabel, isNetworkError, messageOf } from '@/utils';
+import { canAdminister, canManageMember, getRoleLabel, isNetworkError, messageOf } from '@/utils';
 
 export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; onInvite: () => void }) {
   const theme = useTheme();
@@ -35,6 +35,8 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
   const [transferError, setTransferError] = useState<string | null>(null);
   const [actionTarget, setActionTarget] = useState<WalletMemberResponse | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<WalletMemberResponse | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<WalletInvitationResponse | null>(null);
 
   const isOwner = canAdminister(wallet.data?.role ?? null);
 
@@ -68,7 +70,7 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
     }
   }
 
-  const memberActions: ActionSheetAction[] =
+  const sheetActions: ActionSheetAction[] =
     actionTarget === null
       ? []
       : [
@@ -88,9 +90,31 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
           {
             label: t('members.removeFromWallet'),
             destructive: true,
-            onPress: () => void runAction(() => removeMember({ walletId, memberId: actionTarget.id }).unwrap()),
+            onPress: () => setRemoveTarget(actionTarget),
           },
         ];
+  // ActionSheet leaves closing to its caller: the chosen action runs and the sheet goes away.
+  const memberActions = sheetActions.map((action) => ({
+    ...action,
+    onPress: () => {
+      setActionTarget(null);
+      action.onPress();
+    },
+  }));
+
+  const openMemberActions = (member: WalletMemberResponse) => {
+    setActionError(null);
+    setActionTarget(member);
+  };
+
+  const canActOn = (member: WalletMemberResponse) => canManageMember(wallet.data?.role ?? null, member, user?.id);
+  const memberSwipeActions = (member: WalletMemberResponse): SwipeRowAction[] =>
+    canActOn(member)
+      ? [
+          { key: 'edit', label: t('common.edit'), icon: Pencil, tone: 'primary', onPress: () => openMemberActions(member), testID: 'btn-edit-member' },
+          { key: 'remove', label: t('common.remove'), icon: UserMinus, tone: 'danger', onPress: () => setRemoveTarget(member), testID: 'btn-remove-member' },
+        ]
+      : [];
 
   const renderContent = () => {
     if (wallet.isLoading || members.isLoading) {
@@ -113,15 +137,14 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
 
         {(members.data ?? []).map((member) => (
           <ListItemEnter key={member.id}>
-            <MemberItem
-              member={member}
-              isSelf={member.userId === user?.id}
-              canManage={isOwner}
-              onOpenActions={() => {
-                setActionError(null);
-                setActionTarget(member);
-              }}
-            />
+            <SwipeableRow actions={memberSwipeActions(member)} radius={theme.radius.lg}>
+              <MemberItem
+                member={member}
+                isSelf={member.userId === user?.id}
+                canAct={canActOn(member)}
+                onOpenActions={() => openMemberActions(member)}
+              />
+            </SwipeableRow>
           </ListItemEnter>
         ))}
 
@@ -132,10 +155,14 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
             </Text>
             {invitations.data.map((invitation) => (
               <ListItemEnter key={invitation.id}>
-                <InvitationRow
-                  invitation={invitation}
-                  onRevoke={() => void runAction(() => revokeInvitation({ walletId, invitationId: invitation.id }).unwrap())}
-                />
+                <SwipeableRow
+                  radius={theme.radius.lg}
+                  actions={[
+                    { key: 'revoke', label: t('common.revoke'), icon: X, tone: 'danger', onPress: () => setRevokeTarget(invitation), testID: 'btn-revoke-invitation' },
+                  ]}
+                >
+                  <InvitationRow invitation={invitation} onRevoke={() => setRevokeTarget(invitation)} />
+                </SwipeableRow>
               </ListItemEnter>
             ))}
           </View>
@@ -149,6 +176,7 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
       <ScrollView
         testID="list-members"
         showsVerticalScrollIndicator={false}
+        onScrollBeginDrag={closeOpenSwipeRow}
         contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.md }}
       >
         {isOwner ? (
@@ -174,6 +202,34 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
         onConfirm={() => void handleConfirmTransfer()}
         onCancel={() => setTransferTarget(null)}
       />
+
+      <ConfirmDialog
+        visible={removeTarget !== null}
+        title={t('members.removeTitle')}
+        message={removeTarget !== null ? t('members.removeMessage', { name: removeTarget.displayName }) : undefined}
+        confirmLabel={t('common.remove')}
+        destructive
+        onConfirm={() => {
+          const target = removeTarget;
+          setRemoveTarget(null);
+          if (target !== null) void runAction(() => removeMember({ walletId, memberId: target.id }).unwrap());
+        }}
+        onCancel={() => setRemoveTarget(null)}
+      />
+
+      <ConfirmDialog
+        visible={revokeTarget !== null}
+        title={t('members.revokeTitle')}
+        message={revokeTarget !== null ? t('members.revokeMessage', { email: revokeTarget.invitedEmail }) : undefined}
+        confirmLabel={t('common.revoke')}
+        destructive
+        onConfirm={() => {
+          const target = revokeTarget;
+          setRevokeTarget(null);
+          if (target !== null) void runAction(() => revokeInvitation({ walletId, invitationId: target.id }).unwrap());
+        }}
+        onCancel={() => setRevokeTarget(null)}
+      />
     </>
   );
 }
@@ -181,17 +237,16 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
 function MemberItem({
   member,
   isSelf,
-  canManage,
+  canAct,
   onOpenActions,
 }: {
   member: WalletMemberResponse;
   isSelf: boolean;
-  canManage: boolean;
+  canAct: boolean;
   onOpenActions: () => void;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const canAct = canManage && !isSelf && member.role !== WalletRole.OWNER;
 
   return (
     <Card testID={`row-member-${member.id}`}>

@@ -3,6 +3,7 @@ import {
   type AccountDetailResponse,
   type AccountResponse,
   type CreateAccountRequest,
+  type UpdateAccountRequest,
 } from '@sora/contracts';
 
 import { accountsApi as accountsHttp, type AccountListQuery } from '@/services/api';
@@ -81,6 +82,37 @@ export const accountsApiSlice = apiSlice.injectEndpoints({
       },
       invalidatesTags: (result) => (result && isStillQueued(result.id) ? [] : ACCOUNT_TAGS),
     }),
+    updateAccount: builder.mutation<AccountResponse, { accountId: string; body: UpdateAccountRequest }>({
+      queryFn: ({ accountId, body }, { getState }) => {
+        if (selectIsGuest(getState() as RootState)) return toQueryFnResult(() => guestAccountsApi.update(accountId, body));
+        if (!isCurrentlyOnline()) {
+          return toQueryFnResult(async () => {
+            await enqueueOffline({ entity: 'account', op: 'update', localId: accountId, serverId: accountId, payload: body });
+            return { ...body } as unknown as AccountResponse; // Reconciled by onQueryStarted's cache patch below.
+          });
+        }
+        return toQueryFnResult(() => accountsHttp.update(accountId, body));
+      },
+      onQueryStarted: async ({ accountId, body }, { dispatch, queryFulfilled, getState }) => {
+        try {
+          await queryFulfilled;
+          if (!isStillQueued(accountId)) return;
+
+          dispatch(accountsApiSlice.util.updateQueryData('getAccount', accountId, (draft) => Object.assign(draft, body)));
+          forEachCachedQueryArgs(getState(), 'listAccounts', (args) => {
+            dispatch(
+              accountsApiSlice.util.updateQueryData('listAccounts', args as AccountListQuery, (draft) => {
+                const item = draft.find((candidate) => candidate.id === accountId);
+                if (item) Object.assign(item, body);
+              }),
+            );
+          });
+        } catch {
+          // Nothing was applied to the cache yet — nothing to undo.
+        }
+      },
+      invalidatesTags: (_result, _error, { accountId }) => (isStillQueued(accountId) ? [] : ACCOUNT_TAGS),
+    }),
     archiveAccount: builder.mutation<void, string>({
       queryFn: (accountId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
@@ -98,11 +130,18 @@ export const accountsApiSlice = apiSlice.injectEndpoints({
           if (!isStillQueued(accountId)) return;
 
           const rootState = getState();
+          dispatch(accountsApiSlice.util.updateQueryData('getAccount', accountId, (draft) => {
+            draft.status = AccountStatus.ARCHIVED;
+          }));
           forEachCachedQueryArgs(rootState, 'listAccounts', (args) => {
+            const query = args as AccountListQuery;
             dispatch(
-              accountsApiSlice.util.updateQueryData('listAccounts', args as AccountListQuery, (draft) => {
-                const item = draft.find((candidate) => candidate.id === accountId);
-                if (item) item.status = AccountStatus.ARCHIVED;
+              accountsApiSlice.util.updateQueryData('listAccounts', query, (draft) => {
+                const index = draft.findIndex((candidate) => candidate.id === accountId);
+                if (index === -1) return;
+                // Pickers list ACTIVE accounts only, and an archived one must leave them (§9.5).
+                if (query.status === AccountStatus.ACTIVE) draft.splice(index, 1);
+                else draft[index]!.status = AccountStatus.ARCHIVED;
               }),
             );
           });
@@ -120,5 +159,6 @@ export const {
   useListAccountsQuery,
   useGetAccountQuery,
   useCreateAccountMutation,
+  useUpdateAccountMutation,
   useArchiveAccountMutation,
 } = accountsApiSlice;

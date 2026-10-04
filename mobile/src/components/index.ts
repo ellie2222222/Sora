@@ -45,4 +45,6 @@ export * from './ConnectionSyncStatus';
 export * from './SyncStatusDot';
 export * from './ThemeToggle';
 export * from './refresh/index.ts';
+export * from './swipe/index.ts';
 
+export * from './MutationConfirmDialog.tsx';

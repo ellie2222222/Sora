@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
 // Deep-imported (not via each feature's barrel): a barrel import here would
 // pull in that feature's other files too, several of which import back from
@@ -16,18 +16,21 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
   const [modalParams, setModalParams] = useState<ModalParams>({});
 
-  const openModal = (type: ModalType, params: ModalParams = {}) => {
+  // Stable, so memoized list rows that receive an open handler don't all re-render whenever a modal opens.
+  const openModal = useCallback((type: ModalType, params: ModalParams = {}) => {
     setModalParams(params);
     setActiveModal(type);
-  };
+  }, []);
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setActiveModal(null);
     setModalParams({});
-  };
+  }, []);
+
+  const contextValue = useMemo(() => ({ openModal, closeModal }), [openModal, closeModal]);
 
   return (
-    <ModalContext.Provider value={{ openModal, closeModal }}>
+    <ModalContext.Provider value={contextValue}>
       {children}
 
       <AddTransactionModal

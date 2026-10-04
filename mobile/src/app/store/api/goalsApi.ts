@@ -1,10 +1,12 @@
 import {
+  GoalStatus,
   TransactionStatus,
   TransactionType,
   type ContributionResponse,
   type CreateContributionRequest,
   type CreateGoalRequest,
   type GoalResponse,
+  type UpdateGoalRequest,
 } from '@sora/contracts';
 
 import { goalsApi as goalsHttp, type GoalListQuery, type ListResult } from '@/services/api';
@@ -30,7 +32,8 @@ import { currentUserId, patchTotalsForContribution, patchTotalsForTransaction } 
 
 export type { GoalListQuery } from '@/services/api';
 
-const GOAL_TAGS = ['Goal'] as const;
+/** `DashboardResponse.activeGoals` embeds full `GoalResponse`s, so every goal mutation invalidates Dashboard too. */
+const GOAL_TAGS = ['Goal', 'Dashboard'] as const;
 
 const CONTRIBUTIONS_PAGE_SIZE = 25;
 
@@ -117,6 +120,74 @@ export const goalsApiSlice = apiSlice.injectEndpoints({
       },
       invalidatesTags: (result) => (result && isStillQueued(result.id) ? [] : GOAL_TAGS),
     }),
+    updateGoal: builder.mutation<GoalResponse, { goalId: string; body: UpdateGoalRequest }>({
+      queryFn: ({ goalId, body }, { getState }) => {
+        if (selectIsGuest(getState() as RootState)) return toQueryFnResult(() => guestGoalsApi.update(goalId, body));
+        if (!isCurrentlyOnline()) {
+          return toQueryFnResult(async () => {
+            await enqueueOffline({ entity: 'goal', op: 'update', localId: goalId, serverId: goalId, payload: body });
+            return { ...body } as unknown as GoalResponse; // Reconciled by onQueryStarted's cache patch below.
+          });
+        }
+        return toQueryFnResult(() => goalsHttp.update(goalId, body));
+      },
+      onQueryStarted: async ({ goalId, body }, { dispatch, queryFulfilled, getState }) => {
+        try {
+          await queryFulfilled;
+          if (!isStillQueued(goalId)) return;
+
+          dispatch(goalsApiSlice.util.updateQueryData('getGoal', goalId, (draft) => Object.assign(draft, body)));
+          forEachCachedQueryArgs(getState(), 'listGoals', (args) => {
+            dispatch(
+              goalsApiSlice.util.updateQueryData('listGoals', args as GoalListQuery, (draft) => {
+                const item = draft.find((candidate) => candidate.id === goalId);
+                if (item) Object.assign(item, body);
+              }),
+            );
+          });
+        } catch {
+          // Nothing was applied to the cache yet — nothing to undo.
+        }
+      },
+      invalidatesTags: (_result, _error, { goalId }) => (isStillQueued(goalId) ? [] : GOAL_TAGS),
+    }),
+    /** Contributions are kept (§13.5): they record money that really was set aside. */
+    cancelGoal: builder.mutation<void, string>({
+      queryFn: (goalId, { getState }) => {
+        if (selectIsGuest(getState() as RootState)) return toQueryFnResult(() => guestGoalsApi.cancel(goalId));
+        if (!isCurrentlyOnline()) {
+          return toQueryFnResult(async () => {
+            await enqueueOffline({ entity: 'goal', op: 'cancel', localId: goalId, serverId: goalId, payload: {} });
+          });
+        }
+        return toQueryFnResult(() => goalsHttp.cancel(goalId));
+      },
+      onQueryStarted: async (goalId, { dispatch, queryFulfilled, getState }) => {
+        try {
+          await queryFulfilled;
+          if (!isStillQueued(goalId)) return;
+
+          dispatch(goalsApiSlice.util.updateQueryData('getGoal', goalId, (draft) => {
+            draft.status = GoalStatus.CANCELLED;
+          }));
+          forEachCachedQueryArgs(getState(), 'listGoals', (args) => {
+            const query = args as GoalListQuery;
+            dispatch(
+              goalsApiSlice.util.updateQueryData('listGoals', query, (draft) => {
+                const index = draft.findIndex((candidate) => candidate.id === goalId);
+                if (index === -1) return;
+                // A list filtered to another status no longer contains it.
+                if (query.status !== undefined && query.status !== GoalStatus.CANCELLED) draft.splice(index, 1);
+                else draft[index]!.status = GoalStatus.CANCELLED;
+              }),
+            );
+          });
+        } catch {
+          // Nothing was applied to the cache yet — nothing to undo.
+        }
+      },
+      invalidatesTags: (_result, _error, goalId) => (isStillQueued(goalId) ? [] : GOAL_TAGS),
+    }),
     addContribution: builder.mutation<ContributionResponse, { goalId: string; body: CreateContributionRequest }>({
       queryFn: ({ goalId, body }, { getState }) => {
         const state = getState() as RootState;
@@ -166,6 +237,19 @@ export const goalsApiSlice = apiSlice.injectEndpoints({
       },
       invalidatesTags: (result) => (result && isStillQueued(result.id) ? [] : CONTRIBUTION_TAGS),
     }),
+    /**
+     * Online or guest only — the offline queue doesn't carry removals. A transaction-backed one also
+     * marks its expense DELETED (§13.8), so balances and budgets move too.
+     */
+    removeContribution: builder.mutation<void, { goalId: string; contributionId: string }>({
+      queryFn: ({ goalId, contributionId }, { getState }) => {
+        if (selectIsGuest(getState() as RootState)) {
+          return toQueryFnResult(() => guestGoalsApi.removeContribution(goalId, contributionId));
+        }
+        return toQueryFnResult(() => goalsHttp.removeContribution(goalId, contributionId));
+      },
+      invalidatesTags: CONTRIBUTION_TAGS,
+    }),
   }),
   overrideExisting: __DEV__,
 });
@@ -175,5 +259,8 @@ export const {
   useGetGoalQuery,
   useListGoalContributionsInfiniteQuery,
   useCreateGoalMutation,
+  useUpdateGoalMutation,
+  useCancelGoalMutation,
   useAddContributionMutation,
+  useRemoveContributionMutation,
 } = goalsApiSlice;

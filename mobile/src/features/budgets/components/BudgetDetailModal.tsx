@@ -1,17 +1,15 @@
 import { useState } from 'react';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Archive, Save } from 'lucide-react-native';
 
 import { BudgetStatus } from '@sora/contracts';
-import { BottomSheetModal, Button, Card, ConfirmDialog, Input, KeyboardDockProvider, Money, MoneyInput, ProgressBar, Skeleton, StateView, Text } from '@/components';
+import { BottomSheetModal, Card, Money, ProgressBar, Skeleton, StateView, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
-import {
-  useArchiveBudgetMutation,
-  useGetBudgetQuery,
-  useUpdateBudgetMutation,
-} from '@/app/store';
-import { isNetworkError, messageOf } from '@/utils';
+import { useGetBudgetQuery } from '@/app/store';
+import { isNetworkError } from '@/utils';
+import { ArchiveBudgetDialog } from './ArchiveBudgetDialog.tsx';
+import { BudgetEditCard } from './BudgetEditCard.tsx';
+
 export interface BudgetDetailModalProps {
   budgetId: string | null;
   onClose: () => void;
@@ -51,41 +49,10 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
   const { permissions, isLoading: walletsLoading } = useWallets();
 
   const budget = useGetBudgetQuery(budgetId as string, { skip: !budgetId });
-  const [updateBudget, { isLoading: isSaving }] = useUpdateBudgetMutation();
-  const [archiveBudget] = useArchiveBudgetMutation();
 
-  const [name, setName] = useState<string | null>(null);
-  const [amount, setAmount] = useState<string | null>(null);
   const [archiving, setArchiving] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  async function handleSave(current: { name: string; amount: string }) {
-    setActionError(null);
-    const nameValue = name ?? current.name;
-    const amountValue = amount ?? current.amount;
-    try {
-      await updateBudget({
-        budgetId: budgetId as string,
-        body: {
-          ...(nameValue !== current.name ? { name: nameValue } : {}),
-          ...(amountValue !== current.amount ? { amount: amountValue } : {}),
-        },
-      }).unwrap();
-    } catch (error) {
-      setActionError(messageOf(error, t));
-    }
-  }
-
-  async function handleConfirmArchive() {
-    setActionError(null);
-    try {
-      await archiveBudget(budgetId as string).unwrap();
-      setArchiving(false);
-      onClose();
-    } catch (error) {
-      setActionError(messageOf(error, t));
-    }
-  }
+  // Tagged with its budget: the sheet stays mounted, and one budget's failure must not show on the next.
+  const [archiveError, setArchiveError] = useState<{ budgetId: string; message: string } | null>(null);
 
   const renderContent = () => {
     if (budget.isLoading || walletsLoading) return <BudgetDetailSkeleton />;
@@ -99,16 +66,13 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
     }
 
     const canEdit = permissions.canWrite && data.status === BudgetStatus.ACTIVE;
-    const nameValue = name ?? data.name;
-    const amountValue = amount ?? data.amount;
-    const isDirty = nameValue !== data.name || amountValue !== data.amount;
 
     return (
       <>
         <Card>
           <Text variant="title">{data.name}</Text>
           <Text tone="muted" style={{ marginBottom: theme.spacing.sm }}>
-            {data.category?.name ?? t('budgets.overall', { defaultValue: 'Overall' })} Â· {data.startDate} to {data.endDate}
+            {data.category?.name ?? t('budgets.overall', { defaultValue: 'Overall' })} · {t('budgets.dateRange', { start: data.startDate, end: data.endDate })}
           </Text>
 
           <ProgressBar percentage={data.usagePercentage} danger={data.isOverBudget} height={12} />
@@ -143,38 +107,15 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
         </Card>
 
         {canEdit ? (
-          <Card style={{ gap: theme.spacing.sm }}>
-            <Text variant="label" tone="muted">
-              {t('budgets.editBudget', 'Edit budget')}
-            </Text>
-            <Input testID="input-budget-name" label={t('categories.name', 'Name')} value={nameValue} onChangeText={setName} />
-            <MoneyInput
-              testID="input-budget-amount"
-              label={t('transactions.amount', 'Amount')}
-              value={amountValue}
-              onChangeValue={setAmount}
-            />
-
-            {actionError !== null ? <Text tone="danger">{actionError}</Text> : null}
-
-            <Button
-              testID="btn-submit-budget"
-              label={t('common.save', 'Save')}
-              icon={Save}
-              onPress={() => void handleSave(data)}
-              loading={isSaving}
-              disabled={!isDirty}
-              fullWidth
-            />
-            <Button
-              testID="btn-archive-budget"
-              label={t('budgets.archiveBudget', 'Archive budget')}
-              icon={Archive}
-              variant="danger"
-              onPress={() => setArchiving(true)}
-              fullWidth
-            />
-          </Card>
+          <BudgetEditCard
+            key={data.id}
+            budget={data}
+            archiveError={archiveError?.budgetId === data.id ? archiveError.message : null}
+            onArchive={() => {
+              setArchiveError(null);
+              setArchiving(true);
+            }}
+          />
         ) : null}
       </>
     );
@@ -187,21 +128,26 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
       title={t('budgets.detailTitle', 'Budget detail')}
       testID="budget-detail-modal"
     >
-      <KeyboardDockProvider>
-        <View style={{ gap: theme.spacing.md }}>
-          {renderContent()}
-
-          <ConfirmDialog
-            visible={archiving}
-            title={t('budgets.archiveConfirmTitle', 'Archive this budget?')}
-            message={t('budgets.archiveConfirmMessage', 'It stops tracking new spending. Past figures stay visible.')}
-            confirmLabel={t('common.archive', 'Archive')}
-            destructive
-            onConfirm={() => void handleConfirmArchive()}
-            onCancel={() => setArchiving(false)}
-          />
-        </View>
-      </KeyboardDockProvider>
+      {/* Scrolls so Save stays reachable above the docked amount keypad. */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.md }}
+      >
+        {renderContent()}
+      </ScrollView>
+      <ArchiveBudgetDialog
+        budgetId={archiving ? budgetId : null}
+        onCancel={() => setArchiving(false)}
+        onArchived={() => {
+          setArchiving(false);
+          onClose();
+        }}
+        onError={(message) => {
+          setArchiving(false);
+          if (budgetId !== null) setArchiveError({ budgetId, message });
+        }}
+      />
     </BottomSheetModal>
   );
 }

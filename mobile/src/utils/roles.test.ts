@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 import { WALLET_ROLES, type WalletRole } from '@sora/contracts';
 
-import { canTransferBetween, getRoleLabel, permissionsFor } from './roles.ts';
+import { canManageMember, canTransferBetween, getRoleLabel, permissionsFor, permissionsForWallet } from './roles.ts';
 
 describe('permissionsFor', () => {
   it('grants each role exactly its own tier and everything below it', () => {
@@ -43,5 +43,43 @@ describe('getRoleLabel', () => {
   it('uses the translation when one exists and the English label when t echoes the key back', () => {
     assert.equal(getRoleLabel('EDITOR', (key) => (key === 'roles.editor' ? 'Người chỉnh sửa' : key)), 'Người chỉnh sửa');
     assert.equal(getRoleLabel('OWNER', (key) => key), 'Owner');
+  });
+});
+
+describe('permissionsForWallet', () => {
+  const wallets = [
+    { id: 'own', role: 'OWNER' as WalletRole },
+    { id: 'shared', role: 'VIEWER' as WalletRole },
+  ];
+
+  it("uses the named wallet's role, not another one in the list", () => {
+    assert.equal(permissionsForWallet(wallets, 'shared').canWrite, false);
+    assert.equal(permissionsForWallet(wallets, 'own').canWrite, true);
+  });
+
+  it('grants nothing for a wallet missing from the list', () => {
+    assert.deepEqual(permissionsForWallet(wallets, 'gone'), { canRead: false, canWrite: false, canAdminister: false });
+  });
+});
+
+describe('canManageMember', () => {
+  const editor = { userId: 'u-2', role: 'EDITOR' as WalletRole };
+
+  it('lets an owner manage another non-owner member', () => {
+    assert.equal(canManageMember('OWNER', editor, 'u-1'), true);
+  });
+
+  it('never offers the viewer their own row', () => {
+    assert.equal(canManageMember('OWNER', { userId: 'u-1', role: 'EDITOR' }, 'u-1'), false);
+  });
+
+  it("never offers the owner's row", () => {
+    assert.equal(canManageMember('OWNER', { userId: 'u-3', role: 'OWNER' }, 'u-1'), false);
+  });
+
+  it('refuses an editor or viewer, and an unknown role', () => {
+    assert.equal(canManageMember('EDITOR', editor, 'u-1'), false);
+    assert.equal(canManageMember('VIEWER', editor, 'u-1'), false);
+    assert.equal(canManageMember(null, editor, 'u-1'), false);
   });
 });

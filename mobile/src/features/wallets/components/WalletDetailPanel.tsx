@@ -4,8 +4,8 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AccountStatus, WalletRole, type AccountResponse } from '@sora/contracts';
 
-import { Card, ConfirmDialog, Money, Skeleton, StateView, Text } from '@/components';
-import { useAuth, useTheme } from '@/app/providers';
+import { Card, closeOpenSwipeRow, ConfirmDialog, Money, Skeleton, StateView, SwipeableRow, Text } from '@/components';
+import { useAuth, useTheme, useToast } from '@/app/providers';
 import {
   useArchiveWalletMutation,
   useGetWalletQuery,
@@ -13,7 +13,9 @@ import {
   useListAccountsQuery,
   useListMembersQuery,
 } from '@/app/store';
+import { accountSwipeActions, ArchiveAccountDialog } from '@/features/accounts';
 import { getRoleLabel, isNetworkError, messageOf, permissionsFor } from '@/utils';
+import { WalletEditCard } from './WalletEditCard.tsx';
 
 type PendingAction = 'leave' | 'archive' | null;
 
@@ -38,6 +40,7 @@ export function WalletDetailPanel({
   const theme = useTheme();
   const { t } = useTranslation();
   const { isGuest } = useAuth();
+  const { showToast } = useToast();
 
   const wallet = useGetWalletQuery(walletId);
   const accounts = useListAccountsQuery({ walletId, status: AccountStatus.ACTIVE });
@@ -48,6 +51,7 @@ export function WalletDetailPanel({
 
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [archivingAccountId, setArchivingAccountId] = useState<string | null>(null);
 
   async function handleConfirmAction() {
     setActionError(null);
@@ -156,7 +160,18 @@ export function WalletDetailPanel({
           />
         ) : (
           (accounts.data ?? []).map((account) => (
-            <AccountItem key={account.id} account={account} onPress={() => onOpenAccount(account.id)} />
+            <SwipeableRow
+              key={account.id}
+              radius={theme.radius.lg}
+              onActivate={() => onOpenAccount(account.id)}
+              actions={
+                permissions.canWrite
+                  ? accountSwipeActions(t, { onOpen: () => onOpenAccount(account.id), onArchive: () => setArchivingAccountId(account.id) })
+                  : []
+              }
+            >
+              <AccountItem account={account} onPress={() => onOpenAccount(account.id)} />
+            </SwipeableRow>
           ))
         )}
 
@@ -173,6 +188,8 @@ export function WalletDetailPanel({
             ))}
           </View>
         ) : null}
+
+        {canShare ? <WalletEditCard key={data.id} wallet={data} /> : null}
 
         {canLeave || canShare ? (
           <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
@@ -219,6 +236,8 @@ export function WalletDetailPanel({
       <ScrollView
         testID="wallet-detail"
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        onScrollBeginDrag={closeOpenSwipeRow}
         contentContainerStyle={{ gap: theme.spacing.md, paddingBottom: theme.spacing.md }}
       >
         {renderContent()}
@@ -232,6 +251,15 @@ export function WalletDetailPanel({
         destructive
         onConfirm={() => void handleConfirmAction()}
         onCancel={() => setPendingAction(null)}
+      />
+      <ArchiveAccountDialog
+        accountId={archivingAccountId}
+        onCancel={() => setArchivingAccountId(null)}
+        onArchived={() => setArchivingAccountId(null)}
+        onError={(message) => {
+          setArchivingAccountId(null);
+          showToast(message, 'error');
+        }}
       />
     </>
   );

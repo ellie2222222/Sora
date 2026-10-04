@@ -22,7 +22,7 @@ function recordingApis(): { apis: AdapterApis; calls: Call[] } {
     transactions: { create: method('transactions.create', { id: 'srv-tx' }), update: method('transactions.update'), delete: method('transactions.delete') },
     accounts: { create: method('accounts.create', { id: 'srv-acc' }), update: method('accounts.update'), archive: method('accounts.archive') },
     budgets: { create: method('budgets.create', { id: 'srv-bud' }), update: method('budgets.update'), archive: method('budgets.archive') },
-    goals: { create: method('goals.create', { id: 'srv-goal' }), cancel: method('goals.cancel'), addContribution: method('goals.addContribution', { id: 'srv-con' }) },
+    goals: { create: method('goals.create', { id: 'srv-goal' }), update: method('goals.update'), cancel: method('goals.cancel'), addContribution: method('goals.addContribution', { id: 'srv-con' }) },
     categories: {
       create: method('categories.create', { id: 'srv-cat' }),
       update: method('categories.update'),
@@ -128,9 +128,11 @@ describe('buildEntityAdapters — archive-style entities', () => {
     }
   });
 
-  it('rejects a goal update, which no UI flow queues', async () => {
-    await assert.rejects(buildEntityAdapters(recordingApis().apis).goal.update('g-1', {}, 'k'), {
-      message: 'entityAdapters: goal update is not wired to any UI flow yet',
-    });
+  it('forwards a queued goal edit to goals.update with its idempotency key', async () => {
+    const { apis, calls } = recordingApis();
+
+    await buildEntityAdapters(apis).goal.update('g-1', { name: 'Trip' }, 'k-u');
+
+    assert.deepEqual(calls, [{ api: 'goals.update', args: ['g-1', { name: 'Trip' }, 'k-u'] }]);
   });
 });

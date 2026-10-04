@@ -1,12 +1,13 @@
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Plus, UsersRound, Wallet } from 'lucide-react-native';
+import { Archive, Check, ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus, UsersRound, Wallet } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
-import type { WalletResponse } from '@sora/contracts';
+import { WalletRole, type WalletResponse } from '@sora/contracts';
 
-import { BottomSheetModal, Button, Text } from '@/components';
-import { useAuth, useTheme, useWallets } from '@/app/providers';
+import { BottomSheetModal, Button, closeOpenSwipeRow, MutationConfirmDialog, SwipeableRow, Text, type SwipeRowAction } from '@/components';
+import { useAuth, useTheme, useToast, useWallets } from '@/app/providers';
+import { useArchiveWalletMutation } from '@/app/store';
 import { getRoleLabel } from '@/utils';
 import type { AppStackParamList } from '@/app/navigation';
 import { CreateWalletForm } from './CreateWalletForm.tsx';
@@ -48,6 +49,9 @@ export function WalletSwitcher() {
   const { wallets, activeWallet, setActiveWalletId, isLoading } = useWallets();
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<SheetPage>(LIST_PAGE);
+  const [archivingWalletId, setArchivingWalletId] = useState<string | null>(null);
+  const [archiveWallet] = useArchiveWalletMutation();
+  const { showToast } = useToast();
 
   const formatWalletName = (name: string) => (name === 'Guest Wallet' ? t('wallets.yourWallet') : name);
   const displayNameOf = (wallet: WalletResponse) =>
@@ -88,19 +92,48 @@ export function WalletSwitcher() {
     switch (page.kind) {
       case 'list':
         return (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: theme.spacing.xs }}>
-            {wallets.map((wallet) => (
-              <WalletRow
-                key={wallet.id}
-                wallet={wallet}
-                active={wallet.id === activeWallet?.id}
-                onPress={() => {
-                  setActiveWalletId(wallet.id);
-                  close();
-                }}
-                onOpenDetails={() => setPage({ kind: 'detail', walletId: wallet.id })}
-              />
-            ))}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            onScrollBeginDrag={closeOpenSwipeRow}
+            contentContainerStyle={{ gap: theme.spacing.xs }}
+          >
+            {wallets.map((wallet) => {
+              const openDetails = () => setPage({ kind: 'detail', walletId: wallet.id });
+              // Rename and archive are the owner's (§6.4, §6.5); guests have one fixed wallet.
+              const actions: SwipeRowAction[] =
+                wallet.role === WalletRole.OWNER && !isGuest
+                  ? [
+                      { key: 'edit', label: t('common.edit'), icon: Pencil, tone: 'primary', onPress: openDetails, testID: 'btn-edit-wallet' },
+                      {
+                        key: 'archive',
+                        label: t('common.archive'),
+                        icon: Archive,
+                        tone: 'danger',
+                        onPress: () => setArchivingWalletId(wallet.id),
+                        testID: 'btn-archive-wallet',
+                      },
+                    ]
+                  : [];
+              return (
+                <SwipeableRow
+                  key={wallet.id}
+                  backgroundColor={theme.colors.surfaceElevated}
+                  radius={theme.radius.md}
+                  onActivate={openDetails}
+                  actions={actions}
+                >
+                  <WalletRow
+                    wallet={wallet}
+                    active={wallet.id === activeWallet?.id}
+                    onPress={() => {
+                      setActiveWalletId(wallet.id);
+                      close();
+                    }}
+                    onOpenDetails={openDetails}
+                  />
+                </SwipeableRow>
+              );
+            })}
           </ScrollView>
         );
       case 'create':
@@ -191,6 +224,19 @@ export function WalletSwitcher() {
         </View>
 
         {renderPage()}
+        <MutationConfirmDialog
+          visible={archivingWalletId !== null}
+          title={t('wallets.archiveConfirmTitle')}
+          message={t('wallets.archiveConfirmBody')}
+          confirmLabel={t('wallets.archiveWallet')}
+          run={() => archiveWallet(archivingWalletId!).unwrap()}
+          onCancel={() => setArchivingWalletId(null)}
+          onDone={() => setArchivingWalletId(null)}
+          onError={(message) => {
+            setArchivingWalletId(null);
+            showToast(message, 'error');
+          }}
+        />
       </BottomSheetModal>
     </>
   );

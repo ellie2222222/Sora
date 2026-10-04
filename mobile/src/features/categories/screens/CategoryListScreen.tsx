@@ -9,7 +9,7 @@ import {
   type CategoryResponse,
 } from "@sora/contracts";
 
-import { BottomSheetModal, Button, Input, ListItemEnter, Skeleton, StateView, SyncStatusDot, Text } from '@/components';
+import { BottomSheetModal, Button, closeOpenSwipeRow, Input, ListItemEnter, Skeleton, StateView, SwipeableRow, SyncStatusDot, Text } from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
 import { selectQueueEntryFor, useArchiveCategoryMutation, useCreateCategoryMutation, useDeleteCategoryPermanentlyMutation, useListCategoriesQuery, useUpdateCategoryMutation } from '@/app/store';
 import { isNetworkError, messageOf } from '@/utils';
@@ -24,8 +24,7 @@ export function CategoryListScreen({
   const { activeWallet, permissions, isLoading: walletsLoading } = useWallets();
   const walletId = route.params?.walletId ?? activeWallet?.id;
   const [creating, setCreating] = useState(false);
-  const [deletingCategory, setDeletingCategory] =
-    useState<CategoryResponse | null>(null);
+  const [managing, setManaging] = useState<{ category: CategoryResponse; mode: CategoryDialogMode } | null>(null);
 
   const expense = useListCategoriesQuery({
     walletId: walletId ?? "",
@@ -63,7 +62,7 @@ export function CategoryListScreen({
             </View>
           ) : null}
 
-          {['categories.expenseCategories', 'categories.incomeCategories', 'categories.transferCategories'].map((titleKey, sectionIndex) => (
+          {['categories.expenseCategories', 'categories.incomeCategories', 'categories.transferCategories'].map((titleKey) => (
             <View key={titleKey}>
               <Text variant="label" tone="muted" style={{ marginBottom: theme.spacing.xs }}>
                 {t(titleKey)}
@@ -93,6 +92,7 @@ export function CategoryListScreen({
         data={sections}
         keyExtractor={(section) => section.title}
         contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
+        onScrollBeginDrag={closeOpenSwipeRow}
         ListHeaderComponent={
           permissions.canWrite ? (
             <Button label={t('categories.newCategory')} icon={Plus} size="sm" onPress={() => setCreating(true)} style={{ marginBottom: theme.spacing.sm }} />
@@ -108,11 +108,23 @@ export function CategoryListScreen({
             ) : (
               section.data.map((category) => (
                 <ListItemEnter key={category.id}>
-                  <CategoryItem
-                    category={category}
-                    canDelete={permissions.canWrite}
-                    onDelete={() => setDeletingCategory(category)}
-                  />
+                  <SwipeableRow
+                    backgroundColor={theme.colors.background}
+                    actions={
+                      permissions.canWrite
+                        ? [
+                            { key: 'edit', label: t('common.edit'), icon: Pencil, tone: 'primary', onPress: () => setManaging({ category, mode: 'rename' }), testID: 'btn-edit-category' },
+                            { key: 'delete', label: t('common.delete'), icon: Trash2, tone: 'danger', onPress: () => setManaging({ category, mode: 'choose' }), testID: 'btn-delete-category' },
+                          ]
+                        : []
+                    }
+                  >
+                    <CategoryItem
+                      category={category}
+                      canDelete={permissions.canWrite}
+                      onDelete={() => setManaging({ category, mode: 'choose' })}
+                    />
+                  </SwipeableRow>
                 </ListItemEnter>
               ))
             )}
@@ -128,7 +140,11 @@ export function CategoryListScreen({
       {walletId !== undefined ? (
         <AddCategoryModal visible={creating} walletId={walletId} onClose={() => setCreating(false)} />
       ) : null}
-      <CategoryDeleteDialog category={deletingCategory} onClose={() => setDeletingCategory(null)} />
+      <CategoryManageDialog
+        category={managing?.category ?? null}
+        initialMode={managing?.mode ?? 'choose'}
+        onClose={() => setManaging(null)}
+      />
     </>
   );
 }
@@ -282,12 +298,17 @@ export function CategoryListScreen({
     );
   }
 
+  type CategoryDialogMode = "choose" | "rename";
+
   /** API spec §10.4. */
-  function CategoryDeleteDialog({
+  function CategoryManageDialog({
     category,
+    initialMode,
     onClose,
   }: {
     category: CategoryResponse | null;
+    /** `rename` when opened from a row's Edit action: Cancel then closes instead of backing out to the chooser. */
+    initialMode: CategoryDialogMode;
     onClose: () => void;
   }) {
     const theme = useTheme();
@@ -298,15 +319,15 @@ export function CategoryListScreen({
       useArchiveCategoryMutation();
     const [deleteCategory, { isLoading: isDeleting }] =
       useDeleteCategoryPermanentlyMutation();
-    const [mode, setMode] = useState<"choose" | "rename">("choose");
+    const [mode, setMode] = useState<CategoryDialogMode>(initialMode);
     const [name, setName] = useState("");
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-      setMode("choose");
+      setMode(initialMode);
       setName(category?.name ?? "");
       setError(null);
-    }, [category]);
+    }, [category, initialMode]);
 
     const unused = category?.transactionCount === 0;
 
@@ -371,7 +392,7 @@ export function CategoryListScreen({
               <Button
                 label={t("common.cancel")}
                 variant="secondary"
-                onPress={() => setMode("choose")}
+                onPress={() => (initialMode === "rename" ? onClose() : setMode("choose"))}
                 style={{ flex: 1 }}
               />
               <Button

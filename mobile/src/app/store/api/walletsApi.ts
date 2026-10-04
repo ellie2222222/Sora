@@ -1,4 +1,4 @@
-import type { CreateWalletRequest, WalletResponse } from '@sora/contracts';
+import type { CreateWalletRequest, UpdateWalletRequest, WalletResponse } from '@sora/contracts';
 
 import { walletsApi as walletsHttp, type WalletListQuery } from '@/services/api';
 import { guestWalletsApi } from '@/services/guest';
@@ -11,7 +11,7 @@ import { readGuestOrApi } from './guestFallback.ts';
 export type { WalletListQuery } from '@/services/api';
 
 /**
- * Create and archive stay on the real API with no guest branch: guest mode is
+ * Create, update and archive stay on the real API with no guest branch: guest mode is
  * single-wallet by scope decision, so the screens that reach them are hidden
  * when `isGuest` rather than given a local implementation.
  */
@@ -51,6 +51,10 @@ export const walletsApiSlice = apiSlice.injectEndpoints({
       queryFn: (body) => toQueryFnResult(() => walletsHttp.create(body)),
       invalidatesTags: ['Wallet'],
     }),
+    updateWallet: builder.mutation<WalletResponse, { walletId: string; body: UpdateWalletRequest }>({
+      queryFn: ({ walletId, body }) => toQueryFnResult(() => walletsHttp.update(walletId, body)),
+      invalidatesTags: ['Wallet'],
+    }),
     archiveWallet: builder.mutation<void, string>({
       queryFn: (walletId) => toQueryFnResult(() => walletsHttp.archive(walletId)),
       invalidatesTags: ['Wallet'],
@@ -63,5 +67,6 @@ export const {
   useListWalletsQuery,
   useGetWalletQuery,
   useCreateWalletMutation,
+  useUpdateWalletMutation,
   useArchiveWalletMutation,
 } = walletsApiSlice;

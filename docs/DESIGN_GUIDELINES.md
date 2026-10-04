@@ -332,6 +332,18 @@ rounded-card wrapper. Sparse/browsable lists (menus, settings): more padding, no
 whitespace is the separator. Long lists use `FlatList`/`SectionList`, never `.map()` in a
 `ScrollView`.
 
+### Row actions (swipe)
+
+A row the caller may change wraps itself in `SwipeableRow` (`mobile/src/components/swipe/`): swipe
+left reveals its actions inside the row, primary-filled for Edit and danger-filled for the
+destructive one. Offer only what the entity actually supports, under its real name: budgets,
+accounts and wallets **Archive**, goals **Cancel**, members **Remove**, invitations **Revoke**. Pass no actions when the
+role or state forbids a write, and the row renders without a gesture. Edit opens the entity's
+existing edit flow. A destructive action always goes through a `ConfirmDialog`, and a failure is
+shown as a toast. Swipe is a shortcut and never the only way in. The same action stays reachable by
+tapping the row or its own button, and screen readers get the actions as accessibility actions.
+At most one row is open at a time. Tapping the open row or scrolling its list closes it.
+
 ### Icons
 
 `lucide-react-native` only (MB-05), one size and stroke weight per context. Use icons for

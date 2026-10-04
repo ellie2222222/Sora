@@ -1,0 +1,51 @@
+appId: com.sora.app
+name: Swiping a transaction left reveals Edit and Delete, and Delete removes it once confirmed
+tags:
+  - transactions
+---
+- runFlow: ../subflows/login.yaml
+# Unique per run, so a rerun against the same user can't match an earlier run's row.
+- evalScript: ${output.description = 'E2E swiped expense ' + Date.now()}
+- extendedWaitUntil:
+    visible:
+      id: "list-transactions"
+    timeout: 15000
+
+# Recorded through the API so this flow doesn't depend on the add sheet; a pull brings it in.
+- runScript:
+    file: ../scripts/api-login.js
+- runScript:
+    file: ../scripts/record-expense.js
+    env:
+      DESCRIPTION: ${output.description}
+- swipe:
+    start: 50%, 56%
+    end: 50%, 95%
+    duration: 800
+- extendedWaitUntil:
+    visible:
+      text: ${output.description}
+    timeout: 15000
+
+# Actions mount only on the open row, so these ids can't match a closed row's hidden buttons.
+- assertNotVisible:
+    id: "btn-delete-transaction"
+- swipe:
+    from:
+      text: ${output.description}
+    direction: LEFT
+- extendedWaitUntil:
+    visible:
+      id: "btn-delete-transaction"
+    timeout: 5000
+- assertVisible:
+    id: "btn-edit-transaction"
+
+- tapOn:
+    id: "btn-delete-transaction"
+- tapOn:
+    id: "btn-confirm-dialog"
+- extendedWaitUntil:
+    notVisible:
+      text: ${output.description}
+    timeout: 15000

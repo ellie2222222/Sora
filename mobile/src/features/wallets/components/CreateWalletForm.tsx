@@ -49,7 +49,7 @@ export function CreateWalletForm({ active, onCreated }: { active: boolean; onCre
     <View style={{ gap: theme.spacing.md }}>
       <Input
         testID="input-wallet-name"
-        label={t('categories.name', { defaultValue: 'Name' })}
+        label={t('common.name')}
         placeholder={t('wallets.walletNamePlaceholder')}
         value={name}
         onChangeText={setName}

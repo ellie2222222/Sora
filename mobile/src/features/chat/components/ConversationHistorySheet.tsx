@@ -4,7 +4,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AiConversationResponse } from '@sora/contracts';
 
-import { BottomSheetModal, Text } from '@/components';
+import { BottomSheetModal, closeOpenSwipeRow, ConfirmDialog, SwipeableRow, Text } from '@/components';
 import { useTheme } from '@/app/providers';
 import { dayOfInstant, formatDay } from '@/utils';
 
@@ -26,6 +26,7 @@ export function ConversationHistorySheet({
   const theme = useTheme();
   const { t } = useTranslation();
   const [pressedId, setPressedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   return (
     <BottomSheetModal visible={visible} onClose={onClose} title={t('ai.history')} testID="sheet-ai-conversation">
@@ -34,45 +35,68 @@ export function ConversationHistorySheet({
           {t('ai.noHistory')}
         </Text>
       ) : (
-        <ScrollView testID="list-ai-conversations" style={{ maxHeight: 420 }}>
+        <ScrollView testID="list-ai-conversations" style={{ maxHeight: 420 }} onScrollBeginDrag={closeOpenSwipeRow}>
           {conversations.map((conversation) => {
             const active = conversation.id === activeConversationId;
             return (
-              <View key={conversation.id} className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-                <Pressable
-                  testID={`row-ai-conversation-${conversation.id}`}
-                  onPress={() => onOpen(conversation.id)}
-                  onPressIn={() => setPressedId(conversation.id)}
-                  onPressOut={() => setPressedId(null)}
-                  style={{
-                    flex: 1,
-                    paddingVertical: theme.spacing.sm,
-                    paddingHorizontal: theme.spacing.sm,
-                    borderRadius: theme.radius.md,
-                    backgroundColor: active || pressedId === conversation.id ? theme.colors.surfaceMuted : 'transparent',
-                  }}
-                >
-                  <Text weight={active ? 'semibold' : 'regular'} numberOfLines={1}>
-                    {conversation.title}
-                  </Text>
-                  <Text variant="caption" tone="faint">
-                    {formatDay(dayOfInstant(conversation.updatedAt))}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  testID={`btn-delete-ai-conversation-${conversation.id}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('ai.deleteChat')}
-                  hitSlop={10}
-                  onPress={() => onDelete(conversation.id)}
-                >
-                  <Trash2 size={18} color={theme.colors.textFaint} />
-                </Pressable>
-              </View>
+              <SwipeableRow
+                key={conversation.id}
+                backgroundColor={theme.colors.surfaceElevated}
+                radius={theme.radius.md}
+                onActivate={() => onOpen(conversation.id)}
+                actions={[
+                  { key: 'delete', label: t('common.delete'), icon: Trash2, tone: 'danger', onPress: () => setDeletingId(conversation.id), testID: 'btn-delete-ai-conversation' },
+                ]}
+              >
+                <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
+                  <Pressable
+                    testID={`row-ai-conversation-${conversation.id}`}
+                    onPress={() => onOpen(conversation.id)}
+                    onPressIn={() => setPressedId(conversation.id)}
+                    onPressOut={() => setPressedId(null)}
+                    style={{
+                      flex: 1,
+                      paddingVertical: theme.spacing.sm,
+                      paddingHorizontal: theme.spacing.sm,
+                      borderRadius: theme.radius.md,
+                      backgroundColor: active || pressedId === conversation.id ? theme.colors.surfaceMuted : 'transparent',
+                    }}
+                  >
+                    <Text weight={active ? 'semibold' : 'regular'} numberOfLines={1}>
+                      {conversation.title}
+                    </Text>
+                    <Text variant="caption" tone="faint">
+                      {formatDay(dayOfInstant(conversation.updatedAt))}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    testID={`btn-delete-ai-conversation-${conversation.id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('ai.deleteChat')}
+                    hitSlop={10}
+                    onPress={() => setDeletingId(conversation.id)}
+                  >
+                    <Trash2 size={18} color={theme.colors.textFaint} />
+                  </Pressable>
+                </View>
+              </SwipeableRow>
             );
           })}
         </ScrollView>
       )}
+      <ConfirmDialog
+        visible={deletingId !== null}
+        title={t('ai.deleteChatTitle')}
+        message={t('ai.deleteChatMessage')}
+        confirmLabel={t('common.delete')}
+        destructive
+        onConfirm={() => {
+          const id = deletingId;
+          setDeletingId(null);
+          if (id !== null) onDelete(id);
+        }}
+        onCancel={() => setDeletingId(null)}
+      />
     </BottomSheetModal>
   );
 }

@@ -37,6 +37,11 @@ const en = {
     archived: 'Archived',
     backspace: 'Backspace',
     clearDate: 'Clear date',
+    edit: 'Edit',
+    delete: 'Delete',
+    remove: 'Remove',
+    revoke: 'Revoke',
+    name: 'Name',
   },
   nav: {
     home: 'Home',
@@ -78,6 +83,8 @@ const en = {
     toast: {
       recorded: 'Transaction recorded',
     },
+    deleteChatTitle: 'Delete this chat?',
+    deleteChatMessage: 'This chat and its messages are deleted.',
   },
   planning: {
     budgets: 'Budgets',
@@ -187,6 +194,11 @@ const en = {
     viewTransactions_other: 'View {{count}} transactions →',
     namePlaceholder: 'e.g. Vietcombank VND',
     accountNotFound: 'Account not found',
+    editAccount: 'Edit account',
+    archiveAccount: 'Archive account',
+    archiveConfirmTitle: 'Archive this account?',
+    archiveConfirmMessage: 'It leaves the account pickers. Its transactions and history stay.',
+    currencyLocked: "Currency can't change once something is recorded in this account.",
   },
   guest: {
     settings: {
@@ -271,6 +283,7 @@ const en = {
     endDate: 'End date',
     endBeforeStartError: 'End date cannot be before start date.',
     budgetNotFound: 'Budget not found',
+    dateRange: '{{start}} to {{end}}',
   },
   goals: {
     newGoal: 'New goal',
@@ -290,6 +303,17 @@ const en = {
     detailTitle: 'Goal',
     validAmountError: 'Enter a valid amount greater than zero.',
     goalNotFound: 'Goal not found',
+    editGoal: 'Edit goal',
+    description: 'Description',
+    cancelGoal: 'Cancel goal',
+    cancelGoalShort: 'Cancel',
+    keepGoal: 'Keep goal',
+    cancelConfirmTitle: 'Cancel this goal?',
+    cancelConfirmMessage: 'It stops tracking progress. Contributions already made stay recorded.',
+    removeContributionTitle: 'Delete this contribution?',
+    removeContributionBacked: "The expense recorded with it is deleted too, so the account's balance goes back up.",
+    removeContributionEarmark: "The goal's progress goes down by this amount. No money moves.",
+    deleteContribution: 'Delete contribution',
   },
   dashboard: {
     allAccounts: 'All accounts',
@@ -352,6 +376,7 @@ const en = {
     selectWalletFirst: 'Select a wallet first',
     walletNotFound: 'Wallet not found',
     walletDetails: 'Wallet details',
+    editWallet: 'Edit wallet',
     unavailableTitle: "Can't load your wallets",
     unavailableMessage: "Sora can't be reached right now. Your wallets will appear once you're back online.",
   },
@@ -369,6 +394,10 @@ const en = {
     pendingInvitations: 'Pending invitations',
     you: ' (you)',
     expires: 'expires {{date}}',
+    removeTitle: 'Remove this member?',
+    removeMessage: '{{name}} loses access to this wallet. Their past transactions stay.',
+    revokeTitle: 'Revoke this invitation?',
+    revokeMessage: '{{email}} can no longer join with this invitation.',
   },
   roles: {
     owner: 'Owner',
@@ -521,6 +550,10 @@ const en = {
     contributionAdded: 'Contribution added',
     invitationSent: 'Invitation sent',
     dismissHint: 'Double tap to dismiss',
+    budgetUpdated: 'Budget updated',
+    goalUpdated: 'Goal updated',
+    accountUpdated: 'Account updated',
+    walletUpdated: 'Wallet updated',
   },
 };
 

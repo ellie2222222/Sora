@@ -35,6 +35,11 @@ const vi: TranslationResource = {
     archived: 'Đã lưu trữ',
     backspace: 'Xóa lùi',
     clearDate: 'Xóa ngày',
+    edit: 'Sửa',
+    delete: 'Xóa',
+    remove: 'Gỡ',
+    revoke: 'Thu hồi',
+    name: 'Tên',
   },
   nav: {
     home: 'Trang chủ',
@@ -76,6 +81,8 @@ const vi: TranslationResource = {
     toast: {
       recorded: 'Đã ghi giao dịch',
     },
+    deleteChatTitle: 'Xóa cuộc trò chuyện này?',
+    deleteChatMessage: 'Cuộc trò chuyện và các tin nhắn của nó sẽ bị xóa.',
   },
   planning: {
     budgets: 'Ngân sách',
@@ -185,6 +192,11 @@ const vi: TranslationResource = {
     viewTransactions_other: 'Xem {{count}} giao dịch →',
     namePlaceholder: 'vd: Vietcombank VND',
     accountNotFound: 'Không tìm thấy tài khoản',
+    editAccount: 'Chỉnh sửa tài khoản',
+    archiveAccount: 'Lưu trữ tài khoản',
+    archiveConfirmTitle: 'Lưu trữ tài khoản này?',
+    archiveConfirmMessage: 'Tài khoản sẽ không còn trong danh sách chọn. Các giao dịch và lịch sử vẫn được giữ.',
+    currencyLocked: 'Không thể đổi tiền tệ khi tài khoản đã có ghi nhận.',
   },
   guest: {
     settings: {
@@ -269,6 +281,7 @@ const vi: TranslationResource = {
     endDate: 'Ngày kết thúc',
     endBeforeStartError: 'Ngày kết thúc không được trước ngày bắt đầu.',
     budgetNotFound: 'Không tìm thấy ngân sách',
+    dateRange: '{{start}} đến {{end}}',
   },
   dashboard: {
     allAccounts: 'Tất cả tài khoản',
@@ -330,6 +343,17 @@ const vi: TranslationResource = {
     detailTitle: 'Mục tiêu',
     validAmountError: 'Nhập số tiền hợp lệ lớn hơn 0.',
     goalNotFound: 'Không tìm thấy mục tiêu',
+    editGoal: 'Chỉnh sửa mục tiêu',
+    description: 'Mô tả',
+    cancelGoal: 'Hủy mục tiêu',
+    cancelGoalShort: 'Hủy',
+    keepGoal: 'Giữ mục tiêu',
+    cancelConfirmTitle: 'Hủy mục tiêu này?',
+    cancelConfirmMessage: 'Mục tiêu sẽ ngừng theo dõi tiến độ. Các khoản đã góp vẫn được ghi lại.',
+    removeContributionTitle: 'Xóa khoản góp này?',
+    removeContributionBacked: 'Khoản chi được ghi cùng nó cũng bị xóa, nên số dư tài khoản sẽ tăng lại.',
+    removeContributionEarmark: 'Tiến độ mục tiêu sẽ giảm đi khoản này. Không có tiền nào bị chuyển.',
+    deleteContribution: 'Xóa khoản góp',
   },
   wallets: {
     title: 'Ví',
@@ -350,6 +374,7 @@ const vi: TranslationResource = {
     selectWalletFirst: 'Hãy chọn một ví trước',
     walletNotFound: 'Không tìm thấy ví',
     walletDetails: 'Chi tiết ví',
+    editWallet: 'Sửa ví',
     unavailableTitle: 'Không thể tải ví của bạn',
     unavailableMessage: 'Hiện không kết nối được với Sora. Ví của bạn sẽ hiển thị khi có mạng trở lại.',
   },
@@ -367,6 +392,10 @@ const vi: TranslationResource = {
     pendingInvitations: 'Lời mời đang chờ',
     you: ' (bạn)',
     expires: 'hết hạn {{date}}',
+    removeTitle: 'Gỡ thành viên này?',
+    removeMessage: '{{name}} sẽ mất quyền truy cập ví này. Các giao dịch trước đây của họ vẫn được giữ.',
+    revokeTitle: 'Thu hồi lời mời này?',
+    revokeMessage: '{{email}} sẽ không thể tham gia bằng lời mời này nữa.',
   },
   roles: {
     owner: 'Chủ sở hữu',
@@ -519,6 +548,10 @@ const vi: TranslationResource = {
     contributionAdded: 'Đã thêm khoản đóng góp',
     invitationSent: 'Đã gửi lời mời',
     dismissHint: 'Nhấn đúp để đóng',
+    budgetUpdated: 'Đã cập nhật ngân sách',
+    goalUpdated: 'Đã cập nhật mục tiêu',
+    accountUpdated: 'Đã cập nhật tài khoản',
+    walletUpdated: 'Đã cập nhật ví',
   },
 };
 

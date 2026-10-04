@@ -44,7 +44,7 @@ export interface AdapterApis {
   transactions: Pick<typeof transactionsApi, 'create' | 'update' | 'delete'>;
   accounts: Pick<typeof accountsApi, 'create' | 'update' | 'archive'>;
   budgets: Pick<typeof budgetsApi, 'create' | 'update' | 'archive'>;
-  goals: Pick<typeof goalsApi, 'create' | 'cancel' | 'addContribution'>;
+  goals: Pick<typeof goalsApi, 'create' | 'update' | 'cancel' | 'addContribution'>;
   categories: Pick<typeof categoriesApi, 'create' | 'update' | 'archive' | 'deletePermanently'>;
 }
 
@@ -106,8 +106,8 @@ export function buildEntityAdapters(apis: AdapterApis): EntityAdapters {
       async create(payload, key) {
         return apis.goals.create(payload as CreateGoalRequest, key);
       },
-      async update() {
-        throw new Error('entityAdapters: goal update is not wired to any UI flow yet');
+      async update(id, payload, key) {
+        await apis.goals.update(id, payload as UpdateGoalRequest, key);
       },
       async cancelOrArchive(id, _payload, key) {
         await apis.goals.cancel(id, key);

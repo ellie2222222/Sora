@@ -9,7 +9,7 @@
 
 1. Every balance equals opening amount + completed money in − completed money out, to the last of 4 decimals.
 2. Transfers are reported apart from income and expense on the account detail.
-3. Currency, type and opening amount can't change after creation; archiving keeps history and blocks new entries.
+3. Type and opening amount can't change after creation, and currency only while nothing is recorded in the account; archiving keeps history and blocks new entries.
 
 ## Test data & environment
 

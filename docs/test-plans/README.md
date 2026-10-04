@@ -10,17 +10,17 @@ tested and where. When a story changes, update its plan in the same change.
 | Plan                                                   | Stories                                    |         Cases |       Covered |      Partial |          Gap | Pending spec |
 | ------------------------------------------------------ | ------------------------------------------ | ------------: | ------------: | -----------: | -----------: | -----------: |
 | [Authentication &amp; session](auth.md)                 | AUTH-US-01..04                             |            30 |            30 |            0 |            0 |            0 |
-| [Wallets, members &amp; invitations](wallets.md)        | WAL-US-01..13                              |            36 |            36 |            0 |            0 |            0 |
+| [Wallets, members &amp; invitations](wallets.md)        | WAL-US-01..13                              |            37 |            37 |            0 |            0 |            0 |
 | [Accounts](accounts.md)                                 | ACC-US-01..05                              |            19 |            19 |            0 |            0 |            0 |
-| [Transactions](transactions.md)                         | TXN-US-01..08                              |            34 |            34 |            0 |            0 |            0 |
+| [Transactions](transactions.md)                         | TXN-US-01..08                              |            35 |            34 |            0 |            1 |            0 |
 | [Categories](categories.md)                             | CAT-US-01..04                              |            19 |            19 |            0 |            0 |            0 |
 | [Budgets](budgets.md)                                   | BUD-US-01..04                              |            20 |            20 |            0 |            0 |            0 |
-| [Saving goals](goals.md)                                | SAV-US-01..06                              |            23 |            23 |            0 |            0 |            0 |
+| [Saving goals](goals.md)                                | SAV-US-01..06                              |            24 |            24 |            0 |            0 |            0 |
 | [Dashboard &amp; exchange rates](dashboard.md)          | DASH-US-01..04                             |            22 |            22 |            0 |            0 |            0 |
 | [Guest mode](guest.md)                                  | GST-US-01..02                              |            18 |            15 |            1 |            2 |            0 |
 | [AI assistant](ai.md)                                   | AI-US-01..03                               |            13 |            12 |            1 |            0 |            0 |
 | [Offline sync (mobile, cross-cutting)](offline-sync.md) | — (`plans/mobile/offline-sync-plan.md`) |            20 |            19 |            0 |            1 |            0 |
-| **Total**                                        |                                            | **255** | **249** |  **3** |  **3** |  **0** |
+| **Total**                                        |                                            | **257** | **251** |  **2** |  **4** |  **0** |
 
 Counts are as of 2026-10-03 (`verifications/2026-10-03-backend-audit-followups.md`).
 

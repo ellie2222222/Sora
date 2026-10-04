@@ -45,6 +45,26 @@ export function canTransferBetween(
   return canWrite(fromRole) && canWrite(toRole);
 }
 
+/** Permissions on one wallet out of the caller's list, e.g. an account's own wallet rather than the active one. */
+export function permissionsForWallet(
+  wallets: readonly { id: string; role: WalletRole | null }[],
+  walletId: string,
+): WalletPermissions {
+  return permissionsFor(wallets.find((wallet) => wallet.id === walletId)?.role ?? null);
+}
+
+/**
+ * Whether the viewer may change this member's role or remove them: owners manage others' access,
+ * but never their own row nor the owner's (ownership moves only by transfer).
+ */
+export function canManageMember(
+  viewerRole: WalletRole | null,
+  member: { userId: string; role: WalletRole },
+  viewerUserId: string | undefined,
+): boolean {
+  return canAdminister(viewerRole) && member.userId !== viewerUserId && member.role !== WalletRole.OWNER;
+}
+
 export const ROLE_LABELS: Record<WalletRole, string> = {
   [WalletRole.OWNER]: 'Owner',
   [WalletRole.EDITOR]: 'Editor',

@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AccountStatus } from '@sora/contracts';
 
 import { Card, Money, Skeleton, StateView, Text } from '@/components';
-import { useTheme } from '@/app/providers';
+import { useTheme, useToast, useWallets } from '@/app/providers';
 import { useGetAccountQuery } from '@/app/store';
-import { isNetworkError } from '@/utils';
+import { isNetworkError, permissionsForWallet } from '@/utils';
 import type { AppStackScreenProps } from '@/app/navigation';
+import { AccountEditCard } from '../components/AccountEditCard.tsx';
+import { ArchiveAccountDialog } from '../components/ArchiveAccountDialog.tsx';
 
 function AccountDetailSkeleton() {
   const theme = useTheme();
@@ -58,6 +61,9 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
   const theme = useTheme();
   const { t } = useTranslation();
   const { accountId } = route.params;
+  const { wallets } = useWallets();
+  const { showToast } = useToast();
+  const [archiving, setArchiving] = useState(false);
 
   const account = useGetAccountQuery(accountId);
 
@@ -90,6 +96,8 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
 
   const data = account.data;
   if (data === undefined) return null;
+  // The account's own wallet decides, not the active one: this screen opens from any wallet's sheet.
+  const canWrite = permissionsForWallet(wallets, data.walletId).canWrite;
 
   const renderContent = () => {
     if (data.status === AccountStatus.ARCHIVED) {
@@ -145,14 +153,30 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
         >
           {t('accounts.viewTransactions', { count: data.transactionCount, defaultValue: `View ${data.transactionCount} transactions ->` })}
         </Text>
+
+        {canWrite ? <AccountEditCard key={data.id} account={data} onArchive={() => setArchiving(true)} /> : null}
       </>
     );
   };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
-      {renderContent()}
-    </ScrollView>
+    <>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
+        {renderContent()}
+      </ScrollView>
+      <ArchiveAccountDialog
+        accountId={archiving ? accountId : null}
+        onCancel={() => setArchiving(false)}
+        onArchived={() => {
+          setArchiving(false);
+          navigation.goBack();
+        }}
+        onError={(message) => {
+          setArchiving(false);
+          showToast(message, 'error');
+        }}
+      />
+    </>
   );
 }
 

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Receipt } from 'lucide-react-native';
-import { Platform, Pressable, ScrollView, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { TransactionStatus, TransactionType, type TransactionResponse } from '@sora/contracts';
 
 import {
   AnimatedScreen,
+  closeOpenSwipeRow,
   DatePickerModal,
   DateStrip,
   Fab,
@@ -13,18 +14,17 @@ import {
   PeriodBar,
   PeriodSummaryCard,
   RefreshableSectionList,
-  SkeletonList,
   SlideSwap,
   StateView,
   Text,
   TransactionDayHeader,
   TransactionListItem,
-  TransactionItemSkeleton,
 } from '@/components';
-import { useAuth, useModal, useTheme, useWallets } from '@/app/providers';
+import { useAuth, useModal, useTheme, useToast, useWallets } from '@/app/providers';
 import { useListTransactionsInfiniteQuery } from '@/app/store';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { useWarmAddTransactionReads } from '../hooks/useWarmAddTransactionReads.ts';
+import { DeleteTransactionDialog } from './DeleteTransactionDialog.tsx';
 import { TransactionDetailModal } from './TransactionDetailModal';
 import { TransactionListSkeleton } from './TransactionListSkeleton';
 import {
@@ -71,13 +71,15 @@ export function TransactionListScreen({
   const theme = useTheme();
   const { t } = useTranslation();
   const { isGuest } = useAuth();
-  const { activeWalletId, isLoading: walletsLoading } = useWallets();
+  const { activeWalletId, isLoading: walletsLoading, permissions } = useWallets();
   const { openModal } = useModal();
+  const { showToast } = useToast();
 
   const [period, setPeriod] = useState<DashboardPeriod>('monthly');
   const [selectedDay, setSelectedDay] = useState<CalendarDay>(today());
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionResponse | null>(null);
+  const [deletingTransaction, setDeletingTransaction] = useState<TransactionResponse | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterType, setFilterType] = useState<'ALL' | TransactionType>('ALL');
 
@@ -158,6 +160,11 @@ export function TransactionListScreen({
   }, [items, hasMorePages, period]);
 
   const handlePressTransaction = useCallback((transaction: TransactionResponse) => setSelectedTransaction(transaction), []);
+  const handleEditTransaction = useCallback(
+    (transaction: TransactionResponse) => openModal('EditTransaction', { transactionId: transaction.id }),
+    [openModal],
+  );
+  const handleDeleteTransaction = useCallback((transaction: TransactionResponse) => setDeletingTransaction(transaction), []);
   const handleEndReached = () => {
     if (canLoadMore(transactions)) void transactions.fetchNextPage();
   };
@@ -224,7 +231,15 @@ export function TransactionListScreen({
             />
           </View>
         )}
-        renderItem={({ item }) => <TransactionListItem transaction={item} onPress={handlePressTransaction} />}
+        renderItem={({ item }) => (
+          <TransactionListItem
+            transaction={item}
+            onPress={handlePressTransaction}
+            onEdit={permissions.canWrite ? handleEditTransaction : undefined}
+            onDelete={permissions.canWrite ? handleDeleteTransaction : undefined}
+          />
+        )}
+        onScrollBeginDrag={closeOpenSwipeRow}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
@@ -375,7 +390,16 @@ export function TransactionListScreen({
           visible={Boolean(selectedTransaction)}
           transaction={selectedTransaction}
           onClose={() => setSelectedTransaction(null)}
-          onEdit={(t) => openModal('EditTransaction', { transactionId: t.id })}
+          onEdit={handleEditTransaction}
+        />
+        <DeleteTransactionDialog
+          transaction={deletingTransaction}
+          onCancel={() => setDeletingTransaction(null)}
+          onDeleted={() => setDeletingTransaction(null)}
+          onError={(message) => {
+            setDeletingTransaction(null);
+            showToast(message, 'error');
+          }}
         />
       </WalletContextBar>
     </AnimatedScreen>

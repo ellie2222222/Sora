@@ -125,11 +125,18 @@ export const budgetsApiSlice = apiSlice.injectEndpoints({
           if (!isStillQueued(budgetId)) return;
 
           const rootState = getState();
+          dispatch(budgetsApiSlice.util.updateQueryData('getBudget', budgetId, (draft) => {
+            draft.status = BudgetStatus.ARCHIVED;
+          }));
           forEachCachedQueryArgs(rootState, 'listBudgets', (args) => {
+            const query = args as BudgetListQuery;
             dispatch(
-              budgetsApiSlice.util.updateQueryData('listBudgets', args as BudgetListQuery, (draft) => {
-                const item = draft.find((candidate) => candidate.id === budgetId);
-                if (item) item.status = BudgetStatus.ARCHIVED;
+              budgetsApiSlice.util.updateQueryData('listBudgets', query, (draft) => {
+                const index = draft.findIndex((candidate) => candidate.id === budgetId);
+                if (index === -1) return;
+                // A list filtered to ACTIVE (Planning) no longer contains it.
+                if (query.status === BudgetStatus.ACTIVE) draft.splice(index, 1);
+                else draft[index]!.status = BudgetStatus.ARCHIVED;
               }),
             );
           });

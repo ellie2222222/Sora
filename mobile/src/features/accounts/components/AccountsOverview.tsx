@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Landmark, Plus } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 import { useSelector } from 'react-redux';
@@ -15,11 +16,13 @@ import {
   type AccountResponse,
 } from '@sora/contracts';
 
-import { ListItemEnter, Money, Skeleton, StateView, SyncStatusDot, Text } from '@/components';
-import { useModal, useTheme } from '@/app/providers';
+import { ListItemEnter, Money, Skeleton, StateView, SwipeableRow, SyncStatusDot, Text } from '@/components';
+import { useModal, useTheme, useToast } from '@/app/providers';
 import { selectQueueEntryFor, useListAccountsQuery } from '@/app/store';
 import { isNetworkError, sumScaledByKey } from '@/utils';
 import { ACCOUNT_ICON, ACCOUNT_TYPE_LABEL_KEY } from './AccountPicker.tsx';
+import { accountSwipeActions } from './accountSwipeActions.ts';
+import { ArchiveAccountDialog } from './ArchiveAccountDialog.tsx';
 
 /** A wallet's accounts with its net worth, and the entry point for adding one. */
 export function AccountsOverview({
@@ -34,7 +37,9 @@ export function AccountsOverview({
   const theme = useTheme();
   const { t } = useTranslation();
   const { openModal } = useModal();
+  const { showToast } = useToast();
   const accounts = useListAccountsQuery({ walletId, status: AccountStatus.ACTIVE });
+  const [archivingId, setArchivingId] = useState<string | null>(null);
 
   if (accounts.isLoading) {
     return (
@@ -156,12 +161,31 @@ export function AccountsOverview({
           {items.map((account, index) => (
             <View key={account.id} style={index === 0 ? undefined : { borderTopWidth: 1, borderTopColor: theme.colors.border }}>
               <ListItemEnter>
-                <AccountItem account={account} onPress={() => onOpenAccount(account.id)} />
+                <SwipeableRow
+                  backgroundColor={theme.colors.background}
+                  onActivate={() => onOpenAccount(account.id)}
+                  actions={
+                    canWrite
+                      ? accountSwipeActions(t, { onOpen: () => onOpenAccount(account.id), onArchive: () => setArchivingId(account.id) })
+                      : []
+                  }
+                >
+                  <AccountItem account={account} onPress={() => onOpenAccount(account.id)} />
+                </SwipeableRow>
               </ListItemEnter>
             </View>
           ))}
         </View>
       </View>
+      <ArchiveAccountDialog
+        accountId={archivingId}
+        onCancel={() => setArchivingId(null)}
+        onArchived={() => setArchivingId(null)}
+        onError={(message) => {
+          setArchivingId(null);
+          showToast(message, 'error');
+        }}
+      />
     </View>
   );
 }

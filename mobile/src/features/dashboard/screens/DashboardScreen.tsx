@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 
-import { AnimatedScreen, PeriodBar, RefreshableScrollView, Skeleton, Text } from '@/components';
+import { AnimatedScreen, closeOpenSwipeRow, PeriodBar, RefreshableScrollView, Skeleton, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { ChevronRight } from 'lucide-react-native';
 import { AccountsOverview } from '@/features/accounts';
@@ -58,6 +58,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
       <WalletContextBar>
         <RefreshableScrollView
           testID="screen-dashboard"
+          onScrollBeginDrag={closeOpenSwipeRow}
           // flexGrow lets an empty state centre itself in the leftover height; with
           // real content to scroll it has no effect.
           contentContainerStyle={{ flexGrow: 1, padding: theme.spacing.md, gap: theme.spacing.lg }}
