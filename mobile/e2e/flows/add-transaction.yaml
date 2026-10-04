@@ -6,8 +6,13 @@ tags:
 - runFlow: ../subflows/login.yaml
 # Unique per run, so a rerun against the same user can't match an earlier run's row.
 - evalScript: ${output.description = 'E2E sheet expense ' + Date.now()}
+# Either Create: the floating one appears only once the list has rows.
+- extendedWaitUntil:
+    visible:
+      id: "btn-add-transaction|home-empty-action"
+    timeout: 15000
 - tapOn:
-    id: "btn-add-transaction"
+    id: "btn-add-transaction|home-empty-action"
 - extendedWaitUntil:
     visible:
       id: "sheet-transaction"

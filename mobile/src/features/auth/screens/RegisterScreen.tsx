@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View, type TextInput } from 'react-native';
 
 import { UserPlus } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +30,9 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
     resolver: zodResolver(registerSchema),
     defaultValues: { email: '', password: '', displayName: '', baseCurrency: 'VND' },
   });
+
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitError(null);
@@ -70,6 +73,9 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
               <Input
                 testID="input-register-name"
                 label={t('auth.displayNameLabel')}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => emailRef.current?.focus()}
                 value={field.value}
                 onChangeText={field.onChange}
                 error={errors.displayName?.message}
@@ -82,11 +88,15 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
             name="email"
             render={({ field }) => (
               <Input
+                ref={emailRef}
                 testID="input-register-email"
                 label={t('auth.emailLabel')}
                 autoCapitalize="none"
                 autoComplete="email"
                 keyboardType="email-address"
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => passwordRef.current?.focus()}
                 value={field.value}
                 onChangeText={field.onChange}
                 error={errors.email?.message}
@@ -99,6 +109,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
             name="password"
             render={({ field }) => (
               <Input
+                ref={passwordRef}
                 testID="input-register-password"
                 label={t('auth.passwordLabel')}
                 secureTextEntry

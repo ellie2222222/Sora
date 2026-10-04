@@ -2,20 +2,13 @@
 appId: com.sora.app
 ---
 # An empty list offers its own Create button; the floating one appears only once there are rows.
-- runFlow:
-    when:
-      visible:
-        id: "btn-add-transaction"
-    commands:
-      - tapOn:
-          id: "btn-add-transaction"
-- runFlow:
-    when:
-      visible:
-        id: "home-empty-action"
-    commands:
-      - tapOn:
-          id: "home-empty-action"
+# The list may still be loading, so wait for either before tapping.
+- extendedWaitUntil:
+    visible:
+      id: "btn-add-transaction|home-empty-action"
+    timeout: 15000
+- tapOn:
+    id: "btn-add-transaction|home-empty-action"
 - extendedWaitUntil:
     visible:
       id: "sheet-transaction"

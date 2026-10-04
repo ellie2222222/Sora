@@ -119,7 +119,12 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
 
     if (!result.ok) {
       const next: Record<string, string> = {};
-      for (const issue of result.issues) next[issue.path] = issue.message;
+      for (const issue of result.issues) {
+        // An unpicked account fails as Zod's raw "Expected string, received null".
+        const unpickedAccount =
+          (issue.path === 'fromAccountId' || issue.path === 'toAccountId') && withAmount[issue.path] === null;
+        next[issue.path] = unpickedAccount ? t('accounts.selectAccount') : issue.message;
+      }
       setFieldErrors(next);
       return;
     }

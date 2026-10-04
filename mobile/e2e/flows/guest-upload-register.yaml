@@ -21,11 +21,10 @@ tags:
 - tapOn:
     id: "input-register-name"
 - inputText: "probe-e2e-register"
-- tapOn:
-    id: "input-register-email"
+# Enter is each field's Next key, so focus moves without a tap a popup over the field could catch.
+- pressKey: Enter
 - inputText: ${output.userEmail}
-- tapOn:
-    id: "input-register-password"
+- pressKey: Enter
 - inputText: ${output.userPassword}
 # Not hideKeyboard: Back could pop this screen; Enter only closes the keyboard.
 - pressKey: Enter
