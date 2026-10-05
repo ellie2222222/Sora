@@ -57,6 +57,9 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-sora}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-sora_dev}
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+      DATABASE_STATEMENT_TIMEOUT_MS: ${DATABASE_STATEMENT_TIMEOUT_MS:-15000}
+      DATABASE_CONNECTION_TIMEOUT_MS: ${DATABASE_CONNECTION_TIMEOUT_MS:-5000}
+      DATABASE_IDLE_TIMEOUT_MS: ${DATABASE_IDLE_TIMEOUT_MS:-30000}
       PORT: 3000
       NODE_ENV: production
       # Not defaulted or required here: server/src/config/env.ts already refuses to

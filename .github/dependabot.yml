@@ -16,6 +16,26 @@ updates:
       # Expo SDK and React Native versions move together; bump them with `npx expo install --fix`.
       - dependency-name: react-native
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      # Native modules pinned by the Expo SDK: a bump past its pin builds but breaks at runtime.
+      - dependency-name: 'expo*'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: react-native-screens
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: react-native-reanimated
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: react-native-worklets
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: react-native-gesture-handler
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: react-native-safe-area-context
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: react-native-svg
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: '@react-native-community/netinfo'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      # NativeWind v4 is built and tested against tailwindcss 3.
+      - dependency-name: tailwindcss
+        versions: ['>= 4']
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -11,3 +11,10 @@ mobile/.export
 .env
 .env.*
 !.env.example
+.codegraph
+webpage
+.claude
+.agents
+verifications
+plans
+mobile/android

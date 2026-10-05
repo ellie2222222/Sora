@@ -5,19 +5,24 @@ on:
     branches: [main]
   pull_request:
 
+# A superseded PR push is noise; a main push is the record of what landed, so it runs to completion.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 env:
   NODE_VERSION: '22'
 
 jobs:
-  # The shared contract is checked on its own and first: server and mobile depend on
-  # it, so a break here reports as one clear failure rather than a cascade in both.
+  # The shared contract is its own job: server and mobile depend on it, so a break
+  # here reports as one clear failure rather than a cascade in both.
   contracts:
     name: Contracts (types, tests, parity)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -44,6 +49,21 @@ jobs:
       - name: Agent skill copies in sync
         run: node scripts/sync-agent-skills.mjs --check
 
+  # Nothing needs this job: a new advisory upstream must not stop the test jobs from reporting.
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
       # High, not moderate: the remaining moderates are expo's `uuid` chain, whose only npm fix is an Expo downgrade.
       - name: Dependency audit (runtime deps)
         run: node scripts/audit-runtime-deps.mjs
@@ -51,6 +71,7 @@ jobs:
   database:
     name: Database (migrations, constraints)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     services:
       postgres:
@@ -93,6 +114,7 @@ jobs:
   server:
     name: Server (types, tests)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # A server that passes against a schema whose own probes fail has proven nothing.
     needs: [contracts, database]
 
@@ -140,6 +162,7 @@ jobs:
   mobile:
     name: Mobile (types, tests, bundle)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: contracts
 
     steps:

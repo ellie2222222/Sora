@@ -4,6 +4,9 @@
 
 FROM node:22-alpine AS manifests
 WORKDIR /repo
+# argon2 falls back to compiling from source when no prebuilt binary matches
+# this musl-based image; the toolchain only exists in these discarded stages.
+RUN apk add --no-cache python3 make g++
 # mobile/package.json is copied only so npm can resolve the workspaces list in
 # the root package.json; --workspace below still keeps its dependency tree out
 # of this image entirely.
@@ -11,9 +14,6 @@ COPY package.json package-lock.json ./
 COPY server/package.json ./server/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY mobile/package.json ./mobile/package.json
-# argon2 falls back to compiling from source when no prebuilt binary matches
-# this musl-based image; the toolchain only exists in these discarded stages.
-RUN apk add --no-cache python3 make g++
 
 FROM manifests AS deps
 RUN npm ci --workspace=@sora/server --workspace=@sora/contracts --include-workspace-root
