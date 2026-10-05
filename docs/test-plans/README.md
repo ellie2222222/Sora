@@ -12,27 +12,23 @@ tested and where. When a story changes, update its plan in the same change.
 | [Authentication &amp; session](auth.md)                 | AUTH-US-01..04                             |            30 |            30 |            0 |            0 |            0 |
 | [Wallets, members &amp; invitations](wallets.md)        | WAL-US-01..13                              |            37 |            37 |            0 |            0 |            0 |
 | [Accounts](accounts.md)                                 | ACC-US-01..05                              |            19 |            19 |            0 |            0 |            0 |
-| [Transactions](transactions.md)                         | TXN-US-01..08                              |            35 |            34 |            0 |            1 |            0 |
+| [Transactions](transactions.md)                         | TXN-US-01..08                              |            35 |            35 |            0 |            0 |            0 |
 | [Categories](categories.md)                             | CAT-US-01..04                              |            19 |            19 |            0 |            0 |            0 |
 | [Budgets](budgets.md)                                   | BUD-US-01..04                              |            20 |            20 |            0 |            0 |            0 |
 | [Saving goals](goals.md)                                | SAV-US-01..06                              |            24 |            24 |            0 |            0 |            0 |
 | [Dashboard &amp; exchange rates](dashboard.md)          | DASH-US-01..04                             |            22 |            22 |            0 |            0 |            0 |
-| [Guest mode](guest.md)                                  | GST-US-01..02                              |            18 |            15 |            1 |            2 |            0 |
+| [Guest mode](guest.md)                                  | GST-US-01..02                              |            18 |            17 |            1 |            0 |            0 |
 | [AI assistant](ai.md)                                   | AI-US-01..03                               |            13 |            12 |            1 |            0 |            0 |
-| [Offline sync (mobile, cross-cutting)](offline-sync.md) | — (`plans/mobile/offline-sync-plan.md`) |            20 |            19 |            0 |            1 |            0 |
-| **Total**                                        |                                            | **257** | **251** |  **2** |  **4** |  **0** |
+| [Offline sync (mobile, cross-cutting)](offline-sync.md) | — (`plans/mobile/offline-sync-plan.md`) |            20 |            20 |            0 |            0 |            0 |
+| **Total**                                        |                                            | **257** | **255** |  **2** |  **0** |  **0** |
 
-Counts are as of 2026-10-03 (`verifications/2026-10-03-backend-audit-followups.md`).
+Counts are as of 2026-10-04 (`verifications/2026-10-04-e2e-cases-covered.md`).
 
 ## Where to start
 
-The open cases, in order of risk. All need a device or an emulator; none is a known defect.
+The open cases. Neither is a known defect.
 
-1. [ ] No device-level test of going offline and syncing ([offline-sync.md](offline-sync.md) TC-SYNC-20).
-2. [ ] Guest sign-up with existing data — choose the wallet, finish or decline ([guest.md](guest.md) TC-GST-18) — and relaunching as a guest (TC-GST-09).
-3. [ ] The per-endpoint guest routing in `app/store/api/*Api.ts` ([guest.md](guest.md) TC-GST-08) and the guest sign-in prompt in the assistant tab ([ai.md](ai.md) TC-AI-12) are render or slice code that bare-node tests cannot load.
-
-E2E itself is failing in CI on `main` in its "Run flows" step, from before this work (see `verifications/2026-10-02-test-suite-audit.md`). Fix that first, or new flows will fail with it.
+1. [ ] The per-endpoint guest routing in `app/store/api/*Api.ts` ([guest.md](guest.md) TC-GST-08) and the guest sign-in prompt in the assistant tab ([ai.md](ai.md) TC-AI-12) are render or slice code that bare-node tests cannot load.
 
 ## Test layers
 

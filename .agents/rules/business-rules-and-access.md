@@ -14,7 +14,7 @@ One canonical term per concept across code, SQL, API, and UI:
 | **Member** | Participant, Collaborator | A `wallet_members` record: another real user holding `OWNER`, `EDITOR`, or `VIEWER` on a wallet, plus a `relationLabel`. |
 | **Account** | Sub-wallet | Where a wallet's money sits (e.g. Cash, Vietcombank, MoMo). Belongs to exactly one wallet. |
 | **Transaction** | Entry, Record | `INCOME`, `EXPENSE`, `TRANSFER`. Hangs off accounts, never directly off a wallet. |
-| **Budget** | Limit, Allowance | Planned spend limit for one category over one date range. |
+| **Budget** | Limit, Allowance | Planned spend limit for one category, one goal, or the whole wallet over one date range. |
 | **Saving Goal** | Target, Objective | Target amount, optional deadline, funded by contributions. |
 
 ---
@@ -42,7 +42,7 @@ One canonical term per concept across code, SQL, API, and UI:
 ### BR-05 — Derived Values are Never Stored
 - Account balances, wallet totals, budget spend/remaining/usage, and saving goal progress are **computed dynamically from ledger transactions on every read**.
 - There is no `spent_amount` or `cached_balance` column in the database.
-- The single source of truth for derivation math is [`packages/contracts/src/calc.ts`](file:///d:/Code/sora/packages/contracts/src/calc.ts).
+- The single source of truth for derivation math is [`packages/contracts/src/calc.ts`](../../packages/contracts/src/calc.ts).
 
 ### BR-06 — Transfers are Neither Income nor Expense
 - Transfers are strictly excluded from `income`, `expense`, `spendingByCategory`, and budget `spent`.
@@ -64,7 +64,7 @@ One canonical term per concept across code, SQL, API, and UI:
 
 ## Access Control
 
-Role comparison is performed per wallet using `roleSatisfies()` from [`packages/contracts/src/enums.ts`](file:///d:/Code/sora/packages/contracts/src/enums.ts):
+Role comparison is performed per wallet using `roleSatisfies()` from [`packages/contracts/src/enums.ts`](../../packages/contracts/src/enums.ts):
 
 | Role | Permissions |
 |---|---|

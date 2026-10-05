@@ -61,25 +61,33 @@ When requirements or documentation disagree, authority is strictly prioritized (
 ## Project Structure & Architecture
 
 ```text
-finance/
+sora/
 ├── packages/contracts/        # @sora/contracts — Shared source of truth (Zod, enums, money, routes)
-│   └── src/                   # enums.ts, money.ts, calc.ts, schemas.ts, responses.ts, routes.ts
-├── server/                    # @sora/server — NestJS 11 ESM, Kysely typed SQL, pg
-│   └── src/                   # auth/, wallets/, accounts/, categories/, transactions/, budgets/, goals/
+│   └── src/                   # enums.ts, money.ts, calc.ts, schemas.ts, responses.ts, routes.ts, starter-categories.ts
+├── server/                    # @sora/server — NestJS 12 ESM, Kysely typed SQL, pg; Dockerfile (optional image)
+│   └── src/                   # auth/, wallets/, accounts/, categories/, transactions/, budgets/, goals/, dashboard/,
+│                              # audit/, ai/, exchange-rate/, health/, config/, database/, common/
 ├── mobile/                    # @sora/mobile — Expo React Native, Redux Toolkit + RTK Query
 │   ├── e2e/                   # Maestro flows + API seed; app.config.js turns GWP-ASan off and adds the E2E build switch
-│   └── src/                   # app/, features/, components/, design-system/, services/
+│   └── src/                   # app/, features/, components/, design-system/, services/ (incl. haptics/), hooks/, utils/
 ├── db/
 │   ├── migrations/            # Raw SQL forward-only migrations (immutable once applied)
 │   └── tests/                 # Constraint probes executed against real Postgres
-├── scripts/                   # check-contract-parity.mjs, migrate.mjs, sync-agent-skills.mjs, audit-runtime-deps.mjs
+├── scripts/                   # migrate.mjs (migration runner), check-contract-parity.mjs, sync-agent-skills.mjs, audit-runtime-deps.mjs
+├── docs/                      # API_SPECIFICATION.md, DESIGN_GUIDELINES.md, ERROR_CODES.md, LOCALIZED_DEFAULTS_RULE.md
+│   └── test-plans/            # Per-feature test plans: SRS §9 story → test case → test file:line
+├── plans/                     # architecture/ and mobile/ design plans
+├── webpage/                   # Parked; not part of the build, CI or compose
+├── .github/                   # workflows/ci.yml, dependabot.yml
 ├── .agents/
 │   ├── rules/                 # Topic rule files (read on trigger — see below)
 │   ├── skills/                # Codex skills: generated copy of .claude/skills — do not edit here
 │   └── skills.json            # Antigravity skill registration (.claude/skills)
 ├── .codex/                    # Codex project layer: config.toml (MCP), hooks.json, rules/
 ├── .claude/skills/            # Canonical skill sources (Claude Code, Antigravity, Codex copy)
-└── verifications/             # Audits & verification records (YYYY-MM-DD-short-slug.md)
+├── verifications/             # Audits & verification records (YYYY-MM-DD-short-slug.md)
+├── docker-compose.yml         # Optional server/ + Postgres stack
+└── CLAUDE.md  SRS.md  SDS.md  RUNBOOK.md  README.md  aif-sdlc-checklist.md
 ```
 
 > [!NOTE]
@@ -95,7 +103,7 @@ finance/
 | **Member** | Participant, Collaborator | Row in `wallet_members`: holds `OWNER`, `EDITOR`, or `VIEWER` plus `relationLabel` |
 | **Account** | Sub-wallet | Where money sits: Vietcombank, Cash, MoMo. Belongs to exactly one wallet |
 | **Transaction** | Entry, Record | `INCOME`, `EXPENSE`, `TRANSFER`. Belongs to an account, never directly to a wallet |
-| **Budget** | Limit, Allowance | Spend limit for one category over one date range |
+| **Budget** | Limit, Allowance | Spend limit for one category, one goal, or the whole wallet over one date range |
 | **Saving Goal** | Target, Objective | Target amount, optional deadline, funded by contributions |
 
 ---
@@ -106,7 +114,7 @@ Always prefer using `rtk` to prefix CLI commands to optimize token consumption (
 
 ```bash
 npm install                                    # Link all workspaces
-npm run build -w @sora/contracts            # Must build before server/mobile typecheck
+npm run build -w @sora/contracts            # Emits dist/ only; server/mobile resolve src/ via exports
 npm test                                       # Run all unit tests
 npm test -w @sora/contracts                 # Test money and calculation math
 npm test -w @sora/server                    # Asserts all routes are mounted
@@ -131,7 +139,7 @@ Codex does not auto-load [`.agents/rules/`](.agents/rules/); read the matching f
 | Running shell commands | [`antigravity-rtk-rules.md`](.agents/rules/antigravity-rtk-rules.md) — `rtk` proxy usage |
 | Any git operation, destructive command, verification pass, or final response that touched files | [`workflow-and-git.md`](.agents/rules/workflow-and-git.md) — git protocol, summary format, `verifications/` reports |
 | Touching wallets, members, transactions, budgets, goals, invitations, or authorization | [`business-rules-and-access.md`](.agents/rules/business-rules-and-access.md) — BR-01…BR-08, AC-01…AC-05 |
-| Writing API, mobile, money, migration, or test code | [`technical-standards.md`](.agents/rules/technical-standards.md) |
+| Writing API, mobile, money, migration, or test code | [`technical-standards.md`](.agents/rules/technical-standards.md); mobile UI also [`docs/DESIGN_GUIDELINES.md`](docs/DESIGN_GUIDELINES.md) (tokens only, Part 4 check) |
 | Any non-trivial change | [`bug-prevention-and-gotchas.md`](.agents/rules/bug-prevention-and-gotchas.md) — the rules learned from past bugs |
 
 ---

@@ -47,7 +47,7 @@ The product answers one question repeatedly, for one person at a time: *where di
 - Accounts: the places a wallet's money sits, each in a single currency.
 - Categories: an income/expense/transfer classification tree, per wallet.
 - Transactions: income, expense and transfer — including **transfers between two different wallets**, which is a first-class feature, not an edge case.
-- Budgets: planned spend for one category over a date window, with spend derived from history.
+- Budgets: planned spend for one category, one goal, or the whole wallet over a date window, with spend derived from history.
 - Saving goals and their contribution history.
 - A dashboard answering balance, income, expense, net and spending-by-category.
 - An append-only audit trail of financial and membership events, readable by a wallet's owner.
@@ -89,7 +89,7 @@ The product answers one question repeatedly, for one person at a time: *where di
 | **Transaction** | A recorded movement of money: income, expense, or transfer. Always a positive amount; direction comes from its type and from which account side it names. |
 | **Transfer** | A movement between two accounts, whether in the same wallet or across two wallets. **Never spending and never income.** |
 | **Cross-wallet transfer** | A transfer whose two accounts belong to different wallets — paying a partner back, or funding a parent's account. |
-| **Budget** | A planned amount for one category over one inclusive date window. |
+| **Budget** | A planned amount for one category, one goal, or the whole wallet over one inclusive date window. |
 | **Saving Goal** | A target amount, optionally with a target date, funded by contributions. |
 | **Goal Contribution** | One funding event on a goal, either an earmark or a record of money that actually left an account. |
 | **Derived value** | A figure computed from history on every read — a balance, budget spend, goal progress. Never stored, never independently editable. |
@@ -197,7 +197,7 @@ Two shapes in that diagram carry most of the model's meaning:
 | **Account** | Where money sits, in one currency. | Created by an editor; its type and opening amount are fixed for life, and its currency once anything names it; archived when closed, keeping its history and every transfer it is a side of. |
 | **Category** | An income, expense or transfer classification, optionally nested under a parent of the same wallet and the same type. | Seeded at registration, extended by editors; type and parent are fixed once transactions classify against it; archived, with its children, and cannot be archived while an active budget still plans for it. |
 | **Transaction** | A recorded movement of money: INCOME, EXPENSE or TRANSFER, always a positive amount. | Recorded by an editor; only its description, date, category and reference are ever correctable; cancelled rather than deleted, so a mistake and its correction are both visible. |
-| **Budget** | A planned amount for one category over one inclusive window. | Created by an editor; its category, window and period type are fixed, because moving a window changes which history it ever covered and is therefore a different budget; archived, which releases its slot in the no-overlap rule. |
+| **Budget** | A planned amount for one category, one goal, or the whole wallet over one inclusive window. | Created by an editor; its category, window and period type are fixed, because moving a window changes which history it ever covered and is therefore a different budget; archived, which releases its slot in the no-overlap rule. |
 | **Goal** | A savings target, optionally dated. | Created by an editor; completed when reached, or cancelled — and cancelling keeps the contributions, which record money that really was set aside. |
 | **GoalContribution** | One funding event: either an earmark, or a record of money that actually left an account. | Created by an editor; at most one contribution may point at any one transaction, so a single payment cannot be counted toward a goal twice; removed, which cancels its backing transaction rather than erasing it. |
 | **AuditLog** | Append-only record of a financial or membership event, with actor, role, target and outcome. | Written by the system, never edited or deleted, readable by the wallet's owner. |

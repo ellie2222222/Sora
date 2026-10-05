@@ -4,7 +4,7 @@
 
 Confirm behavior is specified before writing code. If a task conflicts with the specification:
 - Amend the specification in the same change. Code does not lead; specs do.
-- A change that silently diverges from [`docs/API_SPECIFICATION.md`](file:///d:/Code/sora/docs/API_SPECIFICATION.md) or [`packages/contracts/`](file:///d:/Code/sora/packages/contracts/) is considered a defect.
+- A change that silently diverges from [`docs/API_SPECIFICATION.md`](../../docs/API_SPECIFICATION.md) or [`packages/contracts/`](../../packages/contracts/) is considered a defect.
 
 ## Facts vs. Assumptions
 

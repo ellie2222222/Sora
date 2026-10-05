@@ -291,11 +291,11 @@ document restating them is how that dangling reference happened in the first pla
 
 ### Project Structure
 
-One npm monorepo. The root `package.json` links `packages/*`, `api` and `mobile` as sibling
+One npm monorepo. The root `package.json` links `packages/*`, `server` and `mobile` as sibling
 packages so `@sora/contracts` resolves from source with no publish step.
 
 ```text
-finance/
+sora/
 ├── packages/contracts/        # @sora/contracts — the shared contract (see below)
 │   ├── src/
 │   │   ├── enums.ts           # domain enums + roleSatisfies()/rankOf()
@@ -303,15 +303,18 @@ finance/
 │   │   ├── calc.ts            # every derived value (balance, spent, progress)
 │   │   ├── schemas.ts         # Zod request validation
 │   │   ├── responses.ts       # response DTOs, ERROR_CODES, ERROR_STATUS
-│   │   └── routes.ts          # ROUTES + API_PREFIX, written once
+│   │   ├── routes.ts          # ROUTES + API_PREFIX, written once
+│   │   └── starter-categories.ts  # default categories seeded into a new wallet
 │   └── test/                  # node --test, no runner dependency
-├── server/                    # @sora/server — NestJS 11, ESM, Kysely
+├── server/                    # @sora/server — NestJS 12, ESM, Kysely
+│   ├── Dockerfile             # optional image, built from the repo root
 │   ├── src/
 │   │   ├── config/            # env.ts validates every var at boot
-│   │   ├── database/          # Kysely types, pool, SQL migration runner
+│   │   ├── database/          # Kysely types, pool, pg type parsers
 │   │   ├── common/            # guards, interceptors, envelope, error mapping
 │   │   ├── auth/  wallets/  accounts/  categories/
 │   │   ├── transactions/  budgets/  goals/  dashboard/  audit/
+│   │   ├── ai/  exchange-rate/  health/
 │   │   └── main.ts
 │   └── test/                  # node --test; unit tests boot the DI graph, integration.*.test.ts also a real Postgres
 ├── mobile/                    # @sora/mobile — Expo + React Native
@@ -322,21 +325,30 @@ finance/
 │       ├── app/                # config/, i18n/, navigation/, providers/, store/ (Redux Toolkit + RTK Query)
 │       ├── features/           # one directory per domain feature, each with its own barrel
 │       ├── components/         # shared UI primitives, barrel-exported
-│       ├── design-system/      # colors, spacing, radius, shadows, theme tokens
-│       ├── services/           # api/, auth/, guest/ (local-first guest mode), storage/, sync/ (offline queue, per-account read cache)
-│       ├── stores/  hooks/  utils/  types/
+│       ├── design-system/      # colors, spacing, radius, sizes, shadows, typography tokens
+│       ├── services/           # api/, auth/, guest/ (local-first guest mode), haptics/, storage/, sync/ (offline queue, per-account read cache)
+│       └── hooks/  utils/
 ├── db/
 │   ├── migrations/            # raw SQL, forward-only, immutable once applied
 │   └── tests/                 # psql constraint probes against a real Postgres
-├── scripts/                   # check-contract-parity.mjs, migrate.mjs, sync-agent-skills.mjs, audit-runtime-deps.mjs
-├── .github/workflows/ci.yml   # contracts → database → server; contracts → mobile; server + mobile → e2e
-├── docs/API_SPECIFICATION.md
-├── docs/test-plans/           # per-feature test plans: SRS §9 story → test case → test file:line
-├── SRS.md  SDS.md
+├── scripts/                   # migrate.mjs (migration runner), check-contract-parity.mjs, sync-agent-skills.mjs, audit-runtime-deps.mjs
+├── .github/                   # workflows/ci.yml (contracts + database → server; contracts → mobile; server + mobile → e2e; audit standalone), dependabot.yml
+├── docs/
+│   ├── API_SPECIFICATION.md
+│   ├── DESIGN_GUIDELINES.md   # product principles, loading/empty/error states, visual tokens (MB-11)
+│   ├── ERROR_CODES.md  LOCALIZED_DEFAULTS_RULE.md
+│   └── test-plans/            # per-feature test plans: SRS §9 story → test case → test file:line
 ├── plans/
-│   ├── architecture/          # domain-database-design.md, multi-currency-plan.md, exchange-rate-resilience-plan.md
-│   └── mobile/                # offline-sync-plan.md (offline mutation queue), e2e-framework-decision.md
-└── aif-sdlc-checklist.md                       # per-feature pre-merge gate
+│   ├── README.md
+│   ├── architecture/          # domain-database-design.md, multi-currency-plan.md, exchange-rate-resilience-plan.md,
+│   │                          # ai-chat-assistant-plan.md, dashboard-current-state.md, dashboard-feature-roadmap.md
+│   └── mobile/                # offline-sync-plan.md (offline mutation queue), e2e-framework-decision.md, transaction-ui-plan.md
+├── verifications/             # verification/audit reports, YYYY-MM-DD-short-slug.md
+├── webpage/                   # parked; not part of the build, CI or compose
+├── .claude/skills/  .agents/  .codex/   # canonical skills; Codex/Antigravity ports (see Project Skills)
+├── docker-compose.yml         # optional server/ + Postgres stack
+├── SRS.md  SDS.md  RUNBOOK.md  AGENTS.md
+└── aif-sdlc-checklist.md      # per-feature pre-merge gate
 ```
 
 There is no `backend/` and no `frontend/`. Those were the FastAPI + Next.js implementation of
@@ -360,7 +372,7 @@ already running, or the two will collide. Debugging either container: plain
 ```bash
 npm install                                   # root; links every package
 
-npm run build -w @sora/contracts           # contracts must build before the API typechecks
+npm run build -w @sora/contracts           # emits dist/ only: server and mobile resolve its src/ via package exports
 npm test                                      # every package that defines a test script
 npm test -w @sora/contracts                # money/derivation math and schemas
 npm test -w @sora/server                   # asserts every ROUTES path is mounted
@@ -383,9 +395,10 @@ npm run build -w @sora/server && npm start -w @sora/server
 maestro test mobile/e2e -e E2E_API_BASE=… -e E2E_EMAIL=… -e E2E_PASSWORD=… -e E2E_WALLET_ID=…
 ```
 
-CI (`.github/workflows/ci.yml`) runs contracts alone first, then the migrations against a real
-PostgreSQL 17 — applied, probed, then applied **again** to prove idempotence. Server waits on both
-contracts and the database job; mobile needs only contracts and runs alongside the database job. Passing migrations only prove the DDL parses; `db/tests/*.sql` is what
+CI (`.github/workflows/ci.yml`) runs contracts and the database job in parallel; the database job
+applies the migrations against a real PostgreSQL 17, probes them, then applies them **again** to
+prove idempotence. Server waits on both; mobile needs only contracts. The dependency audit is its
+own job that nothing waits on. Passing migrations only prove the DDL parses; `db/tests/*.sql` is what
 proves the rules are enforced, which is why both run. Last, `e2e` (after server and mobile) builds
 the E2E APK and runs `mobile/e2e` on an Android emulator against the API on its own database.
 
@@ -399,9 +412,8 @@ the E2E APK and runs `mobile/e2e` on an Android emulator against the API on its 
 | API (Docker) | `http://localhost:3000` (`API_HOST_PORT`) |
 | Database (Docker) | `postgresql://<user>:<pass>@localhost:5432/<db>` (`POSTGRES_HOST_PORT`) |
 
-`.env.example` and `server/src/config/env.ts` currently disagree on several variable names
-(`API_PORT` vs `PORT`, `JWT_ACCESS_TTL` vs `ACCESS_TOKEN_TTL_SECONDS`). **`env.ts` is what is
-actually read** — it validates at boot and refuses to start on a bad value. Fix the example
+**`server/src/config/env.ts` is what is actually read** — it validates at boot and refuses to
+start on a bad value. `.env.example` mirrors its names; if the two ever disagree, fix the example
 against it, never the reverse.
 
 There is no Swagger UI: the API specification is hand-written and reviewed, because the parts
@@ -418,7 +430,7 @@ One term per concept, identical in code, SQL, API, and UI.
 | **Member** | Participant, Collaborator | A `wallet_members` row: another real user holding `OWNER`/`EDITOR`/`VIEWER` on a wallet, plus a `relationLabel` ("Girlfriend", "Mom") |
 | **Account** | Sub-wallet | Where a wallet's money sits — Vietcombank VND, Cash, MoMo, Visa. Belongs to exactly one wallet |
 | **Transaction** | Entry, Record | `INCOME`, `EXPENSE`, `TRANSFER`. Hangs off *accounts*, never off a wallet |
-| **Budget** | Limit, Allowance | Planned spend for one category over one window |
+| **Budget** | Limit, Allowance | Planned spend for one category, one goal, or the whole wallet over one window |
 | **Saving Goal** | Target, Objective | Target amount, optional deadline, funded by contributions |
 
 **Wallet and Account both exist, at different levels.** An earlier version of this file said
@@ -611,10 +623,8 @@ stack's lower screen) can share an id, so a flow checks its `screen-*` root befo
 `apiSlice` per resource, wired through a custom `axiosBaseQuery` so the bearer-attach/refresh-on-401
 axios interceptors stay the one implementation); UI-only state is plain Redux (`authSlice`,
 `offlineQueueSlice`). Do not mirror API data into a plain Redux slice — two caches of the same
-money is BR-05 repeated in the client. `zustand` is not a dependency of this app; do not add it or
-write code assuming it. `@tanstack/react-query` is present as a dependency and one `QueryClient`
-is provided app-wide, but nothing calls its `useQuery`/`useMutation` — treat it as reserved, not as
-the server-state layer, unless something actually starts populating it.
+money is BR-05 repeated in the client. Neither `zustand` nor `@tanstack/react-query` is a
+dependency of this app; do not add either or write code assuming it.
 
 **MB-03** — Forms are React Hook Form + the Zod schema from `@sora/contracts`. The app does
 not author its own validation rules.
@@ -624,8 +634,10 @@ not author its own validation rules.
 
 **MB-05** — Icons from `lucide-react-native`. No custom SVGs without a reason.
 
-**MB-06** — Dark mode is the default; light is the toggle. Colours come from design tokens, not
-literals.
+**MB-06** — Dark mode is the default; light is the toggle. Colours, and every other static design
+value (spacing, sizes, type, radius, borders, icon size and stroke, opacity, shadows), come from
+`useTheme()` tokens, not literals. What may stay literal is listed under "Design tokens" in
+`docs/DESIGN_GUIDELINES.md`; `mobile/src/design-system/tokens-usage.test.ts` enforces it.
 
 **MB-07** — Every screen handles loading, empty, error and success. An unhandled empty state is
 an incomplete screen.
@@ -708,7 +720,7 @@ restating them.
 **Shared** — `@sora/contracts`: TypeScript 6.0, Zod 3, `node --test`. No runtime dependency
 beyond Zod, so the app bundles it without pulling server code in.
 
-**API** — Node 22+, NestJS 11, TypeScript ESM (`NodeNext`, `.ts` specifiers rewritten on emit),
+**API** — Node 22.18+, NestJS 12, TypeScript ESM (`NodeNext`, `.ts` specifiers rewritten on emit),
 `kysely` + `pg` for typed SQL, raw SQL migrations, Zod validation from the shared contract,
 Argon2id password hashing, `jsonwebtoken` for HS256 access tokens (15 min) plus rotating
 refresh tokens (7 days, hashes only stored), PostgreSQL 17.
@@ -738,7 +750,7 @@ authenticates nothing while looking fine.
 `LOGIN_LOCKOUT_MINUTES` (15), `GOOGLE_CLIENT_ID`, `EXCHANGE_RATE_API_URL`,
 `EXCHANGE_RATE_TIMEOUT_SECONDS` (5), `EXCHANGE_RATE_CACHE_TTL_MINUTES` (720), `CORS_ORIGINS`
 (comma list; unset allows any origin outside production and none in it), `PORT`, `NODE_ENV`,
-`APP_VERSION`, `MIGRATIONS_DIR`.
+`APP_VERSION`.
 
 The local `.env` may still carry variables from the deleted stack (SMTP, `NEXT_PUBLIC_*`).
 Nothing reads them. Add a variable to `env.ts` first — a value present only in
@@ -786,7 +798,9 @@ and never by "everything created today".
 
 Nothing financial is hard-*removed* by design: wallets, accounts, categories and budgets are
 archived, transactions are marked `DELETED` (the row stays — only the status changes; see BR-03),
-members are revoked. Don't add a path that removes a financial row outright.
+members are revoked. The one hard delete is a category with no transactions and no budget on it
+or any descendant (`DELETE /categories/{id}?mode=permanent`, spec §10.4) — nothing derived reads
+it. Don't add a path that removes a financial row outright.
 
 ### Security Requirements
 

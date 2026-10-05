@@ -64,14 +64,14 @@ One npm monorepo; the root `package.json` links the packages below as siblings, 
 packages/contracts/   @sora/contracts — enums, Zod schemas, response types,
                       error codes, route paths, and all money/derivation math.
                       Imported by both sides; redefined by neither.
-server/               NestJS 11 + Kysely + pg. TypeScript ESM.
+server/               NestJS 12 + Kysely + pg. TypeScript ESM.
 mobile/               Expo + React Native, React Navigation, Redux Toolkit + RTK Query.
                       mobile/e2e/ holds the Maestro journeys.
 db/migrations/        Raw SQL, forward-only, immutable once applied.
 db/tests/             psql probes proving the constraints reject what they should.
 docs/API_SPECIFICATION.md   The authoritative 52-endpoint contract.
 scripts/check-contract-parity.mjs   Proves contract ↔ schema ↔ spec agreement.
-.github/workflows/ci.yml    Contracts → database → server; contracts → mobile; then e2e.
+.github/workflows/ci.yml    Contracts + database → server; contracts → mobile; then e2e.
 ```
 
 Design and requirements: [`SRS.md`](SRS.md) (what the system does and why), [`SDS.md`](SDS.md)
@@ -81,7 +81,7 @@ and schema rationale). Conventions and rules: [`CLAUDE.md`](CLAUDE.md).
 
 ## Setup
 
-Requirements: **Node 22+**, **PostgreSQL 17** running locally. No container runtime is required —
+Requirements: **Node 22.18+**, **PostgreSQL 17** running locally. No container runtime is required —
 see [Docker](#docker) for the optional containerized `server/` + Postgres path.
 
 Already have Postgres running and `.env` filled in? `npm run setup` does steps 1, 4 and 5 below
@@ -153,9 +153,14 @@ npm run dev:mobile                 # or: npm start -w @sora/mobile / cd mobile &
 npm run dev:mobile:clear           # same, with Metro's cache cleared — use when the bundle serves stale code
 ```
 
-Set `EXPO_PUBLIC_API_URL` to a host **the device** can reach. On a physical phone `localhost`
+Set `EXPO_PUBLIC_API_BASE_URL` to a host **the device** can reach. On a physical phone `localhost`
 resolves to the phone itself, so it must be your machine's LAN address; the API's
 `CORS_ORIGINS` needs to allow the Expo dev origin in return.
+
+For `a` (open on Android) to boot an emulator by itself, set `ANDROID_HOME` to the SDK, e.g.
+`%LOCALAPPDATA%\Android\Sdk` on Windows, then open a new terminal. Expo finds the emulator only
+through `ANDROID_HOME` or an `emulator` on `PATH`. Without either it reports "No Android connected
+device found" even when an emulator exists.
 
 **Both at once**, from the repo root:
 
@@ -194,11 +199,12 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/tests/001_constraints.sql
 These live in the database because the API will not be the only writer, and a rule enforced
 only in a service layer is one import script away from being bypassed.
 
-CI runs the same things: contracts first and alone (every other job depends on it, so a break
-there reports as one failure rather than a cascade), then the migrations against a real
-PostgreSQL 17 — applied, probed, then **applied again** to prove they are idempotent — then the
-API and the app in parallel, and finally the Maestro journeys on an Android emulator against a
-release build and a real API (`mobile/e2e/README.md`).
+CI runs the same things: contracts and the migrations in parallel — the migrations against a
+real PostgreSQL 17, applied, probed, then **applied again** to prove they are idempotent. The API
+waits on both, the app on contracts only (a contract break reports as one failure rather than a
+cascade), and finally the Maestro journeys run on an Android emulator against a release build and
+a real API (`mobile/e2e/README.md`). The runtime dependency audit is a separate job nothing waits
+on, so a new upstream advisory never hides the test results.
 
 ## Money
 

@@ -81,7 +81,7 @@ contract, or the API specification, **those three win** (see [§1.5](#15-related
 
 - PostgreSQL 17 is the database engine, accessed through Kysely (a typed SQL query builder, not
   an ORM — there is no schema-from-models layer to keep in sync with the migrations)
-- NestJS 11 (Node 22, ESM) is the API framework
+- NestJS 12 (Node 22.18+, ESM) is the API framework
 - The client is Expo + React Native (mobile); there is no web client in v1 (a parked Next.js app
   exists on disk for design reference only — `webpage/PARKED.md`)
 - Every request/response DTO, enum, error code and route path is defined once in
@@ -437,13 +437,11 @@ currency, a transaction's amount) renders disabled with the reason shown, never 
 │  wallet). Server state: Redux Toolkit + RTK Query          │
 │  (apiSlice). Local-only state: a Redux offlineQueueSlice   │
 │  (§4.4) and a local-first guest data layer (§4.3).         │
-│  TanStack Query is present but has no active query/        │
-│  mutation call site — see §4.1 note below.                 │
 └────────────────────┬───────────────────────────────────── ┘
                      │ HTTP/REST, JWT Bearer, envelope {success,data,meta}
                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│                  API (NestJS 11, ESM)                     │
+│                  API (NestJS 12, ESM)                     │
 │  Routes: /api/v1/auth, /api/v1/wallets, /api/v1/accounts,  │
 │  /api/v1/categories, /api/v1/transactions, /api/v1/budgets,│
 │  /api/v1/goals, /api/v1/dashboard, /api/v1/invitations,    │
@@ -462,16 +460,11 @@ No cache layer, no message queue, no separate token-blacklist store — revocati
 `refresh_tokens.revoked_at` column. The one outbound call the API makes to another service is the
 exchange-rate provider in §4.5, and only when a dashboard request asks for a converted total.
 
-**State-management note:** `mobile/package.json` does not depend on `zustand` — all real
-server-state fetching/mutation goes through Redux Toolkit's RTK Query (`apiSlice`, 9 resource
-slices, ~37 generated hooks: `useListTransactionsInfiniteQuery`, `useCreateTransactionMutation`, etc.),
-wired through a custom `axiosBaseQuery` so the existing bearer-attach/refresh-on-401 axios
-interceptors stay the one implementation. `@tanstack/react-query` is a real dependency and one
-`QueryClient` is provided app-wide (`QueryProvider`), but no screen calls its `useQuery`/
-`useMutation` — its only live use today is `.clear()`, called on logout and on guest-mode
-transitions, which is presently a no-op on an always-empty cache. Treat TanStack Query as
-reserved/vestigial in this codebase, not as the server-state layer, until something actually
-populates it.
+**State-management note:** `mobile/package.json` depends on neither `zustand` nor
+`@tanstack/react-query` — all real server-state fetching/mutation goes through Redux Toolkit's
+RTK Query (`apiSlice`, 9 resource slices, ~37 generated hooks: `useListTransactionsInfiniteQuery`,
+`useCreateTransactionMutation`, etc.), wired through a custom `axiosBaseQuery` so the existing
+bearer-attach/refresh-on-401 axios interceptors stay the one implementation.
 
 **Auth flow:**
 

@@ -35,8 +35,9 @@ changed. Full detail in [CLAUDE.md](CLAUDE.md)'s Data Safety section; the essent
 - Applied migrations are immutable and checksummed — the runner refuses to re-run one whose file
   changed. If a migration shipped wrong, write a new migration; don't edit the old file.
 - Nothing financial is hard-deleted by design (wallets/accounts/categories/budgets archive,
-  transactions cancel, members revoke). If something looks hard-deleted, that's a bug, not a
-  feature to work around.
+  transactions are marked `DELETED`, members revoke). The one exception is a category with no
+  transactions and no budget on it or any descendant (`?mode=permanent`, API spec §10.4). Anything
+  else that looks hard-deleted is a bug, not a feature to work around.
 
 ## Deploying
 
@@ -48,7 +49,7 @@ npm install
 node scripts/migrate.mjs               # applies db/migrations/*.sql in order, idempotent
 npm run build --workspace @sora/contracts
 npm run build --workspace @sora/server
-npm start --workspace @sora/server  # or: npm run start:dev for watch mode
+npm start --workspace @sora/server  # or: npm run dev:server for watch mode
 ```
 
 **Optional path — Docker** (covers `server/` + Postgres only; nothing else is containerized):
@@ -89,9 +90,8 @@ means someone edited a shipped migration; write a new one instead of trying to f
 `server/src/config/env.ts` is the **single authoritative source** for every environment variable
 — it validates all of them once at boot with Zod and refuses to start on anything missing or
 unusable (an empty or 8-character `JWT_SECRET` fails loudly here rather than authenticating
-nothing silently later). `.env.example` and `env.ts` are known to disagree on a few names
-(`API_PORT` vs `PORT`, `JWT_ACCESS_TTL` vs `ACCESS_TOKEN_TTL_SECONDS`) — **`env.ts` wins**; if the
-app won't boot over a variable name, check there first, not the example file.
+nothing silently later). `.env.example` mirrors its names, but if the two ever disagree **`env.ts`
+wins**; if the app won't boot over a variable name, check there first, not the example file.
 
 Required with no default: `DATABASE_URL`, `JWT_SECRET` (min 32 chars), `GOOGLE_CLIENT_ID`.
 

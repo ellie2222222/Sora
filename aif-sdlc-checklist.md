@@ -42,7 +42,7 @@ group) before merging to `main`. Where this file and CLAUDE.md disagree, CLAUDE.
 - [ ] No new column caches a balance, spent, remaining or progress figure (BR-05)
 - [ ] Transfers are excluded from income/expense/budget figures (BR-06)
 - [ ] Nothing is summed across currencies (BR-07)
-- [ ] Nothing financial is hard-deleted — archive, `DELETED` status or revoke instead
+- [ ] Nothing financial is hard-deleted — archive, `DELETED` status or revoke instead (sole exception: an unused category, spec §10.4)
 
 ## 6. Tested
 
@@ -73,7 +73,7 @@ group) before merging to `main`. Where this file and CLAUDE.md disagree, CLAUDE.
 ## Mobile
 
 - [ ] TypeScript `strict`; no `any` without a comment saying why (MB-01)
-- [ ] Server state through RTK Query slices; no copy in plain Redux; no `zustand` (MB-02)
+- [ ] Server state through RTK Query slices; no copy in plain Redux; no `zustand` or `@tanstack/react-query` (MB-02)
 - [ ] `testID`s follow NC-04 (`screen-…`, `input-…`, `btn-…`, `sheet-…`)
 - [ ] Icons from `lucide-react-native` (MB-05); colours from design tokens, dark and light both checked (MB-06)
 - [ ] Loading, empty, error and success states all handled (MB-07)

@@ -2,10 +2,10 @@
 
 ## The Shared Contract (`@sora/contracts`)
 
-[`@sora/contracts`](file:///d:/Code/sora/packages/contracts/) is the single source of truth for all shared models, enums, validation schemas, response types, error codes, route definitions, and money math.
+[`@sora/contracts`](../../packages/contracts/) is the single source of truth for all shared models, enums, validation schemas, response types, error codes, route definitions, and money math.
 - Both `server/` and `mobile/` consume `@sora/contracts`. Neither redefines these entities.
 - Run `node scripts/check-contract-parity.mjs` mechanically to verify that schemas, contracts, and API specs agree.
-- `@sora/contracts` must be built (`npm run build -w @sora/contracts`) before typechecking dependent packages.
+- `server/` and `mobile/` resolve `@sora/contracts` to its `src/` through the package `exports`, so no build step is needed before typechecking them.
 
 ---
 
@@ -15,10 +15,10 @@
    - Floating-point arithmetic (`0.1 + 0.2 === 0.30000000000000004`) causes untraceable ledger discrepancies.
    - All amounts cross the wire as strings.
    - In Postgres, currency amounts are stored as `DECIMAL(19,4)`.
-   - All client and server math is computed using scaled `bigint` helpers in [`packages/contracts/src/money.ts`](file:///d:/Code/sora/packages/contracts/src/money.ts).
+   - All client and server math is computed using scaled `bigint` helpers in [`packages/contracts/src/money.ts`](../../packages/contracts/src/money.ts).
 2. **Database Driver Parsers**:
    - `node-postgres` parses `NUMERIC` (OID 1700) and `INT8` (OID 20) into JavaScript numbers by default.
-   - [`server/src/database/pg-types.ts`](file:///d:/Code/sora/server/src/database/pg-types.ts) overrides these parsers to return raw text strings. **Never remove these overrides**.
+   - [`server/src/database/pg-types.ts`](../../server/src/database/pg-types.ts) overrides these parsers to return raw text strings. **Never remove these overrides**.
 3. **Decimal Precision**:
    - Amounts support up to 4 decimal places.
    - `parseMoney` strictly rejects inputs with >4 decimals rather than silently rounding or truncating.
@@ -51,11 +51,13 @@
   - Server state: Redux Toolkit + RTK Query (`mobile/src/app/store/api/*`) driven through `axiosBaseQuery`.
   - Local state: Plain Redux slices (`authSlice`, `offlineQueueSlice`).
   - Do **NOT** introduce Zustand or mirror server data into plain Redux slices (which would create multiple out-of-sync caches).
+  - Neither `zustand` nor `@tanstack/react-query` is a dependency; do not add either or write code assuming it.
 - **Form Handling**: React Hook Form combined with Zod schemas imported from `@sora/contracts`.
 - **Security**: Sensitive tokens (access & refresh tokens) must be stored in `expo-secure-store`, never `AsyncStorage`.
 - **UI & Theming**:
   - Dark mode by default; light mode togglable.
-  - Colors and spacing reference theme tokens from `design-system/`, not hardcoded literals.
+  - Colours, and every other static design value (spacing, sizes, type, radius, borders, icon size and stroke, opacity, shadows), come from `useTheme()` tokens, not literals. The literals that may stay are listed under "Design tokens" in [`docs/DESIGN_GUIDELINES.md`](../../docs/DESIGN_GUIDELINES.md); `mobile/src/design-system/tokens-usage.test.ts` enforces it in `npm test -w @sora/mobile` (MB-06).
+  - UI and state design follow [`docs/DESIGN_GUIDELINES.md`](../../docs/DESIGN_GUIDELINES.md) (product principles, loading/empty/error architecture, visual tokens); run its Part 4 check before calling UI work done (MB-11).
   - Icons sourced strictly from `lucide-react-native`.
 - **Active Locales**:
   - Active locales are strictly English (`en`) and Vietnamese (`vi`) (`['en', 'vi'] as const`).
@@ -86,7 +88,7 @@
 - **Immutability**: Applied migrations are immutable. Never edit historical migrations; create a new migration for schema changes.
 - **Data Safety**:
   - Never drop databases, truncate tables, or run unconstrained `DELETE`/`UPDATE` operations.
-  - Financial records are never hard-deleted: wallets, accounts, categories and budgets are archived, transactions are marked `DELETED` (the row stays), members are `REVOKED`.
+  - Financial records are never hard-deleted: wallets, accounts, categories and budgets are archived, transactions are marked `DELETED` (the row stays), members are `REVOKED`. The one hard delete is a category with no transactions and no budget on it or any descendant (`DELETE /categories/{id}?mode=permanent`, API spec §10.4).
 
 ---
 
@@ -97,5 +99,5 @@
 3. **Authorized**: Role checks enforced server-side; AC-01 verified (404 for non-members); mutation audit logged.
 4. **Validated**: Zod schema at edge; service lookup validations; DB constraints verified.
 5. **Derived, Not Stored**: No cached computation columns (BR-05).
-6. **Tested**: Happy path, documented error codes, and permission boundary tested.
+6. **Tested**: Happy path, documented error codes, and permission boundary tested; the feature's plan in [`docs/test-plans/`](../../docs/test-plans/) lists each case with its test's `file:line`.
 7. **Specs Updated**: Specifications, design documents, and task plans updated in the same change.

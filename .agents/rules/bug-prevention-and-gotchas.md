@@ -6,8 +6,8 @@ Each rule below was established to permanently prevent a regression of a specifi
 
 ### 1. Money is Never a JS Number
 - Floats cannot accurately represent currency arithmetic (`0.1 + 0.2 === 0.30000000000000004`).
-- Decimal amounts are transported as strings, stored as `DECIMAL(19,4)`, and operated on using scaled `bigint` in [`packages/contracts/src/money.ts`](file:///d:/Code/sora/packages/contracts/src/money.ts).
-- `node-postgres` NUMERIC (OID 1700) and INT8 (OID 20) text overrides in [`server/src/database/pg-types.ts`](file:///d:/Code/sora/server/src/database/pg-types.ts) prevent driver-level float conversions. Never remove them or call `Number(amount)`.
+- Decimal amounts are transported as strings, stored as `DECIMAL(19,4)`, and operated on using scaled `bigint` in [`packages/contracts/src/money.ts`](../../packages/contracts/src/money.ts).
+- `node-postgres` NUMERIC (OID 1700) and INT8 (OID 20) text overrides in [`server/src/database/pg-types.ts`](../../server/src/database/pg-types.ts) prevent driver-level float conversions. Never remove them or call `Number(amount)`.
 - `parseMoney` rejects values with more than 4 decimal places instead of rounding.
 
 ### 2. Returning `403` to Non-Members Leaks Resource Existence
