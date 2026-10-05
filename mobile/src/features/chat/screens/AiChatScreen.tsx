@@ -43,8 +43,9 @@ function AssistantHeader({ rightElement }: { rightElement?: React.ReactNode }) {
   const { t } = useTranslation();
   return (
     <View 
-      className="flex-row items-center justify-between border-b"
+      className="flex-row items-center justify-between"
       style={{ 
+        borderBottomWidth: theme.borderWidth.thin,
         paddingHorizontal: theme.spacing.md, 
         paddingVertical: theme.spacing.md,
         borderBottomColor: theme.colors.border,
@@ -52,7 +53,7 @@ function AssistantHeader({ rightElement }: { rightElement?: React.ReactNode }) {
       }}
     >
       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-        <Sparkles size={20} color={theme.colors.primary} />
+        <Sparkles size={theme.iconSize.xl} color={theme.colors.primary} />
         <Text variant="title">{t('ai.title')}</Text>
       </View>
       {rightElement}
@@ -80,6 +81,8 @@ function GuestPrompt() {
           entrance="none"
         />
       </View>
+
+      <ChatInputBar disabled placeholder={t('ai.guestTitle')} onSend={async () => false} />
     </View>
   );
 }
@@ -233,11 +236,11 @@ function SignedInChat() {
       <AssistantHeader 
         rightElement={
           <View className="flex-row" style={{ gap: theme.spacing.md }}>
-            <Pressable testID="btn-open-ai-history" accessibilityRole="button" accessibilityLabel={t('ai.history')} hitSlop={10} onPress={() => setHistoryOpen(true)}>
-              <History size={20} color={theme.colors.textMuted} />
+            <Pressable testID="btn-open-ai-history" accessibilityRole="button" accessibilityLabel={t('ai.history')} hitSlop={theme.sizes.hitSlop.md} onPress={() => setHistoryOpen(true)}>
+              <History size={theme.iconSize.xl} color={theme.colors.textMuted} />
             </Pressable>
-            <Pressable testID="btn-add-ai-conversation" accessibilityRole="button" accessibilityLabel={t('ai.newChat')} hitSlop={10} onPress={() => setConversationId(null)}>
-              <MessageSquarePlus size={20} color={theme.colors.primary} />
+            <Pressable testID="btn-add-ai-conversation" accessibilityRole="button" accessibilityLabel={t('ai.newChat')} hitSlop={theme.sizes.hitSlop.md} onPress={() => setConversationId(null)}>
+              <MessageSquarePlus size={theme.iconSize.xl} color={theme.colors.primary} />
             </Pressable>
           </View>
         }
@@ -287,7 +290,7 @@ function ChatMessageSkeleton({ fromUser }: { fromUser: boolean }) {
   const theme = useTheme();
   return (
     <View style={{ alignItems: fromUser ? 'flex-end' : 'flex-start', marginVertical: theme.spacing.xs }}>
-      <Skeleton width={fromUser ? 200 : 260} height={44} radius={theme.radius.lg} />
+      <Skeleton width={fromUser ? '55%' : '70%'} height={theme.lineHeight.md + 2 * theme.spacing.md} radius={theme.radius.lg} />
     </View>
   );
 }

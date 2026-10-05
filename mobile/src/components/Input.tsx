@@ -74,11 +74,11 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
         onChangeText={handleTextChange}
         onFocus={handleFocus}
         onBlur={handleBlur}
-        className="h-[48px]"
         style={[
           {
+            height: theme.sizes.controlHeight,
             borderRadius: theme.radius.md,
-            borderWidth: isFocused || hasError ? 1.5 : 1,
+            borderWidth: isFocused || hasError ? theme.borderWidth.medium : theme.borderWidth.thin,
             borderColor: hasError
               ? theme.colors.danger
               : isFocused

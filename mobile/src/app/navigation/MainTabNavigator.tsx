@@ -13,7 +13,6 @@ import { HomeScreen } from '@/features/home';
 import { DashboardScreen } from '@/features/dashboard';
 import { SettingsScreen } from '@/features/settings';
 import { useTheme } from '@/app/providers';
-import { TAB_BAR_HEIGHT } from './tabBarMetrics.ts';
 import type { MainTabParamList } from './types.ts';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -27,7 +26,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const isInitialized = useSharedValue(false);
 
   const totalTabs = state.routes.length;
-  const indicatorWidth = 36;
+  const indicatorWidth = theme.sizes.tabBar.indicatorWidth;
   const tabWidth = containerWidth / (totalTabs || 1);
 
   useEffect(() => {
@@ -54,11 +53,12 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
   return (
     <View
-      className="flex-row relative border-t"
+      className="flex-row relative"
       style={{
         backgroundColor: theme.colors.surface,
+        borderTopWidth: theme.borderWidth.thin,
         borderTopColor: theme.colors.border,
-        height: TAB_BAR_HEIGHT + insets.bottom,
+        height: theme.sizes.tabBar.height + insets.bottom,
         paddingBottom: insets.bottom,
       }}
       onLayout={(e) => {
@@ -111,16 +111,18 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             testID={`tab-${route.name.toLowerCase()}`}
             onPress={onPress}
             onLongPress={onLongPress}
-            className="flex-1 items-center justify-center py-[6px]"
+            className="flex-1 items-center justify-center"
+            style={{ paddingVertical: theme.spacing.xs }}
           >
             {options.tabBarIcon ? (
-              options.tabBarIcon({ focused: isFocused, color, size: 22 })
+              options.tabBarIcon({ focused: isFocused, color, size: theme.iconSize.xxl })
             ) : null}
             <Text
-              className="text-xs mt-[3px]"
+              className="text-xs"
               style={{
                 color,
-                fontWeight: isFocused ? '600' : '400',
+                marginTop: theme.spacing.xxs,
+                fontWeight: isFocused ? theme.fontWeight.semibold : theme.fontWeight.regular,
               }}
               numberOfLines={1}
             >
@@ -137,7 +139,9 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             {
               backgroundColor: theme.colors.primary,
               width: indicatorWidth,
-              bottom: insets.bottom + 3,
+              height: theme.borderWidth.thick,
+              borderRadius: theme.radius.pill,
+              bottom: insets.bottom + theme.spacing.xxs,
             },
             indicatorStyle,
           ]}
@@ -207,8 +211,6 @@ export function MainTabNavigator() {
 const styles = StyleSheet.create({
   activeIndicator: {
     position: 'absolute',
-    height: 3,
-    borderRadius: 2,
   },
 });
 

@@ -39,14 +39,14 @@ export function MonthSelector({
         onPress={onPrev}
         onPressIn={() => setPrevPressed(true)}
         onPressOut={() => setPrevPressed(false)}
-        hitSlop={12}
+        hitSlop={theme.sizes.hitSlop.lg}
         style={{
           padding: theme.spacing.xs,
           borderRadius: theme.radius.sm,
           backgroundColor: prevPressed ? theme.colors.border : 'transparent',
         }}
       >
-        <ChevronLeft size={20} color={theme.colors.textMuted} />
+        <ChevronLeft size={theme.iconSize.xl} color={theme.colors.textMuted} />
       </Pressable>
 
       <Pressable
@@ -61,15 +61,15 @@ export function MonthSelector({
           flexDirection: 'row',
           alignItems: 'center',
           gap: theme.spacing.xs,
-          paddingVertical: 6,
+          paddingVertical: theme.spacing.xs,
           paddingHorizontal: theme.spacing.md,
           borderRadius: theme.radius.pill,
-          borderWidth: 1,
+          borderWidth: theme.borderWidth.thin,
           backgroundColor: triggerPressed ? theme.colors.border : theme.colors.surface,
           borderColor: theme.colors.border,
         }}
       >
-        {onOpenPicker ? <Calendar size={15} color={theme.colors.primary} /> : null}
+        {onOpenPicker ? <Calendar size={theme.iconSize.sm} color={theme.colors.primary} /> : null}
         <Text weight="semibold" style={{ fontSize: theme.fontSize.sm, color: theme.colors.text }}>
           {label}
         </Text>
@@ -82,15 +82,15 @@ export function MonthSelector({
         onPressIn={() => setNextPressed(true)}
         onPressOut={() => setNextPressed(false)}
         disabled={disableNext}
-        hitSlop={12}
+        hitSlop={theme.sizes.hitSlop.lg}
         style={{
           padding: theme.spacing.xs,
           borderRadius: theme.radius.sm,
           backgroundColor: nextPressed ? theme.colors.border : 'transparent',
-          opacity: disableNext ? 0.3 : 1,
+          opacity: disableNext ? theme.opacity.disabled : 1,
         }}
       >
-        <ChevronRight size={20} color={theme.colors.textMuted} />
+        <ChevronRight size={theme.iconSize.xl} color={theme.colors.textMuted} />
       </Pressable>
     </View>
   );

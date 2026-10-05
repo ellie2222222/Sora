@@ -55,7 +55,7 @@ export function PeriodBar({
                 paddingHorizontal: theme.spacing.md,
                 paddingVertical: theme.spacing.xs,
                 borderRadius: theme.radius.pill,
-                borderWidth: 1,
+                borderWidth: theme.borderWidth.thin,
                 borderColor: selected ? theme.colors.primary : theme.colors.border,
                 backgroundColor: selected ? theme.colors.primary : 'transparent',
               }}

@@ -109,16 +109,16 @@ function CategoryCell({
     >
       <View
         style={{
-          width: 44,
-          height: 44,
-          borderRadius: 22,
+          width: theme.sizes.touchTarget,
+          height: theme.sizes.touchTarget,
+          borderRadius: theme.radius.pill,
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: selected ? storedTint : theme.colors.surfaceMuted,
         }}
       >
         {Icon !== null ? (
-          <Icon size={20} color={selected ? selectedFgIcon : iconTint} strokeWidth={2} />
+          <Icon size={theme.iconSize.xl} color={selected ? selectedFgIcon : iconTint} />
         ) : (
           <Text weight="semibold" style={{ color: selected ? selectedFgLetter : letterTint }}>
             {category.name.slice(0, 1).toUpperCase()}

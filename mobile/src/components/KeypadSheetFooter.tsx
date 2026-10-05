@@ -27,7 +27,7 @@ export function KeypadSheetFooter({ leading, amount, amountTestID, errors = [], 
         flexShrink: 0,
         gap: theme.spacing.sm,
         marginTop: theme.spacing.sm,
-        ...(divider ? { paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border } : {}),
+        ...(divider ? { paddingTop: theme.spacing.md, borderTopWidth: theme.borderWidth.thin, borderTopColor: theme.colors.border } : {}),
       }}
     >
       <View className="flex-row items-end justify-between" style={{ gap: theme.spacing.sm }}>

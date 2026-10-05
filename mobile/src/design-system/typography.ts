@@ -11,6 +11,20 @@ export const fontSize = {
   hero: 42,
 } as const;
 
+/** Line heights for multi-line copy that needs more room than the platform default. */
+export const lineHeight = {
+  sm: 18,
+  md: 20,
+  lg: 22,
+} as const;
+
+export const letterSpacing = {
+  /** Dialog titles and body copy, opened up slightly for legibility. */
+  wide: 0.2,
+  /** Upper-case section labels. */
+  caps: 1,
+} as const;
+
 export const fontWeight: Record<
   'regular' | 'medium' | 'semibold' | 'bold',
   NonNullable<TextStyle['fontWeight']>
@@ -41,5 +55,7 @@ export const fontFamily: Record<'regular' | 'medium' | 'semibold' | 'bold', stri
 export const numericFontVariant: NonNullable<TextStyle['fontVariant']> = ['tabular-nums'];
 
 export type FontSize = typeof fontSize;
+export type LineHeight = typeof lineHeight;
+export type LetterSpacing = typeof letterSpacing;
 export type FontWeight = typeof fontWeight;
 export type FontFamily = typeof fontFamily;

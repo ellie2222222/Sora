@@ -9,8 +9,6 @@ import { Text } from '../Text.tsx';
 import { claimOpenSwipeRow, releaseOpenSwipeRow, type SwipeRowHandle } from './openSwipeRow.ts';
 import { useScreenReaderEnabled } from './useScreenReaderEnabled.ts';
 
-/** Fits a short label on one line under the icon; a longer one truncates rather than wrapping. */
-const ACTION_WIDTH = 76;
 /** Past this much drag a release snaps open; short of it the row springs back. */
 const OPEN_THRESHOLD = 40;
 /** The row trails the finger slightly, so a short sideways wobble while scrolling doesn't reveal it. */
@@ -107,7 +105,7 @@ export function SwipeableRow({ actions, children, backgroundColor, radius = 0, o
         releaseOpenSwipeRow(handle);
       }}
       renderRightActions={() => (
-        <View className="flex-row" style={{ width: ACTION_WIDTH * actions.length }}>
+        <View className="flex-row" style={{ width: theme.sizes.swipeAction * actions.length }}>
           {revealed && actions.map((action) => {
             const fill = action.tone === 'danger' ? theme.colors.danger : theme.colors.primary;
             const ink = action.tone === 'danger' ? theme.colors.onDanger : theme.colors.onPrimary;
@@ -122,15 +120,15 @@ export function SwipeableRow({ actions, children, backgroundColor, radius = 0, o
                 onPressIn={() => setPressedKey(action.key)}
                 onPressOut={() => setPressedKey(null)}
                 style={{
-                  width: ACTION_WIDTH,
+                  width: theme.sizes.swipeAction,
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: theme.spacing.xxs,
                   backgroundColor: fill,
-                  opacity: pressedKey === action.key ? 0.8 : 1,
+                  opacity: pressedKey === action.key ? theme.opacity.pressed : 1,
                 }}
               >
-                <Icon size={20} color={ink} />
+                <Icon size={theme.iconSize.xl} color={ink} />
                 <Text variant="caption" weight="semibold" numberOfLines={1} style={{ color: ink }}>
                   {action.label}
                 </Text>

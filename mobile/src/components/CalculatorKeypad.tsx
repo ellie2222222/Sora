@@ -52,7 +52,6 @@ const LAST_ROW_DIGITS: DigitKey[] = [
 ];
 const LAST_ROW_OPERATOR = '÷';
 
-const KEY_HEIGHT = 48;
 const DIGIT_BLOCK_COLUMNS = 4;
 
 /**
@@ -94,11 +93,11 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
         onPressIn={() => setPressedKey(key.label)}
         onPressOut={() => setPressedKey(null)}
         style={{
-          height: KEY_HEIGHT,
+          height: theme.sizes.controlHeight,
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: keyFill(key.label),
-          borderWidth: 1,
+          borderWidth: theme.borderWidth.thin,
           borderColor: theme.colors.border,
         }}
       >
@@ -119,11 +118,11 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
         onPressIn={() => setPressedKey(glyph)}
         onPressOut={() => setPressedKey(null)}
         style={{
-          height: KEY_HEIGHT,
+          height: theme.sizes.controlHeight,
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: keyFill(glyph),
-          borderWidth: 1,
+          borderWidth: theme.borderWidth.thin,
           borderColor: theme.colors.primary,
         }}
       >
@@ -158,15 +157,15 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
               onPressIn={() => setPressedKey('backspace')}
               onPressOut={() => setPressedKey(null)}
               style={{
-                height: KEY_HEIGHT,
+                height: theme.sizes.controlHeight,
                 alignItems: 'center',
                 justifyContent: 'center',
                 backgroundColor: keyFill('backspace'),
-                borderWidth: 1,
+                borderWidth: theme.borderWidth.thin,
                 borderColor: theme.colors.border,
               }}
             >
-              <Delete size={20} color={theme.colors.text} strokeWidth={1.75} />
+              <Delete size={theme.iconSize.xl} color={theme.colors.text} strokeWidth={theme.iconStroke.thin} />
             </Pressable>
           </KeyColumn>
           {operatorCell(LAST_ROW_OPERATOR)}
@@ -189,12 +188,12 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
               gap: theme.spacing.xxs,
               paddingHorizontal: theme.spacing.xxs,
               backgroundColor: theme.colors.primary,
-              opacity: pressedKey === 'date' ? 0.85 : 1,
-              borderWidth: 1,
+              opacity: pressedKey === 'date' ? theme.opacity.pressed : 1,
+              borderWidth: theme.borderWidth.thin,
               borderColor: theme.colors.primary,
             }}
           >
-            <Calendar size={16} color={theme.colors.onPrimary} strokeWidth={2.25} />
+            <Calendar size={theme.iconSize.md} color={theme.colors.onPrimary} />
             {dateLabel !== undefined ? (
               <Text
                 variant="label"
@@ -222,15 +221,15 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: confirmDisabled ? theme.colors.buttonPrimaryDisabledBackground : theme.colors.primary,
-            opacity: !confirmDisabled && pressedKey === 'confirm' ? 0.85 : 1,
-            borderWidth: 1,
+            opacity: !confirmDisabled && pressedKey === 'confirm' ? theme.opacity.pressed : 1,
+            borderWidth: theme.borderWidth.thin,
             borderColor: confirmDisabled ? theme.colors.buttonPrimaryDisabledBorder : theme.colors.primary,
           }}
         >
           <Check
-            size={20}
+            size={theme.iconSize.xl}
             color={confirmDisabled ? theme.colors.buttonPrimaryDisabledText : theme.colors.onPrimary}
-            strokeWidth={2.5}
+            strokeWidth={theme.iconStroke.bold}
           />
         </Pressable>
       </View>

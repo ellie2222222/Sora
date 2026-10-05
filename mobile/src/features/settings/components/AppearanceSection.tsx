@@ -4,7 +4,7 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Text, ThemeToggle } from '@/components';
 import { useTheme, useThemeControl } from '@/app/providers';
-import { PALETTE_RAMPS, THEME_NAMES, type ThemeName } from '../../../design-system';
+import { PALETTE_RAMPS, THEME_NAMES, type ThemeName } from '@/design-system';
 import { CollapsibleSection, SettingsDivider } from './CollapsibleSection';
 
 function ThemeSwatch({ name }: { name: ThemeName }) {
@@ -13,8 +13,13 @@ function ThemeSwatch({ name }: { name: ThemeName }) {
 
   return (
     <View
-      className="w-[32px] h-[24px] rounded-sm border overflow-hidden flex-row"
-      style={{ borderColor: theme.colors.border }}
+      className="rounded-sm overflow-hidden flex-row"
+      style={{
+        width: theme.sizes.swatch.width,
+        height: theme.sizes.swatch.height,
+        borderWidth: theme.borderWidth.thin,
+        borderColor: theme.colors.border,
+      }}
     >
       <View className="flex-1" style={{ backgroundColor: ramp[300] }} />
       <View className="flex-1" style={{ backgroundColor: ramp[600] }} />
@@ -42,7 +47,7 @@ export function AppearanceSection({
   return (
     <CollapsibleSection
       testID="settings-nav-appearance"
-      icon={<Palette size={18} color={theme.colors.textMuted} />}
+      icon={<Palette size={theme.iconSize.lg} color={theme.colors.textMuted} />}
       title={t('settings.appearance', 'Appearance')}
       subtitle={appearanceSubtitle}
       isOpen={isOpen}
@@ -62,12 +67,12 @@ export function AppearanceSection({
         }}
       >
         {themeMode === 'dark' ? (
-          <Moon size={22} color={theme.colors.primary} strokeWidth={2} />
+          <Moon size={theme.iconSize.xxl} color={theme.colors.primary} />
         ) : (
-          <Sun size={22} color={theme.colors.textMuted} strokeWidth={2} />
+          <Sun size={theme.iconSize.xxl} color={theme.colors.textMuted} />
         )}
         <View className="flex-1">
-          <Text weight="semibold" style={{ fontSize: 14 }}>
+          <Text weight="semibold" style={{ fontSize: theme.fontSize.sm }}>
             {themeMode === 'dark' ? t('settings.modes.dark') : t('settings.modes.light')}
           </Text>
           <Text variant="caption" tone="muted">
@@ -86,7 +91,7 @@ export function AppearanceSection({
       <SettingsDivider />
 
       <View className="gap-xs">
-        <Text variant="label" weight="semibold" tone="muted" style={{ fontSize: 12, marginBottom: theme.spacing.xxs }}>
+        <Text variant="label" weight="semibold" tone="muted" style={{ fontSize: theme.fontSize.xs, marginBottom: theme.spacing.xxs }}>
           {t('settings.colorPalette', 'Color Palette')}
         </Text>
         <View className="gap-xxs">
@@ -105,7 +110,7 @@ export function AppearanceSection({
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: theme.spacing.md,
-                  paddingVertical: 10,
+                  paddingVertical: theme.spacing.sm,
                   paddingHorizontal: theme.spacing.xs,
                   borderRadius: theme.radius.sm,
                   backgroundColor: pressedName === name ? theme.colors.surfaceMuted : 'transparent',
@@ -113,12 +118,12 @@ export function AppearanceSection({
               >
                 <ThemeSwatch name={name} />
                 <View className="flex-1">
-                  <Text weight={isSelected ? 'bold' : 'medium'} style={{ fontSize: 14 }}>
+                  <Text weight={isSelected ? 'bold' : 'medium'} style={{ fontSize: theme.fontSize.sm }}>
                     {t(`settings.themeNames.${name}`)}
                   </Text>
                 </View>
                 {isSelected ? (
-                  <Check size={18} color={theme.colors.primary} strokeWidth={2.5} />
+                  <Check size={theme.iconSize.lg} color={theme.colors.primary} strokeWidth={theme.iconStroke.bold} />
                 ) : null}
               </Pressable>
             );
@@ -129,10 +134,10 @@ export function AppearanceSection({
       <SettingsDivider />
 
       <View className="gap-xs py-xs">
-        <Text variant="label" weight="semibold" tone="muted" style={{ fontSize: 11 }}>
+        <Text variant="label" weight="semibold" tone="muted" style={{ fontSize: theme.fontSize.xs }}>
           {t('settings.preview', { defaultValue: 'Theme preview' })}
         </Text>
-        <Text variant="heading" weight="bold" style={{ fontSize: 20 }}>
+        <Text variant="heading" weight="bold" style={{ fontSize: theme.fontSize.xl }}>
           ₫12,500,000
         </Text>
         <Text variant="caption" tone="muted">

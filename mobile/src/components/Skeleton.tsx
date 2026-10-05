@@ -12,7 +12,7 @@ export interface SkeletonProps {
 // The native animated module doesn't exist on web, which warns if asked for it there.
 const NATIVE_DRIVER_ENABLED = Platform.OS !== 'web';
 
-export function Skeleton({ width = '100%', height = 16, radius }: SkeletonProps) {
+export function Skeleton({ width = '100%', height, radius }: SkeletonProps) {
   const theme = useTheme();
   const opacity = useRef(new Animated.Value(0.4)).current;
 
@@ -31,7 +31,7 @@ export function Skeleton({ width = '100%', height = 16, radius }: SkeletonProps)
     <Animated.View
       style={{
         width,
-        height,
+        height: height ?? theme.sizes.skeletonLine.body,
         borderRadius: radius ?? theme.radius.sm,
         backgroundColor: theme.colors.skeleton,
         opacity,
@@ -41,8 +41,9 @@ export function Skeleton({ width = '100%', height = 16, radius }: SkeletonProps)
 }
 
 /** A stack of skeleton rows, for a list still loading its first page. */
-export function SkeletonList({ rows = 6, rowHeight = 64 }: { rows?: number; rowHeight?: number }) {
+export function SkeletonList({ rows = 6, rowHeight: rowHeightProp }: { rows?: number; rowHeight?: number }) {
   const theme = useTheme();
+  const rowHeight = rowHeightProp ?? theme.sizes.listRowMinHeight;
   return (
     <View style={{ padding: theme.spacing.md, gap: theme.spacing.sm }}>
       {Array.from({ length: rows }, (_, index) => (

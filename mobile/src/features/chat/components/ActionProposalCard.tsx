@@ -39,7 +39,7 @@ export function ActionProposalCard({
         marginTop: theme.spacing.sm,
         padding: theme.spacing.md,
         borderRadius: theme.radius.lg,
-        borderWidth: 1,
+        borderWidth: theme.borderWidth.thin,
         borderColor: theme.colors.border,
         backgroundColor: theme.colors.surface,
         gap: theme.spacing.xs,

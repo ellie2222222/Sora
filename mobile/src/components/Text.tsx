@@ -3,7 +3,7 @@ import { Text as RNText, type DimensionValue, type TextProps as RNTextProps } fr
 import { Skeleton } from './Skeleton.tsx';
 
 import { useTheme } from '@/app/providers';
-import type { FontSize, FontWeight } from '../design-system/index.ts';
+import type { FontSize, FontWeight } from '@/design-system';
 
 type TextVariant = 'body' | 'label' | 'caption' | 'title' | 'heading';
 type TextTone = 'default' | 'muted' | 'faint' | 'danger' | 'success' | 'onPrimary';
@@ -51,14 +51,7 @@ export function Text({
   const theme = useTheme();
 
   if (isLoading) {
-    const heightMap: Record<TextVariant, number> = {
-      body: 16,
-      label: 14,
-      caption: 12,
-      title: 20,
-      heading: 24,
-    };
-    return <Skeleton width={skeletonWidth} height={heightMap[variant]} radius={theme.radius.sm} />;
+    return <Skeleton width={skeletonWidth} height={theme.sizes.skeletonLine[variant]} radius={theme.radius.sm} />;
   }
 
   const color = {

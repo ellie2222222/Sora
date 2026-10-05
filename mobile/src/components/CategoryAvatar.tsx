@@ -22,8 +22,9 @@ export interface CategoryAvatarProps {
  * shape around it — carries the identity, and the row stays readable next to
  * the coloured amount instead of competing with it.
  */
-export function CategoryAvatar({ categoryIcon, categoryName, transactionType, tint, size = 36, testID }: CategoryAvatarProps) {
+export function CategoryAvatar({ categoryIcon, categoryName, transactionType, tint, size: sizeProp, testID }: CategoryAvatarProps) {
   const theme = useTheme();
+  const size = sizeProp ?? theme.sizes.badge.md;
   const Icon = transactionType === TransactionType.TRANSFER ? TRANSFER_ICON : categoryIconFor(categoryIcon);
   const initialSource = categoryIcon || categoryName || transactionType;
   const initial = initialSource.slice(0, 1).toUpperCase();
@@ -35,12 +36,12 @@ export function CategoryAvatar({ categoryIcon, categoryName, transactionType, ti
       style={{
         width: size,
         height: size,
-        borderRadius: size / 2,
+        borderRadius: theme.radius.pill,
         backgroundColor: theme.colors.surfaceMuted,
       }}
     >
       {Icon !== null ? (
-        <Icon size={size * 0.5} color={tint} strokeWidth={2} />
+        <Icon size={size * 0.5} color={tint} />
       ) : (
         <Text weight="semibold" style={{ color: tint, fontSize: size * 0.4 }}>
           {initial}

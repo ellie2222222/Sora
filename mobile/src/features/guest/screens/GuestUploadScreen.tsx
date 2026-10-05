@@ -155,15 +155,15 @@ export function GuestUploadScreen() {
                 <View
                   key={step.key}
                   className="flex-row items-center"
-                  style={{ gap: theme.spacing.sm, opacity: isDone || isCurrent ? 1 : 0.4 }}
+                  style={{ gap: theme.spacing.sm, opacity: isDone || isCurrent ? 1 : theme.opacity.disabled }}
                 >
-                  <View className="w-[20px] items-center">
+                  <View className="items-center" style={{ width: theme.iconSize.xl }}>
                     {isDone ? (
-                      <Check size={16} color={theme.colors.success} />
+                      <Check size={theme.iconSize.md} color={theme.colors.success} />
                     ) : isCurrent ? (
                       <ActivityIndicator size="small" color={theme.colors.primary} />
                     ) : (
-                      <View className="w-[8px] h-[8px] rounded-[4px]" style={{ backgroundColor: theme.colors.textFaint }} />
+                      <View style={{ width: theme.sizes.dot.md, height: theme.sizes.dot.md, borderRadius: theme.radius.pill, backgroundColor: theme.colors.textFaint }} />
                     )}
                   </View>
                   <Text weight={isCurrent ? 'semibold' : 'regular'} tone={isDone ? 'success' : isCurrent ? 'default' : 'muted'}>

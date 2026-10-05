@@ -142,7 +142,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
             style={{ gap: theme.spacing.xs, marginTop: theme.spacing.md }}
           >
             <Text tone="muted">{t('auth.hasAccountPrompt')}</Text>
-            <Pressable testID="register-go-login" onPress={() => navigation.navigate('Login')} hitSlop={8}>
+            <Pressable testID="register-go-login" onPress={() => navigation.navigate('Login')} hitSlop={theme.sizes.hitSlop.md}>
               <Text weight="semibold" style={{ color: theme.colors.primary }}>
                 {t('auth.signInLink')}
               </Text>

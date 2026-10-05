@@ -55,7 +55,7 @@ export function DashboardKpis({
           className="flex-row justify-between"
           style={{
             paddingTop: theme.spacing.sm,
-            borderTopWidth: 1,
+            borderTopWidth: theme.borderWidth.thin,
             borderTopColor: theme.colors.border,
           }}
           testID="dashboard-transfers"
@@ -108,7 +108,7 @@ function TransferFigure({
 
   return (
     <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
-      <Icon size={14} color={color} strokeWidth={2} />
+      <Icon size={theme.iconSize.sm} color={color} />
       <Text variant="caption" tone="muted">
         {label}
       </Text>

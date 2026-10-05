@@ -16,8 +16,9 @@ export interface ProgressBarProps {
  * bar itself still visually caps at full width; `danger` is what actually
  * signals the overspend, not a bar that would overflow its own track.
  */
-export function ProgressBar({ percentage, tone = 'primary', danger = false, height = 8 }: ProgressBarProps) {
+export function ProgressBar({ percentage, tone = 'primary', danger = false, height: heightProp }: ProgressBarProps) {
   const theme = useTheme();
+  const height = heightProp ?? theme.sizes.progressBar.md;
   const clamped = Math.min(Math.max(percentage, 0), 100);
 
   const fillColor = danger
@@ -31,7 +32,7 @@ export function ProgressBar({ percentage, tone = 'primary', danger = false, heig
       className="overflow-hidden"
       style={{
         height,
-        borderRadius: height / 2,
+        borderRadius: theme.radius.pill,
         backgroundColor: theme.colors.surfaceMuted,
       }}
     >
@@ -39,7 +40,7 @@ export function ProgressBar({ percentage, tone = 'primary', danger = false, heig
         className="h-full"
         style={{
           width: `${clamped}%`,
-          borderRadius: height / 2,
+          borderRadius: theme.radius.pill,
           backgroundColor: fillColor,
         }}
       />

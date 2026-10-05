@@ -142,14 +142,16 @@ function ActivityItem({ entry }: { entry: AuditLogResponse }) {
 }
 
 function ActivityItemSkeleton() {
+  const theme = useTheme();
+
   return (
     <Card>
       <View className="flex-row justify-between items-start">
         <View className="flex-1 gap-xxs">
-          <Skeleton width={140} height={20} radius={4} />
-          <Skeleton width={100} height={16} radius={4} />
+          <Skeleton width={theme.sizes.skeletonWidth.xxl} height={theme.sizes.skeletonLine.body} radius={theme.radius.xs} />
+          <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.caption} radius={theme.radius.xs} />
         </View>
-        <Skeleton width={40} height={16} radius={4} />
+        <Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.skeletonLine.caption} radius={theme.radius.xs} />
       </View>
     </Card>
   );

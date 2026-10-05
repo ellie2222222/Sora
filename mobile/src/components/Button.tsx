@@ -20,12 +20,6 @@ export interface ButtonProps extends Omit<PressableProps, 'children'> {
   testID?: string;
 }
 
-const SIZE_HEIGHT: Record<ButtonSize, number> = { sm: 30, md: 44, lg: 46 };
-// `sm` stays visually compact; the slop brings its touch area to the 44pt minimum.
-const SIZE_HIT_SLOP: Record<ButtonSize, number> = { sm: 7, md: 0, lg: 0 };
-const SIZE_PADDING_VERTICAL: Record<ButtonSize, number> = { sm: 4, md: 6, lg: 8 };
-const SIZE_PADDING_HORIZONTAL: Record<ButtonSize, number> = { sm: 12, md: 16, lg: 20 };
-
 export function Button({
   label,
   variant = 'primary',
@@ -44,6 +38,19 @@ export function Button({
 }: ButtonProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const sizeHeight: Record<ButtonSize, number> = {
+    sm: theme.sizes.badge.sm,
+    md: theme.sizes.touchTarget,
+    lg: theme.sizes.controlHeight,
+  };
+  // `sm` stays visually compact; the slop brings its touch area to the 44pt minimum.
+  const sizeHitSlop: Record<ButtonSize, number> = {
+    sm: (theme.sizes.touchTarget - sizeHeight.sm) / 2,
+    md: 0,
+    lg: 0,
+  };
+  const sizePaddingVertical: Record<ButtonSize, number> = { sm: theme.spacing.xs, md: theme.spacing.xs, lg: theme.spacing.sm };
+  const sizePaddingHorizontal: Record<ButtonSize, number> = { sm: theme.spacing.md, md: theme.spacing.lg, lg: theme.spacing.xl };
   const isDisabled = disabled === true || loading;
   const [pressed, setPressed] = useState(false);
 
@@ -111,14 +118,14 @@ export function Button({
   const borderColor = isDisabled ? disabledBorderColor : enabledBorderColor;
   const textColor = isDisabled ? disabledTextColor : enabledTextColor;
   const iconColor = textColor;
-  const iconSize = size === 'sm' ? 14 : size === 'lg' ? 18 : 16;
-  const borderWidth = variant === 'danger-soft' || variant === 'ghost' ? 0 : 1;
+  const iconSize = size === 'sm' ? theme.iconSize.sm : size === 'lg' ? theme.iconSize.lg : theme.iconSize.md;
+  const borderWidth = variant === 'danger-soft' || variant === 'ghost' ? 0 : theme.borderWidth.thin;
 
   return (
     <Pressable
       {...pressableProps}
       testID={testID}
-      hitSlop={hitSlop ?? SIZE_HIT_SLOP[size]}
+      hitSlop={hitSlop ?? sizeHitSlop[size]}
       disabled={isDisabled}
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled, busy: loading }}
@@ -136,11 +143,11 @@ export function Button({
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor,
-          height: SIZE_HEIGHT[size],
+          height: sizeHeight[size],
           borderRadius: theme.radius.md,
-          paddingVertical: SIZE_PADDING_VERTICAL[size],
-          paddingHorizontal: SIZE_PADDING_HORIZONTAL[size],
-          opacity: pressed && !isDisabled ? 0.85 : 1,
+          paddingVertical: sizePaddingVertical[size],
+          paddingHorizontal: sizePaddingHorizontal[size],
+          opacity: pressed && !isDisabled ? theme.opacity.pressed : 1,
           borderWidth,
           borderColor,
           alignSelf: fullWidth ? 'stretch' : 'flex-start',

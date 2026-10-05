@@ -149,11 +149,11 @@ export function MoneyInput({ value, onChangeValue, label, error, placeholder = '
           setFocused(false);
         }}
         accessibilityLabel={label}
-        className="h-[48px]"
         style={{
+          height: theme.sizes.controlHeight,
           borderRadius: theme.radius.md,
-          borderWidth: focused || hasError ? 1.5 : 1,
-          borderColor: hasError ? theme.colors.danger : focused ? theme.colors.primary : theme.colors.border,
+          borderWidth: focused || hasError ? theme.borderWidth.medium : theme.borderWidth.thin,
+          borderColor: hasError ? theme.colors.danger : focused ? theme.colors.primary : theme.colors.borderControl,
           backgroundColor: theme.colors.surface,
           paddingHorizontal: theme.spacing.md,
           color: theme.colors.text,

@@ -19,25 +19,25 @@ function BudgetDetailSkeleton() {
   const theme = useTheme();
   return (
     <Card>
-      <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width="40%" height={24} radius={theme.radius.sm}  /></View>
-      <View style={{ marginBottom: theme.spacing.sm }}><Skeleton width="60%" height={16} radius={theme.radius.sm}  /></View>
+      <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width="40%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.sm}  /></View>
+      <View style={{ marginBottom: theme.spacing.sm }}><Skeleton width="60%" height={theme.sizes.skeletonLine.body} radius={theme.radius.sm}  /></View>
 
-      <Skeleton width="100%" height={12} radius={6} />
+      <Skeleton width="100%" height={theme.sizes.progressBar.lg} radius={theme.radius.pill} />
 
       <View className="flex-row justify-between" style={{ marginTop: theme.spacing.md }}>
         <View>
-          <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={50} height={14} radius={theme.radius.sm}  /></View>
-          <Skeleton width={80} height={24} radius={theme.radius.sm} />
+          <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm}  /></View>
+          <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.heading} radius={theme.radius.sm} />
         </View>
         <View className="items-end">
-          <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={70} height={14} radius={theme.radius.sm}  /></View>
-          <Skeleton width={80} height={24} radius={theme.radius.sm} />
+          <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm}  /></View>
+          <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.heading} radius={theme.radius.sm} />
         </View>
       </View>
 
       <View className="flex-row" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.sm }}>
-        <Skeleton width={60} height={14} radius={theme.radius.sm} />
-        <Skeleton width={80} height={14} radius={theme.radius.sm} />
+        <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
+        <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
       </View>
     </Card>
   );
@@ -75,7 +75,7 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
             {data.category?.name ?? t('budgets.overall', { defaultValue: 'Overall' })} · {t('budgets.dateRange', { start: data.startDate, end: data.endDate })}
           </Text>
 
-          <ProgressBar percentage={data.usagePercentage} danger={data.isOverBudget} height={12} />
+          <ProgressBar percentage={data.usagePercentage} danger={data.isOverBudget} height={theme.sizes.progressBar.lg} />
 
           <View className="flex-row justify-between" style={{ marginTop: theme.spacing.md }}>
             <View>

@@ -4,15 +4,13 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components';
 import { useTheme } from '@/app/providers';
 
-export function SettingsDivider({ inset = false }: { inset?: boolean } = {}) {
+export function SettingsDivider() {
   const theme = useTheme();
   return (
     <View
       style={{
         height: StyleSheet.hairlineWidth,
-        backgroundColor:
-          theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : theme.colors.border,
-        marginLeft: inset ? 56 : 0,
+        backgroundColor: theme.colors.border,
       }}
     />
   );
@@ -52,21 +50,17 @@ export function CollapsibleSection({
           flexDirection: 'row',
           alignItems: 'center',
           gap: theme.spacing.md,
-          paddingVertical: 14,
+          paddingVertical: theme.spacing.md,
           paddingHorizontal: theme.spacing.md,
-          backgroundColor: pressed
-            ? theme.colors.surfaceMuted
-            : isOpen
-              ? theme.mode === 'dark'
-                ? 'rgba(255, 255, 255, 0.02)'
-                : theme.colors.surfaceMuted
-              : 'transparent',
+          backgroundColor: pressed || isOpen ? theme.colors.surfaceMuted : 'transparent',
         }}
       >
-        <View className="w-[20px] items-center justify-center">{icon}</View>
+        <View className="items-center justify-center" style={{ width: theme.iconSize.xl }}>
+          {icon}
+        </View>
 
         <View className="flex-1 gap-xxs">
-          <Text weight="semibold" style={{ fontSize: 15 }}>
+          <Text weight="semibold">
             {title}
           </Text>
           {subtitle ? (
@@ -77,19 +71,16 @@ export function CollapsibleSection({
         </View>
 
         {isOpen ? (
-          <ChevronDown size={18} color={theme.colors.primary} />
+          <ChevronDown size={theme.iconSize.lg} color={theme.colors.primary} />
         ) : (
-          <ChevronRight size={18} color={theme.colors.textFaint} />
+          <ChevronRight size={theme.iconSize.lg} color={theme.colors.textFaint} />
         )}
       </Pressable>
 
       {isOpen ? (
         <View
           className="p-md gap-md"
-          style={{
-            backgroundColor:
-              theme.mode === 'dark' ? 'rgba(0, 0, 0, 0.25)' : theme.colors.surfaceMuted,
-          }}
+          style={{ backgroundColor: theme.colors.surfaceInset }}
         >
           {children}
         </View>

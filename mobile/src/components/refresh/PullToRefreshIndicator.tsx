@@ -36,6 +36,10 @@ export function PullToRefreshIndicator({
         {
           backgroundColor: theme.colors.surfaceElevated,
           borderColor: theme.colors.border,
+          width: theme.sizes.badge.md,
+          height: theme.sizes.badge.md,
+          borderRadius: theme.radius.pill,
+          borderWidth: theme.borderWidth.thin,
           pointerEvents: refreshing ? 'auto' : 'box-none',
           ...theme.shadows.md,
         },
@@ -50,11 +54,11 @@ export function PullToRefreshIndicator({
         accessibilityState={{ busy: refreshing || spinnerVisible }}
         onPress={onRefresh}
         // The 36pt circle plus 4pt each side reaches the 44pt minimum touch target.
-        hitSlop={4}
+        hitSlop={(theme.sizes.touchTarget - theme.sizes.badge.md) / 2}
         className="w-full h-full items-center justify-center"
       >
         <Animated.View style={iconAnimatedStyle}>
-          <RotateCw size={17} color={theme.colors.primary} strokeWidth={2.2} />
+          <RotateCw size={theme.iconSize.md} color={theme.colors.primary} />
         </Animated.View>
         <Animated.View style={[StyleSheet.absoluteFill, styles.center, { pointerEvents: 'none' }, spinnerAnimatedStyle]}>
           {/* Never stopped: a stopped spinner hides itself, and starting it waits on a JS render. */}
@@ -70,10 +74,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     alignSelf: 'center',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
     zIndex: 999,
     alignItems: 'center',
     justifyContent: 'center',

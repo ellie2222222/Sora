@@ -62,25 +62,25 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
             accessibilityRole="button"
             accessibilityLabel={fieldAccessibilityLabel}
             className="flex-row items-center"
-            style={{ gap: theme.spacing.xs, minHeight: 44 }}
+            style={{ gap: theme.spacing.xs, minHeight: theme.sizes.touchTarget }}
           >
             <View
               style={{
-                width: 32,
-                height: 32,
+                width: theme.sizes.badge.sm,
+                height: theme.sizes.badge.sm,
                 borderRadius: theme.radius.pill,
                 alignItems: 'center',
                 justifyContent: 'center',
                 backgroundColor: error !== undefined ? theme.colors.dangerMuted : theme.colors.warningMuted,
               }}
             >
-              <AccountTypeIcon size={16} color={error !== undefined ? theme.colors.danger : theme.colors.warning} strokeWidth={2} />
+              <AccountTypeIcon size={theme.iconSize.md} color={error !== undefined ? theme.colors.danger : theme.colors.warning} />
             </View>
-            <ChevronDown size={14} color={theme.colors.textMuted} />
+            <ChevronDown size={theme.iconSize.sm} color={theme.colors.textMuted} />
             <Text
               tone={selected === undefined ? 'faint' : 'default'}
               numberOfLines={1}
-              style={{ maxWidth: 120 }}
+              style={{ maxWidth: theme.sizes.chipLabelMaxWidth }}
             >
               {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Select an account' }) : selected.name}
             </Text>
@@ -102,9 +102,9 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
             accessibilityRole="button"
             accessibilityLabel={fieldAccessibilityLabel}
             style={{
-              height: 48,
+              height: theme.sizes.controlHeight,
               borderRadius: theme.radius.md,
-              borderWidth: 1,
+              borderWidth: theme.borderWidth.thin,
               borderColor: error !== undefined ? theme.colors.danger : theme.colors.borderControl,
               backgroundColor: theme.colors.surface,
               paddingHorizontal: theme.spacing.md,
@@ -112,7 +112,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
             }}
           >
             <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-              <ChevronDown size={18} color={theme.colors.textMuted} />
+              <ChevronDown size={theme.iconSize.lg} color={theme.colors.textMuted} />
               <Text tone={selected === undefined ? 'faint' : 'default'}>
                 {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Select an account' }) : selected.name}
               </Text>
@@ -134,7 +134,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          className="max-h-[360px]"
+          style={{ maxHeight: theme.sizes.listMaxHeight.md }}
           contentContainerStyle={{ gap: theme.spacing.xs, paddingBottom: theme.spacing.md }}
         >
           {(accounts.data ?? []).map((account) => (
@@ -184,7 +184,7 @@ function AccountItem({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        minHeight: 48,
+        minHeight: theme.sizes.controlHeight,
         paddingVertical: theme.spacing.sm,
         paddingHorizontal: theme.spacing.sm,
         borderRadius: theme.radius.md,
@@ -192,7 +192,7 @@ function AccountItem({
       }}
     >
       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-        <Icon size={18} color={theme.colors.textMuted} />
+        <Icon size={theme.iconSize.lg} color={theme.colors.textMuted} />
         <View>
           <Text weight={selected ? 'semibold' : 'regular'}>{account.name}</Text>
           {walletName !== undefined ? (
@@ -204,7 +204,7 @@ function AccountItem({
       </View>
       <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
         <Money amount={account.balance} currency={account.currency} variant="label" />
-        {selected ? <Check size={16} color={theme.colors.primary} /> : null}
+        {selected ? <Check size={theme.iconSize.md} color={theme.colors.primary} /> : null}
       </View>
     </Pressable>
   );

@@ -27,10 +27,10 @@ export function SuggestedPromptChips({ disabled, onPick }: { disabled: boolean; 
             paddingVertical: theme.spacing.xs,
             paddingHorizontal: theme.spacing.md,
             borderRadius: theme.radius.pill,
-            borderWidth: 1,
+            borderWidth: theme.borderWidth.thin,
             borderColor: theme.colors.border,
             backgroundColor: pressedKey === key ? theme.colors.surfaceMuted : theme.colors.surface,
-            opacity: disabled ? 0.5 : 1,
+            opacity: disabled ? theme.opacity.disabled : 1,
           }}
         >
           <Text variant="caption">{t(`ai.suggestions.${key}`)}</Text>

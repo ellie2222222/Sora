@@ -103,28 +103,30 @@ export function ConfirmDialog({
       <View style={{ gap: theme.spacing.lg }}>
         <View className="flex-row items-center" style={{ gap: theme.spacing.md }}>
           <View
-            className="w-[40px] h-[40px] items-center justify-center"
+            className="items-center justify-center"
             style={{
+              width: theme.sizes.badge.lg,
+              height: theme.sizes.badge.lg,
               borderRadius: theme.radius.pill,
               backgroundColor: iconBgColor,
             }}
           >
-            <IconComponent size={22} color={iconColor} strokeWidth={2} />
+            <IconComponent size={theme.iconSize.xxl} color={iconColor} />
           </View>
-          <Text variant="title" style={{ flex: 1, letterSpacing: 0.3 }}>
+          <Text variant="title" style={{ flex: 1, letterSpacing: theme.letterSpacing.wide }}>
             {title}
           </Text>
         </View>
 
         {message !== undefined ? (
-          <Text tone="muted" style={{ lineHeight: 22, letterSpacing: 0.2 }}>
+          <Text tone="muted" style={{ lineHeight: theme.lineHeight.lg, letterSpacing: theme.letterSpacing.wide }}>
             {message}
           </Text>
         ) : null}
 
         {isMatchRequired ? (
           <View style={{ gap: theme.spacing.xs }}>
-            <Text variant="caption" tone="muted" style={{ fontSize: 13, letterSpacing: 0.1 }}>
+            <Text variant="caption" tone="muted" style={{ fontSize: theme.fontSize.sm, letterSpacing: theme.letterSpacing.wide }}>
               {matchTextLabel ?? t('common.matchConfirmPrompt', { word: matchText })}
             </Text>
             <Input

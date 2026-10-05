@@ -43,19 +43,21 @@ export function CategoryPicker({ walletId, type, value, onChange, onClear, error
       <Pressable
         testID={testID}
         onPress={() => setOpen(true)}
-        className="h-[48px] border justify-center"
+        className="justify-center"
         style={{
+          height: theme.sizes.controlHeight,
+          borderWidth: theme.borderWidth.thin,
           borderRadius: theme.radius.md,
-          borderColor: error !== undefined ? theme.colors.danger : theme.colors.border,
+          borderColor: error !== undefined ? theme.colors.danger : theme.colors.borderControl,
           backgroundColor: theme.colors.surface,
           paddingHorizontal: theme.spacing.md,
         }}
       >
         <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-          <ChevronDown size={18} color={theme.colors.textMuted} />
+          <ChevronDown size={theme.iconSize.lg} color={theme.colors.textMuted} />
           <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
             {selected?.color !== undefined && selected.color !== null ? (
-              <View className="w-[10px] h-[10px]" style={{ borderRadius: theme.radius.pill, backgroundColor: selected.color }} />
+              <View style={{ width: theme.sizes.dot.lg, height: theme.sizes.dot.lg, borderRadius: theme.radius.pill, backgroundColor: selected.color }} />
             ) : null}
             <Text tone={selected === undefined ? 'faint' : 'default'}>
               {selected === undefined ? placeholder : selected.name}
@@ -77,7 +79,7 @@ export function CategoryPicker({ walletId, type, value, onChange, onClear, error
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          className="max-h-[360px]"
+          style={{ maxHeight: theme.sizes.listMaxHeight.md }}
           contentContainerClassName="gap-xs"
           contentContainerStyle={{ paddingBottom: theme.spacing.md }}
         >
@@ -150,15 +152,16 @@ function CategoryItem({
     >
       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
         <View
-          className="w-[10px] h-[10px]"
           style={{
+            width: theme.sizes.dot.lg,
+            height: theme.sizes.dot.lg,
             borderRadius: theme.radius.pill,
             backgroundColor: color ?? theme.colors.textFaint,
           }}
         />
         <Text weight={selected ? 'semibold' : 'regular'}>{label}</Text>
       </View>
-      {selected ? <Check size={16} color={theme.colors.primary} /> : null}
+      {selected ? <Check size={theme.iconSize.md} color={theme.colors.primary} /> : null}
     </Pressable>
   );
 }

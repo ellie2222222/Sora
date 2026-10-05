@@ -55,7 +55,7 @@ export function BottomSheetModal({
 }: BottomSheetModalProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const safeBottom = Math.max(insets.bottom, 16);
+  const safeBottom = Math.max(insets.bottom, theme.spacing.lg);
 
   const windowHeight = Dimensions.get('window').height;
   const availableHeight = windowHeight - insets.top - theme.spacing.lg;
@@ -192,8 +192,10 @@ export function BottomSheetModal({
               }}
             >
               <View
-                className="rounded-bl-none rounded-br-none border border-b-0"
+                className="rounded-bl-none rounded-br-none"
                 style={{
+                  borderWidth: theme.borderWidth.thin,
+                  borderBottomWidth: 0,
                   backgroundColor: theme.colors.surfaceElevated,
                   borderTopLeftRadius: theme.radius.xl,
                   borderTopRightRadius: theme.radius.xl,
@@ -219,8 +221,11 @@ export function BottomSheetModal({
                   }}
                 >
                   <View
-                    className="w-[38px] h-[4px] rounded-[2px] opacity-80"
                     style={{
+                      opacity: theme.opacity.muted,
+                      width: theme.sizes.sheetHandle.width,
+                      height: theme.sizes.sheetHandle.height,
+                      borderRadius: theme.radius.pill,
                       backgroundColor: theme.colors.borderStrong,
                     }}
                   />

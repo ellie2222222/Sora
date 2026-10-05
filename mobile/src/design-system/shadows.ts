@@ -34,6 +34,7 @@ function elevate(level: number, shadowColor: string): ViewStyle {
 export function buildShadows(shadowColor: string) {
   return {
     none: {} as ViewStyle,
+    xs: elevate(1, shadowColor),
     sm: elevate(2, shadowColor),
     md: elevate(6, shadowColor),
     lg: elevate(12, shadowColor),

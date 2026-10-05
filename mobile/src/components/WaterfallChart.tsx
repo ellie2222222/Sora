@@ -42,9 +42,11 @@ interface Bar {
  * from the largest single step, so a series whose running total overshoots any
  * one step still fits inside the plot.
  */
-export function WaterfallChart({ points, height = 160, testID }: WaterfallChartProps) {
+export function WaterfallChart({ points, height: heightProp, testID }: WaterfallChartProps) {
   const theme = useTheme();
-  const plotHeight = height - 22;
+  const height = heightProp ?? theme.sizes.chart.largeHeight;
+  // Leaves one line of label text under the bars.
+  const plotHeight = height - theme.lineHeight.lg;
 
   const bars: Bar[] = [];
   let running = 0;
@@ -84,11 +86,11 @@ export function WaterfallChart({ points, height = 160, testID }: WaterfallChartP
               style={{
                 // A zero-size step still draws a hairline: "nothing moved" is a
                 // reading, and an invisible bar looks like missing data.
-                height: Math.max(2, toOffset(bar.high) - toOffset(bar.low)),
+                height: Math.max(theme.sizes.chart.minBarHeight, toOffset(bar.high) - toOffset(bar.low)),
                 marginBottom: toOffset(bar.low),
                 backgroundColor: colorFor(bar.point.kind),
                 borderRadius: theme.radius.sm,
-                opacity: bar.point.kind === 'start' || bar.point.kind === 'end' ? 0.55 : 1,
+                opacity: bar.point.kind === 'start' || bar.point.kind === 'end' ? theme.opacity.muted : 1,
               }}
             />
           </View>

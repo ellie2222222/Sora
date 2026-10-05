@@ -19,6 +19,8 @@ import {
   useCalculatorExpression,
 } from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
+// Deep-imported, not via `@/features/categories`: ModalProvider deep-imports this modal, and that
+// barrel's other exports would close a cycle (same reasoning as AddTransactionModal.tsx).
 import { CategoryGrid } from '../../categories/components/CategoryGrid.tsx';
 import { useCreateBudgetMutation, useListGoalsQuery } from '@/app/store';
 import {
@@ -239,7 +241,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
                     padding: theme.spacing.md,
                     borderRadius: theme.radius.md,
                     backgroundColor: goal.id === goalId ? theme.colors.primaryMuted : theme.colors.surface,
-                    borderWidth: 1,
+                    borderWidth: theme.borderWidth.thin,
                     borderColor: goal.id === goalId ? theme.colors.primary : theme.colors.border,
                   }}
                 >

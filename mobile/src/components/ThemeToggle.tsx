@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Animated, {
   Easing,
@@ -10,6 +10,7 @@ import Animated, {
 import { Moon, Sun } from 'lucide-react-native';
 
 import { useTheme } from '@/app/providers';
+import { concentricRadius } from '@/design-system';
 
 export interface ThemeToggleProps {
   testID?: string;
@@ -17,14 +18,6 @@ export interface ThemeToggleProps {
   onValueChange: (isDark: boolean) => void;
   size?: 'sm' | 'md' | 'lg';
 }
-
-const DIMENSIONS = {
-  sm: { trackWidth: 48, trackHeight: 26, thumbSize: 20, padding: 3, iconSize: 13 },
-  md: { trackWidth: 58, trackHeight: 30, thumbSize: 24, padding: 3, iconSize: 15 },
-  lg: { trackWidth: 70, trackHeight: 36, thumbSize: 30, padding: 3, iconSize: 18 },
-};
-
-const MIN_TOUCH_TARGET = 44;
 
 const TIMING_CONFIG = {
   duration: 380,
@@ -38,10 +31,20 @@ export function ThemeToggle({
   size = 'md',
 }: ThemeToggleProps) {
   const theme = useTheme();
-  const dim = DIMENSIONS[size];
-  const verticalSlop = Math.max(0, (MIN_TOUCH_TARGET - dim.trackHeight) / 2);
+  const toggle = theme.sizes.toggle[size];
+  const iconSize = { sm: theme.iconSize.xs, md: theme.iconSize.sm, lg: theme.iconSize.lg }[size];
+  // RN padding sits inside the border, so the thumb's gap to the outer edge is border + padding.
+  const thumbInset = (toggle.trackHeight - toggle.thumb) / 2;
+  const dim = {
+    trackWidth: toggle.trackWidth,
+    trackHeight: toggle.trackHeight,
+    thumbSize: toggle.thumb,
+    padding: thumbInset - theme.borderWidth.thin,
+    iconSize,
+  };
+  const verticalSlop = Math.max(0, (theme.sizes.touchTarget - dim.trackHeight) / 2);
   const { t } = useTranslation();
-  const travelDistance = dim.trackWidth - dim.thumbSize - dim.padding * 2;
+  const travelDistance = dim.trackWidth - dim.thumbSize - thumbInset * 2;
 
   const slideProgress = useSharedValue(value ? 1 : 0);
   // Which end `slideProgress` is animating toward. Guards against the `value` prop's
@@ -104,7 +107,7 @@ export function ThemeToggle({
           width: dim.trackWidth,
           height: dim.trackHeight,
           borderRadius: dim.trackHeight / 2,
-          borderWidth: 1,
+          borderWidth: theme.borderWidth.thin,
           padding: dim.padding,
           justifyContent: 'center',
           // Track and thumb follow the theme, which flips in the same tick as `value`.
@@ -117,20 +120,11 @@ export function ThemeToggle({
             {
               width: dim.thumbSize,
               height: dim.thumbSize,
-              borderRadius: dim.thumbSize / 2,
+              borderRadius: concentricRadius(dim.trackHeight / 2, thumbInset),
               backgroundColor: theme.colors.primary,
               alignItems: 'center',
               justifyContent: 'center',
-              ...Platform.select({
-                web: { boxShadow: `0px 2px 3px ${theme.colors.shadow}` }, // roughly matches opacity 0.2
-                default: {
-                  shadowColor: theme.colors.shadow,
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 3,
-                  elevation: 3,
-                },
-              }),
+              ...theme.shadows.sm,
             },
             thumbAnimatedStyle,
           ]}
@@ -148,7 +142,7 @@ export function ThemeToggle({
             <Sun
               size={dim.iconSize}
               color={theme.colors.onPrimary}
-              strokeWidth={2.5}
+              strokeWidth={theme.iconStroke.bold}
             />
           </Animated.View>
 
@@ -165,7 +159,7 @@ export function ThemeToggle({
             <Moon
               size={dim.iconSize}
               color={theme.colors.onPrimary}
-              strokeWidth={2.5}
+              strokeWidth={theme.iconStroke.bold}
             />
           </Animated.View>
         </Animated.View>

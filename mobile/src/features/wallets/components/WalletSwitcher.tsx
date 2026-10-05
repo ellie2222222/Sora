@@ -181,14 +181,14 @@ export function WalletSwitcher() {
         style={{ gap: theme.spacing.sm }}
       >
         {currentWallet && !currentWallet.isOwn ? (
-          <UsersRound size={16} color={theme.colors.primary} />
+          <UsersRound size={theme.iconSize.md} color={theme.colors.primary} />
         ) : (
-          <Wallet size={18} color={theme.colors.primary} />
+          <Wallet size={theme.iconSize.lg} color={theme.colors.primary} />
         )}
-        <Text variant="title" numberOfLines={1} isLoading={isLoading} skeletonWidth={120}>
+        <Text variant="title" numberOfLines={1} isLoading={isLoading} skeletonWidth={theme.sizes.skeletonWidth.xl}>
           {displayName}
         </Text>
-        <ChevronDown size={18} color={theme.colors.textMuted} />
+        <ChevronDown size={theme.iconSize.lg} color={theme.colors.textMuted} />
       </Pressable>
 
       <BottomSheetModal visible={open} onClose={close} testID="sheet-wallet">
@@ -200,12 +200,12 @@ export function WalletSwitcher() {
             {page.kind !== 'list' ? (
               <Pressable
                 testID="btn-back-wallet"
-                hitSlop={12}
+                hitSlop={theme.sizes.hitSlop.lg}
                 accessibilityRole="button"
                 accessibilityLabel={t('common.back')}
                 onPress={() => setPage(parentOf(page))}
               >
-                <ChevronLeft size={22} color={theme.colors.text} />
+                <ChevronLeft size={theme.iconSize.xxl} color={theme.colors.text} />
               </Pressable>
             ) : null}
             <Text variant="title" numberOfLines={1} style={{ flexShrink: 1 }}>
@@ -272,7 +272,7 @@ function WalletRow({
       }}
     >
       <View className="flex-row items-center flex-1" style={{ gap: theme.spacing.sm }}>
-        {!wallet.isOwn ? <UsersRound size={16} color={theme.colors.textMuted} /> : null}
+        {!wallet.isOwn ? <UsersRound size={theme.iconSize.md} color={theme.colors.textMuted} /> : null}
         <View className="flex-1">
           <Text weight={active ? 'semibold' : 'regular'}>{displayName}</Text>
           {!wallet.isOwn ? (
@@ -287,15 +287,15 @@ function WalletRow({
         </View>
       </View>
       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-        {active ? <Check size={16} color={theme.colors.primary} /> : null}
+        {active ? <Check size={theme.iconSize.md} color={theme.colors.primary} /> : null}
         <Pressable
           testID={`btn-view-wallet-${wallet.id}`}
-          hitSlop={12}
+          hitSlop={theme.sizes.hitSlop.lg}
           accessibilityRole="button"
           accessibilityLabel={`${t('wallets.walletDetails')}: ${displayName}`}
           onPress={onOpenDetails}
         >
-          <ChevronRight size={20} color={theme.colors.textMuted} />
+          <ChevronRight size={theme.iconSize.xl} color={theme.colors.textMuted} />
         </Pressable>
       </View>
     </Pressable>

@@ -38,17 +38,17 @@ export function IconChip({
     <>
       <View
         style={{
-          width: 32,
-          height: 32,
+          width: theme.sizes.badge.sm,
+          height: theme.sizes.badge.sm,
           borderRadius: theme.radius.pill,
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: error ? theme.colors.dangerMuted : theme.colors.warningMuted,
         }}
       >
-        <Icon size={16} color={error ? theme.colors.danger : theme.colors.warning} strokeWidth={2} />
+        <Icon size={theme.iconSize.md} color={error ? theme.colors.danger : theme.colors.warning} />
       </View>
-      {onPress !== undefined && onClear === undefined ? <ChevronDown size={14} color={theme.colors.textMuted} /> : null}
+      {onPress !== undefined && onClear === undefined ? <ChevronDown size={theme.iconSize.sm} color={theme.colors.textMuted} /> : null}
       <Text tone={placeholder ? 'faint' : 'muted'} numberOfLines={1} style={{ flexShrink: 1 }}>
         {label}
       </Text>
@@ -64,7 +64,7 @@ export function IconChip({
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel ?? label}
           className="flex-row items-center"
-          style={{ flexShrink: 1, gap: theme.spacing.xs, minHeight: 44 }}
+          style={{ flexShrink: 1, gap: theme.spacing.xs, minHeight: theme.sizes.touchTarget }}
         >
           {body}
         </Pressable>
@@ -81,9 +81,9 @@ export function IconChip({
           accessibilityLabel={clearAccessibilityLabel}
           // A real 44pt box rather than hitSlop, so the target cannot spill onto the chip's own button;
           // the negative margin cancels the row gap so the two boxes abut instead.
-          style={{ width: 44, height: 44, marginLeft: -theme.spacing.xs, alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: theme.sizes.touchTarget, height: theme.sizes.touchTarget, marginLeft: -theme.spacing.xs, alignItems: 'center', justifyContent: 'center' }}
         >
-          <X size={14} color={theme.colors.textMuted} />
+          <X size={theme.iconSize.sm} color={theme.colors.textMuted} />
         </Pressable>
       ) : null}
     </View>

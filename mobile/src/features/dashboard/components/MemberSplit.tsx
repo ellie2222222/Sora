@@ -56,7 +56,7 @@ export function MemberSplit({ members }: MemberSplitProps) {
               )}
             </View>
 
-            <ProgressBar percentage={Math.max(0, Math.min(100, relative))} tone="expense" height={6} />
+            <ProgressBar percentage={Math.max(0, Math.min(100, relative))} tone="expense" height={theme.sizes.progressBar.sm} />
 
             {income !== undefined ? (
               <Text variant="caption" tone="muted">

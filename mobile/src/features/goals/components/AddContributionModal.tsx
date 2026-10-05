@@ -89,21 +89,21 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
       <BottomSheetModal visible={visible} onClose={onClose} title={t('goals.addContribution')}>
                 <View style={{ gap: theme.spacing.md, paddingHorizontal: theme.spacing.md }}>
           <View style={{ gap: theme.spacing.xs }}>
-            <Skeleton width={80} height={14} radius={theme.radius.sm} />
-            <Skeleton width="100%" height={48} radius={theme.radius.md} />
+            <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
+            <Skeleton width="100%" height={theme.sizes.controlHeight} radius={theme.radius.md} />
           </View>
           
           <View style={{ gap: theme.spacing.xs }}>
-            <Skeleton width={60} height={14} radius={theme.radius.sm} />
-            <Skeleton width="100%" height={48} radius={theme.radius.md} />
+            <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
+            <Skeleton width="100%" height={theme.sizes.controlHeight} radius={theme.radius.md} />
           </View>
 
           <View style={{ gap: theme.spacing.xs }}>
-            <Skeleton width={100} height={14} radius={theme.radius.sm} />
-            <Skeleton width="100%" height={48} radius={theme.radius.md} />
+            <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
+            <Skeleton width="100%" height={theme.sizes.controlHeight} radius={theme.radius.md} />
           </View>
           
-          <Skeleton width="100%" height={240} radius={theme.radius.md} />
+          <Skeleton width="100%" height={theme.sizes.skeletonBlock.lg} radius={theme.radius.md} />
         </View>
       </BottomSheetModal>
     );
@@ -174,14 +174,17 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
           style={{ gap: theme.spacing.sm }}
         >
           <View
-            className="w-[20px] h-[20px] items-center justify-center border-[1.5px]"
+            className="items-center justify-center"
             style={{
+              width: theme.sizes.checkbox,
+              height: theme.sizes.checkbox,
+              borderWidth: theme.borderWidth.medium,
               borderRadius: theme.radius.sm,
               borderColor: recordAsTransaction ? theme.colors.primary : theme.colors.borderControl,
               backgroundColor: recordAsTransaction ? theme.colors.primary : 'transparent',
             }}
           >
-            {recordAsTransaction ? <Check size={14} color={theme.colors.onPrimary} /> : null}
+            {recordAsTransaction ? <Check size={theme.iconSize.sm} color={theme.colors.onPrimary} /> : null}
           </View>
           <View className="flex-1">
             <Text weight="medium">

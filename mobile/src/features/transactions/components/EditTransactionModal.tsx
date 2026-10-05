@@ -72,24 +72,24 @@ export function EditTransactionModal({
         title={t("transactions.editTransaction")}
       >
                 <View style={{ gap: theme.spacing.md, paddingBottom: theme.spacing.xl, marginTop: theme.spacing.md }}>
-          <Skeleton width="100%" height={32} radius={theme.radius.sm} />
+          <Skeleton width="100%" height={theme.sizes.skeletonLine.display} radius={theme.radius.sm} />
           
           <View style={{ gap: theme.spacing.xs }}>
-            <Skeleton width={80} height={14} radius={theme.radius.sm} />
-            <Skeleton width="100%" height={48} radius={theme.radius.md} />
+            <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
+            <Skeleton width="100%" height={theme.sizes.controlHeight} radius={theme.radius.md} />
           </View>
           
           <View style={{ gap: theme.spacing.xs }}>
-            <Skeleton width={60} height={14} radius={theme.radius.sm} />
-            <Skeleton width="100%" height={48} radius={theme.radius.md} />
+            <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
+            <Skeleton width="100%" height={theme.sizes.controlHeight} radius={theme.radius.md} />
           </View>
 
           <View style={{ gap: theme.spacing.xs }}>
-            <Skeleton width={100} height={14} radius={theme.radius.sm} />
-            <Skeleton width="100%" height={48} radius={theme.radius.md} />
+            <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
+            <Skeleton width="100%" height={theme.sizes.controlHeight} radius={theme.radius.md} />
           </View>
           
-          <Skeleton width="100%" height={48} radius={theme.radius.md} />
+          <Skeleton width="100%" height={theme.sizes.controlHeight} radius={theme.radius.md} />
         </View>
       </BottomSheetModal>
     );

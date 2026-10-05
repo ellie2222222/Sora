@@ -82,14 +82,14 @@ export function CategoryBreakdown({
               >
                 <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
                   <View
-                    className="w-[8px] h-[8px] rounded-pill"
-                    style={{ backgroundColor: group.color ?? theme.colors.primary }}
+                    className="rounded-pill"
+                    style={{ width: theme.sizes.dot.md, height: theme.sizes.dot.md, backgroundColor: group.color ?? theme.colors.primary }}
                   />
                   {group.hasChildren ? (
                     expanded === group.id ? (
-                      <ChevronDown size={14} color={theme.colors.textMuted} />
+                      <ChevronDown size={theme.iconSize.sm} color={theme.colors.textMuted} />
                     ) : (
-                      <ChevronRight size={14} color={theme.colors.textMuted} />
+                      <ChevronRight size={theme.iconSize.sm} color={theme.colors.textMuted} />
                     )
                   ) : null}
                   <Text>{group.name}</Text>
@@ -165,8 +165,8 @@ function TopCategoryRow({
           {rank}
         </Text>
         <View
-          className="w-[8px] h-[8px] rounded-pill"
-          style={{ backgroundColor: slice.color ?? theme.colors.primary }}
+          className="rounded-pill"
+          style={{ width: theme.sizes.dot.md, height: theme.sizes.dot.md, backgroundColor: slice.color ?? theme.colors.primary }}
         />
         <Text numberOfLines={1} style={{ flexShrink: 1 }}>
           {slice.categoryName}
@@ -177,9 +177,9 @@ function TopCategoryRow({
         {changePercent !== null && Math.abs(changePercent) >= 1 ? (
           <View className="flex-row items-center" style={{ gap: theme.spacing.xxs }}>
             {changePercent > 0 ? (
-              <TrendingUp size={12} color={theme.colors.expense} strokeWidth={2} />
+              <TrendingUp size={theme.iconSize.xs} color={theme.colors.expense} />
             ) : (
-              <TrendingDown size={12} color={theme.colors.income} strokeWidth={2} />
+              <TrendingDown size={theme.iconSize.xs} color={theme.colors.income} />
             )}
             <Text variant="caption" tone={changePercent > 0 ? 'danger' : 'muted'}>
               {Math.abs(changePercent)}%

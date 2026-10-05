@@ -9,7 +9,7 @@ import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react-native'
 // useTheme back through this directory's own barrel, and routing through both
 // barrels here would close the require-cycle shape rule 14 in CLAUDE.md documents.
 import { Text } from '../../components/Text';
-import { spacing } from '../../design-system/index';
+import { spacing } from '@/design-system';
 import { ToastContext, type ToastVariant } from './ToastContext.ts';
 import { useTheme } from './ThemeProvider.tsx';
 
@@ -110,7 +110,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   {
                     backgroundColor: theme.colors.surfaceElevated,
                     borderColor: theme.colors.border,
-                    borderLeftColor: color,
+                    borderWidth: theme.borderWidth.thin,
                     borderRadius: theme.radius.md,
                     paddingVertical: theme.spacing.sm,
                     paddingHorizontal: theme.spacing.lg,
@@ -119,7 +119,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   },
                 ]}
               >
-                <Icon size={18} color={color} strokeWidth={2} />
+                {/* An inset bar, not a left border: a one-sided border cannot follow rounded corners. */}
+                <View
+                  style={{
+                    alignSelf: 'stretch',
+                    width: theme.borderWidth.thick,
+                    borderRadius: theme.radius.pill,
+                    backgroundColor: color,
+                  }}
+                />
+                <Icon size={theme.iconSize.lg} color={color} />
                 <Text variant="label" style={styles.message}>
                   {toast.message}
                 </Text>
@@ -148,8 +157,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     // A wrapped message keeps its icon beside the first line, not centred on the block.
     alignItems: 'flex-start',
-    borderWidth: 1,
-    borderLeftWidth: 3,
   },
   message: {
     flexShrink: 1,

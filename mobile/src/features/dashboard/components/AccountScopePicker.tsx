@@ -55,7 +55,7 @@ export function AccountScopePicker({
               paddingVertical: theme.spacing.xs,
               paddingHorizontal: theme.spacing.md,
               borderRadius: theme.radius.pill,
-              borderWidth: 1,
+              borderWidth: theme.borderWidth.thin,
               borderColor: selected ? theme.colors.primary : theme.colors.border,
               backgroundColor: selected ? theme.colors.primaryMuted : pressed ? theme.colors.surfaceMuted : theme.colors.surface,
             }}

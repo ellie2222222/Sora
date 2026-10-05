@@ -4,8 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
 
-const SIDE_WIDTH = 64;
-
 export interface SheetFormHeaderProps {
   title: string;
   onCancel: () => void;
@@ -26,7 +24,7 @@ export function SheetFormHeader({ title, onCancel, entity }: SheetFormHeaderProp
         onPress={onCancel}
         accessibilityRole="button"
         accessibilityLabel={cancel}
-        style={{ minWidth: SIDE_WIDTH, minHeight: 44, justifyContent: 'center' }}
+        style={{ minWidth: theme.sizes.sheetHeaderAction, minHeight: theme.sizes.touchTarget, justifyContent: 'center' }}
       >
         <Text tone="muted">{cancel}</Text>
       </Pressable>
@@ -34,7 +32,7 @@ export function SheetFormHeader({ title, onCancel, entity }: SheetFormHeaderProp
         {title}
       </Text>
       {/* Mirrors the Cancel target's width so the title stays centred. */}
-      <View style={{ width: SIDE_WIDTH }} />
+      <View style={{ width: theme.sizes.sheetHeaderAction }} />
     </View>
   );
 }

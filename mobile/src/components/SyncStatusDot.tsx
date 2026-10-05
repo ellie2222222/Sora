@@ -26,8 +26,12 @@ export function SyncStatusDot({ status, testID }: SyncStatusDotProps) {
   return (
     <View
       testID={testID}
-      className="w-[6px] h-[6px] rounded-[3px]"
-      style={{ backgroundColor: color }}
+      style={{
+        width: theme.sizes.dot.sm,
+        height: theme.sizes.dot.sm,
+        borderRadius: theme.radius.pill,
+        backgroundColor: color,
+      }}
     />
   );
 }

@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import type { LucideIcon, LucideProps } from 'lucide-react-native';
+
+import { useTheme } from '@/app/providers';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -22,12 +24,13 @@ export function AnimatedIcon({
   icon: IconComponent,
   animation = 'none',
   duration = 1200,
-  size = 24,
+  size,
   color,
-  strokeWidth = 2,
+  strokeWidth,
   style,
   ...rest
 }: AnimatedIconProps) {
+  const theme = useTheme();
   const rotation = useSharedValue(0);
   const scale = useSharedValue(1);
   const translateY = useSharedValue(0);
@@ -112,7 +115,7 @@ export function AnimatedIcon({
 
   return (
     <Animated.View style={[animatedStyle, style]}>
-      <IconComponent size={size} color={color} strokeWidth={strokeWidth} {...rest} />
+      <IconComponent size={size ?? theme.iconSize.xxl} color={color} strokeWidth={strokeWidth ?? theme.iconStroke.regular} {...rest} />
     </Animated.View>
   );
 }

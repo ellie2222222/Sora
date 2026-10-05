@@ -91,7 +91,7 @@ export function PeriodSummaryCard({ transactions, filterType = 'ALL', testID }: 
                 style={{
                   gap: theme.spacing.xxs,
                   paddingTop: theme.spacing.sm,
-                  borderTopWidth: 1,
+                  borderTopWidth: theme.borderWidth.thin,
                   borderTopColor: theme.colors.border,
                 }}
               >
@@ -130,7 +130,7 @@ export function PeriodSummaryCard({ transactions, filterType = 'ALL', testID }: 
                 style={{
                   gap: theme.spacing.xs,
                   paddingTop: theme.spacing.sm,
-                  borderTopWidth: 1,
+                  borderTopWidth: theme.borderWidth.thin,
                   borderTopColor: theme.colors.border,
                 }}
               >
@@ -177,7 +177,7 @@ export function PeriodSummaryCard({ transactions, filterType = 'ALL', testID }: 
                 style={{
                   gap: theme.spacing.xs,
                   paddingTop: theme.spacing.sm,
-                  borderTopWidth: 1,
+                  borderTopWidth: theme.borderWidth.thin,
                   borderTopColor: theme.colors.border,
                 }}
               >
@@ -229,7 +229,7 @@ export function PeriodSummaryCard({ transactions, filterType = 'ALL', testID }: 
                 style={{
                   gap: theme.spacing.xs,
                   paddingTop: theme.spacing.sm,
-                  borderTopWidth: 1,
+                  borderTopWidth: theme.borderWidth.thin,
                   borderTopColor: theme.colors.border,
                 }}
               >

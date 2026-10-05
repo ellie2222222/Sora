@@ -137,11 +137,11 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
           {google.available ? (
             <>
               <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-                <View className="flex-1 h-[1px]" style={{ backgroundColor: theme.colors.border }} />
+                <View className="flex-1" style={{ height: theme.borderWidth.thin, backgroundColor: theme.colors.border }} />
                 <Text variant="caption" tone="faint">
                   {t('auth.orDivider')}
                 </Text>
-                <View className="flex-1 h-[1px]" style={{ backgroundColor: theme.colors.border }} />
+                <View className="flex-1" style={{ height: theme.borderWidth.thin, backgroundColor: theme.colors.border }} />
               </View>
 
               <Button
@@ -157,7 +157,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
 
           <View className="flex-row justify-center items-center" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
             <Text tone="muted">{t('auth.noAccountPrompt')}</Text>
-            <Pressable testID="login-go-register" onPress={() => navigation.navigate('Register')} hitSlop={8}>
+            <Pressable testID="login-go-register" onPress={() => navigation.navigate('Register')} hitSlop={theme.sizes.hitSlop.md}>
               <Text weight="semibold" style={{ color: theme.colors.primary }}>
                 {t('auth.signUpLink')}
               </Text>
@@ -170,9 +170,9 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
               testID="login-continue-as-guest"
               onPress={() => void onContinueAsGuest()}
               disabled={guestPending}
-              hitSlop={8}
+              hitSlop={theme.sizes.hitSlop.md}
             >
-              <Text weight="semibold" style={{ color: theme.colors.primary, opacity: guestPending ? 0.5 : 1 }}>
+              <Text weight="semibold" style={{ color: theme.colors.primary, opacity: guestPending ? theme.opacity.disabled : 1 }}>
                 {t('auth.continueAsGuestLink')}
               </Text>
             </Pressable>

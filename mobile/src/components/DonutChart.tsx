@@ -14,8 +14,10 @@ export interface DonutChartProps {
 }
 
 /** Static SVG donut via stroke-dasharray segments. `percentage` is server-computed (BR-05); this only lays it out. */
-export function DonutChart({ slices, size = 160, strokeWidth = 20, centerLabel, centerSublabel }: DonutChartProps) {
+export function DonutChart({ slices, size: sizeProp, strokeWidth: strokeWidthProp, centerLabel, centerSublabel }: DonutChartProps) {
   const theme = useTheme();
+  const size = sizeProp ?? theme.sizes.chart.largeHeight;
+  const strokeWidth = strokeWidthProp ?? theme.sizes.chart.ringWidth;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   let cumulativeLength = 0;

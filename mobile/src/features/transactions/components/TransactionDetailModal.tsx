@@ -53,11 +53,11 @@ export function TransactionDetailModal({
               categoryName={category?.name}
               transactionType={transaction.type}
               tint={tint}
-              size={40}
+              size={theme.sizes.badge.lg}
             />
           </View>
 
-          <Text variant="heading" style={{ fontSize: 20, textAlign: 'center', marginBottom: theme.spacing.xs }}>
+          <Text variant="heading" style={{ fontSize: theme.fontSize.xl, textAlign: 'center', marginBottom: theme.spacing.xs }}>
             {title}
           </Text>
 
@@ -73,7 +73,7 @@ export function TransactionDetailModal({
               style={{
                 backgroundColor: theme.colors.dangerMuted,
                 paddingHorizontal: theme.spacing.md,
-                paddingVertical: 4,
+                paddingVertical: theme.spacing.xs,
                 borderRadius: theme.radius.pill,
                 marginTop: theme.spacing.xs,
               }}
@@ -95,7 +95,7 @@ export function TransactionDetailModal({
         >
           {category !== null ? (
             <DetailRow
-              icon={<Tag size={18} color={theme.colors.textMuted} />}
+              icon={<Tag size={theme.iconSize.lg} color={theme.colors.textMuted} />}
               label={t('categories.categoryLabel', { defaultValue: 'Category' })}
               value={category.name}
             />
@@ -103,7 +103,7 @@ export function TransactionDetailModal({
 
           {fromAcc !== null ? (
             <DetailRow
-              icon={<CreditCard size={18} color={theme.colors.textMuted} />}
+              icon={<CreditCard size={theme.iconSize.lg} color={theme.colors.textMuted} />}
               label={t('transactions.fromLabel', { defaultValue: 'From' })}
               value={`${fromAcc.name} (${fromAcc.walletName})`}
             />
@@ -111,7 +111,7 @@ export function TransactionDetailModal({
 
           {toAcc !== null ? (
             <DetailRow
-              icon={<CreditCard size={18} color={theme.colors.textMuted} />}
+              icon={<CreditCard size={theme.iconSize.lg} color={theme.colors.textMuted} />}
               label={
                 transaction.type === TransactionType.INCOME
                   ? t('transactions.accountLabel', { defaultValue: 'Account' })
@@ -122,26 +122,26 @@ export function TransactionDetailModal({
           ) : null}
 
           <DetailRow
-            icon={<Calendar size={18} color={theme.colors.textMuted} />}
+            icon={<Calendar size={theme.iconSize.lg} color={theme.colors.textMuted} />}
             label={t('transactions.transactionDateLabel', { defaultValue: 'Transaction date' })}
             value={formatDay(transaction.transactionDate.slice(0, 10))}
           />
 
           <DetailRow
-            icon={<Clock size={18} color={theme.colors.textMuted} />}
+            icon={<Clock size={theme.iconSize.lg} color={theme.colors.textMuted} />}
             label={t('transactions.createdDateLabel', { defaultValue: 'Created date' })}
             value={`${formatDay(transaction.createdAt.slice(0, 10))} ${formatTimeOfDay(transaction.createdAt)}`}
           />
 
           <DetailRow
-            icon={<User size={18} color={theme.colors.textMuted} />}
+            icon={<User size={theme.iconSize.lg} color={theme.colors.textMuted} />}
             label={t('transactions.recordedByLabel', { defaultValue: 'Recorded by' })}
             value={transaction.createdBy.displayName}
           />
 
           {transaction.isCrossWallet ? (
             <DetailRow
-              icon={<UsersRound size={18} color={theme.colors.primary} />}
+              icon={<UsersRound size={theme.iconSize.lg} color={theme.colors.primary} />}
               label={t('transactions.crossWalletLabel', { defaultValue: 'Cross-wallet' })}
               value={t('transactions.crossWalletNotice', {
                 defaultValue: 'This moves money into another wallet. It will appear in their ledger too.',
@@ -153,7 +153,7 @@ export function TransactionDetailModal({
         {deleteError !== null ? <Text tone="danger">{deleteError}</Text> : null}
 
         {isEditable ? (
-          <View style={{ gap: theme.spacing.sm, marginTop: 28 }}>
+          <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.xl }}>
             {onEdit ? (
               <Button
                 label={t('transactions.editTransaction', { defaultValue: 'Edit transaction' })}
@@ -208,15 +208,15 @@ function DetailRow({
   const theme = useTheme();
 
   return (
-    <View className="flex-row items-center" style={{ minHeight: 44 }}>
-      <View style={{ width: 32, alignItems: 'center' }}>
+    <View className="flex-row items-center" style={{ minHeight: theme.sizes.touchTarget }}>
+      <View style={{ width: theme.sizes.badge.sm, alignItems: 'center' }}>
         {icon}
       </View>
       <View className="flex-1" style={{ marginLeft: theme.spacing.md }}>
         <Text variant="caption" tone="muted">
           {label}
         </Text>
-        <Text weight="medium" style={{ fontSize: 14, marginTop: 1 }}>
+        <Text weight="medium" style={{ fontSize: theme.fontSize.sm, marginTop: theme.spacing.xxs }}>
           {value}
         </Text>
       </View>

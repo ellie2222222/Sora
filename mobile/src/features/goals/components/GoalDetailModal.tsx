@@ -75,10 +75,10 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
                 <Text variant="heading" tone="muted">
                   /
                 </Text>
-                <Money amount={data.targetAmount} currency={data.currency} variant="heading" style={{ opacity: 0.6 }} />
+                <Money amount={data.targetAmount} currency={data.currency} variant="heading" style={{ opacity: theme.opacity.muted }} />
               </View>
 
-              <ProgressBar percentage={data.progressPercentage} tone="income" height={10} />
+              <ProgressBar percentage={data.progressPercentage} tone="income" height={theme.sizes.progressBar.lg} />
 
               <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
                 <Money amount={data.remaining} currency={data.currency} variant="caption" />
@@ -99,7 +99,7 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
                     marginTop: theme.spacing.md,
                   }}
                 >
-                  <Plus size={16} color={theme.colors.primary} />
+                  <Plus size={theme.iconSize.md} color={theme.colors.primary} />
                   <Text tone="default" weight="semibold">
                     {t('goals.addContribution', 'Add contribution')}
                   </Text>
@@ -145,7 +145,7 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
 
   return (
     <BottomSheetModal visible={goalId !== null} onClose={onClose} title={t('goals.detailTitle', 'Goal Details')}>
-      <View style={{ flex: 1, minHeight: 400 }}>
+      <View style={{ flex: 1, minHeight: theme.sizes.sheetBodyMinHeight }}>
         {renderContent()}
       </View>
       <MutationConfirmDialog
@@ -204,10 +204,10 @@ function ContributionItem({ contribution, onRemove }: { contribution: Contributi
             testID={`btn-delete-contribution-${contribution.id}`}
             accessibilityRole="button"
             accessibilityLabel={t('goals.deleteContribution')}
-            hitSlop={14}
+            hitSlop={(theme.sizes.touchTarget - theme.iconSize.md) / 2}
             onPress={onRemove}
           >
-            <Trash2 size={16} color={theme.colors.textFaint} />
+            <Trash2 size={theme.iconSize.md} color={theme.colors.textFaint} />
           </Pressable>
         ) : null}
       </View>
@@ -221,24 +221,24 @@ function GoalDetailSkeleton() {
   return (
     <View style={{ padding: theme.spacing.md, gap: theme.spacing.sm }}>
       <Card style={{ marginBottom: theme.spacing.md }}>
-        <Skeleton width={150} height={24} />
+        <Skeleton width={theme.sizes.skeletonWidth.xxl} height={theme.sizes.skeletonLine.title} />
         <View style={{ marginTop: theme.spacing.xs }}>
-          <Skeleton width="80%" height={16} />
+          <Skeleton width="80%" height={theme.sizes.skeletonLine.body} />
         </View>
 
         <View className="flex-row" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
-          <Skeleton width={120} height={32} />
-          <Skeleton width={20} height={32} />
-          <Skeleton width={80} height={32} />
+          <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.display} />
+          <Skeleton width={theme.sizes.skeletonWidth.xxs} height={theme.sizes.skeletonLine.display} />
+          <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.display} />
         </View>
 
         <View style={{ marginTop: theme.spacing.sm }}>
-          <Skeleton width="100%" height={10} radius={5} />
+          <Skeleton width="100%" height={theme.sizes.progressBar.lg} radius={theme.radius.pill} />
         </View>
 
         <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
-          <Skeleton width={80} height={16} />
-          <Skeleton width={100} height={16} />
+          <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.caption} />
+          <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.caption} />
         </View>
 
         <View
@@ -248,12 +248,12 @@ function GoalDetailSkeleton() {
             marginTop: theme.spacing.md,
           }}
         >
-          <Skeleton width={16} height={16} radius={8} />
-          <Skeleton width={100} height={16} />
+          <Skeleton width={theme.iconSize.md} height={theme.iconSize.md} radius={theme.radius.pill} />
+          <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.body} />
         </View>
 
         <View style={{ marginTop: theme.spacing.lg }}>
-          <Skeleton width={120} height={16} />
+          <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.label} />
         </View>
       </Card>
 
@@ -264,10 +264,10 @@ function GoalDetailSkeleton() {
           style={{ paddingVertical: theme.spacing.xs }}
         >
           <View style={{ gap: theme.spacing.xs }}>
-            <Skeleton width={100} height={16} />
-            <Skeleton width={140} height={14} />
+            <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.body} />
+            <Skeleton width={theme.sizes.skeletonWidth.xxl} height={theme.sizes.skeletonLine.caption} />
           </View>
-          <Skeleton width={60} height={16} />
+          <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.body} />
         </View>
       ))}
     </View>

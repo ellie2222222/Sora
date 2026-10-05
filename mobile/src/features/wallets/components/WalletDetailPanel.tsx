@@ -68,26 +68,26 @@ export function WalletDetailPanel({
   const renderContent = () => {
     if (wallet.isLoading || accounts.isLoading) return         <View style={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.xl }}>
           <View className="flex-row justify-between items-center">
-            <Skeleton width={120} height={32} radius={theme.radius.sm} />
-            <Skeleton width={60} height={20} radius={theme.radius.sm} />
+            <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.display} radius={theme.radius.sm} />
+            <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.title} radius={theme.radius.sm} />
           </View>
           
           <View className="flex-row justify-between items-center" style={{ marginTop: theme.spacing.sm }}>
-            <Skeleton width={80} height={16} radius={theme.radius.sm} />
-            <Skeleton width={24} height={24} radius={12} />
+            <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
+            <Skeleton width={theme.iconSize.xxl} height={theme.iconSize.xxl} radius={theme.radius.pill} />
           </View>
 
           <View style={{ gap: theme.spacing.md }}>
             {Array.from({ length: 3 }).map((_, i) => (
               <View key={i} className="flex-row items-center justify-between">
                 <View className="flex-row items-center" style={{ gap: theme.spacing.md }}>
-                  <Skeleton width={40} height={40} radius={20} />
+                  <Skeleton width={theme.sizes.badge.lg} height={theme.sizes.badge.lg} radius={theme.radius.pill} />
                   <View style={{ gap: theme.spacing.xs }}>
-                    <Skeleton width={100} height={16} radius={theme.radius.sm} />
-                    <Skeleton width={60} height={12} radius={theme.radius.sm} />
+                    <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
+                    <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
                   </View>
                 </View>
-                <Skeleton width={80} height={16} radius={theme.radius.sm} />
+                <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
               </View>
             ))}
           </View>
@@ -121,17 +121,17 @@ export function WalletDetailPanel({
                 className="flex-row items-center"
                 style={{ gap: theme.spacing.xs }}
               >
-                <UsersRound size={16} color={theme.colors.textMuted} />
+                <UsersRound size={theme.iconSize.md} color={theme.colors.textMuted} />
                 <Text tone="muted">{data.memberCount}</Text>
               </Pressable>
             ) : null}
             {canShare ? (
               <>
-                <Pressable testID="wallet-detail-activity" hitSlop={12} onPress={onOpenActivity}>
-                  <History size={22} color={theme.colors.textMuted} />
+                <Pressable testID="wallet-detail-activity" hitSlop={theme.sizes.hitSlop.lg} onPress={onOpenActivity}>
+                  <History size={theme.iconSize.xxl} color={theme.colors.textMuted} />
                 </Pressable>
-                <Pressable testID="wallet-detail-categories" hitSlop={12} onPress={onOpenCategories}>
-                  <Settings size={22} color={theme.colors.textMuted} />
+                <Pressable testID="wallet-detail-categories" hitSlop={theme.sizes.hitSlop.lg} onPress={onOpenCategories}>
+                  <Settings size={theme.iconSize.xxl} color={theme.colors.textMuted} />
                 </Pressable>
               </>
             ) : null}
@@ -143,8 +143,8 @@ export function WalletDetailPanel({
             {t('wallets.accounts')}
           </Text>
           {permissions.canWrite ? (
-            <Pressable testID="wallet-detail-add-account" hitSlop={12} onPress={onAddAccount}>
-              <Plus size={20} color={theme.colors.primary} />
+            <Pressable testID="wallet-detail-add-account" hitSlop={theme.sizes.hitSlop.lg} onPress={onAddAccount}>
+              <Plus size={theme.iconSize.xl} color={theme.colors.primary} />
             </Pressable>
           ) : null}
         </View>
@@ -207,7 +207,7 @@ export function WalletDetailPanel({
                 className="flex-row items-center"
                 style={{ gap: theme.spacing.sm }}
               >
-                <LogOut size={18} color={theme.colors.danger} />
+                <LogOut size={theme.iconSize.lg} color={theme.colors.danger} />
                 <Text tone="danger">{t('wallets.leaveWallet')}</Text>
               </Pressable>
             ) : null}
@@ -221,7 +221,7 @@ export function WalletDetailPanel({
                 className="flex-row items-center"
                 style={{ gap: theme.spacing.sm }}
               >
-                <Archive size={18} color={theme.colors.danger} />
+                <Archive size={theme.iconSize.lg} color={theme.colors.danger} />
                 <Text tone="danger">{t('wallets.archiveWallet')}</Text>
               </Pressable>
             ) : null}
@@ -272,7 +272,7 @@ function AccountItem({ account, onPress }: { account: AccountResponse; onPress: 
       <Card>
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-            <Landmark size={18} color={theme.colors.textMuted} />
+            <Landmark size={theme.iconSize.lg} color={theme.colors.textMuted} />
             <Text>{account.name}</Text>
           </View>
           <Money amount={account.balance} currency={account.currency} weight="semibold" />

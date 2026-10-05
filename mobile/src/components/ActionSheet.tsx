@@ -38,9 +38,9 @@ export function ActionSheet({ visible, title, actions, cancelLabel, onCancel }: 
             onPress={action.onPress}
             style={{
               paddingVertical: theme.spacing.md,
-              borderTopWidth: index === 0 && title === undefined ? 0 : 1,
+              borderTopWidth: index === 0 && title === undefined ? 0 : theme.borderWidth.thin,
               borderTopColor: theme.colors.border,
-              opacity: action.disabled === true ? 0.5 : 1,
+              opacity: action.disabled === true ? theme.opacity.disabled : 1,
             }}
           >
             <Text tone={action.destructive === true ? 'danger' : 'default'} weight="medium">
@@ -52,8 +52,8 @@ export function ActionSheet({ visible, title, actions, cancelLabel, onCancel }: 
         <Pressable
           testID="btn-cancel-action-sheet"
           onPress={onCancel}
-          className="border-t"
           style={{
+            borderTopWidth: theme.borderWidth.thin,
             paddingVertical: theme.spacing.md,
             borderTopColor: theme.colors.border,
             marginTop: theme.spacing.xs,

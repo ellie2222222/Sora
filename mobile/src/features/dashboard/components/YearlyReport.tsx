@@ -120,27 +120,28 @@ export function YearlyReport({
 
 function YearlyReportSkeleton() {
   const theme = useTheme();
+  const barArea = theme.sizes.chart.height - theme.lineHeight.md;
   return (
     <View className="gap-lg">
       <View>
-        <View style={{ marginBottom: theme.spacing.sm }}><Skeleton width={150} height={16} radius={4}  /></View>
-        <View className="flex-row items-end" style={{ height: 140, gap: theme.spacing.xs }}>
+        <View style={{ marginBottom: theme.spacing.sm }}><Skeleton width={theme.sizes.skeletonWidth.xxl} height={theme.sizes.skeletonLine.label} radius={theme.radius.xs}  /></View>
+        <View className="flex-row items-end" style={{ height: theme.sizes.chart.height, gap: theme.spacing.xs }}>
           {Array.from({ length: 12 }).map((_, i) => (
             <View key={i} className="flex-1 items-center" style={{ gap: theme.spacing.xs }}>
-              <View className="flex-row items-end gap-[3px]" style={{ height: 120, justifyContent: 'flex-end' }}>
-                <Skeleton width={6} height={(i * 17) % 60 + 20} radius={theme.radius.pill} />
-                <Skeleton width={6} height={(i * 23) % 80 + 10} radius={theme.radius.pill} />
+              <View className="flex-row items-end" style={{ height: barArea, gap: theme.spacing.xxs, justifyContent: 'flex-end' }}>
+                <Skeleton width={theme.sizes.chart.barWidth} height={barArea * (0.15 + ((i * 17) % 50) / 100)} radius={theme.radius.pill} />
+                <Skeleton width={theme.sizes.chart.barWidth} height={barArea * (0.1 + ((i * 23) % 60) / 100)} radius={theme.radius.pill} />
               </View>
-              <Skeleton width={20} height={12} radius={2} />
+              <Skeleton width={theme.sizes.skeletonWidth.xxs} height={theme.sizes.skeletonLine.caption} radius={theme.radius.none} />
             </View>
           ))}
         </View>
       </View>
       
       <View style={{ gap: theme.spacing.sm }}>
-        <Skeleton width={120} height={16} radius={4} />
-        <Skeleton width="100%" height={80} radius={8} />
-        <Skeleton width="100%" height={80} radius={8} />
+        <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.label} radius={theme.radius.xs} />
+        <Skeleton width="100%" height={theme.sizes.skeletonBlock.sm} radius={theme.radius.sm} />
+        <Skeleton width="100%" height={theme.sizes.skeletonBlock.sm} radius={theme.radius.sm} />
       </View>
     </View>
   );

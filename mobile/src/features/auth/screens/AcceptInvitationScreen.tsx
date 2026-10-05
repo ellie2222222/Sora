@@ -39,14 +39,14 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
     }
 
     if (preview.isLoading) return         <View style={{ gap: theme.spacing.xl, alignItems: 'center', paddingVertical: theme.spacing.xl }}>
-          <Skeleton width={40} height={40} radius={20} />
+          <Skeleton width={theme.iconSize.hero} height={theme.iconSize.hero} radius={theme.radius.pill} />
           
           <View style={{ gap: theme.spacing.md, alignItems: 'center', width: '100%' }}>
-            <Skeleton width="80%" height={24} radius={theme.radius.sm} />
-            <Skeleton width="60%" height={16} radius={theme.radius.sm} />
+            <Skeleton width="80%" height={theme.sizes.skeletonLine.title} radius={theme.radius.sm} />
+            <Skeleton width="60%" height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
           </View>
           
-          <Skeleton width="100%" height={48} radius={theme.radius.md} />
+          <Skeleton width="100%" height={theme.sizes.controlHeight} radius={theme.radius.md} />
         </View>;
     if (preview.isError) {
       return <StateView variant="error" error={preview.error} retryAction={() => void preview.refetch()} />;
@@ -59,7 +59,7 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
 
     return (
       <>
-        <UsersRound size={40} color={theme.colors.primary} style={{ alignSelf: 'center' }} />
+        <UsersRound size={theme.iconSize.hero} color={theme.colors.primary} style={{ alignSelf: 'center' }} />
         <Text variant="title" style={{ textAlign: 'center' }}>
           {t('invitations.invitedTo', "You're invited to {{name}}", { name: invitation.walletName })}
         </Text>

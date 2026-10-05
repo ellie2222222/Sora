@@ -18,20 +18,24 @@ export function ProfileHeader() {
   return (
     <View className="flex-row items-center gap-md">
       <View
-        className="w-[36px] h-[36px] rounded-pill items-center justify-center"
-        style={{ backgroundColor: theme.colors.primaryMuted }}
+        className="rounded-pill items-center justify-center"
+        style={{
+          width: theme.sizes.badge.md,
+          height: theme.sizes.badge.md,
+          backgroundColor: theme.colors.primaryMuted,
+        }}
       >
         {isGuest ? (
-          <UserIcon size={18} color={theme.colors.primary} />
+          <UserIcon size={theme.iconSize.lg} color={theme.colors.primary} />
         ) : (
-          <Text weight="bold" style={{ fontSize: 15, color: theme.colors.primary }}>
+          <Text weight="bold" style={{ color: theme.colors.primary }}>
             {initial}
           </Text>
         )}
       </View>
 
       <View className="flex-1 gap-xxs">
-        <Text weight="bold" style={{ fontSize: 16 }}>
+        <Text weight="bold" style={{ fontSize: theme.fontSize.md }}>
           {displayName}
         </Text>
 

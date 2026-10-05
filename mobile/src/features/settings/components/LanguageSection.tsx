@@ -25,7 +25,7 @@ export function LanguageSection({
   return (
     <CollapsibleSection
       testID="settings-nav-language"
-      icon={<Globe size={18} color={theme.colors.textMuted} />}
+      icon={<Globe size={theme.iconSize.lg} color={theme.colors.textMuted} />}
       title={t('settings.language', 'Language')}
       subtitle={languageSubtitle}
       isOpen={isOpen}
@@ -48,24 +48,24 @@ export function LanguageSection({
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: theme.spacing.md,
-                  paddingVertical: 12,
+                  paddingVertical: theme.spacing.md,
                   paddingHorizontal: theme.spacing.xs,
                   borderRadius: theme.radius.sm,
                   backgroundColor: pressedCode === code ? theme.colors.surfaceMuted : 'transparent',
                 }}
               >
                 <Globe
-                  size={18}
+                  size={theme.iconSize.lg}
                   color={isSelected ? theme.colors.primary : theme.colors.textMuted}
                 />
                 <Text
                   weight={isSelected ? 'bold' : 'regular'}
-                  style={{ flex: 1, fontSize: 14 }}
+                  style={{ flex: 1, fontSize: theme.fontSize.sm }}
                 >
                   {t(`settings.languageNames.${code}`)}
                 </Text>
                 {isSelected ? (
-                  <Check size={18} color={theme.colors.primary} strokeWidth={2.5} />
+                  <Check size={theme.iconSize.lg} color={theme.colors.primary} strokeWidth={theme.iconStroke.bold} />
                 ) : null}
               </Pressable>
             </View>

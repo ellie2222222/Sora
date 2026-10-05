@@ -146,7 +146,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
               error={fieldErrors.name}
             />
           </View>
-          <View style={{ width: 88 }}>
+          <View style={{ width: theme.sizes.currencyField }}>
             <Input
               testID="picker-currency"
               accessibilityLabel={t('accounts.currency', { defaultValue: 'Currency' })}

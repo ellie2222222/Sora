@@ -21,20 +21,20 @@ export function AboutSection({
   return (
     <CollapsibleSection
       testID="settings-nav-about"
-      icon={<Info size={18} color={theme.colors.textMuted} />}
+      icon={<Info size={theme.iconSize.lg} color={theme.colors.textMuted} />}
       title={t('settings.about', 'About Sora')}
       subtitle={t('settings.aboutSubtitle', { version: `${appVersion} (${buildNumber})` })}
       isOpen={isOpen}
       onToggle={onToggle}
     >
       <View className="items-center py-sm gap-xs">
-        <Text variant="heading" weight="bold" style={{ fontSize: 20 }}>
+        <Text variant="heading" weight="bold" style={{ fontSize: theme.fontSize.xl }}>
           Sora
         </Text>
         <Text
           variant="caption"
           tone="muted"
-          style={{ textAlign: 'center', maxWidth: 260 }}
+          style={{ textAlign: 'center', maxWidth: theme.sizes.readableWidth }}
         >
           {t('welcomeSubtitle', { defaultValue: 'Track your money simply and privately.' })}
         </Text>
@@ -43,12 +43,12 @@ export function AboutSection({
       <SettingsDivider />
 
       <View className="flex-row items-start gap-md py-xs">
-        <Shield size={18} color={theme.colors.primary} style={{ marginTop: theme.spacing.xxs }} />
+        <Shield size={theme.iconSize.lg} color={theme.colors.primary} style={{ marginTop: theme.spacing.xxs }} />
         <View className="flex-1 gap-xxs">
-          <Text weight="semibold" style={{ fontSize: 13 }}>
+          <Text weight="semibold" style={{ fontSize: theme.fontSize.sm }}>
             {t('settings.privacyTitle', 'Private & Secure')}
           </Text>
-          <Text variant="caption" tone="muted" style={{ lineHeight: 18 }}>
+          <Text variant="caption" tone="muted" style={{ lineHeight: theme.lineHeight.sm }}>
             {t('settings.privacyDescription')}
           </Text>
         </View>
@@ -61,7 +61,7 @@ export function AboutSection({
           <Text variant="caption" tone="muted">
             {t('settings.version', 'Version')}
           </Text>
-          <Text weight="medium" style={{ fontSize: 13 }}>
+          <Text weight="medium" style={{ fontSize: theme.fontSize.sm }}>
             {appVersion}
           </Text>
         </View>
@@ -70,7 +70,7 @@ export function AboutSection({
           <Text variant="caption" tone="muted">
             {t('settings.build', 'Build')}
           </Text>
-          <Text weight="medium" style={{ fontSize: 13 }}>
+          <Text weight="medium" style={{ fontSize: theme.fontSize.sm }}>
             {buildNumber}
           </Text>
         </View>

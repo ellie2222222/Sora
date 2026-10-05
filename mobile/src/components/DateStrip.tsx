@@ -46,21 +46,24 @@ export function DateStrip({ selectedDay, onSelectDay, testID }: DateStripProps) 
               onPress={() => onSelectDay(day)}
               accessibilityRole="button"
               accessibilityLabel={day}
-              hitSlop={4}
-              className="items-center w-[40px] py-xs"
+              hitSlop={theme.sizes.hitSlop.sm}
+              className="items-center py-xs"
               style={{
+                width: theme.sizes.badge.lg,
                 borderRadius: theme.radius.md,
                 backgroundColor: isSelected ? theme.colors.primary : 'transparent',
               }}
             >
-              <Text variant="caption" weight="semibold" style={{ fontSize: 10, color: inCurrentMonth && !isSelected ? theme.colors.textMuted : mutedColor }}>
+              <Text variant="caption" weight="semibold" style={{ color: inCurrentMonth && !isSelected ? theme.colors.textMuted : mutedColor }}>
                 {monthName(month)}
               </Text>
               <View
-                className="w-[32px] h-[32px] items-center justify-center mt-xxs"
+                className="items-center justify-center mt-xxs"
                 style={{
+                  width: theme.sizes.badge.sm,
+                  height: theme.sizes.badge.sm,
                   borderRadius: theme.radius.pill,
-                  borderWidth: isToday && !isSelected ? 1 : 0,
+                  borderWidth: isToday && !isSelected ? theme.borderWidth.thin : 0,
                   borderColor: theme.colors.primary,
                   backgroundColor: isToday && !isSelected ? theme.colors.primaryMuted : 'transparent',
                 }}
@@ -68,7 +71,6 @@ export function DateStrip({ selectedDay, onSelectDay, testID }: DateStripProps) 
                 <Text
                   weight={isSelected || isToday ? 'bold' : 'medium'}
                   style={{
-                    fontSize: theme.fontSize.md,
                     color: isSelected
                       ? theme.colors.onPrimary
                       : isToday

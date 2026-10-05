@@ -207,7 +207,7 @@ const RENDERED_PAIRS: { label: string; fg: keyof ColorTokens; bg: keyof ColorTok
   ),
   // textFaint is real text (placeholders, empty states, captions, inactive tab labels), not decoration.
   ...(['text', 'textMuted', 'textFaint'] as const).flatMap((fg) =>
-    (['background', 'surface', 'surfaceElevated', 'surfaceMuted'] as const).map((bg) => ({
+    (['background', 'surface', 'surfaceElevated', 'surfaceMuted', 'surfaceInset'] as const).map((bg) => ({
       label: `${fg} on ${bg}`,
       fg,
       bg,
@@ -250,7 +250,7 @@ describe('Design System - Text hierarchy', () => {
     for (const themeName of THEME_NAMES) {
       for (const mode of THEME_MODES) {
         const colors = getThemeColors(themeName, mode);
-        for (const bg of [colors.background, colors.surface, colors.surfaceElevated, colors.surfaceMuted]) {
+        for (const bg of [colors.background, colors.surface, colors.surfaceElevated, colors.surfaceMuted, colors.surfaceInset]) {
           const text = contrastRatio(colors.text, bg);
           const muted = contrastRatio(colors.textMuted, bg);
           const faint = contrastRatio(colors.textFaint, bg);

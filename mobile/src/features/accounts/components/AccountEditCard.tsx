@@ -73,7 +73,7 @@ export function AccountEditCard({ account, onArchive }: AccountEditCardProps) {
           />
         </View>
         {canChangeCurrency ? (
-          <View style={{ width: 88 }}>
+          <View style={{ width: theme.sizes.currencyField }}>
             <Input
               testID="input-account-currency"
               label={t('accounts.currency')}

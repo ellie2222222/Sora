@@ -35,7 +35,7 @@ export function ConversationHistorySheet({
           {t('ai.noHistory')}
         </Text>
       ) : (
-        <ScrollView testID="list-ai-conversations" style={{ maxHeight: 420 }} onScrollBeginDrag={closeOpenSwipeRow}>
+        <ScrollView testID="list-ai-conversations" style={{ maxHeight: theme.sizes.listMaxHeight.lg }} onScrollBeginDrag={closeOpenSwipeRow}>
           {conversations.map((conversation) => {
             const active = conversation.id === activeConversationId;
             return (
@@ -73,10 +73,10 @@ export function ConversationHistorySheet({
                     testID={`btn-delete-ai-conversation-${conversation.id}`}
                     accessibilityRole="button"
                     accessibilityLabel={t('ai.deleteChat')}
-                    hitSlop={10}
+                    hitSlop={theme.sizes.hitSlop.md}
                     onPress={() => setDeletingId(conversation.id)}
                   >
-                    <Trash2 size={18} color={theme.colors.textFaint} />
+                    <Trash2 size={theme.iconSize.lg} color={theme.colors.textFaint} />
                   </Pressable>
                 </View>
               </SwipeableRow>

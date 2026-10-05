@@ -41,8 +41,10 @@ export function DateField({ label, value, onChange, onClear, placeholder, error,
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={value !== null ? `${label}, ${formatDay(value)}` : label}
-        className="h-[48px] flex-row items-center justify-between border"
+        className="flex-row items-center justify-between"
         style={{
+          borderWidth: theme.borderWidth.thin,
+          height: theme.sizes.controlHeight,
           borderRadius: theme.radius.md,
           borderColor: error !== undefined ? theme.colors.danger : theme.colors.borderControl,
           backgroundColor: theme.colors.surface,
@@ -57,14 +59,14 @@ export function DateField({ label, value, onChange, onClear, placeholder, error,
             <Pressable
               testID={testID !== undefined ? `${testID}-clear` : undefined}
               onPress={onClear}
-              style={{ width: 44, height: 44, marginRight: -theme.spacing.sm, alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: theme.sizes.touchTarget, height: theme.sizes.touchTarget, marginRight: -theme.spacing.sm, alignItems: 'center', justifyContent: 'center' }}
               accessibilityRole="button"
               accessibilityLabel={t('common.clearDate', 'Clear date')}
             >
-              <X size={16} color={theme.colors.textMuted} />
+              <X size={theme.iconSize.md} color={theme.colors.textMuted} />
             </Pressable>
           ) : null}
-          <Calendar size={18} color={theme.colors.textMuted} />
+          <Calendar size={theme.iconSize.lg} color={theme.colors.textMuted} />
         </View>
       </Pressable>
       {error !== undefined ? (

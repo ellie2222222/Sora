@@ -74,8 +74,8 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
       <View testID="sheet-date-picker" style={{ gap: theme.spacing.md }}>
         <View className="flex-row justify-between items-center">
           <Text variant="title">{t('common.selectDate', { defaultValue: 'Select Date' })}</Text>
-          <Pressable testID="btn-cancel-date-picker" onPress={onClose} hitSlop={8} className="p-xs">
-            <X size={20} color={theme.colors.textMuted} />
+          <Pressable testID="btn-cancel-date-picker" onPress={onClose} hitSlop={theme.sizes.hitSlop.md} className="p-xs">
+            <X size={theme.iconSize.xl} color={theme.colors.textMuted} />
           </Pressable>
         </View>
 
@@ -89,8 +89,8 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
         >
           {viewMode === 'days' ? (
             <>
-              <Pressable testID="btn-previous-month" onPress={handlePrevMonth} hitSlop={8} className="p-xs">
-                <ChevronLeft size={20} color={theme.colors.text} />
+              <Pressable testID="btn-previous-month" onPress={handlePrevMonth} hitSlop={theme.sizes.hitSlop.md} className="p-xs">
+                <ChevronLeft size={theme.iconSize.xl} color={theme.colors.text} />
               </Pressable>
               <Pressable
                 testID="btn-select-year"
@@ -100,20 +100,20 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
-                  gap: 6,
+                  gap: theme.spacing.xs,
                   paddingHorizontal: theme.spacing.sm,
                   paddingVertical: theme.spacing.xs,
                   borderRadius: theme.radius.sm,
                   backgroundColor: yearTogglePressed ? theme.colors.border : 'transparent',
                 }}
               >
-                <CalendarIcon size={14} color={theme.colors.primary} />
+                <CalendarIcon size={theme.iconSize.sm} color={theme.colors.primary} />
                 <Text weight="semibold" style={{ fontSize: theme.fontSize.md }}>
                   {monthName(month)} {year}
                 </Text>
               </Pressable>
-              <Pressable testID="btn-next-month" onPress={handleNextMonth} hitSlop={8} className="p-xs">
-                <ChevronRight size={20} color={theme.colors.text} />
+              <Pressable testID="btn-next-month" onPress={handleNextMonth} hitSlop={theme.sizes.hitSlop.md} className="p-xs">
+                <ChevronRight size={theme.iconSize.xl} color={theme.colors.text} />
               </Pressable>
             </>
           ) : (
@@ -124,8 +124,12 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
               <Pressable
                 testID="btn-select-days"
                 onPress={() => setViewMode('days')}
-                className="px-[10px] py-xs"
-                style={{ borderRadius: theme.radius.sm, backgroundColor: theme.colors.primary }}
+                className="py-xs"
+                style={{
+                  paddingHorizontal: theme.spacing.sm,
+                  borderRadius: theme.radius.sm,
+                  backgroundColor: theme.colors.primary,
+                }}
               >
                 <Text style={{ color: theme.colors.onPrimary, fontSize: theme.fontSize.xs, fontWeight: 'bold' }}>
                   {t('common.back', { defaultValue: 'Back' })}
@@ -139,7 +143,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
           <>
             <View className="flex-row justify-between">
               {weekdayInitials.map((initial, i) => (
-                <Text key={i} variant="caption" tone="muted" weight="semibold" style={{ width: 36, textAlign: 'center' }}>
+                <Text key={i} variant="caption" tone="muted" weight="semibold" style={{ width: theme.sizes.badge.md, textAlign: 'center' }}>
                   {initial}
                 </Text>
               ))}
@@ -158,15 +162,17 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
                         key={cell.day}
                         testID={`option-day-${cell.day}`}
                         onPress={() => handleSelectDayInternal(cell.day)}
-                        className="w-[36px] h-[36px] items-center justify-center"
+                        className="items-center justify-center"
                         style={{
+                          width: theme.sizes.badge.md,
+                          height: theme.sizes.badge.md,
                           borderRadius: theme.radius.pill,
                           backgroundColor: isSelected
                             ? theme.colors.primary
                             : isToday
                               ? theme.colors.primaryMuted
                               : 'transparent',
-                          borderWidth: isToday && !isSelected ? 1 : 0,
+                          borderWidth: isToday && !isSelected ? theme.borderWidth.thin : 0,
                           borderColor: theme.colors.primary,
                         }}
                       >
@@ -193,7 +199,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
             </View>
           </>
         ) : (
-          <ScrollView className="max-h-[220px]" contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, justifyContent: 'center', paddingVertical: theme.spacing.sm }}>
+          <ScrollView style={{ maxHeight: theme.sizes.listMaxHeight.sm }} contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, justifyContent: 'center', paddingVertical: theme.spacing.sm }}>
             {years.map((y) => {
               const isSelectedYear = y === year;
               return (
@@ -201,8 +207,10 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
                   key={y}
                   testID={`option-year-${y}`}
                   onPress={() => handleSelectYear(y)}
-                  className="w-[22%] py-[10px] items-center justify-center"
+                  className="items-center justify-center"
                   style={{
+                    width: '22%',
+                    paddingVertical: theme.spacing.sm,
                     borderRadius: theme.radius.md,
                     backgroundColor: isSelectedYear ? theme.colors.primary : theme.colors.surfaceMuted,
                   }}
@@ -223,8 +231,9 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
         )}
 
         <View
-          className="flex-row justify-between items-center border-t"
+          className="flex-row justify-between items-center"
           style={{
+            borderTopWidth: theme.borderWidth.thin,
             marginTop: theme.spacing.xs,
             paddingTop: theme.spacing.sm,
             borderTopColor: theme.colors.border,

@@ -111,9 +111,9 @@ export function StateView({
     <>
       <AnimatedIcon
         icon={Icon}
-        size={42}
+        size={theme.iconSize.hero}
         color={resolvedIconColor}
-        strokeWidth={1.5}
+        strokeWidth={theme.iconStroke.thin}
         animation={VARIANT_ANIMATION[variant]}
       />
       <Text
@@ -200,12 +200,12 @@ function QuickActionChip({ action, testID }: { action: StateViewAction; testID?:
         paddingVertical: theme.spacing.xs,
         paddingHorizontal: theme.spacing.md,
         borderRadius: theme.radius.pill,
-        borderWidth: 1,
+        borderWidth: theme.borderWidth.thin,
         borderColor: pressed ? theme.colors.primary : theme.colors.border,
         backgroundColor: pressed ? theme.colors.surfaceMuted : theme.colors.surface,
       }}
     >
-      {Icon !== undefined ? <Icon size={14} color={theme.colors.primary} strokeWidth={2} /> : null}
+      {Icon !== undefined ? <Icon size={theme.iconSize.sm} color={theme.colors.primary} /> : null}
       <Text variant="caption" weight="medium">
         {action.label}
       </Text>

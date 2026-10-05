@@ -63,6 +63,8 @@ export interface ColorTokens {
   surface: string;
   surfaceElevated: string;
   surfaceMuted: string;
+  /** Recessed area inside a surface, e.g. an expanded settings section's body. */
+  surfaceInset: string;
   border: string;
   borderStrong: string;
   /** Boundary of an interactive control (input, field, checkbox, switch track): ≥3:1 on every surface. */
@@ -181,6 +183,7 @@ export function getThemeColors(name: ThemeName, mode: ThemeMode = 'dark'): Color
       surface: DARK_SURFACE,
       surfaceElevated: '#1C1C21',
       surfaceMuted: '#1B1B20',
+      surfaceInset: '#0F0F11',
       border: '#27272A',
       borderStrong: '#3F3F46',
       borderControl: '#6B6B74',
@@ -221,6 +224,7 @@ export function getThemeColors(name: ThemeName, mode: ThemeMode = 'dark'): Color
     surface: LIGHT_SURFACE,
     surfaceElevated: LIGHT_SURFACE,
     surfaceMuted: '#F1F5F9',
+    surfaceInset: '#F1F5F9',
     border: '#E2E8F0',
     borderStrong: '#CBD5E1',
     borderControl: '#7C8799',

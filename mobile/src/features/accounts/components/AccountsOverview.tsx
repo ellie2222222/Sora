@@ -47,18 +47,18 @@ export function AccountsOverview({
         <View>
           <Text variant="label" tone="muted">{t('accounts.netWorth')}</Text>
           <View style={{ marginTop: theme.spacing.xs }}>
-            <Skeleton width={140} height={32} radius={theme.radius.sm} />
+            <Skeleton width={theme.sizes.skeletonWidth.xxl} height={theme.sizes.skeletonLine.display} radius={theme.radius.sm} />
           </View>
         </View>
 
         <View className="flex-row" style={{ gap: theme.spacing.md }}>
           <View className="flex-1" style={{ gap: theme.spacing.xs }}>
-            <Skeleton width={80} height={14} radius={theme.radius.sm} />
-            <Skeleton width={100} height={20} radius={theme.radius.sm} />
+            <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
+            <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.title} radius={theme.radius.sm} />
           </View>
           <View className="flex-1" style={{ gap: theme.spacing.xs }}>
-            <Skeleton width={80} height={14} radius={theme.radius.sm} />
-            <Skeleton width={100} height={20} radius={theme.radius.sm} />
+            <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
+            <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.title} radius={theme.radius.sm} />
           </View>
         </View>
 
@@ -67,11 +67,11 @@ export function AccountsOverview({
             <Text variant="title">{t('accounts.accountsLabel')}</Text>
             {canWrite ? (
               <View style={{ paddingVertical: theme.spacing.xs, paddingHorizontal: theme.spacing.sm }}>
-                <Skeleton width={80} height={16} radius={theme.radius.sm} />
+                <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
               </View>
             ) : null}
           </View>
-          <View className="border-t" style={{ borderTopColor: theme.colors.border }}>
+          <View style={{ borderTopWidth: theme.borderWidth.thin, borderTopColor: theme.colors.border }}>
             {[1, 2, 3].map((key) => (
               <AccountItemSkeleton key={key} />
             ))}
@@ -149,7 +149,7 @@ export function AccountsOverview({
               className="flex-row items-center gap-xs"
               style={{ paddingVertical: theme.spacing.xs, paddingHorizontal: theme.spacing.sm, borderRadius: theme.radius.sm }}
             >
-              <Plus size={16} color={theme.colors.primary} />
+              <Plus size={theme.iconSize.md} color={theme.colors.primary} />
               <Text variant="caption" weight="medium" style={{ color: theme.colors.primary }}>
                 {t('accounts.addAccount')}
               </Text>
@@ -157,9 +157,9 @@ export function AccountsOverview({
           ) : null}
         </View>
 
-        <View className="border-t" style={{ borderTopColor: theme.colors.border }}>
+        <View style={{ borderTopWidth: theme.borderWidth.thin, borderTopColor: theme.colors.border }}>
           {items.map((account, index) => (
-            <View key={account.id} style={index === 0 ? undefined : { borderTopWidth: 1, borderTopColor: theme.colors.border }}>
+            <View key={account.id} style={index === 0 ? undefined : { borderTopWidth: theme.borderWidth.thin, borderTopColor: theme.colors.border }}>
               <ListItemEnter>
                 <SwipeableRow
                   backgroundColor={theme.colors.background}
@@ -231,7 +231,7 @@ function AccountItem({ account, onPress }: { account: AccountResponse; onPress: 
       style={{ paddingVertical: theme.spacing.sm }}
     >
       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-        <Icon size={18} color={theme.colors.textMuted} />
+        <Icon size={theme.iconSize.lg} color={theme.colors.textMuted} />
         <Text>{account.name}</Text>
         <SyncStatusDot status={syncStatus} />
       </View>
@@ -249,10 +249,10 @@ function AccountItemSkeleton() {
       style={{ paddingVertical: theme.spacing.sm }}
     >
       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-        <Skeleton width={18} height={18} radius={theme.radius.sm} />
-        <Skeleton width={120} height={20} radius={theme.radius.sm} />
+        <Skeleton width={theme.iconSize.lg} height={theme.iconSize.lg} radius={theme.radius.sm} />
+        <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
       </View>
-      <Skeleton width={80} height={20} radius={theme.radius.sm} />
+      <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
     </View>
   );
 }

@@ -16,43 +16,43 @@ function AccountDetailSkeleton() {
   return (
     <>
       <Card>
-        <Skeleton width="40%" height={24} />
+        <Skeleton width="40%" height={theme.sizes.skeletonLine.title} />
         <View style={{ marginTop: theme.spacing.xs }}>
-          <Skeleton width="60%" height={32} />
+          <Skeleton width="60%" height={theme.sizes.skeletonLine.display} />
         </View>
       </Card>
 
       <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
         <Card style={{ flex: 1 }}>
-          <Skeleton width="50%" height={16} />
+          <Skeleton width="50%" height={theme.sizes.skeletonLine.label} />
           <View style={{ marginTop: theme.spacing.xs }}>
-            <Skeleton width="80%" height={24} />
+            <Skeleton width="80%" height={theme.sizes.skeletonLine.title} />
           </View>
         </Card>
         <Card style={{ flex: 1 }}>
-          <Skeleton width="50%" height={16} />
+          <Skeleton width="50%" height={theme.sizes.skeletonLine.label} />
           <View style={{ marginTop: theme.spacing.xs }}>
-            <Skeleton width="80%" height={24} />
+            <Skeleton width="80%" height={theme.sizes.skeletonLine.title} />
           </View>
         </Card>
       </View>
 
       <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
         <Card style={{ flex: 1 }}>
-          <Skeleton width="50%" height={16} />
+          <Skeleton width="50%" height={theme.sizes.skeletonLine.label} />
           <View style={{ marginTop: theme.spacing.xs }}>
-            <Skeleton width="70%" height={20} />
+            <Skeleton width="70%" height={theme.sizes.skeletonLine.body} />
           </View>
         </Card>
         <Card style={{ flex: 1 }}>
-          <Skeleton width="50%" height={16} />
+          <Skeleton width="50%" height={theme.sizes.skeletonLine.label} />
           <View style={{ marginTop: theme.spacing.xs }}>
-            <Skeleton width="70%" height={20} />
+            <Skeleton width="70%" height={theme.sizes.skeletonLine.body} />
           </View>
         </Card>
       </View>
 
-      <Skeleton width="40%" height={20} />
+      <Skeleton width="40%" height={theme.sizes.skeletonLine.body} />
     </>
   );
 }

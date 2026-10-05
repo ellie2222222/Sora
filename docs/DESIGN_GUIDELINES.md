@@ -7,8 +7,9 @@
 > override when the specific screen's context genuinely calls for it, and say why in a comment if
 > the override isn't obvious.
 >
-> Tokens named here live in `mobile/src/design-system/` (`colors.ts`, `spacing.ts`, `radius.ts`);
-> always use the token, never the literal value it currently resolves to.
+> Tokens named here live in `mobile/src/design-system/` (`colors.ts`, `spacing.ts`, `radius.ts`,
+> `typography.ts`, `sizes.ts`, `shadows.ts`); always use the token, never the literal value it
+> currently resolves to. See "Design tokens" in Part 3 for what counts as a design value.
 
 ---
 
@@ -78,8 +79,9 @@ different aggregation levels is the most common way this screen family misleads.
 
 ### Transaction lists are a ledger
 
-Rows, not floating cards. Hierarchy per row: category/merchant → account → amount → optional
-metadata. Group by day with a labelled day subtotal.
+Each day is one raised card (`colors.surface`, `radius.md`, `shadows.sm`): the labelled day
+subtotal on top, then that day's rows. Inside the card the rows stay ledger rows, not cards of
+their own. Hierarchy per row: category/merchant → account → amount → optional metadata.
 
 ```text
 Today · Sep 23                          -₫93K
@@ -254,6 +256,38 @@ not a bolted-on error page.
 
 ## Part 3 — Visual & Interaction Rules
 
+### Design tokens
+
+Every static design value comes from `useTheme()`. That covers spacing, sizes, font size, line
+height, letter spacing, radius, border width, colour, icon size and stroke, opacity, and shadow.
+Inline styles, NativeWind classes and visual props such as an icon's `size` follow the same rule.
+
+- **Pick by meaning, not by number.** A 44pt hit area is `sizes.touchTarget`, a field's height is
+  `sizes.controlHeight`, and a placeholder line is `sizes.skeletonLine.<variant it imitates>`.
+- **Derive values that come from other tokens.** A hit slop that brings an 18 icon to 44 is
+  `(sizes.touchTarget - iconSize.lg) / 2`, not 13.
+- **Snap values that sit between steps.** An off-scale value moves to the nearest token; a new
+  token is added only for a recurring purpose, and to every theme at once.
+- **NativeWind:** classes named after tokens (`p-md`, `rounded-lg`) are fine. Arbitrary values
+  (`h-[48px]`), Tailwind's own numeric scale (`opacity-80`) and its default-valued `border` /
+  `rounded` / `shadow` are not. `tailwind.config.js` mirrors the spacing, radius and font-size
+  scales by hand.
+- **Enforced by** `mobile/src/design-system/tokens-usage.test.ts` (runs in `npm test -w
+  @sora/mobile`, so in CI): literal border widths, colours and style numbers, literal visual props,
+  forbidden NativeWind classes, a Pressable function `style`, and the Tailwind mirror. A deliberate
+  exception goes in its `ALLOWLIST` with a reason, never inline.
+- **Literals that stay:**
+  - `0`;
+  - flex and alignment;
+  - percentages;
+  - the `1` in `cond ? token : 1`;
+  - animation and gesture values;
+  - `zIndex`;
+  - `StyleSheet.hairlineWidth`;
+  - `'transparent'`;
+  - proportions such as `size * 0.5`;
+  - counts and limits.
+
 ### Spacing and density
 
 - Fixed scale only — `theme.spacing` (`xs` 4, `sm` 8, `md` 12, `lg` 16, `xl` 24, `xxl` 32). An
@@ -272,22 +306,35 @@ not a bolted-on error page.
 - Use the `theme.radius` scale; one or two radii per screen, not several competing.
 - Rounded: buttons, inputs, dropdowns, pills, modal/sheet surfaces, selected controls, summary cards.
   Not rounded: individual list rows, nested containers inside containers.
-- Nested corner radius: `inner = outer − outer padding` (20px outer, 8px padding → 12px inner),
-  floored at 0 — keeps shapes concentric.
+- Nested corner radius: `inner = outer − border width − padding`, floored at 0 — keeps shapes
+  concentric (outer `radius.md` 10, `borderWidth.thin` 1, `spacing.xxs` 2 → 7 inner). React Native
+  paints the border inside the box, so the border counts as inset exactly like padding. Derive it
+  with `concentricRadius(outer, border, padding)` (`design-system/radius.ts`) rather than picking the
+  nearest token, which is how segmented controls, toggles and the chat send button stay concentric.
+- The rule binds when the child sits flush or nearly flush: an inset under half the outer radius.
+  A child behind a full content padding (a `Button` in a `Card`: `radius.lg` 14, `spacing.md` 12)
+  is past the curve, so it keeps its own component radius instead of shrinking to a near-square 1–2.
 - A single-sided border accent (left border only) gets `radius: 0`; rounded corners only look right
-  with borders on all sides.
+  with borders on all sides. On a rounded surface, draw the accent as an inset bar
+  (`borderWidth.thick` wide, `radius.pill`) inside the padding instead — see the toast.
 
 ### Borders
 
-- Default hairline: 0.5–1px, low-contrast (`theme.colors.border`), for structural dividers.
-- 2px borders mean exactly one thing per screen (selection / focus / featured) — if every card has
-  a heavy border, none of them stand out.
+- Widths come from `theme.borderWidth` only: `thin` (1) for every resting border and divider
+  (`StyleSheet.hairlineWidth` for the thinnest list divider), `medium` (1.5) for selection / focus /
+  invalid / featured, `thick` (3) for a coloured accent bar or indicator. No other value.
+- Colour: `colors.border` for structural dividers and surface outlines; `colors.borderControl` for
+  the resting boundary of an input, picker or toggle — the only border colour `colors.test.ts` holds
+  to 3:1.
+- A `medium` border means exactly one thing per screen (selection / focus / featured) — if every
+  card has a heavy border, none of them stand out.
 - Border *or* shadow to separate a surface, rarely both.
 
 ### Shadows
 
 - Shadow = elevation signal, not decoration. Flat in-flow cards need none — a hairline border does
-  the job.
+  the job. The one in-flow exception is a transaction list's day card (`shadows.sm`), which lifts
+  each day apart from the next.
 - Bigger blur/spread = further off the page; reserve for modals, sheets, dropdowns, popovers.
 - Two-layer shadows (tight contact + soft diffuse) read more natural than one large blur.
 - At most two floating elevation levels on screen at once — a third means you need a modal instead.
@@ -317,20 +364,26 @@ not a bolted-on error page.
 ### Cards
 
 Cards are for distinct summaries, budgets, goals, independent analytical modules and standalone
-interactive components — not for transactions, categories, simple label/value pairs, navigation,
-or items that naturally share a section. Don't turn a list into floating cards.
+interactive components — not for a single transaction, categories, simple label/value pairs,
+navigation, or items that naturally share a section. Don't turn a list into floating cards; a
+transaction list's day card holds a whole day, not one row.
 
 One focal point per card; identical internal padding and radius across a set regardless of content
-length (ragged padding is the most common "amateur" tell). A featured card gets a 2px accent border
+length (ragged padding is the most common "amateur" tell). A featured card gets a `borderWidth.medium` accent border
 + a small badge on the *same* background as its siblings — changing the background too is
 double-signaling.
 
 ### Lists
 
-Dense/data-heavy lists (transactions, accounts): full-width rows with hairline dividers, no
-rounded-card wrapper. Sparse/browsable lists (menus, settings): more padding, no border —
+Dense/data-heavy lists: full-width rows, no rounded-card wrapper. Accounts use hairline dividers;
+transactions group each day's rows into one day card (see "Transaction lists are a ledger"). Sparse/browsable lists (menus, settings): more padding, no border —
 whitespace is the separator. Long lists use `FlatList`/`SectionList`, never `.map()` in a
 `ScrollView`.
+
+A tab's list screen (Home, Planning) creates through the `Fab`, bottom right, never an inline `+`
+in the list header.
+It appears only once the list has rows, because the empty state carries its own create button.
+The list pads its end with `fabListPaddingBottom` so the last row scrolls clear of it.
 
 ### Row actions (swipe)
 
@@ -459,7 +512,8 @@ Before calling any UI change done:
 - [ ] Every chart answers a named question; no invented insights or scores
 - [ ] Loading, empty, error and offline states exist, inside the shell, at the smallest scope
 - [ ] Every recoverable error has a working recovery action
-- [ ] Spacing and radius come from the token scales; colors from semantic tokens
+- [ ] Every design value comes from a theme token (spacing, size, type, radius, border, colour, icon, opacity, shadow); `tokens-usage.test.ts` passes
+- [ ] A shape nested flush in a rounded one takes `concentricRadius(outer, border, padding)`
 - [ ] Touch targets ≥ 44pt; labels/roles/`testID`s set; checked in dark and light themes
 - [ ] Copy follows the microcopy rules and exists in both `en` and `vi`
 - [ ] Motion is functional, ≤ 400ms, and respects Reduce Motion
