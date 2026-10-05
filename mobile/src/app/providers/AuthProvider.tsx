@@ -1,4 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
   useCallback,
@@ -83,7 +82,6 @@ function resolvePreOwnershipQueue(restored: StoredSession | null): void {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
-  const queryClient = useQueryClient();
   const dispatch = useAppDispatch();
   const [user, setUser] = useState<UserResponse | null>(null);
   const [stored, setStored] = useState<StoredSession | null>(session.current());
@@ -103,11 +101,9 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     [dispatch],
   );
 
-  // RTK Query's apiSlice is the server-state cache that actually holds data (MB-02).
   const clearServerCache = useCallback(() => {
     dispatch(apiSlice.util.resetApiState());
-    queryClient.clear();
-  }, [dispatch, queryClient]);
+  }, [dispatch]);
 
   // A failed refresh ends the session without going through logout().
   useEffect(() => {

@@ -17,5 +17,10 @@ export async function readGuestOrApi<T>(
     await ensureSeeded();
     return fromLocal();
   }
+  return readSignedInCached(cacheKey, fromApi);
+}
+
+/** A signed-in-only read: the API, or the account's own saved copy under `cacheKey` when offline. */
+export function readSignedInCached<T>(cacheKey: string, fromApi: () => Promise<T>): Promise<T> {
   return readSignedIn(fromApi, setCurrentlyOnline, isNetworkError, localCache.entry<T>(cacheKey));
 }

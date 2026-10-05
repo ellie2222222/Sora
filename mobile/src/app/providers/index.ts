@@ -6,7 +6,6 @@ export * from './LocaleProvider.tsx';
 // would create a require cycle (this barrel -> ModalProvider -> a feature's modal
 // -> back into this barrel for useTheme/useWallets/etc). Import ModalProvider directly.
 export * from './ModalContext.ts';
-export * from './QueryProvider.tsx';
 export * from './ThemeProvider.tsx';
 export * from './ToastContext.ts';
 export * from './ToastProvider.tsx';

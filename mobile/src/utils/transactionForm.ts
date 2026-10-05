@@ -19,7 +19,6 @@ import {
   CategoryType,
   TransactionStatus,
   type CreateTransactionRequest,
-  type TransactionResponse,
 } from '@sora/contracts';
 
 /** Every field the form can hold, regardless of which type is selected. */
@@ -202,22 +201,6 @@ export function validateDraft(draft: TransactionDraft): DraftValidation {
       path: issue.path.length > 0 ? issue.path.join('.') : 'type',
       message: issue.message,
     })),
-  };
-}
-
-/** Prefill the form from an existing transaction, for the edit flow. */
-export function draftFromTransaction(transaction: TransactionResponse): TransactionDraft {
-  return {
-    type: transaction.type,
-    amount: transaction.amount,
-    currency: transaction.currency,
-    fromAccountId: transaction.fromAccount?.id ?? null,
-    toAccountId: transaction.toAccount?.id ?? null,
-    categoryId: transaction.category?.id ?? null,
-    description: transaction.description ?? '',
-    reference: transaction.reference ?? '',
-    transactionDate: transaction.transactionDate,
-    status: transaction.status,
   };
 }
 

@@ -1,4 +1,4 @@
-import { Pressable, View } from 'react-native';
+import { Pressable, View, type DimensionValue } from 'react-native';
 import { useMemo } from 'react';
 import { UsersRound } from 'lucide-react-native';
 import { TransactionType, type TransactionResponse } from '@sora/contracts';
@@ -17,10 +17,12 @@ export interface TransactionItemProps {
   testID?: string;
   /** The offline queue's status for this transaction, if it has a pending write. */
   syncStatus?: QueueStatus;
+  /** Inside a card the row pads itself, so its whole width stays tappable. */
+  paddingHorizontal?: number;
 }
 
 /** The one row shape for a transaction. */
-export function TransactionItem({ transaction, onPress, testID, syncStatus }: TransactionItemProps) {
+export function TransactionItem({ transaction, onPress, testID, syncStatus, paddingHorizontal }: TransactionItemProps) {
   const theme = useTheme();
   const category = transaction.category;
   
@@ -54,7 +56,7 @@ export function TransactionItem({ transaction, onPress, testID, syncStatus }: Tr
       testID={testID}
       onPress={onPress ? () => onPress(transaction) : undefined}
       className="w-full self-stretch flex-row items-center justify-between"
-      style={{ paddingVertical: theme.spacing.sm, minHeight: 58 }}
+      style={{ paddingVertical: theme.spacing.sm, paddingHorizontal, minHeight: theme.sizes.listRowMinHeight }}
     >
       <View
         className="flex-row items-center flex-1"
@@ -65,10 +67,10 @@ export function TransactionItem({ transaction, onPress, testID, syncStatus }: Tr
           categoryName={category?.name}
           transactionType={transaction.type}
           tint={tint}
-          size={36}
+          size={theme.sizes.badge.md}
         />
         <View className="flex-1">
-          <Text numberOfLines={1} weight="medium" style={{ fontSize: 16 }}>
+          <Text numberOfLines={1} weight="medium">
             {primaryTitle}
           </Text>
           {secondaryText.length > 0 ? (
@@ -76,7 +78,7 @@ export function TransactionItem({ transaction, onPress, testID, syncStatus }: Tr
               <Text variant="caption" tone="muted" numberOfLines={1}>
                 {secondaryText}
               </Text>
-              {transaction.isCrossWallet ? <UsersRound size={12} color={theme.colors.textFaint} /> : null}
+              {transaction.isCrossWallet ? <UsersRound size={theme.iconSize.xs} color={theme.colors.textFaint} /> : null}
               <SyncStatusDot status={syncStatus} testID={testID ? `${testID}-sync-status` : undefined} />
             </View>
           ) : null}
@@ -94,32 +96,32 @@ export function TransactionItem({ transaction, onPress, testID, syncStatus }: Tr
     </Pressable>
   );
 }
-export function TransactionItemSkeleton({ titleWidth, subtitleWidth, amountWidth }: { titleWidth?: number | string; subtitleWidth?: number | string; amountWidth?: number | string } = {}) {
+export function TransactionItemSkeleton({ titleWidth, subtitleWidth, amountWidth }: { titleWidth?: DimensionValue; subtitleWidth?: DimensionValue; amountWidth?: DimensionValue } = {}) {
   const theme = useTheme();
   
   // Stable random widths across re-renders
-  const rTitleWidth = useMemo(() => titleWidth ?? `${Math.floor(Math.random() * 40) + 40}%`, [titleWidth]);
-  const rSubtitleWidth = useMemo(() => subtitleWidth ?? `${Math.floor(Math.random() * 30) + 30}%`, [subtitleWidth]);
-  const rAmountWidth = useMemo(() => amountWidth ?? Math.floor(Math.random() * 40) + 50, [amountWidth]);
+  const rTitleWidth = useMemo<DimensionValue>(() => titleWidth ?? `${Math.floor(Math.random() * 40) + 40}%`, [titleWidth]);
+  const rSubtitleWidth = useMemo<DimensionValue>(() => subtitleWidth ?? `${Math.floor(Math.random() * 30) + 30}%`, [subtitleWidth]);
+  const rAmountWidth = useMemo<DimensionValue>(() => amountWidth ?? theme.sizes.skeletonWidth.xs + Math.floor(Math.random() * theme.sizes.skeletonWidth.xs), [amountWidth, theme]);
 
   return (
     <View
       className="w-full self-stretch flex-row items-center justify-between"
-      style={{ paddingVertical: theme.spacing.sm, minHeight: 58 }}
+      style={{ paddingVertical: theme.spacing.sm, minHeight: theme.sizes.listRowMinHeight }}
     >
       <View
         className="flex-row items-center flex-1"
         style={{ gap: theme.spacing.sm }}
       >
-        <Skeleton width={36} height={36} radius={18} />
+        <Skeleton width={theme.sizes.badge.md} height={theme.sizes.badge.md} radius={theme.radius.pill} />
         <View className="flex-1" style={{ gap: theme.spacing.xxs, justifyContent: 'center' }}>
-          <Skeleton width={rTitleWidth as any} height={16} radius={theme.radius.sm} />
-          <Skeleton width={rSubtitleWidth as any} height={12} radius={theme.radius.sm} />
+          <Skeleton width={rTitleWidth} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
+          <Skeleton width={rSubtitleWidth} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
         </View>
       </View>
 
       <View className="items-end justify-center">
-        <Skeleton width={rAmountWidth as any} height={16} radius={theme.radius.sm} />
+        <Skeleton width={rAmountWidth} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
       </View>
     </View>
   );

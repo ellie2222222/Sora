@@ -28,8 +28,6 @@ const offlineQueueSlice = createSlice({
 
 export const { queueRowsReplaced } = offlineQueueSlice.actions;
 
-export const selectQueueRows = (state: RootState): QueuedMutation[] => state.offlineQueue.rows;
-
 export const selectPendingCount = (state: RootState): number =>
   state.offlineQueue.rows.filter((row) => row.status === 'pending' || row.status === 'syncing').length;
 

@@ -3,7 +3,7 @@
  * rather than `fetchBaseQuery`, so the bearer-attach and single-flight
  * refresh-on-401 interceptors there stay the one implementation of both.
  */
-import { createApi, retry, type BaseQueryFn } from '@reduxjs/toolkit/query/react';
+import { createApi, retry, type BaseQueryApi, type BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import type { AxiosRequestConfig } from 'axios';
 
 import {
@@ -56,7 +56,7 @@ interface DeleteArgs {
 
 interface CustomArgs {
   method: 'custom';
-  run: (api: any) => Promise<unknown>; // api is BaseQueryApi, typed as any here to avoid importing
+  run: (api: BaseQueryApi) => Promise<unknown>;
 }
 
 export type AxiosBaseQueryArgs = GetArgs | GetListArgs | PostArgs | PostVoidArgs | PatchArgs | DeleteArgs | CustomArgs;

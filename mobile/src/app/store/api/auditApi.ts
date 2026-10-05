@@ -1,9 +1,9 @@
 import { ROUTES, apiUrl, type AuditLogResponse } from '@sora/contracts';
 import { getList, type ListResult } from '@/services/api';
-import { cacheKeyOf, localCache, setCurrentlyOnline } from '@/services/sync';
-import { FIRST_PAGE, isNetworkError, nextPageParam } from '@/utils';
+import { cacheKeyOf } from '@/services/sync';
+import { FIRST_PAGE, nextPageParam } from '@/utils';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
-import { readSignedIn } from './signedInRead.ts';
+import { readSignedInCached } from './guestFallback.ts';
 
 /** API spec §15.1 — OWNER-only, append-only, no update/delete path anywhere. */
 export interface AuditLogQuery {
@@ -28,16 +28,14 @@ export const auditApi = apiSlice.injectEndpoints({
       queryFn: ({ queryArg, pageParam }, { endpoint }) => {
         const { walletId, query } = queryArg;
         return toQueryFnResult(() =>
-          readSignedIn<ListResult<AuditLogResponse>>(
+          readSignedInCached<ListResult<AuditLogResponse>>(
+            cacheKeyOf(endpoint, queryArg, pageParam),
             async () =>
               (await getList(apiUrl(ROUTES.audit.list(walletId)), {
                 ...query,
                 page: pageParam,
                 pageSize: AUDIT_LOG_PAGE_SIZE,
               })) as ListResult<AuditLogResponse>,
-            setCurrentlyOnline,
-            isNetworkError,
-            localCache.entry(cacheKeyOf(endpoint, queryArg, pageParam)),
           ),
         );
       },

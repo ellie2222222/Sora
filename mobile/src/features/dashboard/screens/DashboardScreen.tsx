@@ -76,22 +76,22 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
                         <View style={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.xl }}>
               {/* AccountScopePicker + AccountsOverview Mock */}
               <View style={{ gap: theme.spacing.md }}>
-                <Skeleton width={140} height={24} radius={theme.radius.sm} />
+                <Skeleton width={theme.sizes.skeletonWidth.xxl} height={theme.sizes.skeletonLine.heading} radius={theme.radius.sm} />
                 <View className="flex-row" style={{ gap: theme.spacing.sm }}>
-                  <Skeleton width={100} height={36} radius={18} />
-                  <Skeleton width={100} height={36} radius={18} />
+                  <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.badge.md} radius={theme.radius.pill} />
+                  <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.badge.md} radius={theme.radius.pill} />
                 </View>
                 <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
                   {Array.from({ length: 2 }).map((_, i) => (
                      <View key={i} className="flex-row items-center justify-between">
                        <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-                         <Skeleton width={40} height={40} radius={20} />
+                         <Skeleton width={theme.sizes.badge.lg} height={theme.sizes.badge.lg} radius={theme.radius.pill} />
                          <View style={{ gap: theme.spacing.xs }}>
-                           <Skeleton width={100} height={16} radius={theme.radius.sm} />
-                           <Skeleton width={60} height={12} radius={theme.radius.sm} />
+                           <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
+                           <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
                          </View>
                        </View>
-                       <Skeleton width={80} height={16} radius={theme.radius.sm} />
+                       <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
                      </View>
                   ))}
                 </View>
@@ -99,8 +99,8 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
 
               {/* PeriodReport Mock */}
               <View style={{ gap: theme.spacing.md, marginTop: theme.spacing.md }}>
-                <Skeleton width={120} height={20} radius={theme.radius.sm} />
-                <Skeleton width="100%" height={200} radius={theme.radius.lg} />
+                <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.title} radius={theme.radius.sm} />
+                <Skeleton width="100%" height={theme.sizes.skeletonBlock.md} radius={theme.radius.lg} />
               </View>
             </View>
           ) : activeWalletId === null ? (
@@ -130,7 +130,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
                   className="flex-row items-center self-start"
                   style={{ gap: theme.spacing.xs }}
                 >
-                  <ChevronRight size={16} color={theme.colors.primary} />
+                  <ChevronRight size={theme.iconSize.md} color={theme.colors.primary} />
                   <Text weight="medium" style={{ color: theme.colors.primary }}>
                     {t('dashboard.manageAccount')}
                   </Text>
@@ -139,7 +139,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
 
               {period === 'yearly' ? (
                 <YearlyReport
-                  key={scopeAccountId ?? 'all'}
+                  key={`${activeWalletId}|${scopeAccountId ?? 'all'}`}
                   walletId={activeWalletId}
                   accountId={scopeAccountId}
                   year={parseDay(anchor).year}

@@ -93,7 +93,7 @@ export function addDays(day: CalendarDay, delta: number): CalendarDay {
 }
 
 /**
- * Weeks run Sunday–Saturday, matching `WEEKDAY_NAMES`/`monthGrid`'s own layout —
+ * Weeks run Sunday–Saturday, matching `monthGrid`'s own layout —
  * the picker grid and a "this week" dashboard period must not disagree about
  * which day a week starts on.
  */
@@ -136,25 +136,6 @@ export function startOfYear(day: CalendarDay = today()): CalendarDay {
 export function endOfYear(day: CalendarDay = today()): CalendarDay {
   return `${parseDay(day).year}-12-31`;
 }
-
-const MONTH_NAMES = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-] as const;
-
-const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
-
-export const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 
 export function monthName(month: number, locale: string = i18next.language || 'en'): string {
   const validMonth = Math.max(1, Math.min(12, Number(month) || 1));

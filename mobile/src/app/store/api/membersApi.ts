@@ -1,10 +1,9 @@
 import type { MemberStatus, UpdateMemberRequest, WalletMemberResponse } from '@sora/contracts';
 
 import { membersApi as membersHttp, type TransferOwnershipRequest } from '@/services/api';
-import { cacheKeyOf, localCache, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '@/utils';
+import { cacheKeyOf } from '@/services/sync';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
-import { readSignedIn } from './signedInRead.ts';
+import { readSignedInCached } from './guestFallback.ts';
 
 export type { TransferOwnershipRequest } from '@/services/api';
 
@@ -19,12 +18,7 @@ export const membersApiSlice = apiSlice.injectEndpoints({
     listMembers: builder.query<WalletMemberResponse[], { walletId: string; status?: MemberStatus }>({
       queryFn: (arg, { endpoint }) =>
         toQueryFnResult(() =>
-          readSignedIn(
-            () => membersHttp.list(arg.walletId, arg.status),
-            setCurrentlyOnline,
-            isNetworkError,
-            localCache.entry(cacheKeyOf(endpoint, arg)),
-          ),
+          readSignedInCached(cacheKeyOf(endpoint, arg), () => membersHttp.list(arg.walletId, arg.status)),
         ),
       providesTags: ['WalletMember'],
     }),

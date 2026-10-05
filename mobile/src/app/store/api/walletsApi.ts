@@ -53,11 +53,12 @@ export const walletsApiSlice = apiSlice.injectEndpoints({
     }),
     updateWallet: builder.mutation<WalletResponse, { walletId: string; body: UpdateWalletRequest }>({
       queryFn: ({ walletId, body }) => toQueryFnResult(() => walletsHttp.update(walletId, body)),
-      invalidatesTags: ['Wallet'],
+      // Transactions and invitations carry the wallet's name.
+      invalidatesTags: ['Wallet', 'Transaction', 'WalletInvitation'],
     }),
     archiveWallet: builder.mutation<void, string>({
       queryFn: (walletId) => toQueryFnResult(() => walletsHttp.archive(walletId)),
-      invalidatesTags: ['Wallet'],
+      invalidatesTags: ['Wallet', 'Account', 'Transaction', 'Dashboard'],
     }),
   }),
   overrideExisting: __DEV__,

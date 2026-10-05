@@ -17,8 +17,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '@/app/i18n';
 import '@/services/guest';
-import { AuthProvider, LocaleProvider, QueryProvider, ThemeProvider, ToastProvider } from '@/app/providers';
-import { NetworkStatusProvider } from './hooks/useNetworkStatus.tsx';
+import { AuthProvider, LocaleProvider, ThemeProvider, ToastProvider } from '@/app/providers';
+import { NetworkStatusProvider } from '@/hooks';
 import { RootNavigator } from '@/app/navigation';
 import { ErrorBoundary } from '@/components';
 import { store } from '@/app/store';
@@ -29,12 +29,9 @@ startSyncEngine(store);
 void SplashScreen.preventAutoHideAsync();
 
 /**
- * Provider order matters:
- * - QueryProvider before AuthProvider, because AuthProvider's logout clears
- *   the query cache on sign-out — it needs a client to already exist above it.
- * - AuthProvider before ThemeProvider/LocaleProvider, because both hydrate
- *   their choice from the signed-in user's server-stored `theme`/`locale`
- *   exactly once — they need `useAuth()`'s user to be available to read from.
+ * Provider order matters: AuthProvider before ThemeProvider/LocaleProvider, because both
+ * hydrate their choice from the signed-in user's server-stored `theme`/`locale` exactly
+ * once — they need `useAuth()`'s user to be available to read from.
  *
  * The splash screen stays up until Mulish is loaded — every `Text` renders
  * through `design-system/typography.ts`'s `fontFamily` tokens, so rendering
@@ -62,22 +59,20 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ReduxProvider store={store}>
         <SafeAreaProvider>
-          <QueryProvider>
-            <NetworkStatusProvider onRetrySync={() => requestSyncNow(store)}>
-              <AuthProvider>
-                <ThemeProvider>
-                  <LocaleProvider>
-                    <ToastProvider>
-                      <StatusBar style="auto" />
-                      <ErrorBoundary>
-                        <RootNavigator />
-                      </ErrorBoundary>
-                    </ToastProvider>
-                  </LocaleProvider>
-                </ThemeProvider>
-              </AuthProvider>
-            </NetworkStatusProvider>
-          </QueryProvider>
+          <NetworkStatusProvider onRetrySync={() => requestSyncNow(store)}>
+            <AuthProvider>
+              <ThemeProvider>
+                <LocaleProvider>
+                  <ToastProvider>
+                    <StatusBar style="auto" />
+                    <ErrorBoundary>
+                      <RootNavigator />
+                    </ErrorBoundary>
+                  </ToastProvider>
+                </LocaleProvider>
+              </ThemeProvider>
+            </AuthProvider>
+          </NetworkStatusProvider>
         </SafeAreaProvider>
       </ReduxProvider>
     </GestureHandlerRootView>

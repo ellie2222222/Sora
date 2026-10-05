@@ -45,7 +45,8 @@ export function PeriodReport({
   const previous = useGetDashboardSummaryQuery({ walletId, accountId: scope, ...previousWindow(period, anchor) });
   const categories = useListCategoriesQuery({ walletId });
 
-  if (current.isLoading) return <PeriodReportSkeleton />;
+  // `currentData` is empty while a new wallet/account/window loads, where `data` would still hold the old figures.
+  if (current.currentData === undefined && current.isFetching) return <PeriodReportSkeleton />;
   if (current.isError && !isNetworkError(current.error)) {
     return (
       <StateView
@@ -57,7 +58,7 @@ export function PeriodReport({
     );
   }
 
-  const data = current.data;
+  const data = current.currentData;
   if (data === undefined) {
     return <StateView variant="error" error={new Error(t('dashboard.noData', 'No dashboard data available.'))} />;
   }
@@ -90,7 +91,7 @@ export function PeriodReport({
       ? percentageOf(parseMoney(net.amount), parseMoney(income.amount), 0)
       : null;
 
-  const categoryNames = new Map((categories.data ?? []).map((category) => [category.id, category.name]));
+  const categoryNames = new Map((categories.currentData ?? []).map((category) => [category.id, category.name]));
 
   return (
     <View style={{ gap: theme.spacing.lg }}>
@@ -112,7 +113,7 @@ export function PeriodReport({
 
       <CategoryBreakdown
         slices={data.spendingByCategory}
-        previousSlices={previous.data?.spendingByCategory ?? []}
+        previousSlices={previous.currentData?.spendingByCategory ?? []}
         expenseTotal={data.expense[0]}
         categoryNames={categoryNames}
         onSelectCategory={(categoryId) =>
@@ -129,7 +130,7 @@ export function PeriodReport({
         onOpenGoal={(goalId) => navigation.getParent()?.navigate('GoalDetail', { goalId })}
       />
 
-      <PeriodInsights data={data} previousData={previous.data} savingsRate={savingsRate} periodLabel={formatPeriodLabel(period, anchor)} />
+      <PeriodInsights data={data} previousData={previous.currentData} savingsRate={savingsRate} periodLabel={formatPeriodLabel(period, anchor)} />
     </View>
   );
 }
@@ -142,40 +143,40 @@ function PeriodReportSkeleton() {
       <View style={{ gap: theme.spacing.md }}>
         <View className="flex-row justify-between">
           <View>
-            <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={50} height={16} radius={4}  /></View>
-            <Skeleton width={80} height={24} radius={4} />
+            <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.skeletonLine.label} radius={theme.radius.xs}  /></View>
+            <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.title} radius={theme.radius.xs} />
           </View>
           <View>
-            <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={50} height={16} radius={4}  /></View>
-            <Skeleton width={80} height={24} radius={4} />
+            <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.skeletonLine.label} radius={theme.radius.xs}  /></View>
+            <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.title} radius={theme.radius.xs} />
           </View>
           <View>
-            <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={50} height={16} radius={4}  /></View>
-            <Skeleton width={80} height={24} radius={4} />
+            <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.skeletonLine.label} radius={theme.radius.xs}  /></View>
+            <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.title} radius={theme.radius.xs} />
           </View>
         </View>
-        <Skeleton width={120} height={16} radius={4} />
+        <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.caption} radius={theme.radius.xs} />
       </View>
 
       {/* CashFlowCard */}
       <View style={{ gap: theme.spacing.sm }}>
-        <Skeleton width={80} height={16} radius={4} />
-        <View className="flex-row items-end justify-between" style={{ height: 140 }}>
-          <Skeleton width={40} height={100} radius={4} />
-          <Skeleton width={40} height={60} radius={4} />
-          <Skeleton width={40} height={20} radius={4} />
-          <Skeleton width={40} height={40} radius={4} />
+        <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.label} radius={theme.radius.xs} />
+        <View className="flex-row items-end justify-between" style={{ height: theme.sizes.chart.height }}>
+          <Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.chart.height * 0.7} radius={theme.radius.xs} />
+          <Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.chart.height * 0.45} radius={theme.radius.xs} />
+          <Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.chart.height * 0.15} radius={theme.radius.xs} />
+          <Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.chart.height * 0.3} radius={theme.radius.xs} />
         </View>
       </View>
 
       {/* CategoryBreakdown */}
       <View style={{ gap: theme.spacing.lg }}>
         <View className="items-center" style={{ gap: theme.spacing.md }}>
-          <Skeleton width={160} height={160} radius={80} />
+          <Skeleton width={theme.sizes.chart.largeHeight} height={theme.sizes.chart.largeHeight} radius={theme.radius.pill} />
           <View className="w-full" style={{ gap: theme.spacing.xs }}>
-            <Skeleton width="100%" height={24} radius={4} />
-            <Skeleton width="100%" height={24} radius={4} />
-            <Skeleton width="100%" height={24} radius={4} />
+            <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
+            <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
+            <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
           </View>
         </View>
       </View>

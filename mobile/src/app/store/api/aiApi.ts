@@ -1,10 +1,10 @@
 import type { AiConversationResponse, AiMessageResponse, SendAiMessageRequest, SendAiMessageResponse } from '@sora/contracts';
 
 import { aiApi as aiHttp, type ListResult } from '@/services/api';
-import { cacheKeyOf, localCache, setCurrentlyOnline } from '@/services/sync';
-import { FIRST_PAGE, isNetworkError, nextPageParam } from '@/utils';
+import { cacheKeyOf } from '@/services/sync';
+import { FIRST_PAGE, nextPageParam } from '@/utils';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
-import { readSignedIn } from './signedInRead.ts';
+import { readSignedInCached } from './guestFallback.ts';
 
 /** The most recent messages a chat shows; the API pages further back (§17.4). */
 const MESSAGE_PAGE_SIZE = 100;
@@ -18,11 +18,9 @@ export const aiApiSlice = apiSlice.injectEndpoints({
     listAiConversations: builder.query<AiConversationResponse[], void>({
       queryFn: (_arg, { endpoint }) =>
         toQueryFnResult(() =>
-          readSignedIn(
+          readSignedInCached(
+            cacheKeyOf(endpoint, undefined),
             async () => (await aiHttp.conversations({ page: 1, pageSize: CONVERSATION_PAGE_SIZE })).items,
-            setCurrentlyOnline,
-            isNetworkError,
-            localCache.entry(cacheKeyOf(endpoint, undefined)),
           ),
         ),
       providesTags: ['AiConversation'],
@@ -39,12 +37,10 @@ export const aiApiSlice = apiSlice.injectEndpoints({
       },
       queryFn: ({ queryArg: conversationId, pageParam }, { endpoint }) =>
         toQueryFnResult(() =>
-          readSignedIn(
+          readSignedInCached(
+            cacheKeyOf(endpoint, conversationId, pageParam),
             async () =>
               (await aiHttp.messages(conversationId, { page: pageParam, pageSize: MESSAGE_PAGE_SIZE })) as ListResult<AiMessageResponse>,
-            setCurrentlyOnline,
-            isNetworkError,
-            localCache.entry(cacheKeyOf(endpoint, conversationId, pageParam)),
           ),
         ),
       providesTags: (_result, _error, conversationId) => [{ type: 'AiMessage', id: conversationId }],

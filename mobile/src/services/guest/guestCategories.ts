@@ -24,8 +24,6 @@ import { newLocalId } from './guestIds.ts';
 import { guestStore } from './guestStorage.ts';
 import { type GuestBudget, type GuestCategory, type GuestWallet } from './guestStore.ts';
 
-export type CategoryDeleteMode = 'archive' | 'permanent';
-
 export interface CategoryListQuery {
   walletId: string;
   type?: CategoryType | undefined;
