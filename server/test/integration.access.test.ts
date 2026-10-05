@@ -82,6 +82,13 @@ describe('access control against a real database', { skip: integrationSkipReason
     assert.deepEqual([real.status, real.body?.error?.code], [made_up.status, made_up.body?.error?.code]);
   });
 
+  it('answers a malformed path id with 404 ROUTE_NOT_FOUND, not a 500 from the uuid cast', async () => {
+    for (const path of ['/wallets/not-a-uuid', '/accounts/not-a-uuid', `/wallets/${ids.wallet}/members/not-a-uuid`]) {
+      const response = await api.call('GET', path, { token: stranger.token });
+      assert.deepEqual([response.status, response.body?.error?.code], [404, 'ROUTE_NOT_FOUND'], `GET ${path}`);
+    }
+  });
+
   it('refuses a non-member\'s write with 404, and leaves no row behind', async () => {
     const before = await api.sql('SELECT count(*)::int AS n FROM transactions WHERE from_account_id = $1', [ids.account]);
     const write = await api.call('POST', '/transactions', {

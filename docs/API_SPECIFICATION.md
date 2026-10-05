@@ -116,7 +116,7 @@ Ranks compare (`roleSatisfies()`): OWNER ⊇ EDITOR ⊇ VIEWER. Everything under
 
 ### 2.7 Error codes
 
-`UPPER_SNAKE_CASE`, resource-prefixed. The full list and its status mapping is `ERROR_CODES` / `ERROR_STATUS` in [`responses.ts`](../packages/contracts/src/responses.ts) — that map is the single source; this document does not restate it. A path no route matches returns `404 ROUTE_NOT_FOUND`, never a resource code such as `WALLET_NOT_FOUND`: the resource was not looked up.
+`UPPER_SNAKE_CASE`, resource-prefixed. The full list and its status mapping is `ERROR_CODES` / `ERROR_STATUS` in [`responses.ts`](../packages/contracts/src/responses.ts) — that map is the single source; this document does not restate it. A path no route matches returns `404 ROUTE_NOT_FOUND`, never a resource code such as `WALLET_NOT_FOUND`: the resource was not looked up. Every path parameter is a UUID id, so a path whose id segment is not a UUID is treated the same way — `404 ROUTE_NOT_FOUND`, before any lookup.
 
 ### 2.8 Pagination, filtering, sorting
 
@@ -1086,7 +1086,7 @@ One request answering the four questions the dashboard exists to answer: how muc
 
 **Errors** — `404 WALLET_NOT_FOUND` · `404 ACCOUNT_NOT_FOUND` (an `accountId` outside the wallet) · `422 VALIDATION_FAILED`. `503 VALUATION_UNAVAILABLE` is defined in the error catalog for this feature but not currently returned by any code path — an unavailable conversion is reported in-band via `valuation.status`, not as a request failure.
 
-**Side effects** — none. Served by two aggregate queries rather than one per tile, plus (only when `displayCurrency` is requested) a possible external rate lookup, cached for 12h by default.
+**Side effects** — none. Served by a fixed set of set-based queries — the wallet's accounts, then balance, period activity, recent transactions, active budgets (with their spendable expenses) and active goals (with their contributions) in parallel, then one category lookup for the spending split — none issued per row, plus (only when `displayCurrency` is requested) a possible external rate lookup, cached for 12h by default.
 
 ---
 

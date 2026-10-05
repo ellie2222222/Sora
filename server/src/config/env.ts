@@ -52,9 +52,6 @@ const envSchema = z.object({
 
   APP_VERSION: z.string().min(1).default('0.1.0'),
 
-  /** Accepted but read by nothing: scripts/migrate.mjs always uses db/migrations. */
-  MIGRATIONS_DIR: z.string().optional(),
-
   /**
    * OAuth client id(s) Google issues an ID token for, comma-separated — a
    * mobile app's `aud` varies per platform client id, so every one the app

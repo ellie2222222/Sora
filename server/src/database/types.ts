@@ -10,7 +10,7 @@
  * with the database without that check failing.
  */
 
-import type { ColumnType, Generated } from 'kysely';
+import type { ColumnType, Generated, Kysely, Transaction } from 'kysely';
 import type {
   AccountStatus,
   AccountType,
@@ -256,3 +256,6 @@ export interface DB {
   ai_conversations: AiConversationsTable;
   ai_messages: AiMessagesTable;
 }
+
+/** Either the pool or an open transaction, for a helper that runs inside a caller's transaction when given one. */
+export type Executor = Kysely<DB> | Transaction<DB>;

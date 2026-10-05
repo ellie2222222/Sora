@@ -3,6 +3,7 @@ import { sql, type Kysely, type Transaction } from 'kysely';
 
 import type { AuditLogResponse, WalletRole } from '@sora/contracts';
 
+import { dayAfter } from '../common/utc-day.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { AuditResult, DB } from '../database/types.ts';
 import type { AuditEvent, EntityType } from './audit-events.ts';
@@ -115,13 +116,6 @@ export class AuditService {
 
     return { total: Number(totalRow.count), rows: rows.map(toAuditLogResponse) };
   }
-}
-
-/** Exclusive upper bound for an inclusive calendar-day filter on a TIMESTAMPTZ column. */
-function dayAfter(date: string): Date {
-  const next = new Date(`${date}T00:00:00.000Z`);
-  next.setUTCDate(next.getUTCDate() + 1);
-  return next;
 }
 
 function toAuditLogResponse(row: {

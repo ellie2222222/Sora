@@ -13,7 +13,7 @@
  */
 
 import { Injectable, type PipeTransform } from '@nestjs/common';
-import type { Kysely, Transaction } from 'kysely';
+import type { Transaction } from 'kysely';
 
 import {
   TransactionStatus,
@@ -35,8 +35,9 @@ import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { Enveloped, paginated } from '../common/envelope.ts';
 import { paginationMeta, parseSort } from '../common/pagination.ts';
+import { dayAfter } from '../common/utc-day.ts';
 import { DatabaseService } from '../database/database.service.ts';
-import type { DB } from '../database/types.ts';
+import type { DB, Executor } from '../database/types.ts';
 import { requireGoalInWallet } from '../goals/goal-access.ts';
 import { AccountAccess, WalletAccessService } from '../wallets/wallet-access.service.ts';
 import { assertCategoryFits, assertCategoryRemovable, categorisedAccountId, type CategoryFacts } from './transaction-category.ts';
@@ -44,8 +45,6 @@ import { assertCategoryFits, assertCategoryRemovable, categorisedAccountId, type
 export interface DeleteTransactionRequest {
   reason?: string;
 }
-
-type Executor = Kysely<DB> | Transaction<DB>;
 
 /**
  * Not in `updateTransactionSchema` at all, so any attempt to set them must be
@@ -471,7 +470,7 @@ export class TransactionsService {
     const changedFields = Object.keys(body);
 
     await this.database.db.transaction().execute(async (trx) => {
-      await trx
+      const updated = await trx
         .updateTable('transactions')
         .set({
           ...(body.description !== undefined ? { description: body.description } : {}),
@@ -482,7 +481,10 @@ export class TransactionsService {
           updated_at: new Date(),
         })
         .where('id', '=', transactionId)
-        .execute();
+        // A delete can commit between the status check above and this write.
+        .where('status', '!=', TransactionStatus.DELETED)
+        .executeTakeFirst();
+      if (updated.numUpdatedRows === 0n) throw new AppError('TRANSACTION_ALREADY_DELETED');
 
       await this.auditTransaction(
         trx,
@@ -613,11 +615,4 @@ function toTransactionResponse(row: TransactionJoinRow): TransactionResponse {
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
-}
-
-/** Exclusive upper bound for an inclusive calendar-day filter on a TIMESTAMPTZ column. */
-function dayAfter(date: string): Date {
-  const next = new Date(`${date}T00:00:00.000Z`);
-  next.setUTCDate(next.getUTCDate() + 1);
-  return next;
 }

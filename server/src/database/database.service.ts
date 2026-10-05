@@ -22,6 +22,11 @@ export class DatabaseService implements OnApplicationShutdown {
       connectionTimeoutMillis: config.DATABASE_CONNECTION_TIMEOUT_MS,
       idleTimeoutMillis: config.DATABASE_IDLE_TIMEOUT_MS,
     });
+    // An idle client's error (Postgres restart, dropped connection) is emitted on the pool;
+    // unhandled, it would crash the process. The pool discards that client itself.
+    this.pool.on('error', (error) => {
+      this.logger.error(`Idle database client error: ${error.message}`);
+    });
 
     this.db = new Kysely<DB>({
       dialect: new PostgresDialect({ pool: this.pool }),

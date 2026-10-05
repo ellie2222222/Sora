@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Kysely, Transaction } from 'kysely';
+import type { Transaction } from 'kysely';
 
 import {
   WalletRole,
@@ -16,7 +16,7 @@ import { paginated, type Enveloped } from '../common/envelope.ts';
 import { offsetOf, paginationMeta, type PageQuery } from '../common/pagination.ts';
 import { translatingPgErrors } from '../common/pg-error.ts';
 import { DatabaseService } from '../database/database.service.ts';
-import type { DB } from '../database/types.ts';
+import type { DB, Executor } from '../database/types.ts';
 import { WalletAccessService } from './wallet-access.service.ts';
 
 interface MemberRow {
@@ -310,8 +310,6 @@ export class MembersService {
     return row;
   }
 }
-
-type Executor = Kysely<DB> | Transaction<DB>;
 
 /**
  * Every membership write locks the wallet's active member rows first, in one order, so role

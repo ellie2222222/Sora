@@ -12,7 +12,6 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import type { Kysely, Transaction } from 'kysely';
 
 import {
   ZERO,
@@ -30,9 +29,7 @@ import {
 
 import { CurrencyLedger } from '../common/currency-totals.ts';
 import { DatabaseService } from '../database/database.service.ts';
-import type { DB } from '../database/types.ts';
-
-type Executor = Kysely<DB> | Transaction<DB>;
+import type { Executor } from '../database/types.ts';
 
 export interface AccountBalance {
   accountId: string;

@@ -55,7 +55,6 @@ export const ROUTES = {
   categories: {
     list: () => '/categories',
     create: () => '/categories',
-    detail: (categoryId: string) => `/categories/${categoryId}`,
     update: (categoryId: string) => `/categories/${categoryId}`,
     archive: (categoryId: string) => `/categories/${categoryId}`,
   },

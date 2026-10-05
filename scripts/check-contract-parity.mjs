@@ -110,7 +110,7 @@ for (const [enumName, constraintName] of ENUM_TO_CONSTRAINT) {
 // 2. Every route is documented in the API specification
 // ---------------------------------------------------------------------------
 
-const routePaths = [...ROUTES_TS.matchAll(/=>\s*`?([/][^`'\s]*)`?/g)]
+const routePaths = [...ROUTES_TS.matchAll(/=>\s*[`'"]([/][^`'"\s]*)[`'"]/g)]
   .map((m) => m[1])
   .map((path) => path.replace(/\$\{[^}]+\}/g, '{id}'))
   .filter((path) => path.startsWith('/'));

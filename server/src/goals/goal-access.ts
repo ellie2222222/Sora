@@ -7,12 +7,10 @@
  * two can't check this differently.
  */
 
-import type { Kysely, Transaction } from 'kysely';
-
 import { roleSatisfies, MemberStatus, type GoalStatus, type WalletRole } from '@sora/contracts';
 
 import { AppError } from '../common/app-error.ts';
-import type { DB } from '../database/types.ts';
+import type { Executor } from '../database/types.ts';
 
 export interface GoalRow {
   id: string;
@@ -31,8 +29,6 @@ export interface GoalAccess {
   goal: GoalRow;
   role: WalletRole;
 }
-
-type Executor = Kysely<DB> | Transaction<DB>;
 
 export async function requireGoalAccess(
   db: Executor,

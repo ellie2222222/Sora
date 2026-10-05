@@ -1,6 +1,6 @@
 /**
- * Enforces `@RequireWalletRole(...)` for routes whose wallet id is on the
- * request itself — `/wallets/:id/...`, or a `walletId` in the body or query.
+ * Enforces `@RequireWalletRole(...)` for routes whose wallet id is the `:id`
+ * path parameter — `/wallets/:id/...`.
  *
  * A route keyed only by a sub-resource id (`/accounts/:id`, `/budgets/:id`)
  * cannot be guarded here: its wallet is a property of the stored row, so
@@ -17,20 +17,11 @@ import type { Request } from 'express';
 import type { WalletRole } from '@sora/contracts';
 
 import { AppError } from '../common/app-error.ts';
-import {
-  REQUIRED_WALLET_ROLE,
-  WALLET_ID_SOURCE,
-  type AuthenticatedUser,
-  type WalletIdSource,
-} from '../common/decorators.ts';
-import { WalletAccessService, type WalletAccess } from './wallet-access.service.ts';
-
-/** Where the guard leaves what it resolved, for the handler to reuse. */
-export const WALLET_ACCESS_KEY = 'walletAccess';
+import { REQUIRED_WALLET_ROLE, type AuthenticatedUser } from '../common/decorators.ts';
+import { WalletAccessService } from './wallet-access.service.ts';
 
 interface GuardedRequest extends Request {
   user?: AuthenticatedUser;
-  [WALLET_ACCESS_KEY]?: WalletAccess;
 }
 
 @Injectable()
@@ -47,32 +38,15 @@ export class RequireWalletRoleGuard implements CanActivate {
     );
     if (!required) return true;
 
-    const source =
-      this.reflector.getAllAndOverride<WalletIdSource | undefined>(WALLET_ID_SOURCE, [
-        context.getHandler(),
-        context.getClass(),
-      ]) ?? 'param:id';
-
     const request = context.switchToHttp().getRequest<GuardedRequest>();
     const userId = request.user?.id;
     if (!userId) throw new AppError('UNAUTHENTICATED');
 
-    const walletId = walletIdFrom(request, source);
+    const walletId = request.params?.['id'];
     // No wallet id at all cannot be an authorization pass.
-    if (!walletId) throw new AppError('WALLET_NOT_FOUND');
+    if (typeof walletId !== 'string' || walletId.length === 0) throw new AppError('WALLET_NOT_FOUND');
 
-    request[WALLET_ACCESS_KEY] = await this.access.require(userId, walletId, required);
+    await this.access.require(userId, walletId, required);
     return true;
   }
-}
-
-function walletIdFrom(request: GuardedRequest, source: WalletIdSource): string | null {
-  const raw =
-    source === 'param:id'
-      ? request.params?.['id']
-      : source === 'body:walletId'
-        ? (request.body as Record<string, unknown> | undefined)?.['walletId']
-        : request.query?.['walletId'];
-
-  return typeof raw === 'string' && raw.length > 0 ? raw : null;
 }

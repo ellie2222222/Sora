@@ -17,10 +17,6 @@ export class Enveloped<T> {
   ) {}
 }
 
-export function withMessage<T>(data: T, message: string): Enveloped<T> {
-  return new Enveloped(data, message);
-}
-
 export function paginated<T>(data: T[], pagination: PaginationMeta): Enveloped<T[]> {
   return new Enveloped(data, undefined, pagination);
 }

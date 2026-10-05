@@ -13,13 +13,13 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import type { Kysely, Transaction } from 'kysely';
+import type { Transaction } from 'kysely';
 
 import { roleSatisfies, WalletRole, WalletStatus, AccountStatus, MemberStatus } from '@sora/contracts';
 
 import { AppError } from '../common/app-error.ts';
 import { DatabaseService } from '../database/database.service.ts';
-import type { DB } from '../database/types.ts';
+import type { DB, Executor } from '../database/types.ts';
 
 export interface WalletAccess {
   walletId: string;
@@ -38,8 +38,6 @@ export interface AccountAccess extends WalletAccess {
   accountStatus: AccountStatus;
   initialBalance: string;
 }
-
-type Executor = Kysely<DB> | Transaction<DB>;
 
 /**
  * For a create under a wallet: share-locks the wallet row and re-checks what `requireWritable` read

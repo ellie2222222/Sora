@@ -51,6 +51,7 @@ import type { AuthenticatedUser } from '../common/decorators.ts';
 import { BalanceService } from '../accounts/balance.service.ts';
 import { spendableExpenses } from '../budgets/budget-spend.ts';
 import { CurrencyLedger, netOf } from '../common/currency-totals.ts';
+import { dayAfter } from '../common/utc-day.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service.ts';
 import { WalletAccessService } from '../wallets/wallet-access.service.ts';
@@ -176,7 +177,7 @@ export class DashboardService {
       ])
       .where('t.status', '=', TransactionStatus.COMPLETED)
       .where('t.transaction_date', '>=', new Date(`${dateFrom}T00:00:00.000Z`))
-      .where('t.transaction_date', '<', new Date(Date.parse(`${dateTo}T00:00:00.000Z`) + 86_400_000))
+      .where('t.transaction_date', '<', dayAfter(dateTo))
       .where((eb) =>
         eb.or([
           eb('t.to_account_id', 'in', [...accountIds]),

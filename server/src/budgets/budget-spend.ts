@@ -9,6 +9,7 @@ import type { Kysely } from 'kysely';
 
 import { parseMoney, TransactionStatus, TransactionType, type SpendRelevantTransaction } from '@sora/contracts';
 
+import { dayAfter } from '../common/utc-day.ts';
 import type { DB } from '../database/types.ts';
 
 export interface BudgetTargetRow {
@@ -38,7 +39,7 @@ export async function spendableExpenses(
   // Windows are UTC calendar days (calc.ts isWithinPeriod), so the span ends at the next UTC midnight.
   const spanStart = `${budgets.map((budget) => budget.start_date).sort()[0]}T00:00:00.000Z`;
   const lastDay = budgets.map((budget) => budget.end_date).sort().at(-1)!;
-  const spanEnd = new Date(Date.parse(`${lastDay}T00:00:00.000Z`) + 86_400_000).toISOString();
+  const spanEnd = dayAfter(lastDay).toISOString();
 
   const rows = await db
     .selectFrom('transactions as t')

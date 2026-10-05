@@ -8,18 +8,15 @@
  * on the hot path of every refresh.
  */
 
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import jwt from 'jsonwebtoken';
-import type { Kysely, Transaction } from 'kysely';
 
 import { CONFIG, type AppConfig } from '../config/env.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { DatabaseService } from '../database/database.service.ts';
-import type { DB } from '../database/types.ts';
-
-type Executor = Kysely<DB> | Transaction<DB>;
+import type { Executor } from '../database/types.ts';
 
 interface AccessTokenClaims {
   sub: string;
@@ -79,13 +76,6 @@ export class TokenService {
 
   hashToken(raw: string): string {
     return createHash('sha256').update(raw).digest('hex');
-  }
-
-  /** Constant-time comparison, for anywhere a hash is checked outside the database. */
-  hashesMatch(a: string, b: string): boolean {
-    const left = Buffer.from(a, 'utf8');
-    const right = Buffer.from(b, 'utf8');
-    return left.length === right.length && timingSafeEqual(left, right);
   }
 
   newOpaqueToken(): string {
