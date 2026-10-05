@@ -17,8 +17,8 @@ Most of the review's specific complaints were addressed earlier in this pass. No
 - **"Icons are visually heavy (dark circular background + strong colored icon)"** — fixed.
   [CategoryAvatar.tsx](../../mobile/src/components/CategoryAvatar.tsx) is a borderless, neutral
   `theme.colors.surfaceMuted` circle with only the icon/initial tinted — exactly the review's own
-  recommended shape (36×36 default, icon at `size * 0.5`). `TransactionRow` uses `size={34}`,
-  close enough to the review's 36 that it's not worth a special case.
+  recommended shape (36×36 default, icon at `size * 0.5`). `TransactionItem` uses `sizes.badge.md` (36),
+  the review's own size.
 - **"Transfer shouldn't be colored like income"** — already correct.
   [money.ts:182](../../mobile/src/utils/money.ts#L182) `directionOf()` maps `TRANSFER` to
   `'neutral'`, and [Money.tsx:30](../../mobile/src/components/Money.tsx#L30) colors `neutral` as
@@ -27,22 +27,21 @@ Most of the review's specific complaints were addressed earlier in this pass. No
   fix in this session). `Money.tsx` fuses the sign via `Intl`'s `signDisplay: 'exceptZero'` rather
   than a separate `+`/`-` glyph.
 - **"Don't repeat the account name when it adds nothing"** — already handled.
-  [TransactionRow.tsx:39-46](../../mobile/src/components/TransactionRow.tsx#L39-L46) only adds the
+  [TransactionItem.tsx:41-45](../../mobile/src/components/TransactionItem.tsx#L41-L45) only adds the
   category name to the subtitle when a user-written description exists as the title; otherwise the
   category *is* the title and the subtitle is just the account.
 - **"Date groups should read as sections, not divided by a border per row under a heading"** —
-  done: `TransactionDayHeader` in [TransactionListSection.tsx](../../mobile/src/components/TransactionListSection.tsx)
-  shows a day heading with `TransactionTotals` (income + expense, color-coded) beside it,
-  and the only divider is the one between the heading and the first row (see below).
+  done: `TransactionDayCard` in [TransactionListSection.tsx](../../mobile/src/components/TransactionListSection.tsx)
+  puts each day on one raised card — the day heading with `TransactionTotals` beside it, then
+  that day's rows — so no divider is needed (see below).
 
 ## Done — removed the border between individual transaction rows
 
-Rows inside a day group are separated by whitespace only (`TransactionRow`'s own
-`paddingVertical`). The one remaining rule is the section divider under the day heading —
-`border-t` in [TransactionListSection.tsx:42](../../mobile/src/components/TransactionListSection.tsx#L42)
-(`TransactionDayHeader`), which the review agreed to keep. Since 2026-09-24 the list renders
-through a virtualized `RefreshableSectionList` with `TransactionDayHeader` as the section header
-and the memoized `TransactionListRow` per row, instead of one `TransactionListSection` per day.
+Rows inside a day group are separated by whitespace only. Since 2026-10-04 each day is a
+`TransactionDayCard` (`colors.surface`, `radius.md`, `shadows.sm`) rendered by a virtualized
+`RefreshableFlatList`, one item per day, with the memoized `TransactionListItem` per row; the card
+edge separates days, so the heading divider is gone. In quarterly and yearly views a month heading
+above the first day of each month carries that month's ↑ income / ↓ expense totals.
 
 ## Open item 2 — abbreviate the day/month summary totals
 
@@ -53,7 +52,7 @@ plumbing for this already exists and is unused for this case —
 straight to `Intl`'s `notation: 'compact'`.
 
 **Change:** in [TransactionTotals.tsx](../../mobile/src/components/TransactionTotals.tsx), pass
-`formatOptions={{ compact: true }}` on both `Money` calls (lines 25 and 28). `TransactionRow`'s
+`formatOptions={{ compact: true }}` on both `Money` calls (lines 25 and 28). `TransactionItem`'s
 own `Money` (full-precision) is untouched — this only affects the day-heading and month-header
 summary rows that already use `TransactionTotals`, which is exactly the hierarchy the review
 wanted: **summary = compact, transaction = precise.**

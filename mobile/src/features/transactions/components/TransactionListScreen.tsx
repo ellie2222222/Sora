@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Receipt } from 'lucide-react-native';
-import { Platform, Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { TransactionStatus, TransactionType, type TransactionResponse } from '@sora/contracts';
 
@@ -10,15 +10,17 @@ import {
   DatePickerModal,
   DateStrip,
   Fab,
+  fabListPaddingBottom,
+  IncomeExpenseTotals,
   ListLoadMoreFooter,
   PeriodBar,
   PeriodSummaryCard,
-  RefreshableSectionList,
+  RefreshableFlatList,
+  SegmentedControl,
   SlideSwap,
   StateView,
   Text,
-  TransactionDayHeader,
-  TransactionListItem,
+  TransactionDayCard,
 } from '@/components';
 import { useAuth, useModal, useTheme, useToast, useWallets } from '@/app/providers';
 import { useListTransactionsInfiniteQuery } from '@/app/store';
@@ -26,7 +28,7 @@ import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { useWarmAddTransactionReads } from '../hooks/useWarmAddTransactionReads.ts';
 import { DeleteTransactionDialog } from './DeleteTransactionDialog.tsx';
 import { TransactionDetailModal } from './TransactionDetailModal';
-import { TransactionListSkeleton } from './TransactionListSkeleton';
+import { TransactionDaysSkeleton, TransactionListSkeleton } from './TransactionListSkeleton';
 import {
   canLoadMore,
   flattenPages,
@@ -38,6 +40,7 @@ import {
   totalOf,
   windowFor,
   formatMonthYear,
+  formatPeriodLabel,
   type CalendarDay,
   type DashboardPeriod,
 } from '@/utils';
@@ -48,7 +51,19 @@ interface DaySection {
   showTotals: boolean;
   data: TransactionResponse[];
   isNewMonth: boolean;
+  /** Every loaded row of this section's month, for its header totals; null while the month may continue on an unloaded page. */
+  monthTransactions: TransactionResponse[] | null;
 }
+
+const FILTER_TYPES = ['ALL', TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.TRANSFER] as const;
+
+/** The list is always one period's window, so an empty list says nothing about the wallet's other periods. */
+const EMPTY_TITLE_KEY = {
+  ALL: 'home.noTransactionsTitle',
+  [TransactionType.INCOME]: 'home.noIncomeTitle',
+  [TransactionType.EXPENSE]: 'home.noExpensesTitle',
+  [TransactionType.TRANSFER]: 'home.noTransfersTitle',
+} as const;
 
 /**
  * The transaction-list shell shared by the Home tab (unfiltered, the whole
@@ -89,18 +104,20 @@ export function TransactionListScreen({
   // One source for the window, so the day strip and the query cannot disagree.
   const { dateFrom, dateTo } = windowFor(period, selectedDay);
 
+  // Filtered by the server, not over the loaded pages: a first page with none of the chosen
+  // type would otherwise read as "none in this period" and stop paging.
+  const type = filterType === 'ALL' ? undefined : filterType;
   const transactions = useListTransactionsInfiniteQuery(
-    { walletId, accountId, categoryId, dateFrom, dateTo },
+    { walletId, accountId, categoryId, type, dateFrom, dateTo },
     // Guest mode has one wallet and never receives a walletId filter from the
     // wallet switcher, so gating on one would leave the list permanently idle.
     { skip: !isGuest && walletId === undefined && accountId === undefined },
   );
 
-  // Whose money this is (wallet/account/category) — not which month. Changing
-  // month keeps last month's rows on screen while the new month loads (no
-  // skeleton flash); changing whose money it is must clear them immediately,
-  // so a moment of one wallet's transactions never reads as another's.
-  const scopeKey = `${walletId ?? ''}|${accountId ?? ''}|${categoryId ?? ''}`;
+  // Whose money this is (wallet/account/category) and which type — not which month. Changing
+  // month keeps last month's rows on screen while the new month loads (no skeleton flash);
+  // changing scope or type must clear them, so one wallet's or one type's rows never read as another's.
+  const scopeKey = `${walletId ?? ''}|${accountId ?? ''}|${categoryId ?? ''}|${filterType}`;
   const [displayedItems, setDisplayedItems] = useState<TransactionResponse[]>([]);
   const [displayedScopeKey, setDisplayedScopeKey] = useState(scopeKey);
   if (scopeKey !== displayedScopeKey) {
@@ -126,11 +143,7 @@ export function TransactionListScreen({
     }
   };
 
-  const items = useMemo(() => {
-    if (scopeKey !== displayedScopeKey) return [];
-    if (filterType === 'ALL') return displayedItems;
-    return displayedItems.filter((item) => item.type === filterType);
-  }, [scopeKey, displayedScopeKey, displayedItems, filterType]);
+  const items = scopeKey === displayedScopeKey ? displayedItems : [];
 
   const showFab = !transactions.isLoading && items.length > 0;
 
@@ -144,10 +157,22 @@ export function TransactionListScreen({
   // The last loaded day may continue on the next page, so its heading total waits too.
   const sections = useMemo<DaySection[]>(() => {
     const groups = groupTransactionsByDay(items);
+    const monthKeyOf = (day: CalendarDay) => day.slice(0, 7);
+    const byMonth = new Map<string, TransactionResponse[]>();
+    for (const group of groups) {
+      const key = monthKeyOf(group.day);
+      const monthRows = byMonth.get(key) ?? [];
+      monthRows.push(...group.transactions);
+      byMonth.set(key, monthRows);
+    }
+    const lastGroup = groups.at(-1);
+    const lastLoadedMonth = lastGroup === undefined ? null : monthKeyOf(lastGroup.day);
+
     return groups.map((group, index) => {
       const currentMonth = parseDay(group.day).month;
       const prevMonth = index > 0 ? parseDay(groups[index - 1]?.day ?? '').month : null;
       const isNewMonth = (period === 'yearly' || period === 'quarterly') && currentMonth !== prevMonth;
+      const monthKey = monthKeyOf(group.day);
 
       return {
         day: group.day,
@@ -155,6 +180,7 @@ export function TransactionListScreen({
         showTotals: !(hasMorePages && index === groups.length - 1),
         data: group.transactions,
         isNewMonth,
+        monthTransactions: hasMorePages && monthKey === lastLoadedMonth ? null : (byMonth.get(monthKey) ?? null),
       };
     });
   }, [items, hasMorePages, period]);
@@ -184,13 +210,22 @@ export function TransactionListScreen({
       );
     }
 
+    // A new type or scope starts a fresh query; until it answers, empty means "not loaded yet".
+    if (items.length === 0 && transactions.isFetching) {
+      return (
+        <View style={{ paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.sm }}>
+          <TransactionDaysSkeleton />
+        </View>
+      );
+    }
+
     if (items.length === 0) {
       return (
         <StateView
           variant="empty"
           icon={Receipt}
-          title={t('home.noTransactionsTitle')}
-          message={t('home.noTransactionsMessage')}
+          title={t(EMPTY_TITLE_KEY[filterType], { period: formatPeriodLabel(period, selectedDay) })}
+          message={t(filterType === 'ALL' ? 'home.noTransactionsMessage' : 'home.noFilteredMessage')}
           primaryAction={{
             label: t('common.create'),
             onPress: onAddTransaction,
@@ -203,41 +238,42 @@ export function TransactionListScreen({
     }
 
     return (
-      <RefreshableSectionList<TransactionResponse, DaySection>
+      <RefreshableFlatList<DaySection>
         testID="list-transactions"
-        sections={sections}
-        keyExtractor={(item) => item.id}
-        stickySectionHeadersEnabled={false}
-        renderSectionHeader={({ section }) => (
+        data={sections}
+        keyExtractor={(section) => section.day}
+        renderItem={({ item: section }) => (
           <View>
             {section.isNewMonth ? (
-              <Text
-                variant="title"
-                weight="bold"
+              <View
+                className="flex-row items-center justify-between"
                 style={{
                   marginTop: section.isFirst ? 0 : theme.spacing.lg,
                   marginBottom: theme.spacing.sm,
-                  marginLeft: theme.spacing.xxs,
+                  marginHorizontal: theme.spacing.xxs,
+                  gap: theme.spacing.md,
                 }}
               >
-                {formatMonthYear(section.day)}
-              </Text>
+                <Text variant="title" weight="bold" numberOfLines={1} style={{ flexShrink: 0 }}>
+                  {formatMonthYear(section.day)}
+                </Text>
+                {section.monthTransactions !== null ? (
+                  <IncomeExpenseTotals
+                    transactions={section.monthTransactions}
+                    testID={`${testIDPrefix}-month-totals-${section.day.slice(0, 7)}`}
+                  />
+                ) : null}
+              </View>
             ) : null}
-            <TransactionDayHeader
+            <TransactionDayCard
               day={section.day}
               transactions={section.data}
-              isFirst={section.isFirst || section.isNewMonth}
               showTotals={section.showTotals}
+              onPress={handlePressTransaction}
+              onEdit={permissions.canWrite ? handleEditTransaction : undefined}
+              onDelete={permissions.canWrite ? handleDeleteTransaction : undefined}
             />
           </View>
-        )}
-        renderItem={({ item }) => (
-          <TransactionListItem
-            transaction={item}
-            onPress={handlePressTransaction}
-            onEdit={permissions.canWrite ? handleEditTransaction : undefined}
-            onDelete={permissions.canWrite ? handleDeleteTransaction : undefined}
-          />
         )}
         onScrollBeginDrag={closeOpenSwipeRow}
         onEndReached={handleEndReached}
@@ -254,8 +290,7 @@ export function TransactionListScreen({
         contentContainerStyle={{
           paddingHorizontal: theme.spacing.md,
           paddingTop: theme.spacing.sm,
-          // 88 clears the Fab's own footprint (48 size + spacing.md margin) plus breathing room.
-          paddingBottom: fabBottomOffset + 88,
+          paddingBottom: fabListPaddingBottom(theme, fabBottomOffset),
         }}
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
@@ -317,52 +352,19 @@ export function TransactionListScreen({
             paddingTop: period === 'daily' ? 0 : theme.spacing.xs,
           }}
         >
-          <View
-            className="flex-row p-[3px] border"
-            style={{
-              backgroundColor: theme.colors.surfaceMuted,
-              borderRadius: theme.radius.md,
-              borderColor: theme.colors.border,
-            }}
-          >
-            {(['ALL', TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.TRANSFER] as const).map((type) => (
-              <Pressable
-                key={type}
-                onPress={() => setFilterType(type)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: filterType === type }}
-                className="flex-1 py-sm items-center justify-center"
-                style={[
-                  {
-                    borderRadius: theme.radius.sm,
-                    backgroundColor: filterType === type ? theme.colors.surface : 'transparent',
-                  },
-                  filterType === type
-                    ? Platform.select({
-                        web: { boxShadow: '0px 1px 2px rgba(0,0,0,0.08)' },
-                        default: {
-                          shadowColor: '#000',
-                          shadowOffset: { width: 0, height: 1 },
-                          shadowOpacity: 0.08,
-                          shadowRadius: 2,
-                          elevation: 1,
-                        },
-                      })
-                    : undefined,
-                ]}
-              >
-                <Text
-                  weight={filterType === type ? 'bold' : 'medium'}
-                  tone={filterType === type ? undefined : 'muted'}
-                  style={{ fontSize: 13 }}
-                >
-                  {type === 'ALL'
-                    ? t('common.all', 'All')
-                    : t(`transactions.type.${type.toLowerCase()}`, { defaultValue: type.charAt(0).toUpperCase() + type.slice(1).toLowerCase() })}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <SegmentedControl
+            options={FILTER_TYPES.map((type) => ({
+              value: type,
+              label:
+                type === 'ALL'
+                  ? t('common.all', 'All')
+                  : t(`transactions.type.${type.toLowerCase()}`, { defaultValue: type.charAt(0).toUpperCase() + type.slice(1).toLowerCase() }),
+              // Not `btn-transaction-type-*`: the add sheet's type picker owns that id and opens over this screen.
+              testID: `btn-transaction-filter-${type}`,
+            }))}
+            value={filterType}
+            onChange={setFilterType}
+          />
         </View>
 
         <SlideSwap swapKey={dateFrom} style={{ flex: 1 }}>

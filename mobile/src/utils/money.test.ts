@@ -66,6 +66,14 @@ describe('formatMoneyString — options', () => {
   it('abbreviates when compact is set', () => {
     assert.equal(formatMoneyString('12000000', 'VND', { compact: true }), '₫12M');
   });
+
+  it('keeps up to two digits of the abbreviated figure, even for a zero-decimal currency', () => {
+    assert.equal(formatMoneyString('10000', 'VND', { compact: true }), '₫10K');
+    assert.equal(formatMoneyString('11420000', 'VND', { compact: true }), '₫11.42M');
+    assert.equal(formatMoneyString('637000', 'VND', { compact: true }), '₫637K');
+    assert.equal(formatMoneyString('8600', 'VND', { compact: true }), '₫8.6K');
+    assert.equal(formatMoneyString('500', 'VND', { compact: true }), '₫500');
+  });
 });
 
 describe('formatMoneyString — fallback without a usable Intl', () => {

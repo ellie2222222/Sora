@@ -21,44 +21,55 @@ function isRecentlyCreated(transaction: TransactionResponse): boolean {
   return Date.now() - new Date(transaction.createdAt).getTime() < RECENTLY_CREATED_MS;
 }
 
-export interface TransactionDayHeaderProps {
+export interface TransactionDayCardProps {
   day: CalendarDay;
   transactions: readonly TransactionResponse[];
-  isFirst: boolean;
   /** Per-currency income/expense totals beside the heading; omit when the day may continue on an unloaded page. */
   showTotals: boolean;
+  onPress?: (transaction: TransactionResponse) => void;
+  onEdit?: (transaction: TransactionResponse) => void;
+  onDelete?: (transaction: TransactionResponse) => void;
 }
 
-/** A day section's heading for a day-grouped `SectionList` of transactions, divider included. */
-export function TransactionDayHeader({ day, transactions, isFirst, showTotals }: TransactionDayHeaderProps) {
+/** One day of a transaction list: its heading and totals, then its rows, on one raised card. */
+export function TransactionDayCard({ day, transactions, showTotals, onPress, onEdit, onDelete }: TransactionDayCardProps) {
   const theme = useTheme();
 
   return (
-    <View className="w-full">
-      {!isFirst ? (
+    <View
+      style={{
+        borderRadius: theme.radius.md,
+        backgroundColor: theme.colors.surface,
+        marginBottom: theme.spacing.md,
+        ...theme.shadows.sm,
+      }}
+    >
+      {/* Clipped here, not on the shadowed view, because iOS drops a shadow on a view that clips. */}
+      <View style={{ borderRadius: theme.radius.md, overflow: 'hidden', paddingBottom: theme.spacing.xs }}>
         <View
-          style={{
-            height: 1,
-            backgroundColor: theme.colors.border,
-            marginTop: theme.spacing.sm,
-            marginBottom: theme.spacing.sm,
-          }}
-        />
-      ) : null}
-      <View
-        className="w-full flex-row justify-between items-center"
-        style={{ paddingVertical: theme.spacing.sm, marginBottom: 0 }}
-      >
-        <Text variant="label" weight="semibold">
-          {formatDayHeading(day)}
-        </Text>
-        {showTotals ? <TransactionTotals transactions={transactions} /> : null}
+          className="w-full flex-row justify-between items-center"
+          style={{ paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.xs }}
+        >
+          <Text variant="label" weight="semibold">
+            {formatDayHeading(day)}
+          </Text>
+          {showTotals ? <TransactionTotals transactions={transactions} /> : null}
+        </View>
+        {transactions.map((transaction) => (
+          <TransactionListItem
+            key={transaction.id}
+            transaction={transaction}
+            onPress={onPress}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
       </View>
     </View>
   );
 }
 
-export interface TransactionListItemProps {
+interface TransactionListItemProps {
   transaction: TransactionResponse;
   onPress?: (transaction: TransactionResponse) => void;
   /** Swipe actions; omit when the caller may not write, and keep them stable so the memo holds. */
@@ -67,7 +78,7 @@ export interface TransactionListItemProps {
 }
 
 /** Memoized so a new page appended to the list re-renders only the rows it adds. */
-export const TransactionListItem = memo(function TransactionListItem({ transaction, onPress, onEdit, onDelete }: TransactionListItemProps) {
+const TransactionListItem = memo(function TransactionListItem({ transaction, onPress, onEdit, onDelete }: TransactionListItemProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const syncStatus = useSelector(selectQueueEntryFor('transaction', transaction.id))?.status;
@@ -84,7 +95,7 @@ export const TransactionListItem = memo(function TransactionListItem({ transacti
     <ListItemEnter style={{ width: '100%' }} animate={isRecentlyCreated(transaction)}>
       <SwipeableRow
         actions={actions}
-        backgroundColor={theme.colors.background}
+        backgroundColor={theme.colors.surface}
         onActivate={onPress ? () => onPress(transaction) : undefined}
       >
         <TransactionItem
@@ -92,6 +103,7 @@ export const TransactionListItem = memo(function TransactionListItem({ transacti
           onPress={onPress}
           testID={`row-transaction-${transaction.id}`}
           syncStatus={syncStatus}
+          paddingHorizontal={theme.spacing.md}
         />
       </SwipeableRow>
     </ListItemEnter>

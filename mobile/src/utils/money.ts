@@ -63,6 +63,9 @@ export interface MoneyFormatOptions {
 
 const DEFAULT_LOCALE = 'en-US';
 
+/** Fraction digits of the abbreviated figure: ₫11.42M, not ₫11M, even for a zero-decimal currency. */
+const COMPACT_FRACTION_DIGITS = 2;
+
 function groupDigits(digits: string): string {
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
@@ -106,7 +109,7 @@ export function formatScaled(
       currencyDisplay: 'narrowSymbol',
       notation: options.compact ? 'compact' : 'standard',
       minimumFractionDigits: options.compact ? 0 : decimals,
-      maximumFractionDigits: decimals,
+      maximumFractionDigits: options.compact ? Math.max(decimals, COMPACT_FRACTION_DIGITS) : decimals,
       signDisplay: options.signDisplay === 'always' ? 'exceptZero' : 'auto',
     }).format(exact as unknown as number);
   } catch {
