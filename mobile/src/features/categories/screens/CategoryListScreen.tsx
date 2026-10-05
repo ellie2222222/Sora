@@ -1,7 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
+import { useState } from "react";
+import { FlatList, Pressable, View } from "react-native";
 import { useSelector } from "react-redux";
-import { Archive, Pencil, Trash2, Plus, ArrowUpFromLine, ArrowDownToLine, ArrowRightLeft, Save } from "lucide-react-native";
+import { Pencil, Trash2, Plus } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import {
   CategoryType,
@@ -9,11 +9,13 @@ import {
   type CategoryResponse,
 } from "@sora/contracts";
 
-import { BottomSheetModal, Button, closeOpenSwipeRow, Input, ListItemEnter, Skeleton, StateView, SwipeableRow, SyncStatusDot, Text } from '@/components';
-import { useTheme, useToast, useWallets } from '@/app/providers';
-import { selectQueueEntryFor, useArchiveCategoryMutation, useCreateCategoryMutation, useDeleteCategoryPermanentlyMutation, useListCategoriesQuery, useUpdateCategoryMutation } from '@/app/store';
-import { isNetworkError, messageOf } from '@/utils';
+import { Button, closeOpenSwipeRow, ListItemEnter, Skeleton, StateView, SwipeableRow, SyncStatusDot, Text } from '@/components';
+import { useTheme, useWallets } from '@/app/providers';
+import { selectQueueEntryFor, useListCategoriesQuery } from '@/app/store';
+import { isNetworkError } from '@/utils';
 import type { AppStackScreenProps } from "@/app/navigation";
+import { AddCategoryModal } from '../components/AddCategoryModal.tsx';
+import { CategoryManageDialog, type CategoryDialogMode } from '../components/CategoryManageDialog.tsx';
 
 /** One list per category type — a category has exactly one type, matching the transactions it can label. */
 export function CategoryListScreen({
@@ -30,17 +32,17 @@ export function CategoryListScreen({
     walletId: walletId ?? "",
     type: CategoryType.EXPENSE,
     status: CategoryStatus.ACTIVE,
-  });
+  }, { skip: walletId === undefined });
   const income = useListCategoriesQuery({
     walletId: walletId ?? "",
     type: CategoryType.INCOME,
     status: CategoryStatus.ACTIVE,
-  });
+  }, { skip: walletId === undefined });
   const transfer = useListCategoriesQuery({
     walletId: walletId ?? "",
     type: CategoryType.TRANSFER,
     status: CategoryStatus.ACTIVE,
-  });
+  }, { skip: walletId === undefined });
 
   const renderContent = () => {
     if (walletId === undefined) {
@@ -58,7 +60,7 @@ export function CategoryListScreen({
                 <View style={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
           {permissions.canWrite ? (
             <View style={{ marginBottom: theme.spacing.sm }}>
-              <Skeleton width={120} height={36} radius={theme.radius.md} />
+              <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.badge.md} radius={theme.radius.md} />
             </View>
           ) : null}
 
@@ -172,8 +174,9 @@ export function CategoryListScreen({
         }}
       >
         <View
-          className="w-[10px] h-[10px]"
           style={{
+            width: theme.sizes.dot.lg,
+            height: theme.sizes.dot.lg,
             borderRadius: theme.radius.pill,
             backgroundColor: category.color ?? theme.colors.textFaint,
           }}
@@ -184,11 +187,11 @@ export function CategoryListScreen({
           <Pressable
             testID={`btn-delete-category-${category.id}`}
             onPress={onDelete}
-            hitSlop={14}
+            hitSlop={(theme.sizes.touchTarget - theme.iconSize.md) / 2}
             accessibilityRole="button"
             accessibilityLabel={t("categories.deleteCategoryA11y", { name: category.name })}
           >
-            <Trash2 size={16} color={theme.colors.textFaint} />
+            <Trash2 size={theme.iconSize.md} color={theme.colors.textFaint} />
           </Pressable>
         ) : null}
       </View>
@@ -205,319 +208,11 @@ export function CategoryListScreen({
           paddingVertical: theme.spacing.xs,
         }}
       >
-        <Skeleton width={10} height={10} radius={theme.radius.pill} />
+        <Skeleton width={theme.sizes.dot.lg} height={theme.sizes.dot.lg} radius={theme.radius.pill} />
         <View style={{ flex: 1 }}>
-          <Skeleton width={120} height={20} radius={theme.radius.sm} />
+          <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
         </View>
-        <Skeleton width={16} height={16} radius={theme.radius.sm} />
+        <Skeleton width={theme.iconSize.md} height={theme.iconSize.md} radius={theme.radius.sm} />
       </View>
-    );
-  }
-
-  function AddCategoryModal({
-    visible,
-    walletId,
-    onClose,
-  }: {
-    visible: boolean;
-    walletId: string;
-    onClose: () => void;
-  }) {
-    const theme = useTheme();
-    const { t } = useTranslation();
-    const { showToast } = useToast();
-    const [createCategory, { isLoading: isCreating }] =
-      useCreateCategoryMutation();
-    const [name, setName] = useState("");
-    const [type, setType] = useState<CategoryType>(CategoryType.EXPENSE);
-    const [error, setError] = useState<string | null>(null);
-
-    async function handleCreate() {
-      setError(null);
-      try {
-        await createCategory({ walletId, name, type }).unwrap();
-        setName("");
-        onClose();
-        showToast(t('toast.categoryAdded', { defaultValue: 'Category added' }), 'success');
-      } catch (submitError) {
-        setError(messageOf(submitError, t));
-      }
-    }
-
-    return (
-      <BottomSheetModal
-        visible={visible}
-        onClose={onClose}
-        title={t("categories.newCategory")}
-      >
-        <View style={{ gap: theme.spacing.md }}>
-          <Input
-            testID="input-category-name"
-            label={t("categories.name")}
-            value={name}
-            onChangeText={setName}
-          />
-          <View className="flex-row" style={{ gap: theme.spacing.xs }}>
-            <Button
-              testID="btn-category-type-EXPENSE"
-              label={t("categories.expense")}
-              icon={ArrowUpFromLine}
-              size="sm"
-              variant={type === CategoryType.EXPENSE ? "primary" : "secondary"}
-              onPress={() => setType(CategoryType.EXPENSE)}
-            />
-            <Button
-              testID="btn-category-type-INCOME"
-              label={t("categories.income")}
-              icon={ArrowDownToLine}
-              size="sm"
-              variant={type === CategoryType.INCOME ? "primary" : "secondary"}
-              onPress={() => setType(CategoryType.INCOME)}
-            />
-            <Button
-              testID="btn-category-type-TRANSFER"
-              label={t("categories.transfer")}
-              icon={ArrowRightLeft}
-              size="sm"
-              variant={type === CategoryType.TRANSFER ? "primary" : "secondary"}
-              onPress={() => setType(CategoryType.TRANSFER)}
-            />
-          </View>
-          {error !== null ? <Text tone="danger">{error}</Text> : null}
-          <Button
-            testID="btn-submit-category"
-            label={t("categories.create")}
-            icon={Plus}
-            onPress={handleCreate}
-            loading={isCreating}
-            disabled={name.trim().length === 0}
-            fullWidth
-          />
-        </View>
-      </BottomSheetModal>
-    );
-  }
-
-  type CategoryDialogMode = "choose" | "rename";
-
-  /** API spec §10.4. */
-  function CategoryManageDialog({
-    category,
-    initialMode,
-    onClose,
-  }: {
-    category: CategoryResponse | null;
-    /** `rename` when opened from a row's Edit action: Cancel then closes instead of backing out to the chooser. */
-    initialMode: CategoryDialogMode;
-    onClose: () => void;
-  }) {
-    const theme = useTheme();
-    const { t } = useTranslation();
-    const [updateCategory, { isLoading: isRenaming }] =
-      useUpdateCategoryMutation();
-    const [archiveCategory, { isLoading: isArchiving }] =
-      useArchiveCategoryMutation();
-    const [deleteCategory, { isLoading: isDeleting }] =
-      useDeleteCategoryPermanentlyMutation();
-    const [mode, setMode] = useState<CategoryDialogMode>(initialMode);
-    const [name, setName] = useState("");
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-      setMode(initialMode);
-      setName(category?.name ?? "");
-      setError(null);
-    }, [category, initialMode]);
-
-    const unused = category?.transactionCount === 0;
-
-    async function handleRename() {
-      if (category === null) return;
-      setError(null);
-      try {
-        await updateCategory({
-          categoryId: category.id,
-          body: { name },
-        }).unwrap();
-        onClose();
-      } catch (submitError) {
-        setError(messageOf(submitError, t));
-      }
-    }
-
-    async function handleArchive() {
-      if (category === null) return;
-      setError(null);
-      try {
-        await archiveCategory(category.id).unwrap();
-        onClose();
-      } catch (submitError) {
-        setError(messageOf(submitError, t));
-      }
-    }
-
-    async function handleDeletePermanently() {
-      if (category === null || unused !== true) return;
-      setError(null);
-      try {
-        await deleteCategory(category.id).unwrap();
-        onClose();
-      } catch (submitError) {
-        setError(messageOf(submitError, t));
-      }
-    }
-
-    return (
-      <BottomSheetModal
-        visible={category !== null}
-        onClose={onClose}
-        title={
-          category === null
-            ? undefined
-            : mode === "rename"
-              ? t("categories.renameTitle", { name: category.name })
-              : t("categories.deleteTitle", { name: category.name })
-        }
-      >
-        {category === null ? null : mode === "rename" ? (
-          <View style={{ gap: theme.spacing.md }}>
-            <Input
-              testID="input-category-new-name"
-              label={t("categories.name")}
-              value={name}
-              onChangeText={setName}
-            />
-            {error !== null ? <Text tone="danger">{error}</Text> : null}
-            <View className="flex-row" style={{ gap: theme.spacing.sm }}>
-              <Button
-                label={t("common.cancel")}
-                variant="secondary"
-                onPress={() => (initialMode === "rename" ? onClose() : setMode("choose"))}
-                style={{ flex: 1 }}
-              />
-              <Button
-                testID="btn-submit-category-rename"
-                label={t("common.save")}
-                icon={Save}
-                onPress={handleRename}
-                loading={isRenaming}
-                disabled={name.trim().length === 0}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-        ) : (
-          <View style={{ gap: theme.spacing.md }}>
-            <Text tone="muted">
-              {category.transactionCount > 0
-                ? t("categories.usedByTransactions", {
-                    count: category.transactionCount,
-                  })
-                : t("categories.noTransactions")}
-            </Text>
-            <Text variant="label" tone="muted">
-              {t("categories.whatWouldYouDo")}
-            </Text>
-
-            <DeleteOption
-              testID="btn-rename-category"
-              icon={<Pencil size={18} color={theme.colors.text} />}
-              label={t("categories.renameCategory")}
-              description={t("categories.renameDescription")}
-              onPress={() => setMode("rename")}
-            />
-            <DeleteOption
-              testID="btn-archive-category"
-              icon={<Archive size={18} color={theme.colors.text} />}
-              label={t("categories.archiveCategory")}
-              description={t("categories.archiveDescription")}
-              onPress={handleArchive}
-              loading={isArchiving}
-            />
-            <DeleteOption
-              testID="btn-delete-permanent-category"
-              icon={
-                <Trash2
-                  size={18}
-                  color={
-                    unused === true
-                      ? theme.colors.danger
-                      : theme.colors.textFaint
-                  }
-                />
-              }
-              label={t("categories.deletePermanently")}
-              description={
-                unused === true
-                  ? t("categories.deleteDescription")
-                  : t("categories.deleteDisabledDescription")
-              }
-              onPress={handleDeletePermanently}
-              disabled={unused !== true}
-              danger
-              loading={isDeleting}
-            />
-
-            {error !== null ? <Text tone="danger">{error}</Text> : null}
-            <Button
-              label={t("common.cancel")}
-              variant="ghost"
-              onPress={onClose}
-              fullWidth
-            />
-          </View>
-        )}
-      </BottomSheetModal>
-    );
-  }
-
-  function DeleteOption({
-    testID,
-    icon,
-    label,
-    description,
-    onPress,
-    disabled = false,
-    danger = false,
-    loading = false,
-  }: {
-    testID: string;
-    icon: ReactNode;
-    label: string;
-    description: string;
-    onPress: () => void;
-    disabled?: boolean;
-    danger?: boolean;
-    loading?: boolean;
-  }) {
-    const theme = useTheme();
-    const isDisabled = disabled || loading;
-
-    return (
-      <Pressable
-        testID={testID}
-        onPress={onPress}
-        disabled={isDisabled}
-        className="flex-row items-center"
-        style={{
-          gap: theme.spacing.sm,
-          paddingVertical: theme.spacing.sm,
-          opacity: disabled ? 0.5 : 1,
-        }}
-      >
-        {icon}
-        <View className="flex-1">
-          <Text
-            weight="semibold"
-            tone={danger && !disabled ? "danger" : "default"}
-          >
-            {label}
-          </Text>
-          <Text variant="caption" tone="muted">
-            {description}
-          </Text>
-        </View>
-        {loading ? <ActivityIndicator color={theme.colors.textMuted} /> : null}
-      </Pressable>
     );
   }

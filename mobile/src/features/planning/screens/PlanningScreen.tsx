@@ -1,32 +1,30 @@
 import { useState } from 'react';
 import { Archive, Ban, Pencil, PiggyBank, Plus, Target } from 'lucide-react-native';
-import { Platform, Pressable, View } from 'react-native';
-import { useSelector } from 'react-redux';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { BudgetStatus, GoalStatus, type BudgetResponse, type GoalResponse } from '@sora/contracts';
 
 import {
   AnimatedScreen,
-  Card,
   closeOpenSwipeRow,
+  Fab,
+  fabListPaddingBottom,
   ListItemEnter,
-  Money,
-  ProgressBar,
   RefreshableFlatList,
-  Skeleton,
+  SegmentedControl,
   SlideSwap,
   StateView,
   SwipeableRow,
-  SyncStatusDot,
-  Text,
   type SwipeRowAction,
 } from '@/components';
 import { useModal, useTheme, useToast, useWallets } from '@/app/providers';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { ArchiveBudgetDialog, BudgetDetailModal } from '@/features/budgets';
 import { CancelGoalDialog, GoalDetailModal } from '@/features/goals';
-import { today, formatMoneyString, isNetworkError } from '@/utils';
-import { selectQueueEntryFor, useListBudgetsQuery, useListGoalsQuery } from '@/app/store';
+import { today, isNetworkError } from '@/utils';
+import { useListBudgetsQuery, useListGoalsQuery } from '@/app/store';
+import { BudgetCard, BudgetItemSkeleton } from '../components/BudgetCard.tsx';
+import { GoalCard, GoalItemSkeleton } from '../components/GoalCard.tsx';
 
 type PlanningSection = 'budgets' | 'goals';
 
@@ -70,6 +68,11 @@ export function PlanningScreen() {
     { skip: activeWalletId === null },
   );
 
+  // Like the transaction list: the empty state carries its own create action, so the Fab joins only once rows exist.
+  const activeList = section === 'budgets' ? budgets : goals;
+  const showFab = permissions.canWrite && activeWalletId !== null && !activeList.isLoading && (activeList.data?.length ?? 0) > 0;
+  const listContentStyle = { padding: theme.spacing.md, paddingBottom: fabListPaddingBottom(theme), gap: theme.spacing.md };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -90,11 +93,6 @@ export function PlanningScreen() {
     if (budgets.isLoading) {
       return (
                 <View style={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
-          {permissions.canWrite ? (
-            <View className="flex-row justify-end" style={{ marginBottom: theme.spacing.sm }}>
-              <Skeleton width={20} height={20} radius={10} />
-            </View>
-          ) : null}
           {[1, 2, 3].map((key) => (
             <BudgetItemSkeleton key={key} />
           ))}
@@ -137,18 +135,9 @@ export function PlanningScreen() {
         testID="list-budgets"
         data={items}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
+        contentContainerStyle={listContentStyle}
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
-        ListHeaderComponent={
-          permissions.canWrite ? (
-            <View className="flex-row justify-end" style={{ marginBottom: theme.spacing.sm }}>
-              <Pressable testID="btn-add-budget" hitSlop={12} onPress={() => openModal('AddBudget')}>
-                <Plus size={20} color={theme.colors.primary} />
-              </Pressable>
-            </View>
-          ) : null
-        }
         onScrollBeginDrag={closeOpenSwipeRow}
         renderItem={({ item }) => (
           <SwipeableRow actions={budgetActions(item)} radius={theme.radius.lg} onActivate={() => setSelectedBudgetId(item.id)}>
@@ -164,11 +153,6 @@ export function PlanningScreen() {
     if (goals.isLoading) {
       return (
                 <View style={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
-          {permissions.canWrite ? (
-            <View className="flex-row justify-end" style={{ marginBottom: theme.spacing.sm }}>
-              <Skeleton width={20} height={20} radius={10} />
-            </View>
-          ) : null}
           {[1, 2, 3].map((key) => (
             <GoalItemSkeleton key={key} />
           ))}
@@ -211,18 +195,9 @@ export function PlanningScreen() {
         testID="list-goals"
         data={items}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.md }}
+        contentContainerStyle={listContentStyle}
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
-        ListHeaderComponent={
-          permissions.canWrite ? (
-            <View className="flex-row justify-end" style={{ marginBottom: theme.spacing.sm }}>
-              <Pressable testID="btn-add-goal" hitSlop={12} onPress={() => openModal('AddGoal')}>
-                <Plus size={20} color={theme.colors.primary} />
-              </Pressable>
-            </View>
-          ) : null
-        }
         onScrollBeginDrag={closeOpenSwipeRow}
         renderItem={({ item }) => (
           <ListItemEnter>
@@ -245,87 +220,27 @@ export function PlanningScreen() {
             backgroundColor: theme.colors.background,
           }}
         >
-          <View
-            className="flex-row p-[3px] border"
-            style={{
-              backgroundColor: theme.colors.surfaceMuted,
-              borderRadius: theme.radius.md,
-              borderColor: theme.colors.border,
-            }}
-          >
-            <Pressable
-              testID="planning-segment-budgets"
-              onPress={() => setSection('budgets')}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: section === 'budgets' }}
-              className="flex-1 py-sm items-center justify-center"
-              style={[
-                {
-                  borderRadius: theme.radius.sm,
-                  backgroundColor: section === 'budgets' ? theme.colors.surface : 'transparent',
-                },
-                section === 'budgets'
-                  ? Platform.select({
-                      web: { boxShadow: '0px 1px 2px rgba(0,0,0,0.08)' },
-                      default: {
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 1 },
-                        shadowOpacity: 0.08,
-                        shadowRadius: 2,
-                        elevation: 1,
-                      },
-                    })
-                  : undefined,
-              ]}
-            >
-              <Text
-                weight={section === 'budgets' ? 'bold' : 'medium'}
-                tone={section === 'budgets' ? undefined : 'muted'}
-                style={{ fontSize: 13 }}
-              >
-                {t('planning.budgets', 'Budgets')}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              testID="planning-segment-goals"
-              onPress={() => setSection('goals')}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: section === 'goals' }}
-              className="flex-1 py-sm items-center justify-center"
-              style={[
-                {
-                  borderRadius: theme.radius.sm,
-                  backgroundColor: section === 'goals' ? theme.colors.surface : 'transparent',
-                },
-                section === 'goals'
-                  ? Platform.select({
-                      web: { boxShadow: '0px 1px 2px rgba(0,0,0,0.08)' },
-                      default: {
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 1 },
-                        shadowOpacity: 0.08,
-                        shadowRadius: 2,
-                        elevation: 1,
-                      },
-                    })
-                  : undefined,
-              ]}
-            >
-              <Text
-                weight={section === 'goals' ? 'bold' : 'medium'}
-                tone={section === 'goals' ? undefined : 'muted'}
-                style={{ fontSize: 13 }}
-              >
-                {t('planning.goals', 'Goals')}
-              </Text>
-            </Pressable>
-          </View>
+          <SegmentedControl
+            options={[
+              { value: 'budgets', label: t('planning.budgets', 'Budgets'), testID: 'planning-segment-budgets' },
+              { value: 'goals', label: t('planning.goals', 'Goals'), testID: 'planning-segment-goals' },
+            ]}
+            value={section}
+            onChange={setSection}
+          />
         </View>
 
         <SlideSwap swapKey={section === 'budgets' ? 0 : 1} style={{ flex: 1 }}>
           {section === 'budgets' ? renderBudgetsContent() : renderGoalsContent()}
         </SlideSwap>
+
+        {showFab ? (
+          <Fab
+            testID={section === 'budgets' ? 'btn-add-budget' : 'btn-add-goal'}
+            label={section === 'budgets' ? t('budgets.newBudget') : t('goals.newGoal')}
+            onPress={() => openModal(section === 'budgets' ? 'AddBudget' : 'AddGoal')}
+          />
+        ) : null}
       </WalletContextBar>
       <BudgetDetailModal budgetId={selectedBudgetId} onClose={() => setSelectedBudgetId(null)} />
       <GoalDetailModal goalId={selectedGoalId} onClose={() => setSelectedGoalId(null)} />
@@ -348,124 +263,5 @@ export function PlanningScreen() {
         }}
       />
     </AnimatedScreen>
-  );
-}
-
-function BudgetCard({ budget, onPress }: { budget: BudgetResponse; onPress: () => void }) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-  const syncStatus = useSelector(selectQueueEntryFor('budget', budget.id))?.status;
-
-  return (
-    <Pressable testID={`row-budget-${budget.id}`} accessibilityRole="button" onPress={onPress}>
-      <Card>
-        <View className="flex-row items-center justify-between" style={{ marginBottom: theme.spacing.xs }}>
-          <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
-            <Text weight="semibold">{budget.name}</Text>
-            <SyncStatusDot status={syncStatus} />
-          </View>
-          {budget.isOverBudget ? (
-            <Text variant="caption" tone="danger">
-              {t('budgets.overBudget')}
-            </Text>
-          ) : null}
-        </View>
-
-        <ProgressBar percentage={budget.usagePercentage} danger={budget.isOverBudget} />
-
-        <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
-          <View className="flex-row" style={{ gap: theme.spacing.xs }}>
-            <Money amount={budget.spent} currency={budget.currency} variant="caption" />
-            <Text variant="caption" tone="muted">
-              /
-            </Text>
-            <Money amount={budget.amount} currency={budget.currency} variant="caption" />
-          </View>
-          <Text variant="caption" tone={budget.isOverBudget ? 'danger' : 'muted'} weight="semibold">
-            {formatMoneyString(budget.remaining, budget.currency, { signDisplay: 'always' })} {t('budgets.remaining').toLowerCase()}
-          </Text>
-        </View>
-      </Card>
-    </Pressable>
-  );
-}
-
-function GoalCard({ goal, onPress }: { goal: GoalResponse; onPress: () => void }) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-  const syncStatus = useSelector(selectQueueEntryFor('goal', goal.id))?.status;
-
-  return (
-    <Pressable testID={`row-goal-${goal.id}`} accessibilityRole="button" onPress={onPress}>
-      <Card>
-        <View className="flex-row items-center" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.xs }}>
-          <Text weight="semibold">{goal.name}</Text>
-          <SyncStatusDot status={syncStatus} />
-        </View>
-
-        <View className="flex-row" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.sm }}>
-          <Money amount={goal.currentAmount} currency={goal.currency} variant="title" />
-          <Text variant="title" tone="muted">
-            /
-          </Text>
-          <Money amount={goal.targetAmount} currency={goal.currency} variant="title" style={{ opacity: 0.6 }} />
-        </View>
-
-        <ProgressBar percentage={goal.progressPercentage} tone="income" />
-
-        <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
-          <Text variant="caption" tone="muted">
-            {goal.progressPercentage.toFixed(0)}%
-          </Text>
-          {goal.targetDate !== null ? (
-            <Text variant="caption" tone="muted">
-              {t('goals.deadline')}: {goal.targetDate}
-            </Text>
-          ) : null}
-        </View>
-      </Card>
-    </Pressable>
-  );
-}
-
-function BudgetItemSkeleton() {
-  const theme = useTheme();
-
-  return (
-    <Card>
-      <View className="flex-row items-center justify-between" style={{ marginBottom: theme.spacing.xs }}>
-        <Skeleton width={120} height={20} radius={theme.radius.sm} />
-      </View>
-
-      <Skeleton width="100%" height={8} radius={theme.radius.sm} />
-
-      <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
-        <Skeleton width={80} height={16} radius={theme.radius.sm} />
-        <Skeleton width={60} height={16} radius={theme.radius.sm} />
-      </View>
-    </Card>
-  );
-}
-
-function GoalItemSkeleton() {
-  const theme = useTheme();
-
-  return (
-    <Card>
-      <View className="flex-row items-center" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.xs }}>
-        <Skeleton width={100} height={20} radius={theme.radius.sm} />
-      </View>
-
-      <View className="flex-row" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.sm }}>
-        <Skeleton width={150} height={28} radius={theme.radius.sm} />
-      </View>
-
-      <Skeleton width="100%" height={8} radius={theme.radius.sm} />
-
-      <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
-        <Skeleton width={40} height={16} radius={theme.radius.sm} />
-        <Skeleton width={80} height={16} radius={theme.radius.sm} />
-      </View>
-    </Card>
   );
 }

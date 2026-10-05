@@ -1,10 +1,10 @@
-import { MoreVertical, Pencil, UserMinus, UsersRound, X, UserPlus } from 'lucide-react-native';
+import { Pencil, UserMinus, X, UserPlus } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { WalletRole, type WalletInvitationResponse, type WalletMemberResponse } from '@sora/contracts';
 
-import { ActionSheet, Button, Card, closeOpenSwipeRow, ConfirmDialog, ListItemEnter, Skeleton, StateView, SwipeableRow, Text } from '@/components';
+import { ActionSheet, Button, closeOpenSwipeRow, ConfirmDialog, ListItemEnter, StateView, SwipeableRow, Text } from '@/components';
 import type { ActionSheetAction, SwipeRowAction } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
 import {
@@ -16,7 +16,10 @@ import {
   useTransferOwnershipMutation,
   useUpdateMemberRoleMutation,
 } from '@/app/store';
-import { canAdminister, canManageMember, getRoleLabel, isNetworkError, messageOf } from '@/utils';
+import { canAdminister, canManageMember, isNetworkError, messageOf } from '@/utils';
+import { InvitationRow } from './InvitationRow.tsx';
+import { MemberItem } from './MemberItem.tsx';
+import { MemberItemSkeleton } from './MemberItemSkeleton.tsx';
 
 export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; onInvite: () => void }) {
   const theme = useTheme();
@@ -231,99 +234,5 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
         onCancel={() => setRevokeTarget(null)}
       />
     </>
-  );
-}
-
-function MemberItem({
-  member,
-  isSelf,
-  canAct,
-  onOpenActions,
-}: {
-  member: WalletMemberResponse;
-  isSelf: boolean;
-  canAct: boolean;
-  onOpenActions: () => void;
-}) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-
-  return (
-    <Card testID={`row-member-${member.id}`}>
-      <View className="flex-row justify-between items-center">
-        <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-          <UsersRound size={18} color={theme.colors.textMuted} />
-          <View>
-            <Text weight="semibold">
-              {member.displayName}
-              {isSelf ? t('members.you') : ''}
-            </Text>
-            <Text variant="caption" tone="muted">
-              {member.relationLabel !== null ? `${member.relationLabel} · ` : ''}
-              {getRoleLabel(member.role, t)}
-            </Text>
-          </View>
-        </View>
-        {canAct ? (
-          <Pressable
-            testID={`btn-actions-member-${member.id}`}
-            hitSlop={13}
-            accessibilityRole="button"
-            accessibilityLabel={t('members.memberActions', { name: member.displayName })}
-            onPress={onOpenActions}
-          >
-            <MoreVertical size={18} color={theme.colors.textMuted} />
-          </Pressable>
-        ) : null}
-      </View>
-    </Card>
-  );
-}
-
-function InvitationRow({ invitation, onRevoke }: { invitation: WalletInvitationResponse; onRevoke: () => void }) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-
-  return (
-    <Card testID={`row-invitation-${invitation.id}`}>
-      <View className="flex-row justify-between items-center">
-        <View>
-          <Text>{invitation.invitedEmail}</Text>
-          <Text variant="caption" tone="muted">
-            {invitation.relationLabel !== null ? `${invitation.relationLabel} · ` : ''}
-            {getRoleLabel(invitation.role, t)} · {t('members.expires', { date: invitation.expiresAt.slice(0, 10) })}
-          </Text>
-        </View>
-        <Pressable
-          testID={`btn-revoke-invitation-${invitation.id}`}
-          hitSlop={13}
-          accessibilityRole="button"
-          accessibilityLabel={t('members.revokeInvitation')}
-          accessibilityHint={invitation.invitedEmail}
-          onPress={onRevoke}
-        >
-          <X size={18} color={theme.colors.danger} />
-        </Pressable>
-      </View>
-    </Card>
-  );
-}
-
-function MemberItemSkeleton() {
-  const theme = useTheme();
-
-  return (
-    <Card>
-      <View className="flex-row justify-between items-center">
-        <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-          <Skeleton width={18} height={18} radius={9} />
-          <View style={{ gap: theme.spacing.xs }}>
-            <Skeleton width={120} height={16} radius={6} />
-            <Skeleton width={80} height={14} radius={6} />
-          </View>
-        </View>
-        <Skeleton width={18} height={18} radius={9} />
-      </View>
-    </Card>
   );
 }

@@ -1,29 +1,17 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { useSelector } from 'react-redux';
 import { Clock, RefreshCw, TriangleAlert, Wifi, WifiOff } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
-import { useAuth, useTheme } from '@/app/providers';
-import { selectPendingCount, selectSyncStatus } from '@/app/store';
+import { useTheme } from '@/app/providers';
 import { formatSavedAt } from '@/utils';
-import { useNetworkStatus } from '../hooks/useNetworkStatus';
-import { useSavedCopyTime } from '../hooks/useSavedCopyTime';
+import { useSavedCopyTime, useSyncStatusView } from '@/hooks';
 import { AnimatedIcon } from './AnimatedIcon';
 import { BottomSheetModal } from './BottomSheetModal';
 import { Button } from './Button.tsx';
 import { Text } from './Text';
 
 type OpenSheet = 'connection' | 'sync' | null;
-
-const ICON_SIZE = 16;
-const TARGET_SIZE = 30;
-// Real 44pt boxes rather than hitSlop: slop around two icons this close together would overlap.
-const TARGET_STYLE = { width: TARGET_SIZE, height: TARGET_SIZE, alignItems: 'center', justifyContent: 'center' } as const;
-// Grows to fit the "Saved 14:32" note, which shares the connection icon's tap target.
-const SAVED_NOTE_TARGET_STYLE = { ...TARGET_STYLE, width: undefined, minWidth: TARGET_SIZE, flexDirection: 'row' } as const;
-// Pulls the last icon back to the header's edge, since its 44pt box is wider than the glyph.
-const ICON_INSET = (TARGET_SIZE - ICON_SIZE) / 2;
 
 /**
  * Wallet-header connection/sync indicator — two small icons, informational
@@ -34,59 +22,43 @@ const ICON_INSET = (TARGET_SIZE - ICON_SIZE) / 2;
 export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { testID?: string }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { isOnline, isSyncing: retryInFlight, retrySync } = useNetworkStatus();
-  const { isGuest } = useAuth();
-  const syncStatus = useSelector(selectSyncStatus);
-  const pendingCount = useSelector(selectPendingCount);
+  const targetSize = theme.sizes.badge.sm;
+  // Real boxes rather than hitSlop: slop around two icons this close together would overlap.
+  const targetStyle = { width: targetSize, height: targetSize, alignItems: 'center', justifyContent: 'center' } as const;
+  // Grows to fit the "Saved 14:32" note, which shares the connection icon's tap target.
+  const savedNoteTargetStyle = { ...targetStyle, width: undefined, minWidth: targetSize, flexDirection: 'row' } as const;
+  // Pulls the last icon back to the header's edge, since its box is wider than the glyph.
+  const iconInset = (targetSize - theme.iconSize.md) / 2;
+  const {
+    isOnline,
+    isSyncing: retryInFlight,
+    retrySync,
+    isGuest,
+    syncStatus,
+    syncing,
+    syncIconColor,
+    connectionTitle: connectionState,
+    connectionDetail,
+    syncTitle: syncLabel,
+    syncDetail,
+  } = useSyncStatusView();
   const [openSheet, setOpenSheet] = useState<OpenSheet>(null);
   const savedAt = useSavedCopyTime();
   const savedTime = savedAt === null ? null : formatSavedAt(savedAt);
 
-  const syncing = syncStatus === 'syncing' || retryInFlight;
-
-  const connectionState = t(isOnline ? 'errors.connectionOnline' : 'errors.connectionOffline');
   const savedNote = savedTime === null ? null : t('errors.savedCopyShort', { time: savedTime });
   const connectionLabel = savedNote === null ? connectionState : `${connectionState}, ${savedNote}`;
-  const connectionDetail = t(isOnline ? 'errors.connectionOnlineDetail' : 'errors.connectionOfflineDetail');
-
-  const syncLabel = t(
-    syncing
-      ? 'errors.syncStatusSyncing'
-      : syncStatus === 'failed'
-        ? 'errors.syncStatusFailed'
-        : syncStatus === 'pending'
-          ? 'errors.syncStatusPending'
-          : 'errors.syncStatusSynced',
-  );
-  const syncDetail = t(
-    syncing
-      ? 'errors.syncDetailSyncing'
-      : syncStatus === 'failed'
-        ? 'errors.syncDetailFailed'
-        : syncStatus === 'pending'
-          ? 'errors.syncDetailPending'
-          : 'errors.syncDetailSynced',
-    { count: pendingCount },
-  );
-
-  const syncIconColor = syncing
-    ? theme.colors.primary
-    : syncStatus === 'failed'
-      ? theme.colors.danger
-      : syncStatus === 'pending'
-        ? theme.colors.textFaint
-        : theme.colors.success;
 
   const canRetry = !isGuest && isOnline && (syncStatus === 'pending' || syncStatus === 'failed');
 
   return (
-    <View className="flex-row items-center" style={{ marginRight: -ICON_INSET }} testID={testID}>
+    <View className="flex-row items-center" style={{ marginRight: -iconInset }} testID={testID}>
       <Pressable
         testID={`${testID}-connection`}
         accessibilityRole="button"
         accessibilityLabel={connectionLabel}
         onPress={() => setOpenSheet('connection')}
-        style={savedNote === null ? TARGET_STYLE : SAVED_NOTE_TARGET_STYLE}
+        style={savedNote === null ? targetStyle : savedNoteTargetStyle}
       >
         {savedNote === null ? null : (
           <Text variant="caption" tone="muted" testID={`${testID}-saved-at`}>
@@ -94,9 +66,9 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
           </Text>
         )}
         {isOnline ? (
-          <Wifi size={ICON_SIZE} color={theme.colors.textMuted} />
+          <Wifi size={theme.iconSize.md} color={theme.colors.textMuted} />
         ) : (
-          <WifiOff size={ICON_SIZE} color={theme.colors.warning} />
+          <WifiOff size={theme.iconSize.md} color={theme.colors.warning} />
         )}
       </Pressable>
 
@@ -105,16 +77,16 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
         accessibilityRole="button"
         accessibilityLabel={syncLabel}
         onPress={() => setOpenSheet('sync')}
-        style={TARGET_STYLE}
+        style={targetStyle}
       >
         {syncing ? (
-          <AnimatedIcon icon={RefreshCw} size={ICON_SIZE} color={syncIconColor} animation="spin" />
+          <AnimatedIcon icon={RefreshCw} size={theme.iconSize.md} color={syncIconColor} animation="spin" />
         ) : syncStatus === 'failed' ? (
-          <TriangleAlert size={ICON_SIZE} color={syncIconColor} />
+          <TriangleAlert size={theme.iconSize.md} color={syncIconColor} />
         ) : syncStatus === 'pending' ? (
-          <Clock size={ICON_SIZE} color={syncIconColor} />
+          <Clock size={theme.iconSize.md} color={syncIconColor} />
         ) : (
-          <RefreshCw size={ICON_SIZE} color={syncIconColor} />
+          <RefreshCw size={theme.iconSize.md} color={syncIconColor} />
         )}
       </Pressable>
 
