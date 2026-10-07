@@ -36,6 +36,8 @@ ENV NODE_ENV=production
 RUN addgroup -g 1001 -S nodejs && adduser -S serveruser -u 1001 -G nodejs
 
 COPY --from=prod-deps --chown=serveruser:nodejs /repo/node_modules ./node_modules
+# npm nests a server dependency here when its version can't be hoisted (@nestjs/* 12 today).
+COPY --from=prod-deps --chown=serveruser:nodejs /repo/server/node_modules ./server/node_modules
 COPY --from=build --chown=serveruser:nodejs /repo/package.json ./package.json
 COPY --from=build --chown=serveruser:nodejs /repo/packages/contracts/package.json ./packages/contracts/package.json
 COPY --from=build --chown=serveruser:nodejs /repo/packages/contracts/src ./packages/contracts/src
