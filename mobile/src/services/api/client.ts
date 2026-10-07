@@ -18,8 +18,10 @@ import { MAX_PAGE_SIZE, type ApiEnvelope, type PaginationMeta } from '@sora/cont
 import { env } from '@/app/config';
 import { toApiError } from '@/utils';
 import { AUTH_PATHS_WITHOUT_RETRY, session } from '@/services/auth';
+import { activeLocale } from '@/services/locale';
 import { collectPages } from './collectPages.ts';
 import { handleFailedResponse, type RetryableRequest } from './refreshRetry.ts';
+import { describeFailure, describeRequest, describeResponse } from './requestLog.ts';
 
 interface RetryableConfig extends InternalAxiosRequestConfig, RetryableRequest {}
 
@@ -34,13 +36,20 @@ http.interceptors.request.use((config) => {
   if (token !== null) {
     config.headers.set('Authorization', `Bearer ${token}`);
   }
+  // The API names starter categories in this language (API spec §2).
+  config.headers.set('Accept-Language', activeLocale());
+  if (__DEV__) console.log(describeRequest(config));
   return config;
 });
 
 http.interceptors.response.use(
-  (response) => response,
-  (error: AxiosError) =>
-    handleFailedResponse(
+  (response) => {
+    if (__DEV__) console.log(describeResponse(response.config, response.status));
+    return response;
+  },
+  (error: AxiosError) => {
+    if (__DEV__) console.log(describeFailure(error));
+    return handleFailedResponse(
       { config: error.config as RetryableConfig | undefined, response: error.response, message: error.message },
       {
         pathsWithoutRetry: AUTH_PATHS_WITHOUT_RETRY,
@@ -52,7 +61,8 @@ http.interceptors.response.use(
         },
         toError: toApiError,
       },
-    ),
+    );
+  },
 );
 
 export interface ListResult<T> {

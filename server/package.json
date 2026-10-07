@@ -8,9 +8,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "start": "node dist/src/main.js",
-    "start:dev": "npm run build && concurrently -k -n tsc,server -c blue,green \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"node --watch dist/src/main.js\"",
-    "db:migrate": "node ../scripts/migrate.mjs",
+    "start": "node --env-file-if-exists=../.env dist/src/main.js",
+    "start:dev": "npm run build && concurrently -k -n tsc,server -c blue,green \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"node --env-file-if-exists=../.env --watch dist/src/main.js\"",
     "test": "npm run build && node test/run.mjs"
   },
   "dependencies": {
