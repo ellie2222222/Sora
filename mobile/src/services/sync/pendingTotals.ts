@@ -35,6 +35,8 @@ import {
   type WalletResponse,
 } from '@sora/contracts';
 
+import { deviceTimeZone } from '../../utils/date.ts';
+
 /** Matches the server's `RECENT_TRANSACTIONS_LIMIT`. */
 const RECENT_TRANSACTIONS_LIMIT = 10;
 
@@ -52,12 +54,14 @@ export interface LedgerChange {
   to: LedgerLeg | null;
   /** Whose per-member slice moves; an optimistic record's `createdBy` is only a placeholder. */
   actorUserId: string;
+  /** Half of an in-place edit (the old figures reversed, or the new ones applied): no row appears or disappears. */
+  inPlace: boolean;
 }
 
 export function ledgerChangeOf(
   kind: LedgerChange['kind'],
   transaction: TransactionResponse,
-  options: { accountIds?: { from: string | null; to: string | null }; actorUserId?: string } = {},
+  options: { accountIds?: { from: string | null; to: string | null }; actorUserId?: string; inPlace?: boolean } = {},
 ): LedgerChange {
   const accountIds = options.accountIds ?? {
     from: transaction.fromAccount?.id ?? null,
@@ -71,6 +75,7 @@ export function ledgerChangeOf(
     from: leg(accountIds.from, transaction.fromAccount),
     to: leg(accountIds.to, transaction.toAccount),
     actorUserId: options.actorUserId ?? transaction.createdBy.id,
+    inPlace: options.inPlace ?? false,
   };
 }
 
@@ -114,7 +119,7 @@ export function applyToAccount(account: AccountResponse | AccountDetailResponse,
   if (!touchesTo && !touchesFrom) return;
 
   // Every row counts, cancelled included, so a cancel leaves the count alone (`activityForAccount`).
-  if ('transactionCount' in account && change.kind === 'create') account.transactionCount += 1;
+  if ('transactionCount' in account && change.kind === 'create' && !change.inPlace) account.transactionCount += 1;
 
   const amount = signedAmount(change);
   if (amount === null) return;
@@ -150,7 +155,7 @@ export function applyNewAccountToDashboard(dashboard: DashboardResponse, account
   addToTotals(dashboard.totalBalance, account.currency, parseMoney(account.initialBalance));
 }
 
-/** `calculateBudgetSpent`: completed EXPENSE on the budget's target, in its currency and window. */
+/** `calculateBudgetSpent`: completed EXPENSE on the budget's target, in its currency and the period it currently reports. */
 export function applyToBudget(budget: BudgetResponse, change: LedgerChange): void {
   const { transaction } = change;
   if (transaction.type !== TransactionType.EXPENSE) return;
@@ -159,9 +164,11 @@ export function applyToBudget(budget: BudgetResponse, change: LedgerChange): voi
     goalId: transaction.goalId,
     walletId: transaction.fromAccount?.walletId ?? null,
   };
-  if (!isBudgetTarget(budget, target)) return;
+  // A budget cached by an app version before `categoryIds` existed still matches its own category.
+  if (!isBudgetTarget({ ...budget, categoryIds: budget.categoryIds ?? [] }, target)) return;
   if (transaction.currency !== budget.currency) return;
-  if (!isWithinPeriod(transaction.transactionDate, budget.startDate, budget.endDate)) return;
+  // A budget cached before responses carried a zone is read in this device's.
+  if (!isWithinPeriod(transaction.transactionDate, budget.periodStart, budget.periodEnd, budget.timeZone ?? deviceTimeZone())) return;
   const amount = signedAmount(change);
   if (amount === null) return;
 
@@ -247,7 +254,11 @@ export function applyToDashboard(dashboard: DashboardResponse, change: LedgerCha
   if (!touchesWallet) return;
 
   for (const budget of dashboard.activeBudgets) applyToBudget(budget, change);
-  if (change.kind === 'create') {
+  if (change.inPlace) {
+    if (change.kind === 'create') {
+      dashboard.recentTransactions = dashboard.recentTransactions.map((candidate) => (candidate.id === transaction.id ? transaction : candidate));
+    }
+  } else if (change.kind === 'create') {
     dashboard.recentTransactions = [transaction, ...dashboard.recentTransactions].slice(0, RECENT_TRANSACTIONS_LIMIT);
   } else {
     const recent = dashboard.recentTransactions.find((candidate) => candidate.id === transaction.id);
@@ -258,7 +269,8 @@ export function applyToDashboard(dashboard: DashboardResponse, change: LedgerCha
   if (amount === null) return;
   const balanceDelta = walletDelta(change, walletId, amount);
   if (balanceDelta !== ZERO) addToTotals(dashboard.totalBalance, transaction.currency, balanceDelta);
-  if (!isWithinPeriod(transaction.transactionDate, dashboard.period.dateFrom, dashboard.period.dateTo)) return;
+  const { dateFrom, dateTo, timeZone = deviceTimeZone() } = dashboard.period;
+  if (!isWithinPeriod(transaction.transactionDate, dateFrom, dateTo, timeZone)) return;
 
   if (transaction.type === TransactionType.TRANSFER) {
     const incoming = change.to?.walletId === walletId;

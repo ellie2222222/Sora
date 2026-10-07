@@ -6,17 +6,22 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View, type TextI
 import { UserPlus } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { registerSchema } from '@sora/contracts';
+
+// The first wallet takes this device's zone; its owner can change it in the wallet's settings.
+const registerFormSchema = registerSchema.omit({ timeZone: true });
 import type { z } from 'zod';
 
-import { AnimatedScreen, Button, Input, Text } from '@/components';
-import { useAuth, useTheme } from '@/app/providers';
-import { messageOf } from '@/utils';
+import { AnimatedScreen, Button, Input, SegmentedControl, Text } from '@/components';
+import { useAuth, useLocaleControl, useTheme } from '@/app/providers';
+import { SUPPORTED_LOCALES } from '@/app/i18n';
+import { deviceTimeZone, messageOf } from '@/utils';
 import type { AuthStackScreenProps } from '@/app/navigation';
 
 export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { register } = useAuth();
+  const { locale, setLocale } = useLocaleControl();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // The pre-.default() input type, not the output RegisterRequest: RHF's values
@@ -26,8 +31,8 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
     control,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<z.input<typeof registerSchema>>({
-    resolver: zodResolver(registerSchema),
+  } = useForm<z.input<typeof registerFormSchema>>({
+    resolver: zodResolver(registerFormSchema),
     defaultValues: { email: '', password: '', displayName: '', baseCurrency: 'VND' },
   });
 
@@ -40,7 +45,8 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
       // The field is defaulted in defaultValues, so this is never actually
       // undefined at submit time — the fallback only satisfies the type the
       // pre-default input shape carries.
-      await register({ ...values, baseCurrency: values.baseCurrency ?? 'VND' });
+      // The chosen language names the wallet and Cash account the server creates for them.
+      await register({ ...values, baseCurrency: values.baseCurrency ?? 'VND', locale, timeZone: deviceTimeZone() });
     } catch (error) {
       setSubmitError(messageOf(error, t));
     }
@@ -65,6 +71,24 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
           <Text tone="muted" style={{ marginBottom: theme.spacing.lg }}>
             {t('auth.registerSubtitle')}
           </Text>
+
+          <View style={{ gap: theme.spacing.xs }}>
+            <Text weight="semibold" style={{ fontSize: theme.fontSize.sm }}>
+              {t('auth.languageLabel')}
+            </Text>
+            <SegmentedControl
+              options={SUPPORTED_LOCALES.map((code) => ({
+                value: code,
+                label: t(`settings.languageNames.${code}`),
+                testID: `btn-register-locale-${code}`,
+              }))}
+              value={locale}
+              onChange={(next) => void setLocale(next)}
+            />
+            <Text variant="caption" tone="muted">
+              {t('auth.languageHint')}
+            </Text>
+          </View>
 
           <Controller
             control={control}

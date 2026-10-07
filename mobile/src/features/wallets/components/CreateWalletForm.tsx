@@ -7,7 +7,8 @@ import { createWalletSchema } from '@sora/contracts';
 import { Button, Input, Text } from '@/components';
 import { useTheme, useToast } from '@/app/providers';
 import { useCreateWalletMutation } from '@/app/store';
-import { issueMessagesByPath, messageOf } from '@/utils';
+import { deviceTimeZone, issueMessagesByPath, messageOf } from '@/utils';
+import { TimeZoneField } from './TimeZoneField.tsx';
 
 /** Resets whenever `active` turns true: the sheets hosting it stay mounted while hidden. */
 export function CreateWalletForm({ active, onCreated }: { active: boolean; onCreated: () => void }) {
@@ -16,12 +17,15 @@ export function CreateWalletForm({ active, onCreated }: { active: boolean; onCre
   const { showToast } = useToast();
   const [createWallet, { isLoading: isCreating }] = useCreateWalletMutation();
   const [name, setName] = useState('');
+  // The device's zone is only the starting point; the creator confirms or changes it here.
+  const [timeZone, setTimeZone] = useState(deviceTimeZone);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (active) {
       setName('');
+      setTimeZone(deviceTimeZone());
       setFieldErrors({});
       setSubmitError(null);
     }
@@ -29,7 +33,7 @@ export function CreateWalletForm({ active, onCreated }: { active: boolean; onCre
 
   async function handleCreate() {
     setSubmitError(null);
-    const parsed = createWalletSchema.safeParse({ name });
+    const parsed = createWalletSchema.safeParse({ name, timeZone });
     if (!parsed.success) {
       setFieldErrors(issueMessagesByPath(parsed.error.issues));
       return;
@@ -55,6 +59,8 @@ export function CreateWalletForm({ active, onCreated }: { active: boolean; onCre
         onChangeText={setName}
         error={fieldErrors.name}
       />
+      <TimeZoneField value={timeZone} onChange={setTimeZone} />
+      {fieldErrors.timeZone !== undefined ? <Text tone="danger">{fieldErrors.timeZone}</Text> : null}
       {submitError !== null ? <Text tone="danger">{submitError}</Text> : null}
       <Button
         testID="btn-submit-wallet"

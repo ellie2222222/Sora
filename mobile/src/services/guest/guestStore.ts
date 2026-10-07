@@ -24,7 +24,6 @@ import type {
   AccountStatus,
   AccountType,
   BudgetPeriodType,
-  BudgetStatus,
   CategoryStatus,
   CategoryType,
   GoalStatus,
@@ -36,6 +35,8 @@ import type {
 export interface GuestWallet {
   id: string;
   name: string;
+  /** IANA zone; absent in a store saved before wallets had one (`guestTimeZone`). */
+  timeZone?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,6 +57,8 @@ export interface GuestCategory {
   id: string;
   walletId: string;
   parentId: string | null;
+  /** A starter category's key, as on the server; absent on data saved before keys existed (backfilled by guestSeed). */
+  systemKey?: string | null;
   name: string;
   type: CategoryType;
   icon: string | null;
@@ -92,8 +95,8 @@ export interface GuestBudget {
   currency: string;
   periodType: BudgetPeriodType;
   startDate: string;
-  endDate: string;
-  status: BudgetStatus;
+  /** Null for a repeating period, as on the server (`chk_budget_end`). */
+  endDate: string | null;
   createdAt: string;
   updatedAt: string;
 }

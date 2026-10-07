@@ -11,10 +11,15 @@
 
 import {
   AccountStatus,
-  BudgetStatus,
+  budgetWindow,
+  categorySubtreeIds,
   CategoryStatus,
+  createTransactionSchema,
   GoalStatus,
+  mergeTransactionUpdate,
+  todayIn,
   TransactionType,
+  type UpdateTransactionRequest,
   type AccountResponse,
   type BudgetResponse,
   type CategoryResponse,
@@ -28,9 +33,11 @@ import {
   type GoalResponse,
   type TransactionAccountRef,
   type TransactionResponse,
+  type WalletResponse,
 } from '@sora/contracts';
 
-import { findCachedById } from './cacheLookup.ts';
+import { deviceTimeZone } from '../../utils/date.ts';
+import { cachedItems, findCachedById } from './cacheLookup.ts';
 
 const ZERO = '0.0000';
 
@@ -109,6 +116,49 @@ export function buildOptimisticTransaction(
   };
 }
 
+/**
+ * An offline money edit's record: the edit merged over the cached record exactly as the server merges it,
+ * keeping its identity and creator. Null when the merge isn't a valid transaction; the server will say why.
+ */
+export function buildOptimisticEdit(
+  previous: TransactionResponse,
+  body: UpdateTransactionRequest,
+  apiState: unknown,
+): TransactionResponse | null {
+  const parsed = createTransactionSchema.safeParse(
+    mergeTransactionUpdate(
+      {
+        type: previous.type,
+        amount: previous.amount,
+        currency: previous.currency,
+        fromAccountId: previous.fromAccount?.id ?? null,
+        toAccountId: previous.toAccount?.id ?? null,
+        categoryId: previous.category?.id ?? null,
+        goalId: previous.goalId,
+        description: previous.description,
+        transactionDate: previous.transactionDate,
+        status: previous.status,
+        reference: previous.reference,
+      },
+      body,
+    ),
+  );
+  if (!parsed.success) return null;
+  const next = parsed.data;
+  const built = buildOptimisticTransaction(next, previous.id, apiState);
+  const sameRef = (accountId: string | undefined, ref: TransactionAccountRef | null) => (ref?.id === accountId ? ref : null);
+  const fromAccount = built.fromAccount ?? sameRef('fromAccountId' in next ? next.fromAccountId : undefined, previous.fromAccount ?? previous.toAccount);
+  const toAccount = built.toAccount ?? sameRef('toAccountId' in next ? next.toAccountId : undefined, previous.toAccount ?? previous.fromAccount);
+  return {
+    ...built,
+    fromAccount,
+    toAccount,
+    category: built.category ?? (previous.category?.id === next.categoryId ? previous.category : null),
+    createdBy: previous.createdBy,
+    createdAt: previous.createdAt,
+  };
+}
+
 export function buildOptimisticAccount(body: CreateAccountRequest, localId: string): AccountResponse {
   const now = new Date().toISOString();
   return {
@@ -132,6 +182,9 @@ export function buildOptimisticBudget(
 ): BudgetResponse {
   const category = body.categoryId ? findCachedById<CategoryResponse>(apiState, 'listCategories', body.categoryId) : null;
   const now = new Date().toISOString();
+  const endDate = body.endDate ?? null;
+  const timeZone = findCachedById<WalletResponse>(apiState, 'listWallets', body.walletId)?.timeZone ?? deviceTimeZone();
+  const window = budgetWindow({ periodType: body.periodType, startDate: body.startDate, endDate }, todayIn(timeZone));
   return {
     id: localId,
     walletId: body.walletId,
@@ -140,9 +193,12 @@ export function buildOptimisticBudget(
     currency: body.currency,
     periodType: body.periodType,
     startDate: body.startDate,
-    endDate: body.endDate,
-    status: BudgetStatus.ACTIVE,
+    endDate,
+    periodStart: window.startDate,
+    periodEnd: window.endDate,
+    timeZone,
     categoryId: body.categoryId ?? null,
+    categoryIds: body.categoryId ? categorySubtreeIds(body.categoryId, cachedItems<CategoryResponse>(apiState, 'listCategories')) : [],
     goalId: body.goalId ?? null,
     category: category
       ? { id: category.id, name: category.name, icon: category.icon, color: category.color }
@@ -183,6 +239,7 @@ export function buildOptimisticCategory(body: CreateCategoryRequest, localId: st
     id: localId,
     walletId: body.walletId,
     parentId: body.parentId ?? null,
+    systemKey: null,
     name: body.name,
     type: body.type,
     icon: body.icon ?? null,

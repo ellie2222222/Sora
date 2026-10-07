@@ -8,8 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { loginSchema, type LoginRequest } from '@sora/contracts';
 
 import { AnimatedScreen, Button, Input, Text } from '@/components';
-import { useAuth, useTheme } from '@/app/providers';
-import { messageOf } from '@/utils';
+import { useAuth, useLocaleControl, useTheme } from '@/app/providers';
+import { deviceTimeZone, messageOf } from '@/utils';
 import { useGoogleSignIn } from '../hooks/useGoogleSignIn.ts';
 import type { AuthStackScreenProps } from '@/app/navigation';
 
@@ -17,6 +17,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { login, loginWithGoogle, enterGuestMode } = useAuth();
+  const { locale } = useLocaleControl();
   const google = useGoogleSignIn();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [googlePending, setGooglePending] = useState(false);
@@ -49,7 +50,8 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
         setSubmitError(t('auth.googleSignInFailed'));
         return;
       }
-      await loginWithGoogle({ idToken });
+      // Only read when this sign-in creates the account: they name and date the wallet the server sets up.
+      await loginWithGoogle({ idToken, locale, timeZone: deviceTimeZone() });
     } catch (error) {
       setSubmitError(messageOf(error, t));
     } finally {

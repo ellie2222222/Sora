@@ -7,7 +7,7 @@ export function CreateWalletModal({ visible, onClose }: { visible: boolean; onCl
   const { t } = useTranslation();
 
   return (
-    <BottomSheetModal visible={visible} onClose={onClose} title={t('wallets.newWallet')} testID="sheet-wallet-create">
+    <BottomSheetModal visible={visible} onClose={onClose} title={t('wallets.newWallet')} closeLabel="cancel" testID="sheet-wallet-create">
       <CreateWalletForm active={visible} onCreated={onClose} />
     </BottomSheetModal>
   );

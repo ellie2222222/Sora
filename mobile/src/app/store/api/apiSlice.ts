@@ -124,6 +124,9 @@ export const API_TAG_TYPES = [
   'AiMessage',
 ] as const;
 
+/** Marks every cached read stale, for when all of them may be wrong at once (back online, a language switch). */
+export const invalidateEverything = () => apiSlice.util.invalidateTags([...API_TAG_TYPES]);
+
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: axiosBaseQuery,

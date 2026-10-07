@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Banknote } from 'lucide-react-native';
-import { TransactionType } from '@sora/contracts';
+import { TransactionStatus, TransactionType, type TransactionResponse } from '@sora/contracts';
 
 import {
   BottomSheetModal,
@@ -12,8 +12,9 @@ import {
   IconChip,
   Input,
   KeypadSheetFooter,
-  SheetFormHeader,
   SheetScrollArea,
+  Skeleton,
+  StateView,
   Text,
   useCalculatorExpression,
 } from '@/components';
@@ -30,27 +31,48 @@ import {
   formatShortDay,
   nowInstant,
   replaceDay,
+  today,
   emptyDraft,
   categoryTypeFor,
+  draftFromTransaction,
+  expressionOfAmount,
   fieldsForType,
   primaryAccountOf,
   setPrimaryAccount,
   switchType,
+  updateBodyOf,
   validateDraft,
 } from '@/utils';
-import { useCreateTransactionMutation } from '@/app/store';
+import { useCreateTransactionMutation, useGetTransactionQuery, useUpdateTransactionMutation } from '@/app/store';
 
-export interface AddTransactionModalProps {
+export interface TransactionFormModalProps {
   visible: boolean;
   onClose: () => void;
+  /** Edits this transaction: the same form, filled with its values, saving through an update instead of a create. */
+  transactionId?: string;
+  /** The sheet this one was opened from, when there is one to return to. */
+  onBack?: () => void;
+  /** Closes that sheet too, from the header's Close. */
+  onCloseAll?: () => void;
 }
 
-export function AddTransactionModal({ visible, onClose }: AddTransactionModalProps) {
+/** The wallet whose categories and accounts the form offers: the one the transaction is paid from, or into for income. */
+function walletOf(transaction: TransactionResponse): string | undefined {
+  return transaction.type === TransactionType.INCOME ? transaction.toAccount?.walletId : transaction.fromAccount?.walletId;
+}
+
+export function TransactionFormModal({ visible, onClose, transactionId, onBack, onCloseAll }: TransactionFormModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { showToast } = useToast();
-  const { activeWallet, permissions, isLoading: walletsLoading } = useWallets();
-  const [createTransaction, { isLoading: isSubmitting }] = useCreateTransactionMutation();
+  const { activeWallet, wallets, timeZone: activeTimeZone, permissions, isLoading: walletsLoading } = useWallets();
+  const [createTransaction, { isLoading: isCreating }] = useCreateTransactionMutation();
+  const [updateTransaction, { isLoading: isUpdating }] = useUpdateTransactionMutation();
+
+  const isEdit = transactionId !== undefined;
+  const existing = useGetTransactionQuery(transactionId ?? '', { skip: !visible || !isEdit });
+  // `currentData`: another transaction's values must never fill this one's form.
+  const record = isEdit ? existing.currentData : undefined;
 
   const [draft, setDraft] = useState(() => emptyDraft({ currency: 'VND', transactionDate: nowInstant() }));
   const { setExpression, expressionRef, display: displayAmount, confirm } = useCalculatorExpression('', '0');
@@ -58,10 +80,15 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [filledFrom, setFilledFrom] = useState<string | null>(null);
 
-  const walletId = activeWallet?.id;
+  const walletId = isEdit ? (record === undefined ? undefined : walletOf(record)) : activeWallet?.id;
+  // The day picked is the transaction's own wallet's, which an edit opened from another wallet may not share.
+  const timeZone = wallets.find((wallet) => wallet.id === walletId)?.timeZone ?? activeTimeZone;
   const fields = fieldsForType(draft.type);
   const primaryAccount = primaryAccountOf(draft);
+  const title = isEdit ? t('transactions.editTransaction') : t('home.addTransaction');
+  const sheet = { visible, onClose, title, onBack, onCloseAll };
 
   const TYPES = [
     { type: TransactionType.EXPENSE, label: t('transactions.filterExpense', { defaultValue: 'Expense' }), icon: ArrowUpFromLine },
@@ -77,19 +104,28 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
       setFieldErrors({});
       setSubmitError(null);
       setDatePickerOpen(false);
+      setFilledFrom(null);
     }
-  }, [visible, walletId]);
+  }, [visible, activeWallet?.id, transactionId]);
+
+  useEffect(() => {
+    if (!visible || record === undefined || filledFrom === record.id) return;
+    setDraft(draftFromTransaction(record));
+    setExpression(expressionOfAmount(record.amount));
+    setToAccountWalletId(record.toAccount?.walletId);
+    setFilledFrom(record.id);
+  }, [visible, record, filledFrom]);
 
   const crossWallet =
     draft.type === TransactionType.TRANSFER && toAccountWalletId !== undefined && toAccountWalletId !== walletId;
 
-  const selectedDay = dayOfInstant(draft.transactionDate);
+  const selectedDay = dayOfInstant(draft.transactionDate, timeZone);
   const dateLabel = formatShortDay(selectedDay);
   const dateAccessibilityLabel = `${t('transactions.date', 'Date')}, ${formatDay(selectedDay)}`;
 
   // Ref pattern (see CalculatorKeypadProps.onConfirmRef) so the keypad's grid identity stays
   // stable even though these two closures change every keystroke/render. Declared before the
-  // early return below so every render calls the same hooks regardless of `permissions.canWrite`.
+  // early returns below so every render calls the same hooks.
   const onConfirmRef = useRef(handleConfirm);
   onConfirmRef.current = handleConfirm;
   const onQuickDateRef = useRef(() => {});
@@ -100,12 +136,40 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
   // role, including the wallet's own owner, and would otherwise flash this notice at them.
   if (!walletsLoading && !permissions.canWrite) {
     return (
-      <BottomSheetModal visible={visible} onClose={onClose} title={t('home.addTransaction')}>
+      <BottomSheetModal {...sheet}>
         <View className="items-center justify-center" style={{ padding: theme.spacing.lg }}>
           <Text tone="muted" style={{ textAlign: 'center' }}>
             {t('transactions.viewOnlyNotice', {
-              defaultValue: 'You have view-only access to this wallet and cannot record transactions.',
+              defaultValue: 'You can view this wallet, but adding transactions needs Editor access.',
             })}
+          </Text>
+        </View>
+      </BottomSheetModal>
+    );
+  }
+
+  if (isEdit && record === undefined && existing.isError) {
+    return (
+      <BottomSheetModal {...sheet}>
+        <StateView variant="error" error={existing.error} retryAction={() => void existing.refetch()} testID="edit-transaction-error" entrance="none" />
+      </BottomSheetModal>
+    );
+  }
+
+  if (isEdit && (record === undefined || filledFrom !== record.id)) {
+    return (
+      <BottomSheetModal {...sheet} closeLabel="cancel" entity="transaction">
+        <TransactionFormSkeleton />
+      </BottomSheetModal>
+    );
+  }
+
+  if (record?.status === TransactionStatus.DELETED) {
+    return (
+      <BottomSheetModal {...sheet}>
+        <View className="items-center justify-center" style={{ padding: theme.spacing.lg }}>
+          <Text tone="muted" style={{ textAlign: 'center' }}>
+            {t('transactions.cancelledNotice', { defaultValue: "This transaction was deleted, so it can't be edited. Record a new one instead." })}
           </Text>
         </View>
       </BottomSheetModal>
@@ -131,9 +195,17 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
 
     setFieldErrors({});
     try {
-      await createTransaction(result.payload).unwrap();
+      if (record === undefined) {
+        await createTransaction(result.payload).unwrap();
+        showToast(t('toast.transactionAdded', { defaultValue: 'Transaction added' }), 'success');
+      } else {
+        const body = updateBodyOf(record, result.payload);
+        if (Object.keys(body).length > 0) {
+          await updateTransaction({ transactionId: record.id, body }).unwrap();
+          showToast(t('toast.transactionUpdated', { defaultValue: 'Transaction updated' }), 'success');
+        }
+      }
       onClose();
-      showToast(t('toast.transactionAdded', { defaultValue: 'Transaction added' }), 'success');
     } catch (error) {
       setSubmitError(messageOf(error, t));
     }
@@ -145,9 +217,7 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
   }
 
   return (
-    <BottomSheetModal visible={visible} onClose={onClose}>
-      <SheetFormHeader title={t('home.addTransaction')} onCancel={onClose} entity="transaction" />
-
+    <BottomSheetModal {...sheet} closeLabel="cancel" entity="transaction">
       <View className="flex-row" style={{ flexShrink: 0, gap: theme.spacing.sm, marginBottom: theme.spacing.md }}>
         {TYPES.map(({ type, label, icon }) => (
           <Button
@@ -170,7 +240,9 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
                 label={t('transactions.fromLabel', { defaultValue: 'From' })}
                 walletId={walletId}
                 value={draft.fromAccountId}
-                onChange={(accountId) => setDraft((current) => ({ ...current, fromAccountId: accountId }))}
+                onChange={(accountId, _walletId, currency) =>
+                  setDraft((current) => ({ ...current, fromAccountId: accountId, currency }))
+                }
                 error={fieldErrors.fromAccountId}
               />
               <AccountPicker
@@ -193,7 +265,7 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
                 >
                   <Text variant="caption" tone="muted">
                     {t('transactions.crossWalletNotice', {
-                      defaultValue: 'This moves money into another wallet. It will appear in their ledger too.',
+                      defaultValue: "This sends money to another wallet, so it'll show up in their records too.",
                     })}
                   </Text>
                 </View>
@@ -225,7 +297,9 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
               label={t('accounts.accountLabel', { defaultValue: 'Account' })}
               walletId={walletId}
               value={primaryAccount}
-              onChange={(accountId) => setDraft((current) => setPrimaryAccount(current, accountId))}
+              onChange={(accountId, _walletId, currency) =>
+                setDraft((current) => ({ ...setPrimaryAccount(current, accountId), currency }))
+              }
             />
           )
         }
@@ -238,7 +312,7 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
       >
         <Input
           testID="input-transaction-description"
-          placeholder={t('transactions.notePlaceholder', { defaultValue: 'Enter a note...' })}
+          placeholder={t('transactions.notePlaceholder', { defaultValue: 'Add a note' })}
           value={draft.description}
           onChangeText={(text) => setDraft((current) => ({ ...current, description: text }))}
         />
@@ -249,7 +323,7 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
           expressionRef={expressionRef}
           onExpressionChange={setExpression}
           onConfirmRef={onConfirmRef}
-          confirmDisabled={isSubmitting}
+          confirmDisabled={isCreating || isUpdating}
           onQuickDateRef={onQuickDateRef}
           dateLabel={dateLabel}
           dateAccessibilityLabel={dateAccessibilityLabel}
@@ -259,12 +333,32 @@ export function AddTransactionModal({ visible, onClose }: AddTransactionModalPro
 
       <DatePickerModal
         visible={datePickerOpen}
+        today={today(timeZone)}
         selectedDay={selectedDay}
         onSelectDay={(day) =>
-          setDraft((current) => ({ ...current, transactionDate: replaceDay(current.transactionDate, day) }))
+          setDraft((current) => ({ ...current, transactionDate: replaceDay(current.transactionDate, day, timeZone) }))
         }
         onClose={() => setDatePickerOpen(false)}
       />
     </BottomSheetModal>
+  );
+}
+
+/** While an edited transaction loads; shaped like the form so nothing jumps when it fills (DESIGN_GUIDELINES Part 2). */
+function TransactionFormSkeleton() {
+  const theme = useTheme();
+  return (
+    <View style={{ gap: theme.spacing.md, paddingBottom: theme.spacing.xl }}>
+      <View className="flex-row" style={{ gap: theme.spacing.sm }}>
+        {[0, 1, 2].map((key) => (
+          <View key={key} style={{ flex: 1 }}>
+            <Skeleton width="100%" height={theme.sizes.controlHeight} radius={theme.radius.md} />
+          </View>
+        ))}
+      </View>
+      <Skeleton width="100%" height={theme.sizes.controlHeight} radius={theme.radius.md} />
+      <Skeleton width="100%" height={theme.sizes.skeletonLine.display} radius={theme.radius.sm} />
+      <Skeleton width="100%" height={theme.sizes.controlHeight} radius={theme.radius.md} />
+    </View>
   );
 }

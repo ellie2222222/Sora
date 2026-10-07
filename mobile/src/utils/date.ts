@@ -1,51 +1,57 @@
 /**
  * Calendar helpers.
  *
- * Budget windows and dashboard periods are compared by calendar day, never by
- * instant (API spec §2.3), so the app's day strings are produced the same way
- * the server compares them: the first ten characters, in local time for
- * "today" and verbatim for anything that arrived as a date already.
+ * A wallet's days, months, windows and "today" are read in the wallet's own time
+ * zone (API spec §2.11), never UTC and never this device's, so every member sees the
+ * same figures. Turning an instant into a wallet day goes through `@sora/contracts`'
+ * calendar functions, the same code the API runs. The arithmetic below works on
+ * `YYYY-MM-DD` strings and involves no zone.
  */
 
 import i18next from 'i18next';
 
-export type CalendarDay = string;
+import { dayOfInstant, isTimeZone, todayIn, withDay, zonedInstant, type CalendarDay } from '@sora/contracts';
+
+export { dayOfInstant, type CalendarDay };
 export type Instant = string;
 
 function pad(value: number): string {
   return value < 10 ? `0${value}` : String(value);
 }
 
+/** A `Date`'s day on this device — for display only, never for wallet maths. */
 export function dayOfDate(date: Date): CalendarDay {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-export function today(): CalendarDay {
-  return dayOfDate(new Date());
+/** The zone this device is set to, only ever a default for a new wallet. */
+export function deviceTimeZone(): string {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return zone && isTimeZone(zone) ? zone : 'UTC';
+}
+
+/** Today in the wallet's zone. */
+export function today(timeZone: string): CalendarDay {
+  return todayIn(timeZone);
 }
 
 export function nowInstant(): Instant {
   return new Date().toISOString();
 }
 
-/** The calendar day an instant belongs to, as the API compares it. */
-export function dayOfInstant(instant: Instant): CalendarDay {
-  return instant.slice(0, 10);
-}
-
-/** Midday rather than midnight, so a timezone shift cannot move the day. */
-export function instantOfDay(day: CalendarDay): Instant {
-  return new Date(`${day}T12:00:00Z`).toISOString();
+/** Midday on `day` in the wallet's zone: the instant a date-only entry (a contribution) is stamped with. */
+export function middayOf(day: CalendarDay, timeZone: string): Instant {
+  return zonedInstant(day, '12:00', timeZone).toISOString();
 }
 
 /**
- * Move an instant to another calendar day, keeping its time of day.
+ * Move an instant to another wallet day, keeping its wall-clock time there.
  *
  * Correcting the date on a record should not silently restamp the clock time it
- * was recorded at, which is what rebuilding it through `instantOfDay` would do.
+ * was recorded at, nor land it on the day before or after in the wallet's zone.
  */
-export function replaceDay(instant: Instant, day: CalendarDay): Instant {
-  return `${day}${instant.slice(10)}`;
+export function replaceDay(instant: Instant, day: CalendarDay, timeZone: string): Instant {
+  return withDay(instant, day, timeZone).toISOString();
 }
 
 export function parseDay(day?: CalendarDay | null): { year: number; month: number; date: number } {
@@ -57,12 +63,12 @@ export function parseDay(day?: CalendarDay | null): { year: number; month: numbe
   return { year: Number(year) || 1970, month: Number(month) || 1, date: Number(date) || 1 };
 }
 
-export function startOfMonth(day: CalendarDay = today()): CalendarDay {
+export function startOfMonth(day: CalendarDay): CalendarDay {
   const { year, month } = parseDay(day);
   return `${year}-${pad(month)}-01`;
 }
 
-export function endOfMonth(day: CalendarDay = today()): CalendarDay {
+export function endOfMonth(day: CalendarDay): CalendarDay {
   const { year, month } = parseDay(day);
   const lastDate = new Date(Date.UTC(year, month, 0)).getUTCDate();
   return `${year}-${pad(month)}-${pad(lastDate)}`;
@@ -97,13 +103,13 @@ export function addDays(day: CalendarDay, delta: number): CalendarDay {
  * the picker grid and a "this week" dashboard period must not disagree about
  * which day a week starts on.
  */
-export function startOfWeek(day: CalendarDay = today()): CalendarDay {
+export function startOfWeek(day: CalendarDay): CalendarDay {
   const { year, month, date } = parseDay(day);
   const weekday = new Date(Date.UTC(year, month - 1, date)).getUTCDay();
   return addDays(day, -weekday);
 }
 
-export function endOfWeek(day: CalendarDay = today()): CalendarDay {
+export function endOfWeek(day: CalendarDay): CalendarDay {
   return addDays(startOfWeek(day), 6);
 }
 
@@ -112,16 +118,16 @@ export function addWeeks(day: CalendarDay, delta: number): CalendarDay {
 }
 
 /** 1-4, calendar quarters. */
-export function quarterOf(day: CalendarDay = today()): number {
+export function quarterOf(day: CalendarDay): number {
   return Math.floor((parseDay(day).month - 1) / 3) + 1;
 }
 
-export function startOfQuarter(day: CalendarDay = today()): CalendarDay {
+export function startOfQuarter(day: CalendarDay): CalendarDay {
   const { year } = parseDay(day);
   return `${year}-${pad((quarterOf(day) - 1) * 3 + 1)}-01`;
 }
 
-export function endOfQuarter(day: CalendarDay = today()): CalendarDay {
+export function endOfQuarter(day: CalendarDay): CalendarDay {
   return endOfMonth(addMonths(startOfQuarter(day), 2));
 }
 
@@ -129,18 +135,23 @@ export function addQuarters(day: CalendarDay, delta: number): CalendarDay {
   return startOfQuarter(addMonths(startOfQuarter(day), delta * 3));
 }
 
-export function startOfYear(day: CalendarDay = today()): CalendarDay {
+export function startOfYear(day: CalendarDay): CalendarDay {
   return `${parseDay(day).year}-01-01`;
 }
 
-export function endOfYear(day: CalendarDay = today()): CalendarDay {
+export function endOfYear(day: CalendarDay): CalendarDay {
   return `${parseDay(day).year}-12-31`;
+}
+
+/** Vietnamese's abbreviated month ("thg 10") reads as clipped and saves only two letters over "tháng 10". */
+function monthStyle(locale: string): 'short' | 'long' {
+  return locale.startsWith('vi') ? 'long' : 'short';
 }
 
 export function monthName(month: number, locale: string = i18next.language || 'en'): string {
   const validMonth = Math.max(1, Math.min(12, Number(month) || 1));
   const date = new Date(Date.UTC(2026, validMonth - 1, 15));
-  return date.toLocaleDateString(locale, { month: 'short', timeZone: 'UTC' });
+  return date.toLocaleDateString(locale, { month: monthStyle(locale), timeZone: 'UTC' });
 }
 
 export function formatDay(day: CalendarDay, locale: string = i18next.language || 'en'): string {
@@ -148,16 +159,16 @@ export function formatDay(day: CalendarDay, locale: string = i18next.language ||
   const { year, month, date } = parseDay(day);
   const d = new Date(Date.UTC(year, month - 1, date));
   if (Number.isNaN(d.getTime())) return day;
-  return d.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return d.toLocaleDateString(locale, { day: 'numeric', month: monthStyle(locale), year: 'numeric', timeZone: 'UTC' });
 }
 
-/** Day and month only ("Sep 24", "24 thg 9") — for controls too narrow for `formatDay`. */
+/** Day and month only ("Sep 24", "24 tháng 9") — for controls too narrow for `formatDay`. */
 export function formatShortDay(day: CalendarDay, locale: string = i18next.language || 'en'): string {
   if (!day || typeof day !== 'string') return '';
   const { year, month, date } = parseDay(day);
   const d = new Date(Date.UTC(year, month - 1, date));
   if (Number.isNaN(d.getTime())) return day;
-  return d.toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  return d.toLocaleDateString(locale, { day: 'numeric', month: monthStyle(locale), timeZone: 'UTC' });
 }
 
 export function formatMonthYear(day: CalendarDay, locale: string = i18next.language || 'en'): string {
@@ -165,13 +176,13 @@ export function formatMonthYear(day: CalendarDay, locale: string = i18next.langu
   const { year, month } = parseDay(day);
   const d = new Date(Date.UTC(year, month - 1, 15));
   if (Number.isNaN(d.getTime())) return day;
-  return d.toLocaleDateString(locale, { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return d.toLocaleDateString(locale, { month: monthStyle(locale), year: 'numeric', timeZone: 'UTC' });
 }
 
 /** "Today" / "Yesterday" / "22 Aug 2026" — the transaction list's day headers. */
 export function formatDayHeading(
   day: CalendarDay,
-  reference: CalendarDay = today(),
+  reference: CalendarDay,
   locale: string = i18next.language || 'en',
 ): string {
   if (!day || typeof day !== 'string') return '';
@@ -184,8 +195,8 @@ export function formatDayHeading(
   const formattedDate = d.toLocaleDateString(
     locale,
     sameYear
-      ? { day: 'numeric', month: 'short', timeZone: 'UTC' }
-      : { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' },
+      ? { day: 'numeric', month: monthStyle(locale), timeZone: 'UTC' }
+      : { day: 'numeric', month: monthStyle(locale), year: 'numeric', timeZone: 'UTC' },
   );
 
   if (day === reference) {
@@ -198,8 +209,8 @@ export function formatDayHeading(
   return d.toLocaleDateString(
     locale,
     sameYear
-      ? { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }
-      : { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' },
+      ? { weekday: 'short', month: monthStyle(locale), day: 'numeric', timeZone: 'UTC' }
+      : { weekday: 'short', month: monthStyle(locale), day: 'numeric', year: 'numeric', timeZone: 'UTC' },
   );
 }
 

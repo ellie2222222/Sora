@@ -9,7 +9,7 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 
-import { API_TAG_TYPES, apiSlice } from '../../app/store/api/apiSlice.ts';
+import { apiSlice, invalidateEverything } from '../../app/store/api/apiSlice.ts';
 import { queueRowsReplaced } from '../../app/store/offlineQueueSlice.ts';
 import type { AppStore } from '@/app/store';
 import { defaultEntityAdapters } from './entityAdapters.ts';
@@ -94,7 +94,7 @@ export function startSyncEngine(store: AppStore): () => void {
 /** Back online: every screen still showing a saved copy reads the server again. */
 function refreshEverything(store: AppStore): void {
   localCache.clearShownSavedCopies();
-  store.dispatch(apiSlice.util.invalidateTags([...API_TAG_TYPES]));
+  store.dispatch(invalidateEverything());
 }
 
 /** A manual, on-demand pass, for the sync status's "Try again". */

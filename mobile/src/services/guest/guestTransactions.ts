@@ -3,11 +3,7 @@
  *
  * Validation mirrors `transactions.service.ts`'s create/update/delete: same
  * error codes (via `guestError`/`fromZodError`), same currency and
- * archived-account rules, same BR-03 restriction on what update may touch.
- * BR-03 needs no runtime rawBody check here the way the server's controller
- * does — `updateTransactionSchema` has no `amount`/`type`/`fromAccountId`/
- * `toAccountId` field at all, so a caller conforming to `UpdateTransactionRequest`
- * cannot express one, and `.safeParse` strips anything else that tries to.
+ * archived-account rules, and an edit that moves money is checked as a create (BR-03).
  *
  * There is no `WalletAccessService` equivalent because guest mode is
  * single-wallet and every account/category in `guestStore` already belongs
@@ -18,6 +14,9 @@
 import {
   DEFAULT_PAGE_SIZE,
   createTransactionSchema,
+  dayOfInstant,
+  mergeTransactionUpdate,
+  movesMoney,
   parseMoney,
   updateTransactionSchema,
   TransactionType,
@@ -32,9 +31,11 @@ import {
   type UpdateTransactionRequest,
 } from '@sora/contracts';
 
+import { guestCategoryName } from './guestCategoryName.ts';
 import { fromZodError, guestError } from './guestErrors.ts';
 import { GUEST_USER, newLocalId } from './guestIds.ts';
 import { guestStore } from './guestStorage.ts';
+import { guestTimeZone } from './guestTimeZone.ts';
 import {
   type GuestAccount,
   type GuestCategory,
@@ -118,7 +119,7 @@ function accountRef(account: GuestAccount, wallet: GuestWallet) {
 function categoryRef(category: GuestCategory) {
   return {
     id: category.id,
-    name: category.name,
+    name: guestCategoryName(category),
     type: category.type,
     icon: category.icon,
     color: category.color,
@@ -157,11 +158,8 @@ export function toTransactionResponse(
   };
 }
 
-function calendarDay(value: string): string {
-  return value.slice(0, 10);
-}
-
-function matchesFilters(transaction: GuestTransaction, filters: Partial<TransactionQuery>): boolean {
+/** `dateFrom`/`dateTo` are the wallet's calendar days, read in `timeZone` (API spec §11.1). */
+function matchesFilters(transaction: GuestTransaction, filters: Partial<TransactionQuery>, timeZone: string): boolean {
   if (
     filters.accountId &&
     transaction.fromAccountId !== filters.accountId &&
@@ -172,8 +170,8 @@ function matchesFilters(transaction: GuestTransaction, filters: Partial<Transact
   if (filters.categoryId && transaction.categoryId !== filters.categoryId) return false;
   if (filters.type && transaction.type !== filters.type) return false;
   if (filters.status && transaction.status !== filters.status) return false;
-  if (filters.dateFrom && calendarDay(transaction.transactionDate) < filters.dateFrom) return false;
-  if (filters.dateTo && calendarDay(transaction.transactionDate) > filters.dateTo) return false;
+  if (filters.dateFrom && dayOfInstant(transaction.transactionDate, timeZone) < filters.dateFrom) return false;
+  if (filters.dateTo && dayOfInstant(transaction.transactionDate, timeZone) > filters.dateTo) return false;
   if (filters.minAmount && parseMoney(transaction.amount) < parseMoney(filters.minAmount)) return false;
   if (filters.maxAmount && parseMoney(transaction.amount) > parseMoney(filters.maxAmount)) return false;
   if (filters.search) {
@@ -212,6 +210,91 @@ function applySort(transactions: readonly GuestTransaction[], sortBy: string): G
   });
 }
 
+/** Mirrors `transactions.service.ts`'s `checkWrite`: everything a create checks, which a money edit reruns. */
+function checkWrite(request: CreateTransactionRequest, wallet: GuestWallet): { categoryId: string | null; goalId: string | null } {
+  if (request.type === TransactionType.TRANSFER && request.fromAccountId === request.toAccountId) {
+    throw guestError('TRANSFER_SAME_ACCOUNT');
+  }
+
+  const { accounts, categories } = guestStore.current();
+  const touchedAccounts = accountIdsOf(request).map((accountId) => findAccount(accounts, accountId));
+
+  for (const account of touchedAccounts) {
+    if (account.status === AccountStatus.ARCHIVED) throw guestError('ACCOUNT_ARCHIVED');
+  }
+
+  const fromAccount = request.type !== TransactionType.INCOME ? findAccount(accounts, request.fromAccountId) : undefined;
+  const toAccount = request.type !== TransactionType.EXPENSE ? findAccount(accounts, request.toAccountId) : undefined;
+
+  // Before the per-account check: a cross-currency transfer always mismatches one side, and this names why.
+  if (request.type === TransactionType.TRANSFER && fromAccount!.currency !== toAccount!.currency) {
+    throw guestError('TRANSFER_CURRENCY_MISMATCH');
+  }
+  for (const account of touchedAccounts) {
+    if (account.currency !== request.currency) throw guestError('ACCOUNT_CURRENCY_MISMATCH');
+  }
+
+  const categoryId = request.categoryId ?? null;
+  if (categoryId !== null) {
+    const category = findCategory(categories, categoryId);
+    if (category.type !== request.type) throw guestError('CATEGORY_WRONG_TYPE');
+    if (category.walletId !== wallet.id) throw guestError('CATEGORY_WRONG_WALLET');
+  }
+  const goalId = request.goalId ?? null;
+  if (goalId !== null) assertGoalTag(request.type, goalId, wallet.id);
+
+  return { categoryId, goalId };
+}
+
+function parseCreate(body: unknown): CreateTransactionRequest {
+  const parsed = createTransactionSchema.safeParse(body);
+  if (!parsed.success) throw fromZodError(parsed.error);
+  return parsed.data;
+}
+
+/** Mirrors `transactions.service.ts`'s `updateMovement`: the merged transaction is checked as a create. */
+async function updateMovement(existing: GuestTransaction, patch: UpdateTransactionRequest, wallet: GuestWallet): Promise<TransactionResponse> {
+  const request = parseCreate(mergeTransactionUpdate(existing, patch));
+  const { categoryId, goalId } = checkWrite(request, wallet);
+
+  const { contributions, goals } = guestStore.current();
+  const backing = contributions.find((contribution) => contribution.transactionId === existing.id);
+  const backedGoal = backing ? goals.find((goal) => goal.id === backing.goalId) : undefined;
+  const payingAccountId = request.type === TransactionType.EXPENSE ? request.fromAccountId : null;
+  if (backing && (payingAccountId === null || request.currency !== backedGoal?.currency)) {
+    throw guestError('VALIDATION_FAILED', {
+      type: ["A goal contribution's payment stays an expense from the goal's wallet, in the goal's currency"],
+    });
+  }
+
+  const updated: GuestTransaction = {
+    ...existing,
+    type: request.type,
+    amount: request.amount,
+    currency: request.currency,
+    fromAccountId: request.type === TransactionType.INCOME ? null : request.fromAccountId,
+    toAccountId: request.type === TransactionType.EXPENSE ? null : request.toAccountId,
+    categoryId,
+    goalId,
+    description: request.description ?? null,
+    transactionDate: request.transactionDate,
+    reference: request.reference ?? null,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const data = await guestStore.mutate((current) => ({
+    ...current,
+    transactions: current.transactions.map((candidate) => (candidate.id === existing.id ? updated : candidate)),
+    contributions: current.contributions.map((contribution) =>
+      contribution.id === backing?.id && payingAccountId !== null
+        ? { ...contribution, amount: request.amount, accountId: payingAccountId, currency: request.currency }
+        : contribution,
+    ),
+  }));
+
+  return toTransactionResponse(updated, data.accounts, data.categories, wallet);
+}
+
 export const guestTransactionsApi = {
   async list(query: Partial<TransactionQuery> = {}): Promise<TransactionPage> {
     const wallet = requireWallet();
@@ -222,7 +305,7 @@ export const guestTransactionsApi = {
     const sortBy = query.sortBy ?? '-transactionDate';
 
     const filtered = applySort(
-      transactions.filter((transaction) => matchesFilters(transaction, query)),
+      transactions.filter((transaction) => matchesFilters(transaction, query, guestTimeZone(wallet))),
       sortBy,
     );
     const total = filtered.length;
@@ -243,40 +326,8 @@ export const guestTransactionsApi = {
 
   async create(body: CreateTransactionRequest): Promise<TransactionResponse> {
     const wallet = requireWallet();
-    const parsed = createTransactionSchema.safeParse(body);
-    if (!parsed.success) throw fromZodError(parsed.error);
-    const request = parsed.data;
-
-    if (request.type === TransactionType.TRANSFER && request.fromAccountId === request.toAccountId) {
-      throw guestError('TRANSFER_SAME_ACCOUNT');
-    }
-
-    const { accounts, categories } = guestStore.current();
-    const touchedAccounts = accountIdsOf(request).map((accountId) => findAccount(accounts, accountId));
-
-    for (const account of touchedAccounts) {
-      if (account.status === AccountStatus.ARCHIVED) throw guestError('ACCOUNT_ARCHIVED');
-    }
-
-    const fromAccount = request.type !== TransactionType.INCOME ? findAccount(accounts, request.fromAccountId) : undefined;
-    const toAccount = request.type !== TransactionType.EXPENSE ? findAccount(accounts, request.toAccountId) : undefined;
-
-    // Before the per-account check: a cross-currency transfer always mismatches one side, and this names why.
-    if (request.type === TransactionType.TRANSFER && fromAccount!.currency !== toAccount!.currency) {
-      throw guestError('TRANSFER_CURRENCY_MISMATCH');
-    }
-    for (const account of touchedAccounts) {
-      if (account.currency !== request.currency) throw guestError('ACCOUNT_CURRENCY_MISMATCH');
-    }
-
-    const categoryId = request.categoryId ?? null;
-    if (categoryId !== null) {
-      const category = findCategory(categories, categoryId);
-      if (category.type !== request.type) throw guestError('CATEGORY_WRONG_TYPE');
-      if (category.walletId !== wallet.id) throw guestError('CATEGORY_WRONG_WALLET');
-    }
-    const goalId = request.goalId ?? null;
-    if (goalId !== null) assertGoalTag(request.type, goalId, wallet.id);
+    const request = parseCreate(body);
+    const { categoryId, goalId } = checkWrite(request, wallet);
 
     const now = new Date().toISOString();
     const transaction: GuestTransaction = {
@@ -314,6 +365,8 @@ export const guestTransactionsApi = {
     const existing = transactions.find((candidate) => candidate.id === transactionId);
     if (!existing) throw guestError('TRANSACTION_NOT_FOUND');
     if (existing.status === TransactionStatus.DELETED) throw guestError('TRANSACTION_ALREADY_DELETED');
+
+    if (movesMoney(patch)) return updateMovement(existing, patch, wallet);
 
     if (patch.categoryId === null) {
       if (existing.type !== TransactionType.TRANSFER) throw guestError('CATEGORY_WRONG_TYPE');

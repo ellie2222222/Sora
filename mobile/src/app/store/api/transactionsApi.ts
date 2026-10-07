@@ -1,8 +1,9 @@
-import { TransactionStatus, type CreateTransactionRequest, type TransactionQuery, type TransactionResponse, type UpdateTransactionRequest } from '@sora/contracts';
+import { movesMoney, TransactionStatus, type CreateTransactionRequest, type TransactionQuery, type TransactionResponse, type UpdateTransactionRequest } from '@sora/contracts';
 
 import { transactionsApi as transactionsHttp, type TransactionPage } from '@/services/api';
 import { guestTransactionsApi } from '@/services/guest';
 import {
+  buildOptimisticEdit,
   buildOptimisticTransaction,
   cacheKeyOf,
   enqueueOffline,
@@ -112,11 +113,11 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
       },
       invalidatesTags: (result) => (result && isStillQueued(result.id) ? [] : TRANSACTION_TAGS),
     }),
-    /** Only the four mutable fields (BR-03) — amount, type and accounts are immutable server-side. */
+    /** Only the changed fields; amount, type, currency or an account makes it a money edit (BR-03). */
     updateTransaction: builder.mutation<TransactionResponse, { transactionId: string; body: UpdateTransactionRequest }>({
       queryFn: ({ transactionId, body }, { getState }) => {
-        const isGuest = selectIsGuest(getState() as RootState);
-        if (isGuest) return toQueryFnResult(() => guestTransactionsApi.update(transactionId, body));
+        const state = getState() as RootState;
+        if (selectIsGuest(state)) return toQueryFnResult(() => guestTransactionsApi.update(transactionId, body));
         if (!isCurrentlyOnline()) {
           return toQueryFnResult(async () => {
             await enqueueOffline({
@@ -126,17 +127,23 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
               serverId: transactionId,
               payload: body,
             });
-            return { ...body } as unknown as TransactionResponse; // Reconciled by onQueryStarted's cache patch below.
+            const previous = movesMoney(body) ? findCachedTransaction(state, transactionId) : null;
+            const edited = previous && buildOptimisticEdit(previous, body, (state as unknown as Record<string, unknown>)[apiSlice.reducerPath]);
+            // Reconciled by onQueryStarted's cache patch below.
+            return edited ?? ({ ...body } as unknown as TransactionResponse);
           });
         }
         return toQueryFnResult(() => transactionsHttp.update(transactionId, body));
       },
       onQueryStarted: async ({ transactionId, body }, { dispatch, queryFulfilled, getState }) => {
+        // Read before the patches below replace it: reversing a money edit needs the old figures.
+        const previous = findCachedTransaction(getState(), transactionId);
         try {
-          await queryFulfilled;
+          const { data } = await queryFulfilled;
           if (!isStillQueued(transactionId)) return;
 
-          const patchOne = (draft: TransactionResponse) => Object.assign(draft, body);
+          const edited = previous !== null && data.id === transactionId ? data : null;
+          const patchOne = (draft: TransactionResponse) => Object.assign(draft, edited ?? body);
           dispatch(transactionsApiSlice.util.updateQueryData('getTransaction', transactionId, patchOne));
 
           const rootState = getState();
@@ -144,10 +151,14 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
             dispatch(
               transactionsApiSlice.util.updateQueryData('listTransactions', args as TransactionListArgs, (draft) => {
                 const item = findInPages(draft.pages, transactionId);
-                if (item) Object.assign(item, body);
+                if (item) Object.assign(item, edited ?? body);
               }),
             );
           });
+          if (edited !== null && previous !== null) {
+            patchTotalsForTransaction(dispatch, getState(), ledgerChangeOf('cancel', previous, { inPlace: true }));
+            patchTotalsForTransaction(dispatch, getState(), ledgerChangeOf('create', edited, { inPlace: true, actorUserId: previous.createdBy.id }));
+          }
         } catch {
           // Nothing was applied to the cache yet — nothing to undo.
         }

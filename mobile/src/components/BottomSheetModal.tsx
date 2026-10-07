@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/app/providers';
 import { KeyboardDockProvider } from './KeyboardDockProvider.tsx';
-import { Text } from './Text';
+import { SheetHeader, type SheetCloseLabel } from './SheetHeader.tsx';
 
 // The native animated module doesn't exist on web, which warns if asked for it there.
 const NATIVE_DRIVER_ENABLED = Platform.OS !== 'web';
@@ -29,10 +29,22 @@ const RETURN_SPRING = { tension: 75, friction: 9 } as const;
 
 type SheetPhase = 'idle' | 'dragging' | 'dismissing';
 
+/** Set by every open sheet for the sheets rendered inside it: one found means this sheet was opened from another. */
+const SheetFlowContext = createContext<{ closeAll: () => void } | null>(null);
+
 export interface BottomSheetModalProps {
   visible: boolean;
   onClose: () => void;
+  /** Renders the shared header: Back (when there is somewhere to go back to), the title, and Cancel/Close. */
   title?: string;
+  /** Defaults to "Close"; a form that discards what was entered passes "cancel". */
+  closeLabel?: SheetCloseLabel;
+  /** An earlier step or sheet to return to. A sheet opened from inside another gets Back without it. */
+  onBack?: () => void;
+  /** Also run by the header's Close (not by `onClose` alone): closes the sheet this one was opened from. */
+  onCloseAll?: () => void;
+  /** Names the header's testIDs (`sheet-`, `btn-back-`, `btn-cancel-<entity>`). */
+  entity?: string;
   children: React.ReactNode;
   /** Points, not a percentage: the wrapper around the sheet is content-sized, so a percentage resolves against nothing. */
   maxHeight?: number;
@@ -47,6 +59,10 @@ export function BottomSheetModal({
   visible,
   onClose,
   title,
+  closeLabel = 'close',
+  onBack,
+  onCloseAll,
+  entity,
   children,
   maxHeight,
   dismissThreshold = DEFAULT_DISMISS_THRESHOLD,
@@ -160,13 +176,24 @@ export function BottomSheetModal({
     })
   ).current;
 
+  const parentFlow = useContext(SheetFlowContext);
+  // Back leaves this sheet for the one beneath it; Close ends the whole stack.
+  const closeAll = useCallback(() => {
+    dismissModal();
+    onCloseAll?.();
+    parentFlow?.closeAll();
+  }, [dismissModal, onCloseAll, parentFlow]);
+  const flow = useMemo(() => ({ closeAll }), [closeAll]);
+  const handleBack = onBack ?? (parentFlow !== null ? dismissModal : undefined);
+
   return (
     <Modal
       visible={visible}
       animationType="none"
       transparent
       statusBarTranslucent
-      onRequestClose={() => dismissModal()}
+      // The hardware back button is the header's Back where there is one.
+      onRequestClose={() => (handleBack ?? dismissModal)()}
       testID={testID}
     >
       {/* Android renders a Modal in its own window, outside the app root's gesture handling: swipeable rows in a sheet need their own root. */}
@@ -204,9 +231,6 @@ export function BottomSheetModal({
                   marginBottom: -SKIRT,
                   paddingBottom: safeBottom + SKIRT,
                   borderColor: theme.colors.border,
-                  // flexShrink/minHeight: 0 so this actually shrinks to the ancestor's `maxHeight`
-                  // on web (CSS flexbox defaults a flex item's min-height to `auto`, refusing to
-                  // shrink below content size — Yoga on native doesn't have that quirk).
                   flexShrink: 1,
                   minHeight: 0,
                   ...(theme.shadows.md as object),
@@ -232,12 +256,12 @@ export function BottomSheetModal({
                 </View>
 
                 {title !== undefined ? (
-                  <Text variant="title" style={{ marginBottom: theme.spacing.sm }}>
-                    {title}
-                  </Text>
+                  <SheetHeader title={title} onClose={closeAll} closeLabel={closeLabel} onBack={handleBack} entity={entity} />
                 ) : null}
 
-                <KeyboardDockProvider applySafeArea={false}>{children}</KeyboardDockProvider>
+                <SheetFlowContext.Provider value={flow}>
+                  <KeyboardDockProvider applySafeArea={false}>{children}</KeyboardDockProvider>
+                </SheetFlowContext.Provider>
               </View>
             </Animated.View>
           </Pressable>

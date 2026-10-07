@@ -8,6 +8,7 @@ import { useTheme, useToast } from '@/app/providers';
 import { useUpdateGoalMutation } from '@/app/store';
 import { issueMessagesByPath, messageOf } from '@/utils';
 import { goalChanges } from '../goalChanges.ts';
+import { useGoalDeadlineSheet } from './useGoalDeadlineSheet.ts';
 
 export interface GoalEditCardProps {
   /** Render with `key={goal.id}` so a different goal starts from its own values. */
@@ -21,6 +22,7 @@ export function GoalEditCard({ goal, onCancelGoal }: GoalEditCardProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
   const [updateGoal, { isLoading: isSaving }] = useUpdateGoalMutation();
+  const deadlineSheet = useGoalDeadlineSheet();
 
   const [name, setName] = useState(goal.name);
   const [description, setDescription] = useState(goal.description ?? '');
@@ -83,6 +85,8 @@ export function GoalEditCard({ goal, onCancelGoal }: GoalEditCardProps) {
         onClear={() => edit(setTargetDate)(null)}
         placeholder={t('goals.noTargetDate', 'Not set')}
         error={fieldErrors.targetDate}
+        presetSheet={deadlineSheet}
+        today={deadlineSheet.today}
       />
 
       {saveError !== null ? <Text tone="danger">{saveError}</Text> : null}
@@ -101,7 +105,7 @@ export function GoalEditCard({ goal, onCancelGoal }: GoalEditCardProps) {
         testID="btn-cancel-goal-status"
         label={t('goals.cancelGoal')}
         icon={Ban}
-        variant="danger"
+        variant="danger-outline"
         onPress={onCancelGoal}
         fullWidth
       />

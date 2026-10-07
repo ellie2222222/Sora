@@ -78,7 +78,8 @@ const NOW = '2026-09-01T00:00:00.000Z';
  */
 export async function seedFixture(): Promise<void> {
   await guestStore.mutate(() => ({
-    wallet: { id: WALLET_ID, name: 'Guest Wallet', createdAt: NOW, updatedAt: NOW },
+    // UTC, so the fixtures' instants fall on the calendar day they spell out.
+    wallet: { id: WALLET_ID, name: 'Guest Wallet', timeZone: 'UTC', createdAt: NOW, updatedAt: NOW },
     accounts: [
       {
         id: ACCOUNT_ID,

@@ -106,7 +106,7 @@ describe('guestCategoriesApi.archive', () => {
     name: 'Food, September',
     amount: '1000000',
     currency: 'VND',
-    periodType: 'MONTHLY' as const,
+    periodType: 'CUSTOM' as const,
     startDate: '2026-09-01',
     endDate: '2026-09-30',
   };
@@ -118,9 +118,9 @@ describe('guestCategoriesApi.archive', () => {
     assert.equal(statusOf(EXPENSE_CATEGORY_ID), CategoryStatus.ACTIVE);
   });
 
-  it('proceeds once that budget is archived', async () => {
+  it('proceeds once that budget is deleted', async () => {
     const created = await guestBudgetsApi.create(budget);
-    await guestBudgetsApi.archive(created.id);
+    await guestBudgetsApi.delete(created.id);
 
     await guestCategoriesApi.archive(EXPENSE_CATEGORY_ID);
     assert.equal(statusOf(EXPENSE_CATEGORY_ID), CategoryStatus.ARCHIVED);
@@ -143,7 +143,7 @@ describe('guestCategoriesApi.archive', () => {
     assert.equal(await codeOf(archiveByUpdate), 'CATEGORY_IN_USE');
     assert.equal(statusOf(CHILD_ID), CategoryStatus.ACTIVE);
 
-    await guestBudgetsApi.archive(created.id);
+    await guestBudgetsApi.delete(created.id);
     await archiveByUpdate();
     assert.deepEqual([statusOf(EXPENSE_CATEGORY_ID), statusOf(CHILD_ID)], [CategoryStatus.ARCHIVED, CategoryStatus.ARCHIVED]);
   });

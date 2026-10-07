@@ -7,6 +7,6 @@ export * from './LocaleProvider.tsx';
 // -> back into this barrel for useTheme/useWallets/etc). Import ModalProvider directly.
 export * from './ModalContext.ts';
 export * from './ThemeProvider.tsx';
+// ToastProvider.tsx is excluded for the same reason: it renders components/Text, which imports useTheme from here.
 export * from './ToastContext.ts';
-export * from './ToastProvider.tsx';
 export * from './WalletProvider.tsx';

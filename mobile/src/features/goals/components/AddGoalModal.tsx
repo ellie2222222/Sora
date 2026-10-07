@@ -6,18 +6,18 @@ import { createGoalSchema } from '@sora/contracts';
 import {
   BottomSheetModal,
   CalculatorKeypad,
-  DatePickerModal,
+  DatePresetSheet,
   IconChip,
   Input,
   KeypadSheetFooter,
-  SheetFormHeader,
   StateView,
   Text,
   useCalculatorExpression,
 } from '@/components';
 import { useToast, useWallets } from '@/app/providers';
 import { useCreateGoalMutation } from '@/app/store';
-import { formatDay, formatShortDay, issueMessagesByPath, messageOf, today, type CalendarDay } from '@/utils';
+import { formatDay, formatShortDay, issueMessagesByPath, messageOf, type CalendarDay } from '@/utils';
+import { useGoalDeadlineSheet } from './useGoalDeadlineSheet.ts';
 
 export interface AddGoalModalProps {
   visible: boolean;
@@ -29,11 +29,12 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
   const { showToast } = useToast();
   const { activeWallet } = useWallets();
   const [createGoal, { isLoading: isCreating }] = useCreateGoalMutation();
+  const deadlineSheet = useGoalDeadlineSheet();
 
   const { setExpression, expressionRef, display: displayAmount, confirm } = useCalculatorExpression('', '0');
   const [name, setName] = useState('');
   const [targetDate, setTargetDate] = useState<CalendarDay | null>(null);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [deadlineSheetOpen, setDeadlineSheetOpen] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -42,7 +43,7 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
       setExpression('');
       setName('');
       setTargetDate(null);
-      setDatePickerOpen(false);
+      setDeadlineSheetOpen(false);
       setFieldErrors({});
       setSubmitError(null);
     }
@@ -53,14 +54,14 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
   const onConfirmRef = useRef(handleConfirm);
   onConfirmRef.current = handleConfirm;
   const onQuickDateRef = useRef(() => {});
-  onQuickDateRef.current = () => setDatePickerOpen(true);
+  onQuickDateRef.current = () => setDeadlineSheetOpen(true);
 
   if (!visible) return null;
 
   if (activeWallet === null) {
     return (
       <BottomSheetModal visible={visible} onClose={onClose} title={t('goals.newGoal')}>
-        <StateView variant="informational" title={t('wallets.selectWalletFirst', 'Select a wallet first')} testID="add-goal-unselected" />
+        <StateView variant="informational" title={t('wallets.selectWalletFirst', 'Pick a wallet first')} testID="add-goal-unselected" />
       </BottomSheetModal>
     );
   }
@@ -100,8 +101,7 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
   const targetDateText = targetDate !== null ? formatDay(targetDate) : t('goals.noTargetDate', { defaultValue: 'Not set' });
 
   return (
-    <BottomSheetModal visible={visible} onClose={onClose}>
-      <SheetFormHeader title={t('goals.newGoal')} onCancel={onClose} entity="goal" />
+    <BottomSheetModal visible={visible} onClose={onClose} title={t('goals.newGoal')} closeLabel="cancel" entity="goal">
 
       <KeypadSheetFooter
         divider={false}
@@ -111,7 +111,7 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
             label={targetDateText}
             placeholder={targetDate === null}
             accessibilityLabel={`${deadlineLabel}, ${targetDateText}`}
-            onPress={() => setDatePickerOpen(true)}
+            onPress={() => setDeadlineSheetOpen(true)}
             onClear={targetDate !== null ? () => setTargetDate(null) : undefined}
             clearAccessibilityLabel={t('common.clear')}
             testID="input-goal-target-date"
@@ -123,7 +123,7 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
       >
         <Input
           testID="input-goal-name"
-          placeholder={t('goals.namePlaceholder', 'e.g. New Laptop')}
+          placeholder={t('goals.namePlaceholder', 'e.g. New laptop')}
           value={name}
           onChangeText={setName}
           error={fieldErrors.name}
@@ -143,11 +143,12 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
         />
       </KeypadSheetFooter>
 
-      <DatePickerModal
-        visible={datePickerOpen}
-        selectedDay={targetDate ?? today()}
-        onSelectDay={setTargetDate}
-        onClose={() => setDatePickerOpen(false)}
+      <DatePresetSheet
+        {...deadlineSheet}
+        visible={deadlineSheetOpen}
+        value={targetDate}
+        onSelect={setTargetDate}
+        onClose={() => setDeadlineSheetOpen(false)}
       />
     </BottomSheetModal>
   );

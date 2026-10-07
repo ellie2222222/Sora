@@ -36,7 +36,7 @@ export function AboutSection({
           tone="muted"
           style={{ textAlign: 'center', maxWidth: theme.sizes.readableWidth }}
         >
-          {t('welcomeSubtitle', { defaultValue: 'Track your money simply and privately.' })}
+          {t('settings.tagline')}
         </Text>
       </View>
 

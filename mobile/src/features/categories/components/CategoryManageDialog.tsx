@@ -82,6 +82,9 @@ export function CategoryManageDialog({
     <BottomSheetModal
       visible={category !== null}
       onClose={onClose}
+      closeLabel={mode === "rename" ? "cancel" : "close"}
+      // Rename reached from the options list is a step inside this sheet: Back returns to the list.
+      onBack={mode === "rename" && initialMode !== "rename" ? () => setMode("choose") : undefined}
       title={
         category === null
           ? undefined
@@ -99,23 +102,15 @@ export function CategoryManageDialog({
             onChangeText={setName}
           />
           {error !== null ? <Text tone="danger">{error}</Text> : null}
-          <View className="flex-row" style={{ gap: theme.spacing.sm }}>
-            <Button
-              label={t("common.cancel")}
-              variant="secondary"
-              onPress={() => (initialMode === "rename" ? onClose() : setMode("choose"))}
-              style={{ flex: 1 }}
-            />
-            <Button
-              testID="btn-submit-category-rename"
-              label={t("common.save")}
-              icon={Save}
-              onPress={handleRename}
-              loading={isRenaming}
-              disabled={name.trim().length === 0}
-              style={{ flex: 1 }}
-            />
-          </View>
+          <Button
+            testID="btn-submit-category-rename"
+            label={t("common.save")}
+            icon={Save}
+            onPress={handleRename}
+            loading={isRenaming}
+            disabled={name.trim().length === 0}
+            fullWidth
+          />
         </View>
       ) : (
         <View style={{ gap: theme.spacing.md }}>
@@ -170,12 +165,6 @@ export function CategoryManageDialog({
           />
 
           {error !== null ? <Text tone="danger">{error}</Text> : null}
-          <Button
-            label={t("common.cancel")}
-            variant="ghost"
-            onPress={onClose}
-            fullWidth
-          />
         </View>
       )}
     </BottomSheetModal>

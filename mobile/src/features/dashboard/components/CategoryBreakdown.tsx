@@ -6,7 +6,7 @@ import type { CategorySpendSlice, CurrencyTotal } from '@sora/contracts';
 
 import { DonutChart, Money, Text } from '@/components';
 import { useTheme } from '@/app/providers';
-import { formatMoneyString, groupByParent, rankCategories, type RankedCategory } from '@/utils';
+import { formatMoneyString, groupByTopLevel, rankCategories, type CategoryNode, type RankedCategory } from '@/utils';
 
 const TOP_CATEGORY_LIMIT = 5;
 
@@ -16,7 +16,7 @@ export interface CategoryBreakdownProps {
   previousSlices: CategorySpendSlice[];
   expenseTotal: CurrencyTotal | undefined;
   /** Category names by id, so a parent that recorded no direct spending still gets a header. */
-  categoryNames: ReadonlyMap<string, string>;
+  categories: readonly CategoryNode[];
   onSelectCategory?: (categoryId: string) => void;
 }
 
@@ -33,7 +33,7 @@ export function CategoryBreakdown({
   slices,
   previousSlices,
   expenseTotal,
-  categoryNames,
+  categories,
   onSelectCategory,
 }: CategoryBreakdownProps) {
   const theme = useTheme();
@@ -54,7 +54,7 @@ export function CategoryBreakdown({
     );
   }
 
-  const groups = groupByParent(slices, categoryNames);
+  const groups = groupByTopLevel(slices, categories);
   const ranked = rankCategories(slices, previousSlices, TOP_CATEGORY_LIMIT);
 
   return (

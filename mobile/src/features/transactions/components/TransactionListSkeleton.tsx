@@ -65,7 +65,7 @@ export function TransactionDaysSkeleton() {
       {[4, 2].map((rows, day) => (
         <View
           key={day}
-          style={{ borderRadius: theme.radius.md, backgroundColor: theme.colors.surface, marginBottom: theme.spacing.md, ...theme.shadows.sm }}
+          style={{ borderRadius: theme.radius.md, backgroundColor: theme.colors.surface, marginBottom: theme.spacing.sm, ...theme.shadows.sm }}
         >
           <View
             className="flex-row justify-between items-center"

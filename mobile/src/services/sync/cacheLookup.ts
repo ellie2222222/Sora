@@ -40,16 +40,23 @@ export function findCachedById<T extends { id: string }>(
   endpointName: string,
   id: string,
 ): T | null {
-  const queries = (apiState as { queries?: Record<string, CachedQueryEntry> } | undefined)?.queries;
-  if (!queries) return null;
+  return cachedItems<T>(apiState, endpointName).find((item) => item.id === id) ?? null;
+}
 
+/** Every record cached under `endpointName`, across all its query variants, one per id. */
+export function cachedItems<T extends { id: string }>(apiState: unknown, endpointName: string): T[] {
+  const queries = (apiState as { queries?: Record<string, CachedQueryEntry> } | undefined)?.queries;
+  if (!queries) return [];
+
+  const byId = new Map<string, T>();
   for (const entry of Object.values(queries)) {
     if (entry?.endpointName !== endpointName) continue;
     const data = entry.data;
     const list = Array.isArray(data) ? data : (data as { items?: unknown[] } | undefined)?.items;
     if (!Array.isArray(list)) continue;
-    const match = (list as T[]).find((item) => item && item.id === id);
-    if (match) return match;
+    for (const item of list as T[]) {
+      if (item && !byId.has(item.id)) byId.set(item.id, item);
+    }
   }
-  return null;
+  return [...byId.values()];
 }

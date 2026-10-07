@@ -6,7 +6,7 @@ import type { AiConversationResponse } from '@sora/contracts';
 
 import { BottomSheetModal, closeOpenSwipeRow, ConfirmDialog, SwipeableRow, Text } from '@/components';
 import { useTheme } from '@/app/providers';
-import { dayOfInstant, formatDay } from '@/utils';
+import { dayOfDate, formatDay } from '@/utils';
 
 export function ConversationHistorySheet({
   visible,
@@ -66,7 +66,7 @@ export function ConversationHistorySheet({
                       {conversation.title}
                     </Text>
                     <Text variant="caption" tone="faint">
-                      {formatDay(dayOfInstant(conversation.updatedAt))}
+                      {formatDay(dayOfDate(new Date(conversation.updatedAt)))}
                     </Text>
                   </Pressable>
                   <Pressable

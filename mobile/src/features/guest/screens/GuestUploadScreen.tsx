@@ -7,7 +7,8 @@ import { WalletStatus, type WalletResponse } from '@sora/contracts';
 import { Button, Card, Input, StateView, Text } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
 import { walletsApi } from '@/services/api';
-import { messageOf } from '@/utils';
+import { GUEST_WALLET_NAME } from '@/services/guest';
+import { deviceTimeZone, messageOf } from '@/utils';
 
 /**
  * Rendered by `RootNavigator` whenever `pendingGuestUpload` is true: a real
@@ -86,7 +87,7 @@ export function GuestUploadScreen() {
     setCreating(true);
     setListError(null);
     try {
-      const created = await walletsApi.create({ name: newWalletName.trim() });
+      const created = await walletsApi.create({ name: newWalletName.trim(), timeZone: deviceTimeZone() });
       setTargetWalletId(created.id);
     } catch (error) {
       setListError(error);
@@ -193,7 +194,7 @@ export function GuestUploadScreen() {
         {wallets.map((wallet) => (
           <Card key={wallet.id}>
             <View className="flex-row justify-between items-center">
-              <Text weight="semibold">{wallet.name === 'Guest Wallet' ? t('wallets.yourWallet') : wallet.name}</Text>
+              <Text weight="semibold">{wallet.name === GUEST_WALLET_NAME ? t('wallets.yourWallet') : wallet.name}</Text>
               <Button
                 testID={`btn-use-wallet-${wallet.id}`}
                 label={t('guest.upload.useThisWallet')}

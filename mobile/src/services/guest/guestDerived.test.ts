@@ -173,7 +173,7 @@ describe('guestBudgetsApi — spend (BR-06)', () => {
     name: 'Food, September',
     amount: '1000000',
     currency: 'VND',
-    periodType: 'MONTHLY' as const,
+    periodType: 'CUSTOM' as const,
     startDate: '2026-09-01',
     endDate: '2026-09-30',
   };
@@ -184,7 +184,7 @@ describe('guestBudgetsApi — spend (BR-06)', () => {
     const created = await guestBudgetsApi.create(budget);
 
     const spent = calculateBudgetSpent(
-      { walletId: WALLET_ID, categoryId: EXPENSE_CATEGORY_ID, goalId: null, currency: budget.currency, startDate: budget.startDate, endDate: budget.endDate },
+      { walletId: WALLET_ID, categoryId: EXPENSE_CATEGORY_ID, categoryIds: [EXPENSE_CATEGORY_ID], goalId: null, currency: budget.currency, startDate: budget.startDate, endDate: budget.endDate, timeZone: 'UTC' },
       guestStore.current().transactions.map((transaction) => toSpendRelevant(transaction, WALLET_ID)),
     );
 
@@ -235,12 +235,12 @@ describe('guestBudgetsApi — spend (BR-06)', () => {
     assert.equal(code, 'BUDGET_PERIOD_OVERLAP');
   });
 
-  it('allows the same window once the first budget is archived', async () => {
+  it('allows the same window once the first budget is deleted', async () => {
     const first = await guestBudgetsApi.create(budget);
-    await guestBudgetsApi.archive(first.id);
+    await guestBudgetsApi.delete(first.id);
 
     const second = await guestBudgetsApi.create({ ...budget, name: 'September, again' });
-    assert.equal(second.status, 'ACTIVE');
+    assert.equal(second.name, 'September, again');
   });
 
   it('allows an adjacent, non-overlapping window', async () => {
@@ -252,7 +252,7 @@ describe('guestBudgetsApi — spend (BR-06)', () => {
       startDate: '2026-10-01',
       endDate: '2026-10-31',
     });
-    assert.equal(october.status, 'ACTIVE');
+    assert.equal(october.name, 'Food, October');
   });
 
   it('refuses an INCOME category, which cannot be budgeted', async () => {
@@ -263,7 +263,7 @@ describe('guestBudgetsApi — spend (BR-06)', () => {
 
 describe('guestBudgetsApi — budget kinds (API spec §12.2)', () => {
   const window = { walletId: WALLET_ID, amount: '1000000', currency: 'VND', startDate: '2026-09-01', endDate: '2026-09-30' };
-  const wholeWallet = { ...window, name: 'Everything, September', periodType: 'MONTHLY' as const };
+  const wholeWallet = { ...window, name: 'Everything, September', periodType: 'CUSTOM' as const };
   const laptopGoal = { walletId: WALLET_ID, name: 'Laptop', targetAmount: '30000000', currency: 'VND' };
 
   it('BUD-US-02: counts every expense paid from the wallet toward a wallet-wide budget, but no transfer', async () => {
@@ -295,7 +295,7 @@ describe('guestBudgetsApi — budget kinds (API spec §12.2)', () => {
 
   it('BUD-US-01: lets budgets of different kinds share days, but not two of the same kind', async () => {
     await guestBudgetsApi.create(wholeWallet);
-    await guestBudgetsApi.create({ ...window, name: 'Food', categoryId: EXPENSE_CATEGORY_ID, periodType: 'MONTHLY' });
+    await guestBudgetsApi.create({ ...window, name: 'Food', categoryId: EXPENSE_CATEGORY_ID, periodType: 'CUSTOM' });
     const code = await codeOf(() => guestBudgetsApi.create({ ...wholeWallet, name: 'Everything again' }));
     assert.equal(code, 'BUDGET_PERIOD_OVERLAP');
   });

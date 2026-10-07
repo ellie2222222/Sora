@@ -7,8 +7,7 @@ import { AddAccountModal } from '../../features/accounts/components/AddAccountMo
 import { AddBudgetModal } from '../../features/budgets/components/AddBudgetModal.tsx';
 import { AddContributionModal } from '../../features/goals/components/AddContributionModal.tsx';
 import { AddGoalModal } from '../../features/goals/components/AddGoalModal.tsx';
-import { AddTransactionModal } from '../../features/transactions/components/AddTransactionModal.tsx';
-import { EditTransactionModal } from '../../features/transactions/components/EditTransactionModal.tsx';
+import { TransactionFormModal } from '../../features/transactions/components/TransactionFormModal.tsx';
 import { CreateWalletModal } from '../../features/wallets/components/CreateWalletModal.tsx';
 import { ModalContext, type ModalParams, type ModalType } from './ModalContext.ts';
 
@@ -29,19 +28,30 @@ export function ModalProvider({ children }: { children: ReactNode }) {
 
   const contextValue = useMemo(() => ({ openModal, closeModal }), [openModal, closeModal]);
 
+  const { parent } = modalParams;
+  const back =
+    parent === undefined
+      ? undefined
+      : () => {
+          closeModal();
+          parent.onBack?.();
+        };
+
   return (
     <ModalContext.Provider value={contextValue}>
       {children}
 
-      <AddTransactionModal
+      <TransactionFormModal
         visible={activeModal === 'AddTransaction'}
         onClose={closeModal}
       />
 
-      <EditTransactionModal
+      <TransactionFormModal
         visible={activeModal === 'EditTransaction'}
         transactionId={modalParams.transactionId}
         onClose={closeModal}
+        onCloseAll={parent?.onClose}
+        onBack={back}
       />
 
       <AddAccountModal
@@ -65,6 +75,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
         visible={activeModal === 'AddContribution'}
         goalId={modalParams.goalId}
         onClose={closeModal}
+        onCloseAll={parent?.onClose}
+        onBack={back}
       />
 
       <CreateWalletModal

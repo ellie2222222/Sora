@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { AuditLogResponse } from '@sora/contracts';
 
 import { Card, ListLoadMoreFooter, RefreshableSectionList, Skeleton, StateView, Text } from '@/components';
-import { useTheme } from '@/app/providers';
+import { useTheme, useWallets } from '@/app/providers';
 import { useListAuditLogsInfiniteQuery } from '@/app/store';
 import {
   canLoadMore,
@@ -15,6 +15,7 @@ import {
   getRoleLabel,
   groupConsecutiveByDay,
   isNetworkError,
+  today,
 } from '@/utils';
 
 /** WAL-US-13. OWNER-only (API spec §15.1) — only ever reached from a control already gated to the owner. */
@@ -25,7 +26,9 @@ export function WalletActivityPanel({ walletId }: { walletId: string }) {
 
   const activity = useListAuditLogsInfiniteQuery({ walletId });
   const items = useMemo(() => flattenPages(activity.data?.pages), [activity.data]);
-  const sections = useMemo(() => groupByDay(items), [items]);
+  const { wallets, timeZone: activeTimeZone } = useWallets();
+  const timeZone = wallets.find((wallet) => wallet.id === walletId)?.timeZone ?? activeTimeZone;
+  const sections = useMemo(() => groupByDay(items, timeZone), [items, timeZone]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -102,9 +105,9 @@ export function WalletActivityPanel({ walletId }: { walletId: string }) {
   );
 }
 
-function groupByDay(items: readonly AuditLogResponse[]): { title: string; data: AuditLogResponse[] }[] {
-  return groupConsecutiveByDay(items, (item) => item.createdAt).map(({ day, items: data }) => ({
-    title: formatDayHeading(day),
+function groupByDay(items: readonly AuditLogResponse[], timeZone: string): { title: string; data: AuditLogResponse[] }[] {
+  return groupConsecutiveByDay(items, (item) => item.createdAt, timeZone).map(({ day, items: data }) => ({
+    title: formatDayHeading(day, today(timeZone)),
     data,
   }));
 }

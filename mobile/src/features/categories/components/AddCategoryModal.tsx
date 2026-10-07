@@ -44,6 +44,7 @@ export function AddCategoryModal({
       visible={visible}
       onClose={onClose}
       title={t("categories.newCategory")}
+      closeLabel="cancel"
     >
       <View style={{ gap: theme.spacing.md }}>
         <Input

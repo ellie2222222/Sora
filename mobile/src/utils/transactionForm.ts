@@ -15,10 +15,13 @@
 
 import {
   createTransactionSchema,
+  parseMoney,
   TransactionType,
   CategoryType,
   TransactionStatus,
   type CreateTransactionRequest,
+  type TransactionResponse,
+  type UpdateTransactionRequest,
 } from '@sora/contracts';
 
 /** Every field the form can hold, regardless of which type is selected. */
@@ -62,6 +65,47 @@ export function emptyDraft(options: EmptyDraftOptions): TransactionDraft {
     transactionDate: options.transactionDate,
     status: TransactionStatus.COMPLETED,
   };
+}
+
+/** The form filled with a recorded transaction, for editing it. */
+export function draftFromTransaction(transaction: TransactionResponse): TransactionDraft {
+  return {
+    type: transaction.type,
+    amount: transaction.amount,
+    currency: transaction.currency,
+    fromAccountId: transaction.fromAccount?.id ?? null,
+    toAccountId: transaction.toAccount?.id ?? null,
+    categoryId: transaction.category?.id ?? null,
+    description: transaction.description ?? '',
+    reference: transaction.reference ?? '',
+    transactionDate: transaction.transactionDate,
+    status: transaction.status,
+  };
+}
+
+/** A stored amount as the keypad's expression: `150000.0000` → `150000`, `12.5000` → `12.5`. */
+export function expressionOfAmount(amount: string): string {
+  return amount.includes('.') ? amount.replace(/0+$/, '').replace(/\.$/, '') : amount;
+}
+
+/**
+ * Only what the edit changed, so an untouched transaction sends nothing and a note-only edit stays one.
+ * A changed account side the new type no longer uses is sent as null.
+ */
+export function updateBodyOf(previous: TransactionResponse, next: CreateTransactionRequest): UpdateTransactionRequest {
+  const body: UpdateTransactionRequest = {};
+  const nextFrom = 'fromAccountId' in next ? next.fromAccountId : null;
+  const nextTo = 'toAccountId' in next ? next.toAccountId : null;
+  if (next.type !== previous.type) body.type = next.type;
+  if (parseMoney(next.amount) !== parseMoney(previous.amount)) body.amount = next.amount;
+  if (next.currency !== previous.currency) body.currency = next.currency;
+  if (nextFrom !== (previous.fromAccount?.id ?? null)) body.fromAccountId = nextFrom;
+  if (nextTo !== (previous.toAccount?.id ?? null)) body.toAccountId = nextTo;
+  if ((next.categoryId ?? null) !== (previous.category?.id ?? null)) body.categoryId = next.categoryId ?? null;
+  if ((next.description ?? null) !== previous.description) body.description = next.description ?? null;
+  if (next.transactionDate !== previous.transactionDate) body.transactionDate = next.transactionDate;
+  if ((next.reference ?? null) !== previous.reference) body.reference = next.reference ?? null;
+  return body;
 }
 
 /** Which inputs a type actually owns (API spec §11's shape table). */

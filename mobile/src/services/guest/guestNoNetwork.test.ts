@@ -91,7 +91,7 @@ describe('guest mode makes no network request (GST-US-01)', () => {
       name: 'Coffee, September',
       amount: '500000',
       currency: 'VND',
-      periodType: 'MONTHLY',
+      periodType: 'CUSTOM',
       startDate: '2026-09-01',
       endDate: '2026-09-30',
       categoryId: category.id,
@@ -117,7 +117,7 @@ describe('guest mode makes no network request (GST-US-01)', () => {
 
     await guestGoalsApi.removeContribution(goal.id, contribution.id);
     await guestGoalsApi.cancel(goal.id);
-    await guestBudgetsApi.archive(budget.id);
+    await guestBudgetsApi.delete(budget.id);
     await guestTransactionsApi.delete(expense.id);
     await guestCategoriesApi.archive(category.id);
     await guestAccountsApi.archive(bank.id);

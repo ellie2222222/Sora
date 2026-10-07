@@ -15,6 +15,8 @@ export interface PeriodBarProps {
   onOpenPicker?: () => void;
   /** Distinguishes the pills' testIDs between the screens that mount this. */
   testIDPrefix?: string;
+  /** Today in the wallet's zone. */
+  today: CalendarDay;
 }
 
 /**
@@ -31,6 +33,7 @@ export function PeriodBar({
   onShift,
   onOpenPicker,
   testIDPrefix = 'dashboard',
+  today,
 }: PeriodBarProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -81,7 +84,7 @@ export function PeriodBar({
         onOpenPicker={onOpenPicker}
         // The current window is the last one with any data in it; stepping past
         // it would only ever show an empty period.
-        disableNext={isCurrentPeriod(period, anchor)}
+        disableNext={isCurrentPeriod(period, anchor, today)}
       />
     </View>
   );

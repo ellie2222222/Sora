@@ -13,12 +13,15 @@ import * as Localization from 'expo-localization';
 import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
+import { LOCALES, type Locale } from '@sora/contracts';
+
 import { LOCALE_STORAGE_KEY, preferencesStore } from '@/services/storage';
 import en from './locales/en.ts';
 import vi from './locales/vi.ts';
 
-export const SUPPORTED_LOCALES = ['en', 'vi'] as const;
-export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
+// The contract's tuple, so the app, the API's locale check and the translation table cannot disagree.
+export const SUPPORTED_LOCALES = LOCALES;
+export type SupportedLocale = Locale;
 
 const DEFAULT_LOCALE: SupportedLocale = 'en';
 

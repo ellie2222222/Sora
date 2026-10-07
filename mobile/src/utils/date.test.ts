@@ -18,7 +18,7 @@ import {
   formatDayHeading,
   formatSavedAt,
   formatShortDay,
-  instantOfDay,
+  middayOf,
   monthGrid,
   parseDay,
   quarterOf,
@@ -27,6 +27,7 @@ import {
   startOfQuarter,
   startOfWeek,
   startOfYear,
+  today,
 } from './date.ts';
 
 // formatDayHeading's Today/Yesterday words come from the app-wide i18next instance, not its locale argument.
@@ -174,14 +175,23 @@ describe('parseDay', () => {
   });
 });
 
-describe('instant conversion', () => {
-  it('lands mid-day so a timezone shift cannot move the calendar day', () => {
-    assert.equal(instantOfDay('2026-08-17'), '2026-08-17T12:00:00.000Z');
-    assert.equal(dayOfInstant('2026-08-17T12:00:00.000Z'), '2026-08-17');
+describe("instant conversion, in the wallet's zone", () => {
+  it('stamps a date-only entry at midday in the wallet zone, so it reads back as the same wallet day', () => {
+    assert.equal(middayOf('2026-08-17', 'Asia/Ho_Chi_Minh'), '2026-08-17T05:00:00.000Z');
+    assert.equal(dayOfInstant(middayOf('2026-08-17', 'Asia/Ho_Chi_Minh'), 'Asia/Ho_Chi_Minh'), '2026-08-17');
+    assert.equal(dayOfInstant(middayOf('2026-08-17', 'America/Los_Angeles'), 'America/Los_Angeles'), '2026-08-17');
   });
 
-  it('keeps the original time of day when only the date is corrected', () => {
-    assert.equal(replaceDay('2026-08-17T08:45:00.000Z', '2026-09-02'), '2026-09-02T08:45:00.000Z');
+  it('keeps the wallet-local time of day when only the date is corrected', () => {
+    assert.equal(replaceDay('2026-08-17T08:45:00.000Z', '2026-09-02', 'UTC'), '2026-09-02T08:45:00.000Z');
+    // 06:30 on Nov 1 in Ho Chi Minh City (23:30Z the day before), picked onto Nov 3: still 06:30 there, on Nov 3.
+    const moved = replaceDay('2026-10-31T23:30:00.000Z', '2026-11-03', 'Asia/Ho_Chi_Minh');
+    assert.equal(moved, '2026-11-02T23:30:00.000Z');
+    assert.equal(dayOfInstant(moved, 'Asia/Ho_Chi_Minh'), '2026-11-03');
+  });
+
+  it("reads today in the wallet zone, not the device's", () => {
+    assert.match(today('Asia/Ho_Chi_Minh'), /^\d{4}-\d{2}-\d{2}$/);
   });
 });
 
@@ -209,7 +219,7 @@ describe('monthGrid', () => {
 describe('formatShortDay', () => {
   it('shows day and month only, in the locale order', () => {
     assert.equal(formatShortDay('2026-09-24', 'en'), 'Sep 24');
-    assert.equal(formatShortDay('2026-09-24', 'vi'), '24 thg 9');
+    assert.equal(formatShortDay('2026-09-24', 'vi'), '24 tháng 9');
   });
 
   it('shows the actual date for today, not a relative word', () => {
@@ -262,9 +272,9 @@ describe('formatDayHeading', () => {
 
   it('renders Vietnamese headings when the app language is Vietnamese', async () => {
     await i18next.changeLanguage('vi');
-    assert.equal(formatDayHeading('2026-09-25', REFERENCE, 'vi'), 'Hôm nay · 25 thg 9');
-    assert.equal(formatDayHeading('2026-09-24', REFERENCE, 'vi'), 'Hôm qua · 24 thg 9');
-    assert.equal(formatDayHeading('2026-09-23', REFERENCE, 'vi'), 'Thứ 4, 23 thg 9');
+    assert.equal(formatDayHeading('2026-09-25', REFERENCE, 'vi'), 'Hôm nay · 25 tháng 9');
+    assert.equal(formatDayHeading('2026-09-24', REFERENCE, 'vi'), 'Hôm qua · 24 tháng 9');
+    assert.equal(formatDayHeading('2026-09-23', REFERENCE, 'vi'), 'Thứ 4, 23 tháng 9');
   });
 
   it('returns nothing for an empty day', () => {

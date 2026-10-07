@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { Clock, RefreshCw, TriangleAlert, Wifi, WifiOff } from 'lucide-react-native';
+import { Clock, RefreshCw, TriangleAlert } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
@@ -31,6 +31,8 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
   const iconInset = (targetSize - theme.iconSize.md) / 2;
   const {
     isOnline,
+    connectionState: connectionStatus,
+    checkServer,
     isSyncing: retryInFlight,
     retrySync,
     isGuest,
@@ -39,6 +41,8 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
     syncIconColor,
     connectionTitle: connectionState,
     connectionDetail,
+    ConnectionIcon,
+    connectionIconColor,
     syncTitle: syncLabel,
     syncDetail,
   } = useSyncStatusView();
@@ -57,7 +61,10 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
         testID={`${testID}-connection`}
         accessibilityRole="button"
         accessibilityLabel={connectionLabel}
-        onPress={() => setOpenSheet('connection')}
+        onPress={() => {
+          setOpenSheet('connection');
+          void checkServer();
+        }}
         style={savedNote === null ? targetStyle : savedNoteTargetStyle}
       >
         {savedNote === null ? null : (
@@ -65,11 +72,11 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
             {savedNote}
           </Text>
         )}
-        {isOnline ? (
-          <Wifi size={theme.iconSize.md} color={theme.colors.textMuted} />
-        ) : (
-          <WifiOff size={theme.iconSize.md} color={theme.colors.warning} />
-        )}
+        {/* Muted when all is well: a green icon in every header would compete with the figures. */}
+        <ConnectionIcon
+          size={theme.iconSize.md}
+          color={connectionStatus === 'connected' ? theme.colors.textMuted : connectionIconColor}
+        />
       </Pressable>
 
       <Pressable

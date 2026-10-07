@@ -64,7 +64,7 @@ describe('OfflineQueue status transitions', () => {
     await queue.setOwner('user-a');
     const mutation = await queue.enqueue(newEntry());
 
-    await queue.markFailed(mutation.queueId, 'TRANSACTION_IMMUTABLE', 1);
+    await queue.markFailed(mutation.queueId, 'TRANSACTION_ALREADY_DELETED', 1);
 
     const row = queue.current()[0]!;
     assert.equal(row.status, 'failed');

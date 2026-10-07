@@ -40,11 +40,7 @@ export const transactionsApi = {
     );
   },
 
-  /**
-   * Only the descriptive fields. Amount, type and accounts are immutable server
-   * side (API spec §11.4) because every balance and budget figure derives from
-   * them; correcting a real mistake means `delete` then a fresh `create`.
-   */
+  /** Only the changed fields; an edit to amount, type or an account is checked as a create (API spec §11.4). */
   update(
     transactionId: string,
     body: UpdateTransactionRequest,

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Save } from 'lucide-react-native';
+import { Save, Trash2 } from 'lucide-react-native';
 import type { BudgetResponse } from '@sora/contracts';
 
 import { Button, Card, Input, MoneyInput, Text } from '@/components';
@@ -11,12 +11,12 @@ import { messageOf } from '@/utils';
 export interface BudgetEditCardProps {
   /** Render with `key={budget.id}` so an unsaved edit never follows the sheet to another budget. */
   budget: BudgetResponse;
-  onArchive: () => void;
-  /** Set by the caller when an archive started here fails. */
-  archiveError: string | null;
+  onDelete: () => void;
+  /** Set by the caller when a delete started here fails. */
+  deleteError: string | null;
 }
 
-export function BudgetEditCard({ budget, onArchive, archiveError }: BudgetEditCardProps) {
+export function BudgetEditCard({ budget, onDelete, deleteError }: BudgetEditCardProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -30,7 +30,7 @@ export function BudgetEditCard({ budget, onArchive, archiveError }: BudgetEditCa
   const nameValue = name ?? budget.name;
   const amountValue = amount ?? budget.amount;
   const isDirty = nameValue !== budget.name || amountValue !== budget.amount;
-  const error = saveError ?? archiveError;
+  const error = saveError ?? deleteError;
 
   async function handleSave() {
     setSaveError(null);
@@ -86,13 +86,13 @@ export function BudgetEditCard({ budget, onArchive, archiveError }: BudgetEditCa
         fullWidth
       />
       <Button
-        testID="btn-archive-budget"
-        label={t('budgets.archiveBudget', 'Archive budget')}
-        icon={Archive}
-        variant="danger"
+        testID="btn-delete-budget"
+        label={t('budgets.deleteBudget')}
+        icon={Trash2}
+        variant="danger-outline"
         onPress={() => {
           setSaveError(null);
-          onArchive();
+          onDelete();
         }}
         fullWidth
       />

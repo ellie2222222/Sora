@@ -29,10 +29,12 @@ export interface TransactionDayCardProps {
   onPress?: (transaction: TransactionResponse) => void;
   onEdit?: (transaction: TransactionResponse) => void;
   onDelete?: (transaction: TransactionResponse) => void;
+  /** Today in the wallet's zone, so the heading can say "Today"/"Yesterday". */
+  today: CalendarDay;
 }
 
 /** One day of a transaction list: its heading and totals, then its rows, on one raised card. */
-export function TransactionDayCard({ day, transactions, showTotals, onPress, onEdit, onDelete }: TransactionDayCardProps) {
+export function TransactionDayCard({ day, transactions, showTotals, onPress, onEdit, onDelete, today }: TransactionDayCardProps) {
   const theme = useTheme();
 
   return (
@@ -40,7 +42,7 @@ export function TransactionDayCard({ day, transactions, showTotals, onPress, onE
       style={{
         borderRadius: theme.radius.md,
         backgroundColor: theme.colors.surface,
-        marginBottom: theme.spacing.md,
+        marginBottom: theme.spacing.sm,
         ...theme.shadows.sm,
       }}
     >
@@ -51,7 +53,7 @@ export function TransactionDayCard({ day, transactions, showTotals, onPress, onE
           style={{ paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.xs }}
         >
           <Text variant="label" weight="semibold">
-            {formatDayHeading(day)}
+            {formatDayHeading(day, today)}
           </Text>
           {showTotals ? <TransactionTotals transactions={transactions} /> : null}
         </View>

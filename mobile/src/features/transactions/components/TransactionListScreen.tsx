@@ -57,6 +57,13 @@ interface DaySection {
 
 const FILTER_TYPES = ['ALL', TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.TRANSFER] as const;
 
+const FILTER_LABEL_KEY = {
+  ALL: 'transactions.filterAll',
+  [TransactionType.INCOME]: 'transactions.filterIncome',
+  [TransactionType.EXPENSE]: 'transactions.filterExpense',
+  [TransactionType.TRANSFER]: 'transactions.filterTransfer',
+} as const;
+
 /** The list is always one period's window, so an empty list says nothing about the wallet's other periods. */
 const EMPTY_TITLE_KEY = {
   ALL: 'home.noTransactionsTitle',
@@ -86,12 +93,13 @@ export function TransactionListScreen({
   const theme = useTheme();
   const { t } = useTranslation();
   const { isGuest } = useAuth();
-  const { activeWalletId, isLoading: walletsLoading, permissions } = useWallets();
+  const { activeWalletId, isLoading: walletsLoading, permissions, timeZone } = useWallets();
   const { openModal } = useModal();
   const { showToast } = useToast();
 
   const [period, setPeriod] = useState<DashboardPeriod>('monthly');
-  const [selectedDay, setSelectedDay] = useState<CalendarDay>(today());
+  const [selectedDay, setSelectedDay] = useState<CalendarDay>(() => today(timeZone));
+  const walletToday = today(timeZone);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionResponse | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<TransactionResponse | null>(null);
@@ -156,7 +164,7 @@ export function TransactionListScreen({
 
   // The last loaded day may continue on the next page, so its heading total waits too.
   const sections = useMemo<DaySection[]>(() => {
-    const groups = groupTransactionsByDay(items);
+    const groups = groupTransactionsByDay(items, timeZone);
     const monthKeyOf = (day: CalendarDay) => day.slice(0, 7);
     const byMonth = new Map<string, TransactionResponse[]>();
     for (const group of groups) {
@@ -183,13 +191,16 @@ export function TransactionListScreen({
         monthTransactions: hasMorePages && monthKey === lastLoadedMonth ? null : (byMonth.get(monthKey) ?? null),
       };
     });
-  }, [items, hasMorePages, period]);
+  }, [items, hasMorePages, period, timeZone]);
 
   const handlePressTransaction = useCallback((transaction: TransactionResponse) => setSelectedTransaction(transaction), []);
   const handleEditTransaction = useCallback(
     (transaction: TransactionResponse) => openModal('EditTransaction', { transactionId: transaction.id }),
     [openModal],
   );
+  // The detail sheet closes as Edit opens, so Back opens it again on the same transaction.
+  const handleEditFromDetail = (transaction: TransactionResponse) =>
+    openModal('EditTransaction', { transactionId: transaction.id, parent: { onBack: () => setSelectedTransaction(transaction) } });
   const handleDeleteTransaction = useCallback((transaction: TransactionResponse) => setDeletingTransaction(transaction), []);
   const handleEndReached = () => {
     if (canLoadMore(transactions)) void transactions.fetchNextPage();
@@ -272,6 +283,7 @@ export function TransactionListScreen({
               onPress={handlePressTransaction}
               onEdit={permissions.canWrite ? handleEditTransaction : undefined}
               onDelete={permissions.canWrite ? handleDeleteTransaction : undefined}
+              today={walletToday}
             />
           </View>
         )}
@@ -309,6 +321,7 @@ export function TransactionListScreen({
             onShift={(delta) => setSelectedDay((current) => shiftAnchor(period, current, delta))}
             onOpenPicker={() => setShowDatePicker(true)}
             testIDPrefix={testIDPrefix}
+            today={walletToday}
           />
         </View>
         {(activeWalletId === null && walletsLoading) || (transactions.isLoading && items.length === 0) ? (
@@ -341,7 +354,7 @@ export function TransactionListScreen({
             pick a day the list does not narrow to. */}
         {period === 'daily' ? (
           <View style={{ paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs }}>
-            <DateStrip selectedDay={selectedDay} onSelectDay={setSelectedDay} testID={`${testIDPrefix}-date-strip`} />
+            <DateStrip selectedDay={selectedDay} onSelectDay={setSelectedDay} today={walletToday} testID={`${testIDPrefix}-date-strip`} />
           </View>
         ) : null}
 
@@ -355,10 +368,7 @@ export function TransactionListScreen({
           <SegmentedControl
             options={FILTER_TYPES.map((type) => ({
               value: type,
-              label:
-                type === 'ALL'
-                  ? t('common.all', 'All')
-                  : t(`transactions.type.${type.toLowerCase()}`, { defaultValue: type.charAt(0).toUpperCase() + type.slice(1).toLowerCase() }),
+              label: t(FILTER_LABEL_KEY[type]),
               // Not `btn-transaction-type-*`: the add sheet's type picker owns that id and opens over this screen.
               testID: `btn-transaction-filter-${type}`,
             }))}
@@ -368,7 +378,9 @@ export function TransactionListScreen({
         </View>
 
         <SlideSwap swapKey={dateFrom} style={{ flex: 1 }}>
-          {renderContent()}
+          <SlideSwap swapKey={FILTER_TYPES.indexOf(filterType)} style={{ flex: 1 }}>
+            {renderContent()}
+          </SlideSwap>
         </SlideSwap>
 
         {showFab ? (
@@ -383,6 +395,7 @@ export function TransactionListScreen({
         )}
         <DatePickerModal
           visible={showDatePicker}
+          today={walletToday}
           selectedDay={selectedDay}
           onSelectDay={setSelectedDay}
           onClose={() => setShowDatePicker(false)}
@@ -392,7 +405,7 @@ export function TransactionListScreen({
           visible={Boolean(selectedTransaction)}
           transaction={selectedTransaction}
           onClose={() => setSelectedTransaction(null)}
-          onEdit={handleEditTransaction}
+          onEdit={handleEditFromDetail}
         />
         <DeleteTransactionDialog
           transaction={deletingTransaction}

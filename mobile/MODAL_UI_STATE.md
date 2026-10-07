@@ -9,12 +9,23 @@
 > currency-picker and multi-category-budget suggestions were reviewed and deliberately **not**
 > implemented (no domain/schema support). Left as historical record below rather than rewritten.
 >
+> **2026-10-05 update:** Add and Edit Transaction are one component, `TransactionFormModal`: Edit
+> fills it with the transaction and every field (type, amount, accounts) stays editable (BR-03).
+> `EditTransactionModal` and `SheetFormHeader` are gone. Every sheet's header comes from
+> `BottomSheetModal`: Back top-left (only with somewhere to go back to), title centred, Cancel
+> (forms) or Close top-right. Sections below naming the removed files are history.
+>
 > **2026-09-24 update:** `AddTransactionModal`, `AddBudgetModal` and `AddGoalModal` now share one
 > layout: `SheetFormHeader` (Cancel + title), an always-open `CalculatorKeypad` whose confirm key
 > submits, the amount shown above it beside an `IconChip` summary, and the keypad's date key opening
 > `DatePickerModal` (transaction date / budget start / goal deadline). No `MoneyInput` or `DateField`
 > to tap first. Budget: period buttons + inline `CategoryGrid`, end date via the window chip. The
 > rows below for these three modals predate this.
+>
+> **2026-10-05 update:** a goal's deadline, on create (chip and keypad date key) and in `GoalEditCard`
+> (`DateField`), opens `DatePresetSheet`: quick options computed from today (end of this month,
+> in 3/6 months, end of this year, in 1/2 years) and a Custom date row opening `DatePickerModal`;
+> a past day stays selectable.
 
 ---
 
@@ -311,7 +322,7 @@ Multiselect is currently absent across all modals (everything is strictly single
 
 ### Immediate Action Items — status as of 2026-09-16
 1. ✅ **Connect `DatePickerModal`** in `EditTransactionModal` and `AddTransactionModal` — done.
-   ⬜ Still open for `AddGoalModal` (target date).
+   ✅ `AddGoalModal` (target date) — done, via `DatePresetSheet` (2026-10-05 update above).
 2. ⬜ **Support Custom *and* Weekly Budget Ranges**: `AddBudgetModal` needs a real weekly calc (not `addMonths`) plus start/end date pickers for `CUSTOM`.
 3. ⬜ **Allow Backdating in `AddContributionModal`** — `AddTransactionModal` already has this via its `DateField`.
 4. ⬜ **Currency Select Dropdown**: Replace raw 3-letter currency text input in `AddAccountModal` with a standardized currency picker.

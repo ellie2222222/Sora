@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Archive, Ban, Pencil, PiggyBank, Plus, Target } from 'lucide-react-native';
+import { Ban, Pencil, PiggyBank, Plus, Target, Trash2 } from 'lucide-react-native';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { BudgetStatus, GoalStatus, type BudgetResponse, type GoalResponse } from '@sora/contracts';
+import { GoalStatus, type BudgetResponse, type GoalResponse } from '@sora/contracts';
 
 import {
   AnimatedScreen,
@@ -19,7 +19,7 @@ import {
 } from '@/components';
 import { useModal, useTheme, useToast, useWallets } from '@/app/providers';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
-import { ArchiveBudgetDialog, BudgetDetailModal } from '@/features/budgets';
+import { BudgetDetailModal, DeleteBudgetDialog } from '@/features/budgets';
 import { CancelGoalDialog, GoalDetailModal } from '@/features/goals';
 import { today, isNetworkError } from '@/utils';
 import { useListBudgetsQuery, useListGoalsQuery } from '@/app/store';
@@ -31,22 +31,22 @@ type PlanningSection = 'budgets' | 'goals';
 export function PlanningScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { activeWalletId, permissions } = useWallets();
+  const { activeWalletId, permissions, timeZone } = useWallets();
   const { openModal } = useModal();
   const { showToast } = useToast();
   const [section, setSection] = useState<PlanningSection>('budgets');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
-  const [archivingBudgetId, setArchivingBudgetId] = useState<string | null>(null);
+  const [deletingBudgetId, setDeletingBudgetId] = useState<string | null>(null);
   const [cancellingGoalId, setCancellingGoalId] = useState<string | null>(null);
 
-  // Editing lives in each detail sheet, so Edit opens it; the list shows ACTIVE rows only, all editable.
+  // Editing lives in each detail sheet, so Edit opens it; the list shows the budgets covering today, all editable.
   const budgetActions = (budget: BudgetResponse): SwipeRowAction[] =>
     permissions.canWrite
       ? [
           { key: 'edit', label: t('common.edit'), icon: Pencil, tone: 'primary', onPress: () => setSelectedBudgetId(budget.id), testID: 'btn-edit-budget' },
-          { key: 'archive', label: t('common.archive'), icon: Archive, tone: 'danger', onPress: () => setArchivingBudgetId(budget.id), testID: 'btn-archive-budget' },
+          { key: 'delete', label: t('common.delete'), icon: Trash2, tone: 'danger', onPress: () => setDeletingBudgetId(budget.id), testID: 'btn-delete-budget' },
         ]
       : [];
   const goalActions = (goal: GoalResponse): SwipeRowAction[] =>
@@ -59,7 +59,7 @@ export function PlanningScreen() {
       : [];
 
   const budgets = useListBudgetsQuery(
-    { walletId: activeWalletId ?? '', status: BudgetStatus.ACTIVE, activeOn: today() },
+    { walletId: activeWalletId ?? '', activeOn: today(timeZone) },
     { skip: activeWalletId === null },
   );
 
@@ -244,12 +244,12 @@ export function PlanningScreen() {
       </WalletContextBar>
       <BudgetDetailModal budgetId={selectedBudgetId} onClose={() => setSelectedBudgetId(null)} />
       <GoalDetailModal goalId={selectedGoalId} onClose={() => setSelectedGoalId(null)} />
-      <ArchiveBudgetDialog
-        budgetId={archivingBudgetId}
-        onCancel={() => setArchivingBudgetId(null)}
-        onArchived={() => setArchivingBudgetId(null)}
+      <DeleteBudgetDialog
+        budgetId={deletingBudgetId}
+        onCancel={() => setDeletingBudgetId(null)}
+        onDeleted={() => setDeletingBudgetId(null)}
         onError={(message) => {
-          setArchivingBudgetId(null);
+          setDeletingBudgetId(null);
           showToast(message, 'error');
         }}
       />

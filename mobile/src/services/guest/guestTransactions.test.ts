@@ -179,7 +179,7 @@ describe('guestTransactionsApi.create', () => {
 });
 
 describe('guestTransactionsApi.update — BR-03', () => {
-  it('changes only description, date, category and reference', async () => {
+  it('changes description, date and reference without touching the money fields', async () => {
     const created = await guestTransactionsApi.create(expense());
 
     const updated = await guestTransactionsApi.update(created.id, {
@@ -191,26 +191,35 @@ describe('guestTransactionsApi.update — BR-03', () => {
     assert.equal(updated.description, 'Lunch');
     assert.equal(updated.reference, 'INV-9');
     assert.equal(updated.transactionDate, '2026-09-06T09:00:00.000Z');
-    // The immutable four are untouched.
     assert.equal(updated.amount, created.amount);
     assert.equal(updated.type, created.type);
     assert.equal(updated.fromAccount?.id, created.fromAccount?.id);
     assert.equal(updated.toAccount, created.toAccount);
   });
 
-  it('ignores an attempt to smuggle in an immutable field', async () => {
+  it('edits amount, account and type in place, as the server does', async () => {
     const created = await guestTransactionsApi.create(expense());
 
-    // A caller ignoring the types: `updateTransactionSchema` has no such field,
-    // so the amount cannot be rewritten through this path (BR-03).
-    await guestTransactionsApi.update(created.id, {
-      description: 'Tampered',
-      amount: '999999',
-    } as never);
+    const amount = await guestTransactionsApi.update(created.id, { amount: '200000', description: 'Lunch' });
+    assert.deepEqual([amount.amount, amount.description], ['200000', 'Lunch']);
 
+    const moved = await guestTransactionsApi.update(created.id, { fromAccountId: OTHER_ACCOUNT_ID });
+    assert.equal(moved.fromAccount?.id, OTHER_ACCOUNT_ID);
+
+    const income = await guestTransactionsApi.update(created.id, { type: 'INCOME', toAccountId: ACCOUNT_ID, categoryId: INCOME_CATEGORY_ID });
+    assert.deepEqual([income.type, income.fromAccount, income.toAccount?.id, income.category?.id], ['INCOME', null, ACCOUNT_ID, INCOME_CATEGORY_ID]);
+  });
+
+  it('refuses an edit into a shape a create would refuse, and leaves the row as it was', async () => {
+    const created = await guestTransactionsApi.create(expense());
+
+    assert.equal(await codeOf(() => guestTransactionsApi.update(created.id, { type: 'INCOME' })), 'VALIDATION_FAILED');
+    assert.equal(
+      await codeOf(() => guestTransactionsApi.update(created.id, { type: 'INCOME', toAccountId: ACCOUNT_ID })),
+      'CATEGORY_WRONG_TYPE',
+    );
     const after = await guestTransactionsApi.detail(created.id);
-    assert.equal(after.amount, created.amount);
-    assert.equal(after.description, 'Tampered');
+    assert.deepEqual([after.type, after.fromAccount?.id], ['EXPENSE', ACCOUNT_ID]);
   });
 
   it('refuses to edit a deleted transaction', async () => {

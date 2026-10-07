@@ -1,4 +1,4 @@
-import { Archive, Check, ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus, UsersRound, Wallet } from 'lucide-react-native';
+import { Archive, Check, ChevronDown, ChevronRight, Pencil, Plus, UsersRound, Wallet } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,7 @@ import { WalletRole, type WalletResponse } from '@sora/contracts';
 import { BottomSheetModal, Button, closeOpenSwipeRow, MutationConfirmDialog, SwipeableRow, Text, type SwipeRowAction } from '@/components';
 import { useAuth, useTheme, useToast, useWallets } from '@/app/providers';
 import { useArchiveWalletMutation } from '@/app/store';
+import { GUEST_WALLET_NAME } from '@/services/guest';
 import { getRoleLabel } from '@/utils';
 import type { AppStackParamList } from '@/app/navigation';
 import { CreateWalletForm } from './CreateWalletForm.tsx';
@@ -53,7 +54,7 @@ export function WalletSwitcher() {
   const [archiveWallet] = useArchiveWalletMutation();
   const { showToast } = useToast();
 
-  const formatWalletName = (name: string) => (name === 'Guest Wallet' ? t('wallets.yourWallet') : name);
+  const formatWalletName = (name: string) => (name === GUEST_WALLET_NAME ? t('wallets.yourWallet') : name);
   const displayNameOf = (wallet: WalletResponse) =>
     wallet.isOwn ? formatWalletName(wallet.name) : wallet.relationLabel ?? formatWalletName(wallet.name);
 
@@ -191,28 +192,15 @@ export function WalletSwitcher() {
         <ChevronDown size={theme.iconSize.lg} color={theme.colors.textMuted} />
       </Pressable>
 
-      <BottomSheetModal visible={open} onClose={close} testID="sheet-wallet">
-        <View
-          className="flex-row items-center justify-between"
-          style={{ gap: theme.spacing.sm, marginBottom: theme.spacing.sm }}
-        >
-          <View className="flex-row items-center flex-1" style={{ gap: theme.spacing.xs }}>
-            {page.kind !== 'list' ? (
-              <Pressable
-                testID="btn-back-wallet"
-                hitSlop={theme.sizes.hitSlop.lg}
-                accessibilityRole="button"
-                accessibilityLabel={t('common.back')}
-                onPress={() => setPage(parentOf(page))}
-              >
-                <ChevronLeft size={theme.iconSize.xxl} color={theme.colors.text} />
-              </Pressable>
-            ) : null}
-            <Text variant="title" numberOfLines={1} style={{ flexShrink: 1 }}>
-              {pageTitle()}
-            </Text>
-          </View>
-          {page.kind === 'list' && !isGuest ? (
+      <BottomSheetModal
+        visible={open}
+        onClose={close}
+        title={pageTitle()}
+        entity="wallet"
+        onBack={page.kind !== 'list' ? () => setPage(parentOf(page)) : undefined}
+      >
+        {page.kind === 'list' && !isGuest ? (
+          <View className="flex-row justify-end" style={{ marginBottom: theme.spacing.sm }}>
             <Button
               testID="btn-add-wallet"
               label={t('wallets.newWallet')}
@@ -220,8 +208,8 @@ export function WalletSwitcher() {
               icon={Plus}
               onPress={() => setPage({ kind: 'create' })}
             />
-          ) : null}
-        </View>
+          </View>
+        ) : null}
 
         {renderPage()}
         <MutationConfirmDialog
@@ -256,7 +244,7 @@ function WalletRow({
   const theme = useTheme();
   const { t } = useTranslation();
 
-  const formatWalletName = (name: string) => (name === 'Guest Wallet' ? t('wallets.yourWallet') : name);
+  const formatWalletName = (name: string) => (name === GUEST_WALLET_NAME ? t('wallets.yourWallet') : name);
   const displayName = wallet.isOwn ? formatWalletName(wallet.name) : wallet.relationLabel ?? formatWalletName(wallet.name);
 
   return (

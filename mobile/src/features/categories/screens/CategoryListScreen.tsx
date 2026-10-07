@@ -50,7 +50,7 @@ export function CategoryListScreen({
         <StateView
           variant="error"
           error={
-            new Error(t("categories.noWalletSelected", "No wallet selected."))
+            new Error(t("categories.noWalletSelected", 'No wallet picked yet.'))
           }
         />
       );

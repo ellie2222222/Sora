@@ -5,9 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { GoalStatus, type ContributionResponse } from '@sora/contracts';
 
 import { useModal, useTheme, useToast, useWallets } from '@/app/providers';
-import { BottomSheetModal, Card, closeOpenSwipeRow, ListLoadMoreFooter, MutationConfirmDialog, Money, ProgressBar, Skeleton, StateView, SwipeableRow, Text } from '@/components';
+import { BottomSheetModal, Button, Card, closeOpenSwipeRow, ListLoadMoreFooter, MutationConfirmDialog, Money, ProgressBar, Skeleton, StateView, SwipeableRow, Text } from '@/components';
 import { useGetGoalQuery, useListGoalContributionsInfiniteQuery, useRemoveContributionMutation } from '@/app/store';
-import { canLoadMore, flattenPages, formatDay, isNetworkError } from '@/utils';
+import { canLoadMore, dayOfInstant, flattenPages, formatDay, isNetworkError } from '@/utils';
 import { CancelGoalDialog } from './CancelGoalDialog.tsx';
 import { GoalEditCard } from './GoalEditCard.tsx';
 
@@ -20,12 +20,13 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { openModal } = useModal();
-  const { permissions, isLoading: walletsLoading } = useWallets();
+  const { permissions, isLoading: walletsLoading, wallets, timeZone: activeTimeZone } = useWallets();
   const { showToast } = useToast();
   const [cancelling, setCancelling] = useState(false);
   const [removing, setRemoving] = useState<ContributionResponse | null>(null);
   const [removeContribution] = useRemoveContributionMutation();
   const goal = useGetGoalQuery(goalId as string, { skip: !goalId });
+  const timeZone = wallets.find((wallet) => wallet.id === goal.data?.walletId)?.timeZone ?? activeTimeZone;
   const contributions = useListGoalContributionsInfiniteQuery(goalId as string, { skip: !goalId });
   const contributionItems = useMemo(() => flattenPages(contributions.data?.pages), [contributions.data]);
 
@@ -45,7 +46,7 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
     if (data === undefined) {
       return (
         <View style={{ padding: theme.spacing.md }}>
-          <StateView variant="error" error={new Error(t('goals.goalNotFound', 'Goal not found'))} />
+          <StateView variant="error" error={new Error(t('goals.goalNotFound', "Couldn't find this goal"))} />
         </View>
       );
     }
@@ -90,20 +91,15 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
               </View>
 
               {permissions.canWrite ? (
-                <Pressable
+                <Button
                   testID="btn-add-contribution"
-                  onPress={() => openModal('AddContribution', { goalId: goalId as string })}
-                  className="flex-row items-center self-start"
-                  style={{
-                    gap: theme.spacing.xs,
-                    marginTop: theme.spacing.md,
-                  }}
-                >
-                  <Plus size={theme.iconSize.md} color={theme.colors.primary} />
-                  <Text tone="default" weight="semibold">
-                    {t('goals.addContribution', 'Add contribution')}
-                  </Text>
-                </Pressable>
+                  label={t('goals.addContribution', 'Add contribution')}
+                  icon={Plus}
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => openModal('AddContribution', { goalId: goalId as string, parent: { onClose } })}
+                  style={{ marginTop: theme.spacing.md }}
+                />
               ) : null}
 
               <Text variant="label" tone="muted" style={{ marginTop: theme.spacing.lg }}>
@@ -123,7 +119,7 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
                 : []
             }
           >
-            <ContributionItem contribution={item} onRemove={permissions.canWrite ? () => setRemoving(item) : undefined} />
+            <ContributionItem contribution={item} timeZone={timeZone} onRemove={permissions.canWrite ? () => setRemoving(item) : undefined} />
           </SwipeableRow>
         )}
         onEndReached={() => {
@@ -144,7 +140,7 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
   };
 
   return (
-    <BottomSheetModal visible={goalId !== null} onClose={onClose} title={t('goals.detailTitle', 'Goal Details')}>
+    <BottomSheetModal visible={goalId !== null} onClose={onClose} title={t('goals.detailTitle', 'Goal')}>
       <View style={{ flex: 1, minHeight: theme.sizes.sheetBodyMinHeight }}>
         {renderContent()}
       </View>
@@ -179,7 +175,7 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
   );
 }
 
-function ContributionItem({ contribution, onRemove }: { contribution: ContributionResponse; onRemove?: () => void }) {
+function ContributionItem({ contribution, timeZone, onRemove }: { contribution: ContributionResponse; timeZone: string; onRemove?: () => void }) {
   const theme = useTheme();
   const { t } = useTranslation();
 
@@ -193,7 +189,7 @@ function ContributionItem({ contribution, onRemove }: { contribution: Contributi
       <View>
         <Text>{contribution.accountName}</Text>
         <Text variant="caption" tone="muted">
-          {formatDay(contribution.contributionDate.slice(0, 10))}
+          {formatDay(dayOfInstant(contribution.contributionDate, timeZone))}
           {contribution.note !== null ? ` · ${contribution.note}` : ''}
         </Text>
       </View>

@@ -86,7 +86,7 @@ export function previousWindow(period: DashboardPeriod, anchor: CalendarDay): Pe
 export function isCurrentPeriod(
   period: DashboardPeriod,
   anchor: CalendarDay,
-  reference: CalendarDay = today(),
+  reference: CalendarDay,
 ): boolean {
   const { dateFrom, dateTo } = windowFor(period, anchor);
   return reference >= dateFrom && reference <= dateTo;

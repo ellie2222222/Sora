@@ -99,34 +99,55 @@ export interface CategoryGroup {
   hasChildren: boolean;
 }
 
+export interface CategoryNode {
+  id: string;
+  name: string;
+  parentId: string | null;
+}
+
 /**
- * The breakdown rolled up one level, so a wallet that splits "Food" into
- * "Groceries"/"Dining Out" can read the parent total without losing the
- * children.
+ * The breakdown rolled up to each slice's top-level category, at any depth, so a
+ * wallet that splits "Food" into "Groceries"/"Dining Out" reads the Food total
+ * without losing the children — the same subtree a budget on Food counts.
  *
- * `nameById` resolves a parent that recorded no direct spending of its own and
- * so has no slice to take a name from; an unresolvable parent falls back to its
- * first child's name rather than rendering an empty header.
+ * `categories` supplies the ancestors a slice doesn't carry and names a top-level
+ * category that recorded no direct spending of its own; one it can't resolve falls
+ * back to the slice's direct parent and then its first child's name, rather than
+ * rendering an empty header.
  */
-export function groupByParent(
+export function groupByTopLevel(
   slices: readonly CategorySpendSlice[],
-  nameById: ReadonlyMap<string, string> = new Map(),
+  categories: readonly CategoryNode[] = [],
 ): CategoryGroup[] {
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  const topLevelOf = (startId: string): string => {
+    const visited = new Set<string>();
+    let currentId = startId;
+    // Visited ids are tracked: the server rejects cycles, but a bad cached row must not hang the dashboard.
+    while (!visited.has(currentId)) {
+      visited.add(currentId);
+      const parentId = byId.get(currentId)?.parentId;
+      if (!parentId) return currentId;
+      currentId = parentId;
+    }
+    return currentId;
+  };
   const groups = new Map<string, CategoryGroup>();
 
   for (const slice of slices) {
-    const id = slice.parentId ?? slice.categoryId;
+    const id = topLevelOf(slice.parentId ?? slice.categoryId);
+    const isChild = slice.categoryId !== id;
     const existing = groups.get(id);
 
     if (existing === undefined) {
       groups.set(id, {
         id,
-        name: slice.parentId === null ? slice.categoryName : (nameById.get(id) ?? slice.categoryName),
+        name: isChild ? (byId.get(id)?.name ?? slice.categoryName) : slice.categoryName,
         color: slice.color,
         slices: [slice],
         amount: slice.amount,
         percentage: slice.percentage,
-        hasChildren: slice.parentId !== null,
+        hasChildren: isChild,
       });
       continue;
     }
@@ -134,7 +155,7 @@ export function groupByParent(
     existing.slices.push(slice);
     existing.amount = formatMoney(add(parseMoney(existing.amount), parseMoney(slice.amount)));
     existing.percentage = roundPercentage(existing.percentage + slice.percentage);
-    if (slice.parentId !== null) existing.hasChildren = true;
+    if (isChild) existing.hasChildren = true;
     // A parent with direct spending of its own names and colours the group.
     if (slice.categoryId === id) {
       existing.name = slice.categoryName;

@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import { THEME_MODES, THEME_NAMES, getThemeColors } from './colors.ts';
 import { contrastRatio, ensureContrast, isHexColor, mixHex } from './contrast.ts';
 
-// The starter category colours seeded by db/migrations/006_backfill_starter_categories.sql.
+// The starter category colours (packages/contracts/src/starter-categories.ts).
 const STARTER_CATEGORY_COLORS = [
   '#F97316', '#0EA5E9', '#A855F7', '#EF4444', '#8B5CF6', '#F59E0B', '#F43F5E', '#EC4899', '#6366F1',
   '#14B8A6', '#8B5A2B', '#475569', '#D97706', '#CA8A04', '#DB2777', '#0D9488', '#B45309', '#57534E',

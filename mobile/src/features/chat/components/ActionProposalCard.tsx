@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AiActionStatus, TransactionType, type AiActionResponse } from '@sora/contracts';
 
 import { Button, Money, Text } from '@/components';
-import { useTheme } from '@/app/providers';
+import { useTheme, useWallets } from '@/app/providers';
 import { dayOfInstant, formatDay } from '@/utils';
 
 /**
@@ -28,6 +28,8 @@ export function ActionProposalCard({
   onDismiss: () => void;
 }) {
   const theme = useTheme();
+  // The assistant reads the active wallet, so its draft's day is that wallet's.
+  const { timeZone } = useWallets();
   const { t } = useTranslation();
   const { transaction } = action;
   const isIncome = transaction.type === TransactionType.INCOME;
@@ -50,7 +52,7 @@ export function ActionProposalCard({
       </Text>
       <Money amount={transaction.amount} currency={transaction.currency} type={transaction.type} variant="title" />
       <Text variant="caption" tone="muted">
-        {action.accountName} · {action.categoryName} · {formatDay(dayOfInstant(transaction.transactionDate))}
+        {action.accountName} · {action.categoryName} · {formatDay(dayOfInstant(transaction.transactionDate, timeZone))}
       </Text>
 
       {action.status === AiActionStatus.PENDING ? (

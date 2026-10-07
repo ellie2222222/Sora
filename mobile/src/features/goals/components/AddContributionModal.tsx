@@ -10,25 +10,24 @@ import {
   DatePickerModal,
   Input,
   KeypadSheetFooter,
-  SheetFormHeader,
   SheetScrollArea,
   Skeleton,
   StateView,
   Text,
   useCalculatorExpression,
 } from '@/components';
-import { useTheme, useToast } from '@/app/providers';
+import { useTheme, useToast, useWallets } from '@/app/providers';
 // Deep-imported (not via each feature's barrel): this component is itself deep-imported by
 // ModalProvider, and pulling in `@/features/accounts` or `@/features/categories` here
 // reintroduces a cycle through their barrels' other exports (same reasoning as
-// AddTransactionModal.tsx's identical comment).
+// TransactionFormModal.tsx's identical comment).
 import { AccountPicker } from '../../accounts/components/AccountPicker.tsx';
 import { CategoryGrid } from '../../categories/components/CategoryGrid.tsx';
 import { useAddContributionMutation, useGetGoalQuery } from '@/app/store';
 import {
   formatDay,
   formatShortDay,
-  instantOfDay,
+  middayOf,
   isNetworkError,
   issueMessagesByPath,
   messageOf,
@@ -40,19 +39,26 @@ export interface AddContributionModalProps {
   visible: boolean;
   goalId?: string;
   onClose: () => void;
+  /** Returns to the goal sheet this was opened from. */
+  onBack?: () => void;
+  /** Closes the goal sheet too, from the header's Close. */
+  onCloseAll?: () => void;
 }
 
-export function AddContributionModal({ visible, goalId, onClose }: AddContributionModalProps) {
+export function AddContributionModal({ visible, goalId, onClose, onBack, onCloseAll }: AddContributionModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { showToast } = useToast();
   const goal = useGetGoalQuery(goalId ?? '', { skip: !visible || !goalId });
+  const { wallets, timeZone: activeTimeZone } = useWallets();
+  // The goal's own wallet decides the day, which this sheet may open from another wallet's view.
+  const timeZone = wallets.find((wallet) => wallet.id === goal.data?.walletId)?.timeZone ?? activeTimeZone;
   const [addContribution, { isLoading: isSubmitting }] = useAddContributionMutation();
 
   const { setExpression, expressionRef, display: displayAmount, confirm } = useCalculatorExpression('', '0');
   const [accountId, setAccountId] = useState<string | null>(null);
   const [walletId, setWalletId] = useState<string | undefined>(undefined);
-  const [contributionDay, setContributionDay] = useState<CalendarDay>(today());
+  const [contributionDay, setContributionDay] = useState<CalendarDay>(() => today(timeZone));
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [note, setNote] = useState('');
   const [recordAsTransaction, setRecordAsTransaction] = useState(true);
@@ -65,7 +71,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
       setExpression('');
       setAccountId(null);
       setWalletId(undefined);
-      setContributionDay(today());
+      setContributionDay(today(timeZone));
       setDatePickerOpen(false);
       setNote('');
       setRecordAsTransaction(true);
@@ -86,7 +92,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
 
   if (goal.isLoading) {
     return (
-      <BottomSheetModal visible={visible} onClose={onClose} title={t('goals.addContribution')}>
+      <BottomSheetModal visible={visible} onClose={onClose} onBack={onBack} onCloseAll={onCloseAll} title={t('goals.addContribution')}>
                 <View style={{ gap: theme.spacing.md, paddingHorizontal: theme.spacing.md }}>
           <View style={{ gap: theme.spacing.xs }}>
             <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
@@ -111,7 +117,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
 
   if (goal.isError && !isNetworkError(goal.error)) {
     return (
-      <BottomSheetModal visible={visible} onClose={onClose} title={t('goals.addContribution')}>
+      <BottomSheetModal visible={visible} onClose={onClose} onBack={onBack} onCloseAll={onCloseAll} title={t('goals.addContribution')}>
         <StateView variant="error" error={goal.error} retryAction={() => void goal.refetch()} testID="add-contribution-error" />
       </BottomSheetModal>
     );
@@ -128,7 +134,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
       accountId,
       amount,
       currency: goalData.currency,
-      contributionDate: instantOfDay(contributionDay),
+      contributionDate: middayOf(contributionDay, timeZone),
       note: note.trim() || undefined,
       recordAsTransaction,
       categoryId: recordAsTransaction ? (categoryId ?? undefined) : undefined,
@@ -136,10 +142,10 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
     if (!parsed.success) {
       const next = issueMessagesByPath(parsed.error.issues);
       if (next.accountId !== undefined) {
-        next.accountId = t('goals.chooseAccountError', { defaultValue: 'Choose which account this comes from.' });
+        next.accountId = t('goals.chooseAccountError', { defaultValue: 'Pick the account this comes from.' });
       }
       if (next.amount !== undefined) {
-        next.amount = t('goals.validAmountError', { defaultValue: 'Enter a valid amount greater than zero.' });
+        next.amount = t('goals.validAmountError', { defaultValue: 'Enter an amount above zero.' });
       }
       setFieldErrors(next);
       return;
@@ -161,8 +167,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
   }
 
   return (
-    <BottomSheetModal visible={visible} onClose={onClose}>
-      <SheetFormHeader title={t('goals.addContribution')} onCancel={onClose} entity="contribution" />
+    <BottomSheetModal visible={visible} onClose={onClose} onBack={onBack} onCloseAll={onCloseAll} title={t('goals.addContribution')} closeLabel="cancel" entity="contribution">
 
       <SheetScrollArea>
         <Pressable
@@ -193,7 +198,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
             <Text variant="caption" tone="muted">
               {t('goals.recordAsExpenseHelp', {
                 defaultValue:
-                  'Moves the money out of the account now. Leave unchecked to just mark progress toward the goal without recording a transaction.',
+                  'Takes the money out of the account now. Leave it off to just mark progress, without recording a transaction.',
               })}
             </Text>
           </View>
@@ -230,7 +235,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
       >
         <Input
           testID="input-contribution-note"
-          placeholder={t('transactions.notePlaceholder', { defaultValue: 'Enter a note...' })}
+          placeholder={t('transactions.notePlaceholder', { defaultValue: 'Add a note' })}
           value={note}
           onChangeText={setNote}
         />
@@ -251,6 +256,7 @@ export function AddContributionModal({ visible, goalId, onClose }: AddContributi
 
       <DatePickerModal
         visible={datePickerOpen}
+        today={today(timeZone)}
         selectedDay={contributionDay}
         onSelectDay={setContributionDay}
         onClose={() => setDatePickerOpen(false)}

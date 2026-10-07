@@ -35,7 +35,7 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
 
   const renderContent = () => {
     if (token === undefined) {
-      return <Text tone="danger">{t('invitations.noTokenError', 'No invitation token was provided.')}</Text>;
+      return <Text tone="danger">{t('invitations.noTokenError', 'This invitation link is missing its code.')}</Text>;
     }
 
     if (preview.isLoading) return         <View style={{ gap: theme.spacing.xl, alignItems: 'center', paddingVertical: theme.spacing.xl }}>
@@ -54,7 +54,7 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
 
     const invitation = preview.data;
     if (invitation === undefined) {
-      return <StateView variant="error" error={new Error(t('invitations.notFound', 'Invitation not found.'))} />;
+      return <StateView variant="error" error={new Error(t('invitations.notFound', "We couldn't find this invitation."))} />;
     }
 
     return (
@@ -87,7 +87,7 @@ export function AcceptInvitationScreen({ route, navigation }: AuthStackScreenPro
         ) : (
           <>
             <Text tone="muted" style={{ textAlign: 'center' }}>
-              {t('invitations.loginPrompt', 'Log in or create an account with this email to accept.')}
+              {t('invitations.loginPrompt', 'Sign in or create an account with this email to accept.')}
             </Text>
             <Button label={t('auth.signInLink', 'Sign in')} icon={LogIn} onPress={() => navigation.navigate('Login')} fullWidth />
             <Button

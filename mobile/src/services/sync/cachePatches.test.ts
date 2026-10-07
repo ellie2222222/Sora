@@ -19,7 +19,7 @@ const expense = {
   goalId: null,
 } as unknown as TransactionResponse;
 
-const change: LedgerChange = { kind: 'create', transaction: expense, from: null, to: null, actorUserId: 'user-me' };
+const change: LedgerChange = { kind: 'create', transaction: expense, from: null, to: null, actorUserId: 'user-me', inPlace: false };
 
 describe('transactionPatches', () => {
   it('patches every cached read that shows a figure a transaction moves', () => {
@@ -41,6 +41,8 @@ describe('transactionPatches', () => {
           currency: 'VND',
           startDate: '2026-09-01',
           endDate: '2026-09-30',
+          periodStart: '2026-09-01',
+          periodEnd: '2026-09-30',
           spent: '0.0000',
           remaining: '1000.0000',
           usagePercentage: 0,

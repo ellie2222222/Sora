@@ -10,7 +10,6 @@ import {
   IconChip,
   Input,
   KeypadSheetFooter,
-  SheetFormHeader,
   Text,
   useCalculatorExpression,
 } from '@/components';
@@ -66,7 +65,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
     return (
       <BottomSheetModal visible={visible} onClose={onClose} title={t('accounts.addAccount')}>
         <View className="items-center justify-center" style={{ padding: theme.spacing.lg }}>
-          <Text tone="muted">{t('accounts.noWalletSelected', { defaultValue: 'No wallet selected.' })}</Text>
+          <Text tone="muted">{t('accounts.noWalletSelected', { defaultValue: 'No wallet picked yet.' })}</Text>
         </View>
       </BottomSheetModal>
     );
@@ -110,8 +109,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
       : t('accounts.openingBalance', { defaultValue: 'Opening balance' });
 
   return (
-    <BottomSheetModal visible={visible} onClose={onClose}>
-      <SheetFormHeader title={t('accounts.addAccount')} onCancel={onClose} entity="account" />
+    <BottomSheetModal visible={visible} onClose={onClose} title={t('accounts.addAccount')} closeLabel="cancel" entity="account">
 
       <View style={{ flexShrink: 0, gap: theme.spacing.sm }}>
         {TYPE_ROWS.map((row) => (

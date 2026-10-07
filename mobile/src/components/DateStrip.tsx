@@ -2,7 +2,7 @@ import { Pressable, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { useTheme } from '@/app/providers';
-import { addDays, monthName, parseDay, today, type CalendarDay } from '@/utils';
+import { addDays, monthName, parseDay, type CalendarDay } from '@/utils';
 import { Text } from './Text.tsx';
 
 const CELL_LAYOUT = LinearTransition.springify().damping(26).stiffness(220);
@@ -13,6 +13,8 @@ export interface DateStripProps {
   selectedDay: CalendarDay;
   onSelectDay: (day: CalendarDay) => void;
   testID?: string;
+  /** Today in the wallet's zone. */
+  today: CalendarDay;
 }
 
 /** Days shown either side of the selected one — 7 cells total. */
@@ -25,7 +27,7 @@ const RADIUS = 3;
  * re-centres the strip on it, which (via `selectedDay` driving the month
  * bounds upstream) is what actually jumps the screen to that month.
  */
-export function DateStrip({ selectedDay, onSelectDay, testID }: DateStripProps) {
+export function DateStrip({ selectedDay, onSelectDay, testID, today }: DateStripProps) {
   const theme = useTheme();
   const selectedMonth = parseDay(selectedDay).month;
   const days = Array.from({ length: RADIUS * 2 + 1 }, (_, i) => addDays(selectedDay, i - RADIUS));
@@ -35,7 +37,7 @@ export function DateStrip({ selectedDay, onSelectDay, testID }: DateStripProps) 
       {days.map((day) => {
         const { date, month } = parseDay(day);
         const isSelected = day === selectedDay;
-        const isToday = day === today();
+        const isToday = day === today;
         const inCurrentMonth = month === selectedMonth;
         const mutedColor = isSelected ? theme.colors.onPrimary : theme.colors.textFaint;
 

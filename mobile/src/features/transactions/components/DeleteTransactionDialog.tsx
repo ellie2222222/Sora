@@ -22,7 +22,7 @@ export function DeleteTransactionDialog({ transaction, onCancel, onDeleted, onEr
       visible={transaction !== null}
       title={t('transactions.cancelConfirmTitle', { defaultValue: 'Delete this transaction?' })}
       message={t('transactions.cancelConfirmBody', {
-        defaultValue: "This removes it from your list and reverses its effect on your balances and budgets. This can't be undone.",
+        defaultValue: "This removes it from your list and from your balances and budgets. This can't be undone.",
       })}
       confirmLabel={t('transactions.cancelTransaction', { defaultValue: 'Delete transaction' })}
       run={() => deleteTransaction({ transactionId: transaction!.id }).unwrap()}

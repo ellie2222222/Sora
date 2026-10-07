@@ -19,6 +19,7 @@ import {
 import { guestError } from './guestErrors.ts';
 import { GUEST_USER_ID } from './guestIds.ts';
 import { guestStore } from './guestStorage.ts';
+import { guestTimeZone } from './guestTimeZone.ts';
 import { type GuestAccount, type GuestTransaction, type GuestWallet } from './guestStore.ts';
 import { toBalanceRelevant } from './guestTransactions.ts';
 
@@ -64,6 +65,7 @@ function toWalletResponse(
     name: wallet.name,
     status: WalletStatus.ACTIVE,
     ownerUserId: GUEST_USER_ID,
+    timeZone: guestTimeZone(wallet),
     role: WalletRole.OWNER,
     relationLabel: null,
     isOwn: true,

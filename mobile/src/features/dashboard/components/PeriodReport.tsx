@@ -60,7 +60,7 @@ export function PeriodReport({
 
   const data = current.currentData;
   if (data === undefined) {
-    return <StateView variant="error" error={new Error(t('dashboard.noData', 'No dashboard data available.'))} />;
+    return <StateView variant="error" error={new Error(t('dashboard.noData', 'Nothing to show yet.'))} />;
   }
 
   const emptyReason = emptyReasonFor(data);
@@ -91,8 +91,6 @@ export function PeriodReport({
       ? percentageOf(parseMoney(net.amount), parseMoney(income.amount), 0)
       : null;
 
-  const categoryNames = new Map((categories.currentData ?? []).map((category) => [category.id, category.name]));
-
   return (
     <View style={{ gap: theme.spacing.lg }}>
       <DashboardKpis
@@ -115,7 +113,7 @@ export function PeriodReport({
         slices={data.spendingByCategory}
         previousSlices={previous.currentData?.spendingByCategory ?? []}
         expenseTotal={data.expense[0]}
-        categoryNames={categoryNames}
+        categories={categories.currentData ?? []}
         onSelectCategory={(categoryId) =>
           navigation.getParent()?.navigate('Transactions', { categoryId })
         }

@@ -1,7 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { bootstrapLocale, setCachedLocale, type SupportedLocale } from '@/app/i18n';
+import { invalidateEverything, useAppDispatch } from '@/app/store';
 import { authApi } from '@/services/api';
+import { activeLocale, setActiveLocale } from '@/services/locale';
 import { useAuth } from './AuthProvider.tsx';
 
 interface LocaleContextValue {
@@ -23,30 +25,46 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
  */
 export function LocaleProvider({ children }: { children: ReactNode }): ReactNode {
   const { user } = useAuth();
+  const dispatch = useAppDispatch();
   const [locale, setLocaleState] = useState<SupportedLocale>('en');
   const hydratedFromServer = useRef(false);
+  // Requests sent before the saved language loads go out in activeLocale()'s default, so a different one refetches them.
+  const appliedLocale = useRef<SupportedLocale>(activeLocale());
+
+  // Cached reads carry category names in the language they were fetched in, so a switch refetches them.
+  const applyLocale = useCallback(
+    (next: SupportedLocale) => {
+      setActiveLocale(next);
+      if (appliedLocale.current !== next) {
+        dispatch(invalidateEverything());
+      }
+      appliedLocale.current = next;
+      setLocaleState(next);
+    },
+    [dispatch],
+  );
 
   useEffect(() => {
-    void bootstrapLocale().then(setLocaleState);
-  }, []);
+    void bootstrapLocale().then(applyLocale);
+  }, [applyLocale]);
 
   useEffect(() => {
     if (user === null || hydratedFromServer.current) return;
     hydratedFromServer.current = true;
-    if (user.locale !== locale) void setCachedLocale(user.locale).then(() => setLocaleState(user.locale));
-  }, [user, locale]);
+    if (user.locale !== locale) void setCachedLocale(user.locale).then(() => applyLocale(user.locale));
+  }, [user, locale, applyLocale]);
 
   const setLocale = useMemo(
     () => async (next: SupportedLocale) => {
       await setCachedLocale(next);
-      setLocaleState(next);
+      applyLocale(next);
       if (user !== null) {
         // Best-effort: a returning user should see the same language on
         // another device, but a failed sync must not block switching it here.
         authApi.updatePreferences({ locale: next }).catch(() => undefined);
       }
     },
-    [user],
+    [user, applyLocale],
   );
 
   const value = useMemo(() => ({ locale, setLocale }), [locale, setLocale]);

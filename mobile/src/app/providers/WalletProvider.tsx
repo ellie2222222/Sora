@@ -9,7 +9,7 @@ import {
 import type { WalletResponse } from '@sora/contracts';
 
 import { useListWalletsQuery } from '@/app/store';
-import { permissionsFor, type WalletPermissions, isNetworkError } from '@/utils';
+import { deviceTimeZone, permissionsFor, type WalletPermissions, isNetworkError } from '@/utils';
 import { useAuth } from './AuthProvider.tsx';
 
 /**
@@ -24,6 +24,8 @@ interface WalletContextValue {
   wallets: WalletResponse[];
   activeWallet: WalletResponse | null;
   activeWalletId: string | null;
+  /** The active wallet's zone, which its days, months and "today" are read in; this device's until one loads. */
+  timeZone: string;
   permissions: WalletPermissions;
   setActiveWalletId: (walletId: string) => void;
   isLoading: boolean;
@@ -60,12 +62,15 @@ export function WalletProvider({ children }: { children: ReactNode }): ReactNode
 
   const activeWallet = wallets.find((w) => w.id === effectiveWalletId) ?? null;
   const permissions = useMemo(() => permissionsFor(activeWallet?.role ?? null), [activeWallet]);
+  // A wallet cached by a version without zones has none; reading it in this device's zone is the safe default.
+  const timeZone = activeWallet?.timeZone ?? deviceTimeZone();
 
   const value = useMemo<WalletContextValue>(
     () => ({
       wallets,
       activeWallet,
       activeWalletId: effectiveWalletId,
+      timeZone,
       permissions,
       setActiveWalletId,
       isLoading: query.isLoading || (query.isFetching && query.data === undefined),
@@ -77,6 +82,7 @@ export function WalletProvider({ children }: { children: ReactNode }): ReactNode
       wallets,
       activeWallet,
       effectiveWalletId,
+      timeZone,
       permissions,
       query.isLoading,
       query.isFetching,

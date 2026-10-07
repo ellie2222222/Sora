@@ -28,7 +28,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
   const theme = useTheme();
   const { t } = useTranslation();
   const dispatch = useDispatch();
-  const { activeWalletId, isLoading: walletsLoading, permissions } = useWallets();
+  const { activeWalletId, isLoading: walletsLoading, permissions, timeZone } = useWallets();
   const [isRefreshing, setIsRefreshing] = useState(false);
   // Remembered with its wallet: an account belongs to one wallet, so after a switch the scope
   // reads as "all accounts" on that same render, before any query could name the old account.
@@ -38,7 +38,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
   const openAccount = (accountId: string) => navigation.getParent()?.navigate('AccountDetail', { accountId });
 
   const [period, setPeriod] = useState<DashboardPeriod>('monthly');
-  const [anchor, setAnchor] = useState<CalendarDay>(() => today());
+  const [anchor, setAnchor] = useState<CalendarDay>(() => today(timeZone));
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const shiftPeriod = (delta: number) => setAnchor((current) => shiftAnchor(period, current, delta));
@@ -70,6 +70,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
             anchor={anchor}
             onChangePeriod={setPeriod}
             onShift={shiftPeriod}
+            today={today(timeZone)}
           />
 
           {walletsLoading ? (

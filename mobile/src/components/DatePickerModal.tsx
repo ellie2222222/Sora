@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, X, Calendar as CalendarIcon } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react-native';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
@@ -8,27 +8,29 @@ import { useTheme } from '@/app/providers';
 import { BottomSheetModal } from './BottomSheetModal';
 import { Button } from './Button';
 import { Text } from './Text';
-import { addMonths, monthGrid, monthName, parseDay, today, withYear } from '@/utils';
+import { addMonths, monthGrid, monthName, parseDay, withYear, type CalendarDay } from '@/utils';
 
 export interface DatePickerModalProps {
   visible: boolean;
   selectedDay: string; // YYYY-MM-DD
   onSelectDay: (day: string) => void;
   onClose: () => void;
+  /** Today in the wallet's zone, which the Today button picks and the grid marks. */
+  today: CalendarDay;
 }
 
-export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: DatePickerModalProps) {
+export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, today }: DatePickerModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
 
-  const initialDay = selectedDay && typeof selectedDay === 'string' && selectedDay.includes('-') ? selectedDay : today();
+  const initialDay = selectedDay && typeof selectedDay === 'string' && selectedDay.includes('-') ? selectedDay : today;
   const [viewDay, setViewDay] = useState(initialDay);
   const [viewMode, setViewMode] = useState<'days' | 'years'>('days');
   // `style` can never be a function here — see CLAUDE.md Part 7 rule 15.
   const [yearTogglePressed, setYearTogglePressed] = useState(false);
-  const { year, month } = parseDay(viewDay || today());
+  const { year, month } = parseDay(viewDay || today);
 
-  const grid = monthGrid(viewDay || today());
+  const grid = monthGrid(viewDay || today);
   const weekdayInitials = useMemo(() => {
     const locale = i18next.language || 'en';
     return Array.from({ length: 7 }, (_, i) => {
@@ -60,7 +62,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
   };
 
   const handleSelectToday = () => {
-    const tDay = today();
+    const tDay = today;
     setViewDay(tDay);
     onSelectDay(tDay);
     onClose();
@@ -70,14 +72,8 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
   const years = Array.from({ length: 90 }, (_, i) => currentYear - 60 + i);
 
   return (
-    <BottomSheetModal visible={visible} onClose={onClose}>
-      <View testID="sheet-date-picker" style={{ gap: theme.spacing.md }}>
-        <View className="flex-row justify-between items-center">
-          <Text variant="title">{t('common.selectDate', { defaultValue: 'Select Date' })}</Text>
-          <Pressable testID="btn-cancel-date-picker" onPress={onClose} hitSlop={theme.sizes.hitSlop.md} className="p-xs">
-            <X size={theme.iconSize.xl} color={theme.colors.textMuted} />
-          </Pressable>
-        </View>
+    <BottomSheetModal visible={visible} onClose={onClose} title={t('common.selectDate', { defaultValue: 'Pick a date' })} entity="date-picker">
+      <View style={{ gap: theme.spacing.md }}>
 
         <View
           className="flex-row justify-between items-center"
@@ -119,7 +115,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
           ) : (
             <View className="flex-1 flex-row justify-between items-center px-sm">
               <Text weight="semibold" style={{ fontSize: theme.fontSize.md, paddingLeft: theme.spacing.sm }}>
-                {t('common.selectYear', { defaultValue: 'Select Year' })}
+                {t('common.selectYear', { defaultValue: 'Pick a year' })}
               </Text>
               <Pressable
                 testID="btn-select-days"
@@ -154,7 +150,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
                 <View key={rowIndex} className="flex-row justify-between">
                   {row.map((cell) => {
                     const isSelected = cell.day === selectedDay;
-                    const isToday = cell.day === today();
+                    const isToday = cell.day === today;
                     const dayNum = parseDay(cell.day).date;
 
                     return (
@@ -231,7 +227,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
         )}
 
         <View
-          className="flex-row justify-between items-center"
+          className="flex-row items-center"
           style={{
             borderTopWidth: theme.borderWidth.thin,
             marginTop: theme.spacing.xs,
@@ -245,12 +241,6 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose }: 
             variant="secondary"
             size="sm"
             onPress={handleSelectToday}
-          />
-          <Button
-            label={t('common.close', { defaultValue: 'Close' })}
-            variant="ghost"
-            size="sm"
-            onPress={onClose}
           />
         </View>
       </View>

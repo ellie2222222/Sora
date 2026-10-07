@@ -90,7 +90,7 @@ describe('guestDashboardApi.summary — period totals', () => {
 
     const summary = await guestDashboardApi.summary(SEPTEMBER);
 
-    assert.deepEqual(summary.period, { dateFrom: SEPTEMBER.dateFrom, dateTo: SEPTEMBER.dateTo });
+    assert.deepEqual(summary.period, { dateFrom: SEPTEMBER.dateFrom, dateTo: SEPTEMBER.dateTo, timeZone: 'UTC' });
     assert.deepEqual(summary.income, [{ currency: 'VND', amount: '500000.0000' }]);
     assert.deepEqual(summary.expense, [{ currency: 'VND', amount: '150000.0000' }]);
     assert.deepEqual(summary.net, [{ currency: 'VND', amount: '350000.0000' }]);

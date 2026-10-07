@@ -21,7 +21,7 @@ function recordingApis(): { apis: AdapterApis; calls: Call[] } {
   const apis = {
     transactions: { create: method('transactions.create', { id: 'srv-tx' }), update: method('transactions.update'), delete: method('transactions.delete') },
     accounts: { create: method('accounts.create', { id: 'srv-acc' }), update: method('accounts.update'), archive: method('accounts.archive') },
-    budgets: { create: method('budgets.create', { id: 'srv-bud' }), update: method('budgets.update'), archive: method('budgets.archive') },
+    budgets: { create: method('budgets.create', { id: 'srv-bud' }), update: method('budgets.update'), delete: method('budgets.delete') },
     goals: { create: method('goals.create', { id: 'srv-goal' }), update: method('goals.update'), cancel: method('goals.cancel'), addContribution: method('goals.addContribution', { id: 'srv-con' }) },
     categories: {
       create: method('categories.create', { id: 'srv-cat' }),
@@ -64,6 +64,12 @@ describe('buildEntityAdapters — contribution', () => {
     });
     assert.equal(adapters.contribution.deletePermanently, undefined);
   });
+
+  it('refuses to archive a budget, which is only ever deleted', async () => {
+    await assert.rejects(buildEntityAdapters(recordingApis().apis).budget.cancelOrArchive('b-1', undefined, 'k'), {
+      message: 'entityAdapters: budgets are deleted, never archived',
+    });
+  });
 });
 
 describe('buildEntityAdapters — transaction', () => {
@@ -99,31 +105,33 @@ describe('buildEntityAdapters — transaction', () => {
 });
 
 describe('buildEntityAdapters — archive-style entities', () => {
-  it('routes cancelOrArchive to archive for accounts, budgets and categories and to cancel for goals', async () => {
+  it('routes cancelOrArchive to archive for accounts and categories, and to cancel for goals', async () => {
     const { apis, calls } = recordingApis();
     const adapters = buildEntityAdapters(apis);
 
     await adapters.account.cancelOrArchive('a-1', { ignored: true }, 'k-a');
-    await adapters.budget.cancelOrArchive('b-1', undefined, 'k-b');
     await adapters.category.cancelOrArchive('c-1', undefined, 'k-c');
     await adapters.goal.cancelOrArchive('g-1', undefined, 'k-g');
 
     assert.deepEqual(calls, [
       { api: 'accounts.archive', args: ['a-1', 'k-a'] },
-      { api: 'budgets.archive', args: ['b-1', 'k-b'] },
       { api: 'categories.archive', args: ['c-1', 'k-c'] },
       { api: 'goals.cancel', args: ['g-1', 'k-g'] },
     ]);
   });
 
-  it('offers a permanent delete only for categories', async () => {
+  it('offers a permanent delete only for categories and budgets', async () => {
     const { apis, calls } = recordingApis();
     const adapters = buildEntityAdapters(apis);
 
     await adapters.category.deletePermanently?.('c-1', 'k-d');
+    await adapters.budget.deletePermanently?.('b-1', 'k-e');
 
-    assert.deepEqual(calls, [{ api: 'categories.deletePermanently', args: ['c-1', 'k-d'] }]);
-    for (const entity of ['transaction', 'account', 'budget', 'goal'] as const) {
+    assert.deepEqual(calls, [
+      { api: 'categories.deletePermanently', args: ['c-1', 'k-d'] },
+      { api: 'budgets.delete', args: ['b-1', 'k-e'] },
+    ]);
+    for (const entity of ['transaction', 'account', 'goal'] as const) {
       assert.equal(adapters[entity].deletePermanently, undefined, entity);
     }
   });

@@ -1,4 +1,5 @@
-import { Clock, RefreshCw, TriangleAlert, Wifi, WifiOff } from 'lucide-react-native';
+import { useEffect } from 'react';
+import { Clock, RefreshCw, TriangleAlert } from 'lucide-react-native';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AnimatedIcon, Button, Text } from '@/components';
@@ -17,6 +18,8 @@ export function SyncSection({
   const { t } = useTranslation();
   const {
     isOnline,
+    connectionState,
+    checkServer,
     retrySync,
     isGuest,
     syncStatus,
@@ -25,9 +28,16 @@ export function SyncSection({
     syncIconColor,
     connectionTitle,
     connectionDetail,
+    ConnectionIcon,
+    connectionIconColor,
     syncTitle,
     syncDetail,
   } = useSyncStatusView();
+
+  // Opening the section is asking "am I connected right now", so answer with a fresh probe.
+  useEffect(() => {
+    if (isOpen) void checkServer();
+  }, [isOpen, checkServer]);
 
   const handleManualSync = () => {
     if (syncing || !isOnline || isGuest) return;
@@ -40,9 +50,9 @@ export function SyncSection({
       ? t('errors.syncStatusFailed')
       : pendingCount > 0
         ? t('errors.syncDetailPending', { count: pendingCount })
-        : isOnline
+        : connectionState === 'connected' || connectionState === 'checking'
           ? t('errors.syncStatusSynced')
-          : t('errors.connectionOffline');
+          : connectionTitle;
 
   return (
     <CollapsibleSection
@@ -55,11 +65,7 @@ export function SyncSection({
     >
       <View className="flex-row items-start gap-md py-xs">
         <View className="mt-xxs">
-          {isOnline ? (
-            <Wifi size={theme.iconSize.lg} color={theme.colors.success} />
-          ) : (
-            <WifiOff size={theme.iconSize.lg} color={theme.colors.warning} />
-          )}
+          <ConnectionIcon size={theme.iconSize.lg} color={connectionIconColor} />
         </View>
         <View className="flex-1 gap-xxs">
           <Text weight="semibold" style={{ fontSize: theme.fontSize.sm }}>

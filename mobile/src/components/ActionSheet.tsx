@@ -1,5 +1,4 @@
 import { Pressable, View } from 'react-native';
-import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { BottomSheetModal } from './BottomSheetModal';
@@ -17,18 +16,15 @@ export interface ActionSheetProps {
   visible: boolean;
   title?: string;
   actions: ActionSheetAction[];
-  cancelLabel?: string;
   onCancel: () => void;
 }
 
 /** Shared bottom-sheet action list. */
-export function ActionSheet({ visible, title, actions, cancelLabel, onCancel }: ActionSheetProps) {
+export function ActionSheet({ visible, title, actions, onCancel }: ActionSheetProps) {
   const theme = useTheme();
-  const { t } = useTranslation();
-  const resolvedCancelLabel = cancelLabel ?? t('common.cancel');
 
   return (
-    <BottomSheetModal visible={visible} onClose={onCancel} title={title}>
+    <BottomSheetModal visible={visible} onClose={onCancel} title={title ?? ''} closeLabel="cancel" entity="action-sheet">
       <View style={{ gap: theme.spacing.xs }}>
         {actions.map((action, index) => (
           <Pressable
@@ -38,7 +34,7 @@ export function ActionSheet({ visible, title, actions, cancelLabel, onCancel }: 
             onPress={action.onPress}
             style={{
               paddingVertical: theme.spacing.md,
-              borderTopWidth: index === 0 && title === undefined ? 0 : theme.borderWidth.thin,
+              borderTopWidth: index === 0 ? 0 : theme.borderWidth.thin,
               borderTopColor: theme.colors.border,
               opacity: action.disabled === true ? theme.opacity.disabled : 1,
             }}
@@ -48,21 +44,6 @@ export function ActionSheet({ visible, title, actions, cancelLabel, onCancel }: 
             </Text>
           </Pressable>
         ))}
-
-        <Pressable
-          testID="btn-cancel-action-sheet"
-          onPress={onCancel}
-          style={{
-            borderTopWidth: theme.borderWidth.thin,
-            paddingVertical: theme.spacing.md,
-            borderTopColor: theme.colors.border,
-            marginTop: theme.spacing.xs,
-          }}
-        >
-          <Text tone="muted" weight="medium" style={{ textAlign: 'center' }}>
-            {resolvedCancelLabel}
-          </Text>
-        </Pressable>
       </View>
     </BottomSheetModal>
   );

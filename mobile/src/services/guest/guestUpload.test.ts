@@ -37,7 +37,7 @@ interface Call {
  * as a wrong argument rather than passing silently.
  */
 function recordingApis(options: {
-  existingCategories?: { id: string; name: string; type: 'INCOME' | 'EXPENSE' | 'TRANSFER'; parentId: string | null }[];
+  existingCategories?: { id: string; name: string; type: 'INCOME' | 'EXPENSE' | 'TRANSFER'; parentId: string | null; systemKey?: string | null }[];
   failOn?: { method: string; times: number; error?: unknown };
 } = {}) {
   const calls: Call[] = [];
@@ -69,6 +69,7 @@ function recordingApis(options: {
           id: category.id,
           walletId: TARGET_WALLET,
           parentId: category.parentId,
+          systemKey: category.systemKey ?? null,
           name: category.name,
           type: category.type,
           icon: null,
@@ -83,6 +84,7 @@ function recordingApis(options: {
           id: serverId('category'),
           walletId: TARGET_WALLET,
           parentId: body.parentId ?? null,
+          systemKey: null,
           name: body.name,
           type: body.type,
           icon: null,
@@ -149,9 +151,12 @@ function recordingApis(options: {
           currency: body.currency,
           periodType: body.periodType,
           startDate: body.startDate,
-          endDate: body.endDate,
-          status: 'ACTIVE' as const,
+          endDate: body.endDate ?? null,
+          periodStart: body.startDate,
+          periodEnd: body.endDate ?? body.startDate,
+          timeZone: 'UTC',
           categoryId: body.categoryId ?? null,
+          categoryIds: body.categoryId ? [body.categoryId] : [],
           goalId: body.goalId ?? null,
           category: body.categoryId ? { id: body.categoryId, name: '', icon: null, color: null } : null,
           spent: '0.0000',
@@ -161,9 +166,6 @@ function recordingApis(options: {
           createdAt: NOW,
           updatedAt: NOW,
         };
-      },
-      async archive(budgetId) {
-        record('budgets.archive', [budgetId]);
       },
     },
     goals: {
@@ -265,7 +267,7 @@ async function seedFullLedger(): Promise<void> {
         name: 'Food, September',
         amount: '1000000',
         currency: 'VND',
-        periodType: 'MONTHLY' as const,
+        periodType: 'CUSTOM' as const,
         startDate: '2026-09-01',
         endDate: '2026-09-30',
         status: 'ACTIVE' as const,
@@ -681,7 +683,6 @@ describe('uploadGuestData — archives last', () => {
       categories: data.categories.map((category) =>
         category.id === INCOME_CATEGORY_ID ? { ...category, status: 'ARCHIVED' as const } : category,
       ),
-      budgets: data.budgets.map((budget) => ({ ...budget, status: 'ARCHIVED' as const })),
     }));
   });
 
@@ -697,12 +698,16 @@ describe('uploadGuestData — archives last', () => {
     assert.equal(order.indexOf('accounts.archive'), order.length - 1);
   });
 
-  it('archives budgets before categories, so CATEGORY_IN_USE cannot fire', async () => {
+  it('uploads a repeating budget with no end date, as the server stores it', async () => {
+    await guestStore.mutate((data) => ({
+      ...data,
+      budgets: data.budgets.map((budget) => ({ ...budget, periodType: 'MONTHLY' as const, endDate: null })),
+    }));
     const fake = recordingApis();
     await uploadGuestData(TARGET_WALLET, fake.apis);
 
-    const order = fake.methods();
-    assert.ok(order.indexOf('budgets.archive') < order.indexOf('categories.archive'));
+    const [body] = fake.of('budgets.create')[0]!.args as [{ periodType: string; endDate: string | null }];
+    assert.deepEqual([body.periodType, body.endDate], ['MONTHLY', null]);
   });
 
   it('archives by server id, not local id', async () => {
@@ -711,7 +716,6 @@ describe('uploadGuestData — archives last', () => {
 
     assert.match(fake.of('accounts.archive')[0]!.args[0] as string, /^server-account-/);
     assert.match(fake.of('categories.archive')[0]!.args[0] as string, /^server-category-/);
-    assert.match(fake.of('budgets.archive')[0]!.args[0] as string, /^server-budget-/);
   });
 
   it('swallows ACCOUNT_LAST_ACTIVE rather than failing the whole upload', async () => {

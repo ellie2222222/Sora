@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 import type { CategorySpendSlice } from '@sora/contracts';
 
-import { changeAgainst, emptyReasonFor, groupByParent, rankCategories } from './dashboardAnalytics.ts';
+import { changeAgainst, emptyReasonFor, groupByTopLevel, rankCategories } from './dashboardAnalytics.ts';
 
 function slice(overrides: Partial<CategorySpendSlice> & Pick<CategorySpendSlice, 'categoryId' | 'amount'>): CategorySpendSlice {
   return {
@@ -87,13 +87,13 @@ describe('rankCategories', () => {
   });
 });
 
-describe('groupByParent', () => {
+describe('groupByTopLevel', () => {
   const groceries = slice({ categoryId: 'groceries', categoryName: 'Groceries', amount: '200.0000', percentage: 40, parentId: 'food' });
   const dining = slice({ categoryId: 'dining', categoryName: 'Dining Out', amount: '100.0000', percentage: 20, parentId: 'food' });
   const transport = slice({ categoryId: 'transport', categoryName: 'Transport', amount: '150.0000', percentage: 30 });
 
   it('rolls children up under their parent and sums the amounts', () => {
-    const groups = groupByParent([groceries, dining, transport], new Map([['food', 'Food']]));
+    const groups = groupByTopLevel([groceries, dining, transport], [{ id: 'food', name: 'Food', parentId: null }]);
     const food = groups.find((group) => group.id === 'food');
 
     assert.equal(food?.name, 'Food');
@@ -104,7 +104,7 @@ describe('groupByParent', () => {
   });
 
   it('leaves a top-level category as its own single-slice group', () => {
-    const groups = groupByParent([transport]);
+    const groups = groupByTopLevel([transport]);
     assert.equal(groups.length, 1);
     assert.equal(groups[0]?.id, 'transport');
     assert.equal(groups[0]?.hasChildren, false);
@@ -113,13 +113,13 @@ describe('groupByParent', () => {
 
   it('orders groups by total, not by the largest single child', () => {
     // Transport (150) outranks either child alone but not Food's 300 total.
-    const groups = groupByParent([groceries, dining, transport], new Map([['food', 'Food']]));
+    const groups = groupByTopLevel([groceries, dining, transport], [{ id: 'food', name: 'Food', parentId: null }]);
     assert.deepEqual(groups.map((group) => group.id), ['food', 'transport']);
   });
 
   it("names a group from the parent's own slice when the parent also spent directly", () => {
     const foodItself = slice({ categoryId: 'food', categoryName: 'Food', amount: '10.0000', percentage: 2, color: '#F97316' });
-    const groups = groupByParent([groceries, foodItself], new Map());
+    const groups = groupByTopLevel([groceries, foodItself]);
     const food = groups.find((group) => group.id === 'food');
 
     assert.equal(food?.name, 'Food');
@@ -128,12 +128,32 @@ describe('groupByParent', () => {
   });
 
   it("falls back to a child's name for an unresolvable parent rather than rendering an empty header", () => {
-    const groups = groupByParent([groceries], new Map());
+    const groups = groupByTopLevel([groceries]);
     assert.equal(groups[0]?.name, 'Groceries');
   });
 
   it('handles an empty breakdown', () => {
-    assert.deepEqual(groupByParent([]), []);
+    assert.deepEqual(groupByTopLevel([]), []);
+  });
+
+  it('rolls a grandchild up to its top-level category, as a budget on that category counts it', () => {
+    const tree = [
+      { id: 'food', name: 'Food', parentId: null },
+      { id: 'dining', name: 'Dining Out', parentId: 'food' },
+      { id: 'coffee', name: 'Coffee', parentId: 'dining' },
+    ];
+    const coffee = slice({ categoryId: 'coffee', categoryName: 'Coffee', amount: '50.0000', percentage: 10, parentId: 'dining' });
+    const groups = groupByTopLevel([coffee, dining, transport], tree);
+
+    assert.deepEqual(groups.map((group) => group.id), ['food', 'transport']);
+    assert.equal(groups[0]?.name, 'Food');
+    assert.equal(groups[0]?.amount, '150.0000');
+  });
+
+  it('stops on a cyclic parent chain instead of hanging', () => {
+    const cyclic = [{ id: 'a', name: 'A', parentId: 'b' }, { id: 'b', name: 'B', parentId: 'a' }];
+    const groups = groupByTopLevel([slice({ categoryId: 'a', categoryName: 'A', amount: '1.0000', parentId: 'b' })], cyclic);
+    assert.equal(groups.length, 1);
   });
 });
 

@@ -27,7 +27,7 @@ export const ACCOUNT_TYPE_LABEL_KEY: Record<AccountType, string> = {
 export interface AccountPickerProps {
   label: string;
   value: string | null;
-  onChange: (accountId: string, walletId: string) => void;
+  onChange: (accountId: string, walletId: string, currency: string) => void;
   walletId?: string;
   error?: string;
   testID?: string;
@@ -44,12 +44,12 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
   const [open, setOpen] = useState(false);
   const accounts = useListAccountsQuery({ walletId, status: AccountStatus.ACTIVE });
 
-  useDefaultToFirst(accounts.data, value, (first) => onChange(first.id, first.walletId));
+  useDefaultToFirst(accounts.data, value, (first) => onChange(first.id, first.walletId, first.currency));
 
   const selected = accounts.data?.find((a) => a.id === value);
   const walletNameOf = (id: string): string => wallets.find((w) => w.id === id)?.name ?? '';
   const AccountTypeIcon = selected !== undefined ? ACCOUNT_ICON[selected.type] : Banknote;
-  const selectedLabel = selected?.name ?? t('accounts.selectAccount', { defaultValue: 'Select an account' });
+  const selectedLabel = selected?.name ?? t('accounts.selectAccount', { defaultValue: 'Pick an account' });
   const fieldAccessibilityLabel = label.length > 0 ? `${label}, ${selectedLabel}` : selectedLabel;
 
   return (
@@ -82,7 +82,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
               numberOfLines={1}
               style={{ maxWidth: theme.sizes.chipLabelMaxWidth }}
             >
-              {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Select an account' }) : selected.name}
+              {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Pick an account' }) : selected.name}
             </Text>
           </Pressable>
           {error !== undefined ? (
@@ -114,7 +114,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
             <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
               <ChevronDown size={theme.iconSize.lg} color={theme.colors.textMuted} />
               <Text tone={selected === undefined ? 'faint' : 'default'}>
-                {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Select an account' }) : selected.name}
+                {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Pick an account' }) : selected.name}
               </Text>
             </View>
           </Pressable>
@@ -129,7 +129,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
       <BottomSheetModal
         visible={open}
         onClose={() => setOpen(false)}
-        title={label || t('accounts.selectAccount', { defaultValue: 'Select an account' })}
+        title={label || t('accounts.selectAccount', { defaultValue: 'Pick an account' })}
       >
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -144,7 +144,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
               walletName={walletId === undefined ? walletNameOf(account.walletId) : undefined}
               selected={account.id === value}
               onPress={() => {
-                onChange(account.id, account.walletId);
+                onChange(account.id, account.walletId, account.currency);
                 setOpen(false);
               }}
             />

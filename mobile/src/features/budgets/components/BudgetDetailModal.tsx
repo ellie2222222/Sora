@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { formatMoney, negate, parseMoney } from '@sora/contracts';
 
-import { BudgetStatus } from '@sora/contracts';
 import { BottomSheetModal, Card, Money, ProgressBar, Skeleton, StateView, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { useGetBudgetQuery } from '@/app/store';
-import { isNetworkError } from '@/utils';
-import { ArchiveBudgetDialog } from './ArchiveBudgetDialog.tsx';
+import { budgetPeriodLabel, isNetworkError } from '@/utils';
+import { DeleteBudgetDialog } from './DeleteBudgetDialog.tsx';
 import { BudgetEditCard } from './BudgetEditCard.tsx';
 
 export interface BudgetDetailModalProps {
@@ -50,9 +50,9 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
 
   const budget = useGetBudgetQuery(budgetId as string, { skip: !budgetId });
 
-  const [archiving, setArchiving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // Tagged with its budget: the sheet stays mounted, and one budget's failure must not show on the next.
-  const [archiveError, setArchiveError] = useState<{ budgetId: string; message: string } | null>(null);
+  const [deleteError, setDeleteError] = useState<{ budgetId: string; message: string } | null>(null);
 
   const renderContent = () => {
     if (budget.isLoading || walletsLoading) return <BudgetDetailSkeleton />;
@@ -62,17 +62,17 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
 
     const data = budget.data;
     if (data === undefined) {
-      return <StateView variant="error" error={new Error(t('budgets.budgetNotFound', 'Budget not found'))} />;
+      return <StateView variant="error" error={new Error(t('budgets.budgetNotFound', "Couldn't find this budget"))} />;
     }
 
-    const canEdit = permissions.canWrite && data.status === BudgetStatus.ACTIVE;
+    const canEdit = permissions.canWrite;
 
     return (
       <>
         <Card>
           <Text variant="title">{data.name}</Text>
           <Text tone="muted" style={{ marginBottom: theme.spacing.sm }}>
-            {data.category?.name ?? t('budgets.overall', { defaultValue: 'Overall' })} · {t('budgets.dateRange', { start: data.startDate, end: data.endDate })}
+            {data.category?.name ?? t('budgets.overall', { defaultValue: 'All expenses' })} · {budgetPeriodLabel(data)}
           </Text>
 
           <ProgressBar percentage={data.usagePercentage} danger={data.isOverBudget} height={theme.sizes.progressBar.lg} />
@@ -86,9 +86,10 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
             </View>
             <View className="items-end">
               <Text variant="label" tone="muted">
-                {data.isOverBudget ? t('budgets.overBy', 'Over by') : t('budgets.remaining', 'Remaining')}
+                {data.isOverBudget ? t('budgets.overBy', 'Over by') : t('budgets.remaining', 'Left')}
               </Text>
-              <Money amount={data.remaining} currency={data.currency} variant="title" />
+              {/* "Over by" already says which way, so the overspend shows as a plain amount. */}
+              <Money amount={data.isOverBudget ? formatMoney(negate(parseMoney(data.remaining))) : data.remaining} currency={data.currency} variant="title" />
             </View>
           </View>
 
@@ -99,21 +100,16 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
             <Money amount={data.amount} currency={data.currency} variant="caption" />
           </View>
 
-          {data.status === BudgetStatus.ARCHIVED ? (
-            <Text tone="muted" weight="semibold" style={{ marginTop: theme.spacing.sm }}>
-              {t('common.archived', 'Archived')}
-            </Text>
-          ) : null}
         </Card>
 
         {canEdit ? (
           <BudgetEditCard
             key={data.id}
             budget={data}
-            archiveError={archiveError?.budgetId === data.id ? archiveError.message : null}
-            onArchive={() => {
-              setArchiveError(null);
-              setArchiving(true);
+            deleteError={deleteError?.budgetId === data.id ? deleteError.message : null}
+            onDelete={() => {
+              setDeleteError(null);
+              setDeleting(true);
             }}
           />
         ) : null}
@@ -125,7 +121,7 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
     <BottomSheetModal
       visible={budgetId !== null}
       onClose={onClose}
-      title={t('budgets.detailTitle', 'Budget detail')}
+      title={t('budgets.detailTitle', 'Budget')}
       testID="budget-detail-modal"
     >
       {/* Scrolls so Save stays reachable above the docked amount keypad. */}
@@ -136,16 +132,16 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
       >
         {renderContent()}
       </ScrollView>
-      <ArchiveBudgetDialog
-        budgetId={archiving ? budgetId : null}
-        onCancel={() => setArchiving(false)}
-        onArchived={() => {
-          setArchiving(false);
+      <DeleteBudgetDialog
+        budgetId={deleting ? budgetId : null}
+        onCancel={() => setDeleting(false)}
+        onDeleted={() => {
+          setDeleting(false);
           onClose();
         }}
         onError={(message) => {
-          setArchiving(false);
-          if (budgetId !== null) setArchiveError({ budgetId, message });
+          setDeleting(false);
+          if (budgetId !== null) setDeleteError({ budgetId, message });
         }}
       />
     </BottomSheetModal>

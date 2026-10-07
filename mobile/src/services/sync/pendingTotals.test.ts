@@ -76,10 +76,14 @@ function budget(overrides: Partial<BudgetResponse> = {}): BudgetResponse {
     amount: '1000.0000',
     currency: 'VND',
     periodType: 'MONTHLY',
-    startDate: '2026-09-01',
-    endDate: '2026-09-30',
-    status: 'ACTIVE',
+    startDate: '2026-08-01',
+    endDate: null,
+    // A monthly budget begun in August, reporting September: spend counts only this period.
+    periodStart: '2026-09-01',
+    periodEnd: '2026-09-30',
+    timeZone: 'UTC',
     categoryId: 'cat-food',
+    categoryIds: ['cat-food', 'cat-coffee'],
     goalId: null,
     category: { id: 'cat-food', name: 'Food', icon: null, color: null },
     spent: '950.0000',
@@ -95,7 +99,7 @@ function budget(overrides: Partial<BudgetResponse> = {}): BudgetResponse {
 function dashboard(): DashboardResponse {
   return {
     walletId: 'w-me',
-    period: { dateFrom: '2026-09-01', dateTo: '2026-09-30' },
+    period: { dateFrom: '2026-09-01', dateTo: '2026-09-30', timeZone: 'UTC' },
     totalBalance: [{ currency: 'VND', amount: '1000.0000' }],
     income: [{ currency: 'VND', amount: '500.0000' }],
     expense: [{ currency: 'VND', amount: '300.0000' }],
@@ -129,6 +133,13 @@ describe('applyToAccount', () => {
     assert.equal(detail.balance, '1000.0000');
     assert.equal(detail.totalExpense, '0.0000');
     assert.equal(detail.transactionCount, 3);
+  });
+
+  it('moves the balance for an in-place edit without counting a new row', () => {
+    const detail = account({ balance: '900.0000', totalExpense: '100.0000' });
+    applyToAccount(detail, ledgerChangeOf('cancel', tx({}), { inPlace: true }));
+    applyToAccount(detail, ledgerChangeOf('create', tx({ amount: '250.0000' }), { inPlace: true }));
+    assert.deepEqual([detail.balance, detail.totalExpense, detail.transactionCount], ['750.0000', '250.0000', 3]);
   });
 
   it('moves both legs of a transfer', () => {
@@ -224,10 +235,30 @@ describe('applyToBudget', () => {
     assert.equal(b.spent, '950.0000');
   });
 
+  it("counts a subcategory's expense toward its parent's budget", () => {
+    const b = budget();
+    applyToBudget(b, ledgerChangeOf('create', tx({ category: { ...food!, id: 'cat-coffee' } })));
+    assert.equal(b.spent, '1050.0000');
+  });
+
+  it('still counts its own category for a budget cached before categoryIds existed', () => {
+    const b = budget();
+    delete (b as Partial<BudgetResponse>).categoryIds;
+    applyToBudget(b, ledgerChangeOf('create', tx({})));
+    assert.equal(b.spent, '1050.0000');
+  });
+
   it('counts an expense stamped late on the last day of the window', () => {
     const b = budget();
     applyToBudget(b, ledgerChangeOf('create', tx({ transactionDate: '2026-09-30T23:30:00.000Z' })));
     assert.equal(b.spent, '1050.0000');
+  });
+  it("reads the window in the budget's wallet zone: 23:30Z on Sep 30 is already Oct 1 in Ho Chi Minh City", () => {
+    const b = budget({ timeZone: 'Asia/Ho_Chi_Minh' });
+    applyToBudget(b, ledgerChangeOf('create', tx({ transactionDate: '2026-09-30T23:30:00.000Z' })));
+    assert.equal(b.spent, '950.0000');
+    applyToBudget(b, ledgerChangeOf('create', tx({ transactionDate: '2026-08-31T17:30:00.000Z' })));
+    assert.equal(b.spent, '1050.0000', '00:30 on Sep 1 there');
   });
   it('BUD-US-02: counts any expense paid from the wallet toward a wallet-wide budget, and none from another wallet', () => {
     const b = budget({ categoryId: null, category: null, goalId: null });
@@ -286,6 +317,19 @@ describe('applyToDashboard', () => {
       { ...fresh, recentTransactions: [] },
     );
     assert.equal(d.recentTransactions[0]?.status, TransactionStatus.DELETED);
+  });
+
+  it('turns an edited expense into income in place, replacing its recent row rather than adding one', () => {
+    const d = dashboard();
+    const before = tx({});
+    applyToDashboard(d, ledgerChangeOf('create', before, { actorUserId: 'user-me' }));
+    const after = tx({ type: TransactionType.INCOME, amount: '40.0000', fromAccount: null, toAccount: ref('acc-bank', 'w-me'), category: null });
+    applyToDashboard(d, ledgerChangeOf('cancel', before, { actorUserId: 'user-me', inPlace: true }));
+    applyToDashboard(d, ledgerChangeOf('create', after, { actorUserId: 'user-me', inPlace: true }));
+
+    assert.deepEqual([d.totalBalance[0]?.amount, d.income[0]?.amount, d.expense[0]?.amount], ['1040.0000', '540.0000', '300.0000']);
+    assert.equal(d.activeBudgets[0]?.spent, '950.0000', 'the budget no longer counts it');
+    assert.deepEqual(d.recentTransactions.map((row) => [row.id, row.type, row.status]), [['tx-1', 'INCOME', 'COMPLETED']]);
   });
 
   it('keeps an internal transfer out of every figure but reports a cross-wallet one on its own (BR-06)', () => {

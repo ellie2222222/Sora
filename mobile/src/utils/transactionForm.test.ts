@@ -1,10 +1,15 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
+import type { TransactionResponse } from '@sora/contracts';
+
 import {
   buildCreatePayload,
   categoryTypeFor,
+  draftFromTransaction,
   emptyDraft,
+  expressionOfAmount,
+  updateBodyOf,
   fieldsForType,
   isCrossWalletDraft,
   primaryAccountOf,
@@ -296,5 +301,58 @@ describe('isCrossWalletDraft', () => {
       ),
       false,
     );
+  });
+});
+
+const recorded: TransactionResponse = {
+  id: '44444444-4444-4444-8444-444444444444',
+  type: 'EXPENSE',
+  status: 'COMPLETED',
+  amount: '150000.0000',
+  currency: 'VND',
+  description: 'Lunch',
+  transactionDate: WHEN,
+  reference: 'INV-1',
+  fromAccount: { id: ACCOUNT_A, name: 'Bank', currency: 'VND', walletId: 'w', walletName: 'W' },
+  toAccount: null,
+  category: { id: CATEGORY, name: 'Food', type: 'EXPENSE', icon: null, color: null },
+  goalId: null,
+  createdBy: { id: 'u', displayName: 'U' },
+  isCrossWallet: false,
+  createdAt: WHEN,
+  updatedAt: WHEN,
+};
+
+describe('editing a recorded transaction', () => {
+  it('fills the form with its values, and an untouched form changes nothing', () => {
+    const filled = draftFromTransaction(recorded);
+    assert.deepEqual(
+      [filled.type, filled.fromAccountId, filled.toAccountId, filled.categoryId, filled.description, filled.reference],
+      ['EXPENSE', ACCOUNT_A, null, CATEGORY, 'Lunch', 'INV-1'],
+    );
+    const result = validateDraft({ ...filled, amount: '150000' });
+    assert.equal(result.ok, true);
+    if (result.ok) assert.deepEqual(updateBodyOf(recorded, result.payload), {});
+  });
+
+  it('sends only the changed amount, and an emptied note as null', () => {
+    const result = validateDraft({ ...draftFromTransaction(recorded), amount: '200000', description: '' });
+    assert.equal(result.ok, true);
+    if (result.ok) assert.deepEqual(updateBodyOf(recorded, result.payload), { amount: '200000', description: null });
+  });
+
+  it('sends the new type with the account side and category it needs, and clears the side it dropped', () => {
+    const income = { ...switchType(draftFromTransaction(recorded), 'INCOME'), categoryId: CATEGORY, amount: '150000' };
+    const result = validateDraft(income);
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.deepEqual(updateBodyOf(recorded, result.payload), { type: 'INCOME', fromAccountId: null, toAccountId: ACCOUNT_A });
+    }
+  });
+
+  it('turns a stored amount into keypad input', () => {
+    assert.equal(expressionOfAmount('150000.0000'), '150000');
+    assert.equal(expressionOfAmount('12.5000'), '12.5');
+    assert.equal(expressionOfAmount('7'), '7');
   });
 });

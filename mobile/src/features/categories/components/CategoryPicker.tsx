@@ -33,7 +33,7 @@ export function CategoryPicker({ walletId, type, value, onChange, onClear, error
   const noCategoryLabel = t('categories.noCategory');
 
   const selected = categories.data?.find((c) => c.id === value);
-  const placeholder = onClear !== undefined ? noCategoryLabel : t('categories.selectCategory', { defaultValue: 'Select a category' });
+  const placeholder = onClear !== undefined ? noCategoryLabel : t('categories.selectCategory', { defaultValue: 'Pick a category' });
 
   return (
     <View style={{ gap: theme.spacing.xs }}>
@@ -74,7 +74,7 @@ export function CategoryPicker({ walletId, type, value, onChange, onClear, error
       <BottomSheetModal
         visible={open}
         onClose={() => setOpen(false)}
-        title={t('categories.selectCategory', { defaultValue: 'Select a category' })}
+        title={t('categories.selectCategory', { defaultValue: 'Pick a category' })}
       >
         <ScrollView
           showsVerticalScrollIndicator={false}

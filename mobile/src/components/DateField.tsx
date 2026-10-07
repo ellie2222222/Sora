@@ -4,8 +4,9 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
-import { formatDay, today } from '@/utils';
+import { formatDay, type CalendarDay } from '@/utils';
 import { DatePickerModal } from './DatePickerModal';
+import { DatePresetSheet, type DatePresetSheetProps } from './DatePresetSheet';
 import { Text } from './Text';
 
 export interface DateFieldProps {
@@ -19,6 +20,10 @@ export interface DateFieldProps {
   placeholder?: string;
   error?: string;
   testID?: string;
+  /** Opens quick options with the calendar one row away, in place of the bare calendar. */
+  presetSheet?: Omit<DatePresetSheetProps, 'visible' | 'value' | 'onSelect' | 'onClose' | 'today'>;
+  /** Today in the wallet's zone. */
+  today: CalendarDay;
 }
 
 /**
@@ -26,7 +31,7 @@ export interface DateFieldProps {
  * `CategoryPicker`) rather than a free-text `Input` — the value can only ever
  * be a real calendar day, so there's nothing left to validate.
  */
-export function DateField({ label, value, onChange, onClear, placeholder, error, testID }: DateFieldProps) {
+export function DateField({ label, value, onChange, onClear, placeholder, error, testID, presetSheet, today }: DateFieldProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -75,12 +80,11 @@ export function DateField({ label, value, onChange, onClear, placeholder, error,
         </Text>
       ) : null}
 
-      <DatePickerModal
-        visible={open}
-        selectedDay={value ?? today()}
-        onSelectDay={onChange}
-        onClose={() => setOpen(false)}
-      />
+      {presetSheet !== undefined ? (
+        <DatePresetSheet {...presetSheet} today={today} visible={open} value={value} onSelect={onChange} onClose={() => setOpen(false)} />
+      ) : (
+        <DatePickerModal visible={open} today={today} selectedDay={value ?? today} onSelectDay={onChange} onClose={() => setOpen(false)} />
+      )}
     </View>
   );
 }

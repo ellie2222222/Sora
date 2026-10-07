@@ -101,7 +101,7 @@ export function AccountEditCard({ account, onArchive }: AccountEditCardProps) {
         disabled={!isDirty || name.trim().length === 0}
         fullWidth
       />
-      <Button testID="btn-archive-account" label={t('accounts.archiveAccount')} icon={Archive} variant="danger" onPress={onArchive} fullWidth />
+      <Button testID="btn-archive-account" label={t('accounts.archiveAccount')} icon={Archive} variant="danger-outline" onPress={onArchive} fullWidth />
     </Card>
   );
 }

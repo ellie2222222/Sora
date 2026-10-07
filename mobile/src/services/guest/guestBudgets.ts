@@ -8,21 +8,24 @@
  *
  * The overlap rule the server enforces at the database via the
  * `excl_budget_*_overlap` GIST exclusions (same category, goal or wallet-wide target,
- * overlapping inclusive `daterange`, ACTIVE only — db/migrations/008_redesign_budgets.sql)
+ * overlapping inclusive `daterange`, an open end unbounded — db/migrations/001_schema.sql)
  * has no database to enforce it here, so it is checked explicitly in
  * `assertNoOverlap` instead of relying on `translatingPgErrors`.
  */
 
 import {
+  budgetWindow,
   calculateBudgetRemaining,
   calculateBudgetSpent,
+  categorySubtreeIds,
   calculateBudgetUsage,
   createBudgetSchema,
   formatMoney,
   isOverBudget,
   parseMoney,
+  todayIn,
   updateBudgetSchema,
-  BudgetStatus,
+  isBudgetActiveOn,
   GoalStatus,
   CategoryStatus,
   CategoryType,
@@ -31,16 +34,17 @@ import {
   type UpdateBudgetRequest,
 } from '@sora/contracts';
 
+import { guestCategoryName } from './guestCategoryName.ts';
 import { fromZodError, guestError } from './guestErrors.ts';
 import { newLocalId } from './guestIds.ts';
 import { guestStore } from './guestStorage.ts';
+import { guestTimeZone } from './guestTimeZone.ts';
 import { type GuestBudget, type GuestWallet } from './guestStore.ts';
 import { toSpendRelevant } from './guestTransactions.ts';
 
 export interface BudgetListQuery {
   walletId: string;
-  status?: BudgetStatus | undefined;
-  /** Budgets whose window contains this calendar day (YYYY-MM-DD). */
+  /** Budgets covering this calendar day (YYYY-MM-DD); also the day each repeating budget's period is taken on. */
   activeOn?: string | undefined;
 }
 
@@ -56,9 +60,9 @@ function findBudget(budgets: readonly GuestBudget[], budgetId: string): GuestBud
   return budget;
 }
 
-/** Inclusive daterange overlap test, mirroring `daterange(start, end, '[]') WITH &&`. */
-function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
-  return aStart <= bEnd && bStart <= aEnd;
+/** Inclusive daterange overlap test, mirroring `daterange(start, end, '[]') WITH &&`; a null end is unbounded. */
+function rangesOverlap(aStart: string, aEnd: string | null, bStart: string, bEnd: string | null): boolean {
+  return (bEnd === null || aStart <= bEnd) && (aEnd === null || bStart <= aEnd);
 }
 
 /** Same kind and target (API spec §12.2): one category, one goal, or the wallet as a whole. */
@@ -71,15 +75,10 @@ function assertNoOverlap(
   categoryId: string | null,
   goalId: string | null,
   startDate: string,
-  endDate: string,
-  excludingBudgetId?: string,
+  endDate: string | null,
 ): void {
   const collides = budgets.some(
-    (budget) =>
-      budget.id !== excludingBudgetId &&
-      sameTarget(budget, categoryId, goalId) &&
-      budget.status === BudgetStatus.ACTIVE &&
-      rangesOverlap(budget.startDate, budget.endDate, startDate, endDate),
+    (budget) => sameTarget(budget, categoryId, goalId) && rangesOverlap(budget.startDate, budget.endDate, startDate, endDate),
   );
   if (collides) throw guestError('BUDGET_PERIOD_OVERLAP');
 }
@@ -101,19 +100,17 @@ function assertBudgetableCategory(walletId: string, categoryId: string | null): 
   if (category.status === CategoryStatus.ARCHIVED) throw guestError('CATEGORY_ARCHIVED');
 }
 
-function toBudgetResponse(budget: GuestBudget): BudgetResponse {
-  const { categories, transactions } = guestStore.current();
+/** Windows are the guest wallet's calendar days; `day` (default: today there) picks a repeating budget's period. */
+function toBudgetResponse(budget: GuestBudget, day?: string): BudgetResponse {
+  const { categories, transactions, wallet } = guestStore.current();
+  const timeZone = guestTimeZone(wallet);
+  day ??= todayIn(timeZone);
   const category = budget.categoryId ? categories.find((candidate) => candidate.id === budget.categoryId) : null;
   const amount = parseMoney(budget.amount);
+  const window = budgetWindow(budget, day);
+  const categoryIds = budget.categoryId ? categorySubtreeIds(budget.categoryId, categories) : [];
   const spent = calculateBudgetSpent(
-    {
-      walletId: budget.walletId,
-      categoryId: budget.categoryId,
-      goalId: budget.goalId,
-      currency: budget.currency,
-      startDate: budget.startDate,
-      endDate: budget.endDate,
-    },
+    { walletId: budget.walletId, categoryId: budget.categoryId, categoryIds, goalId: budget.goalId, currency: budget.currency, ...window, timeZone },
     transactions.map((transaction) => toSpendRelevant(transaction, budget.walletId)),
   );
   const remaining = calculateBudgetRemaining(amount, spent);
@@ -127,11 +124,14 @@ function toBudgetResponse(budget: GuestBudget): BudgetResponse {
     periodType: budget.periodType,
     startDate: budget.startDate,
     endDate: budget.endDate,
-    status: budget.status,
+    periodStart: window.startDate,
+    periodEnd: window.endDate,
+    timeZone,
     categoryId: budget.categoryId,
+    categoryIds,
     goalId: budget.goalId,
     category: category
-      ? { id: category.id, name: category.name, icon: category.icon, color: category.color }
+      ? { id: category.id, name: guestCategoryName(category), icon: category.icon, color: category.color }
       : budget.categoryId 
         ? { id: budget.categoryId, name: '', icon: null, color: null }
         : null,
@@ -146,13 +146,13 @@ function toBudgetResponse(budget: GuestBudget): BudgetResponse {
 
 export const guestBudgetsApi = {
   async list(query: BudgetListQuery): Promise<BudgetResponse[]> {
-    requireWallet();
+    const wallet = requireWallet();
     const { budgets } = guestStore.current();
 
+    const day = query.activeOn ?? todayIn(guestTimeZone(wallet));
     return budgets
-      .filter((budget) => !query.status || budget.status === query.status)
-      .filter((budget) => !query.activeOn || (budget.startDate <= query.activeOn && budget.endDate >= query.activeOn))
-      .map(toBudgetResponse);
+      .filter((budget) => query.activeOn === undefined || isBudgetActiveOn(budget, query.activeOn))
+      .map((budget) => toBudgetResponse(budget, day));
   },
 
   async detail(budgetId: string): Promise<BudgetResponse> {
@@ -170,7 +170,7 @@ export const guestBudgetsApi = {
     assertBudgetableCategory(wallet.id, request.categoryId ?? null);
     assertBudgetableGoal(wallet.id, request.goalId ?? null);
     const { budgets } = guestStore.current();
-    assertNoOverlap(budgets, request.categoryId ?? null, request.goalId ?? null, request.startDate, request.endDate);
+    assertNoOverlap(budgets, request.categoryId ?? null, request.goalId ?? null, request.startDate, request.endDate ?? null);
 
     const now = new Date().toISOString();
     const budget: GuestBudget = {
@@ -183,8 +183,7 @@ export const guestBudgetsApi = {
       currency: request.currency,
       periodType: request.periodType,
       startDate: request.startDate,
-      endDate: request.endDate,
-      status: BudgetStatus.ACTIVE,
+      endDate: request.endDate ?? null,
       createdAt: now,
       updatedAt: now,
     };
@@ -201,24 +200,11 @@ export const guestBudgetsApi = {
 
     const { budgets } = guestStore.current();
     const existing = findBudget(budgets, budgetId);
-    // Reactivating meets create's rules, as the server's lock and exclusion constraint enforce.
-    if (patch.status === BudgetStatus.ACTIVE && existing.status !== BudgetStatus.ACTIVE) {
-      assertBudgetableCategory(existing.walletId, existing.categoryId);
-      assertBudgetableGoal(existing.walletId, existing.goalId);
-      assertNoOverlap(
-        budgets.filter((candidate) => candidate.id !== budgetId),
-        existing.categoryId,
-        existing.goalId,
-        existing.startDate,
-        existing.endDate,
-      );
-    }
 
     const updated: GuestBudget = {
       ...existing,
       name: patch.name ?? existing.name,
       amount: patch.amount ?? existing.amount,
-      status: patch.status ?? existing.status,
       updatedAt: new Date().toISOString(),
     };
 
@@ -230,20 +216,13 @@ export const guestBudgetsApi = {
     return toBudgetResponse(updated);
   },
 
-  /** Archives, which also frees its slot for `assertNoOverlap` (mirrors §12.5). */
-  async archive(budgetId: string): Promise<void> {
+  /** Removes the budget, freeing its slot for `assertNoOverlap` (mirrors §12.5). */
+  async delete(budgetId: string): Promise<void> {
     requireWallet();
-    const { budgets } = guestStore.current();
-    const existing = findBudget(budgets, budgetId);
-    if (existing.status === BudgetStatus.ARCHIVED) return;
-
+    findBudget(guestStore.current().budgets, budgetId);
     await guestStore.mutate((current) => ({
       ...current,
-      budgets: current.budgets.map((candidate) =>
-        candidate.id === budgetId
-          ? { ...candidate, status: BudgetStatus.ARCHIVED, updatedAt: new Date().toISOString() }
-          : candidate,
-      ),
+      budgets: current.budgets.filter((candidate) => candidate.id !== budgetId),
     }));
   },
 };

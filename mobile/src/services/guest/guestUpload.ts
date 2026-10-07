@@ -20,7 +20,6 @@
 import {
   CategoryStatus,
   AccountStatus,
-  BudgetStatus,
   GoalStatus,
   TransactionType,
   type CategoryResponse,
@@ -37,6 +36,7 @@ import type { accountsApi, budgetsApi, categoriesApi, goalsApi, transactionsApi 
 // Relative, not `@/utils`: same bare-`node --test` constraint as the type-only
 // import above — no path-alias resolution at runtime outside the bundler.
 import { isApiError } from '../../utils/errors.ts';
+import { guestCategoryName } from './guestCategoryName.ts';
 import { newLocalId } from './guestIds.ts';
 import { guestStore } from './guestStorage.ts';
 import {
@@ -60,7 +60,7 @@ export interface UploadApis {
   categories: Pick<typeof categoriesApi, 'list' | 'create' | 'archive'>;
   accounts: Pick<typeof accountsApi, 'create' | 'archive'>;
   transactions: Pick<typeof transactionsApi, 'create'>;
-  budgets: Pick<typeof budgetsApi, 'create' | 'archive'>;
+  budgets: Pick<typeof budgetsApi, 'create'>;
   goals: Pick<typeof goalsApi, 'create' | 'addContribution' | 'cancel' | 'update'>;
 }
 
@@ -145,11 +145,17 @@ async function uploadCategories(walletId: string, apis: UploadApis): Promise<voi
         (candidate.parentId ?? null) === (mappedParentId ?? null) &&
         candidate.name.toLowerCase() === name.toLowerCase();
 
-      let name = category.name;
-      let match = serverCategories.find((candidate) => candidate.type === category.type && siblingNamed(candidate, name));
+      // A starter is matched by key: the server names it in the request locale, which may not be the guest's.
+      let name = guestCategoryName(category);
+      let match = category.systemKey
+        ? serverCategories.find(
+            (candidate) => candidate.systemKey === category.systemKey && (candidate.parentId ?? null) === (mappedParentId ?? null),
+          )
+        : undefined;
+      match ??= serverCategories.find((candidate) => candidate.type === category.type && siblingNamed(candidate, name));
       // uq_category_name_per_parent ignores type, so a same-named category of another type would make create 409.
       if (!match && serverCategories.some((candidate) => siblingNamed(candidate, name))) {
-        name = `${category.name} (${typeSuffix(category.type)})`;
+        name = `${guestCategoryName(category)} (${typeSuffix(category.type)})`;
         match = serverCategories.find((candidate) => candidate.type === category.type && siblingNamed(candidate, name));
       }
 
@@ -171,6 +177,7 @@ async function uploadCategories(walletId: string, apis: UploadApis): Promise<voi
           id: serverId,
           walletId,
           parentId: mappedParentId ?? null,
+          systemKey: null,
           name,
           type: category.type,
           icon: category.icon,
@@ -356,19 +363,10 @@ async function uploadGoals(walletId: string, apis: UploadApis): Promise<void> {
   }
 }
 
-/**
- * Archives are last and in this order — budgets before categories, so a
- * category's active-budget check (CATEGORY_IN_USE) never fires against a
- * budget this same run is about to archive anyway.
- */
+/** Archives are last, so every row they name already exists on the server. */
 async function archiveLocallyArchived(apis: UploadApis): Promise<void> {
-  const { budgets, categories, accounts, uploadProgress } = guestStore.current();
+  const { categories, accounts, uploadProgress } = guestStore.current();
   const progress = uploadProgress!;
-
-  for (const budget of budgets) {
-    if (budget.status !== BudgetStatus.ARCHIVED) continue;
-    await apis.budgets.archive(progress.budgetMap[budget.id]!);
-  }
 
   for (const category of categories) {
     if (category.status !== CategoryStatus.ARCHIVED) continue;

@@ -124,8 +124,8 @@ describe('formatPeriodLabel', () => {
 
   it('follows the active language for the date-based periods', async () => {
     await i18next.changeLanguage('vi');
-    assert.equal(formatPeriodLabel('daily', ANCHOR), '17 thg 8, 2026');
-    assert.equal(formatPeriodLabel('weekly', ANCHOR), '16 thg 8, 2026 – 22 thg 8, 2026');
-    assert.equal(formatPeriodLabel('monthly', ANCHOR), 'thg 8 2026');
+    assert.equal(formatPeriodLabel('daily', ANCHOR), '17 tháng 8, 2026');
+    assert.equal(formatPeriodLabel('weekly', ANCHOR), '16 tháng 8, 2026 – 22 tháng 8, 2026');
+    assert.equal(formatPeriodLabel('monthly', ANCHOR), 'tháng 8 năm 2026');
   });
 });

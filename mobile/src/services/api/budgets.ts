@@ -2,7 +2,6 @@ import {
   ROUTES,
   apiUrl,
   type BudgetResponse,
-  type BudgetStatus,
   type CreateBudgetRequest,
   type UpdateBudgetRequest,
 } from '@sora/contracts';
@@ -11,8 +10,7 @@ import { deleteVoid, getAll, getOne, idempotencyHeaders, patchOne, postOne } fro
 
 export interface BudgetListQuery {
   walletId: string;
-  status?: BudgetStatus | undefined;
-  /** Budgets whose window contains this calendar day (YYYY-MM-DD). */
+  /** Budgets covering this calendar day (YYYY-MM-DD); also the day each repeating budget's period is taken on. */
   activeOn?: string | undefined;
 }
 
@@ -32,7 +30,7 @@ export const budgetsApi = {
   /**
    * Category and period are absent from the update contract on purpose: moving a
    * window changes which transactions the budget ever covered, which makes it a
-   * different budget. Archive and create instead.
+   * different budget. Delete and create instead.
    */
   update(budgetId: string, body: UpdateBudgetRequest, idempotencyKey?: string): Promise<BudgetResponse> {
     return patchOne<BudgetResponse>(
@@ -42,7 +40,7 @@ export const budgetsApi = {
     );
   },
 
-  archive(budgetId: string, idempotencyKey?: string): Promise<void> {
-    return deleteVoid(apiUrl(ROUTES.budgets.archive(budgetId)), undefined, idempotencyHeaders(idempotencyKey));
+  delete(budgetId: string, idempotencyKey?: string): Promise<void> {
+    return deleteVoid(apiUrl(ROUTES.budgets.delete(budgetId)), undefined, idempotencyHeaders(idempotencyKey));
   },
 };

@@ -14,11 +14,12 @@ export interface DayBucket<T> {
   items: T[];
 }
 
-export function groupConsecutiveByDay<T>(items: readonly T[], instantOf: (item: T) => Instant): DayBucket<T>[] {
+/** Days are the wallet's, read in its `timeZone`. */
+export function groupConsecutiveByDay<T>(items: readonly T[], instantOf: (item: T) => Instant, timeZone: string): DayBucket<T>[] {
   const groups: DayBucket<T>[] = [];
 
   for (const item of items) {
-    const day = dayOfInstant(instantOf(item));
+    const day = dayOfInstant(instantOf(item), timeZone);
     const current = groups[groups.length - 1];
     if (current !== undefined && current.day === day) {
       current.items.push(item);
@@ -37,8 +38,9 @@ export interface DayGroup {
 
 export function groupTransactionsByDay(
   transactions: readonly TransactionResponse[],
+  timeZone: string,
 ): DayGroup[] {
-  return groupConsecutiveByDay(transactions, (transaction) => transaction.transactionDate).map(({ day, items }) => ({
+  return groupConsecutiveByDay(transactions, (transaction) => transaction.transactionDate, timeZone).map(({ day, items }) => ({
     day,
     transactions: items,
   }));

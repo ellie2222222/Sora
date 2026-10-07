@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Calendar, Clock, CreditCard, Pencil, Tag, Trash2, User, UsersRound } from 'lucide-react-native';
+import { Calendar, Clock, CreditCard, Pencil, Tag, Trash2, User, UsersRound, type LucideIcon } from 'lucide-react-native';
 import { TransactionStatus, TransactionType, type TransactionResponse } from '@sora/contracts';
 
 import { BottomSheetModal, Button, CategoryAvatar, Money, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
-import { formatDay, formatTimeOfDay } from '@/utils';
+import { dayOfDate, dayOfInstant, formatDay, formatTimeOfDay } from '@/utils';
 import { DeleteTransactionDialog } from './DeleteTransactionDialog.tsx';
 
 export interface TransactionDetailModalProps {
@@ -16,6 +16,14 @@ export interface TransactionDetailModalProps {
   onEdit?: (transaction: TransactionResponse) => void;
 }
 
+/**
+ * Read-only summary of one transaction. Editing happens in the shared transaction form
+ * (`onEdit` opens it in edit mode); this sheet never becomes an editor itself.
+ *
+ * Hierarchy, top to bottom: title → amount → what the transaction is (category, account,
+ * date) → who recorded it and when → actions. The audit group is visually quieter so the
+ * transaction reads at a glance before any metadata does.
+ */
 export function TransactionDetailModal({
   visible,
   transaction,
@@ -24,7 +32,7 @@ export function TransactionDetailModal({
 }: TransactionDetailModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { permissions } = useWallets();
+  const { permissions, wallets, timeZone: activeTimeZone } = useWallets();
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -33,31 +41,39 @@ export function TransactionDetailModal({
   const category = transaction.category;
   const fromAcc = transaction.fromAccount;
   const toAcc = transaction.toAccount;
+  const isTransfer = transaction.type === TransactionType.TRANSFER;
+  const homeWalletId = transaction.type === TransactionType.INCOME ? toAcc?.walletId : fromAcc?.walletId;
+  const walletTimeZone = wallets.find((wallet) => wallet.id === homeWalletId)?.timeZone ?? activeTimeZone;
   const isDeleted = transaction.status === TransactionStatus.DELETED;
   const isEditable = !isDeleted && permissions.canWrite;
 
   const title = transaction.description || category?.name || transaction.type;
   const tint = category?.color ?? theme.colors.primary;
+  // Income and expense touch one account, so it is simply "Account"; only a transfer has two sides.
+  const accountLabel = t('accounts.accountLabel', { defaultValue: 'Account' });
 
   return (
     <>
     <BottomSheetModal visible={visible} onClose={onClose} title={t('transactions.detailTitle', { defaultValue: 'Transaction details' })}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: theme.spacing.xl }}
+        contentContainerStyle={{ paddingBottom: theme.spacing.lg }}
       >
-        <View className="items-center" style={{ marginTop: theme.spacing.xl, marginBottom: theme.spacing.xxl }}>
-          <View style={{ marginBottom: theme.spacing.lg }}>
-            <CategoryAvatar
-              categoryIcon={category?.icon}
-              categoryName={category?.name}
-              transactionType={transaction.type}
-              tint={tint}
-              size={theme.sizes.badge.lg}
-            />
-          </View>
+        <View className="items-center" style={{ paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.lg }}>
+          <CategoryAvatar
+            categoryIcon={category?.icon}
+            categoryName={category?.name}
+            transactionType={transaction.type}
+            tint={tint}
+            size={theme.sizes.badge.md}
+          />
 
-          <Text variant="heading" style={{ fontSize: theme.fontSize.xl, textAlign: 'center', marginBottom: theme.spacing.xs }}>
+          <Text
+            variant="title"
+            numberOfLines={2}
+            style={{ textAlign: 'center', marginTop: theme.spacing.sm }}
+            testID="transaction-detail-title"
+          >
             {title}
           </Text>
 
@@ -66,6 +82,8 @@ export function TransactionDetailModal({
             currency={transaction.currency}
             type={transaction.type}
             variant="heading"
+            style={{ marginTop: theme.spacing.xxs }}
+            testID="transaction-detail-amount"
           />
 
           {isDeleted ? (
@@ -73,9 +91,9 @@ export function TransactionDetailModal({
               style={{
                 backgroundColor: theme.colors.dangerMuted,
                 paddingHorizontal: theme.spacing.md,
-                paddingVertical: theme.spacing.xs,
+                paddingVertical: theme.spacing.xxs,
                 borderRadius: theme.radius.pill,
-                marginTop: theme.spacing.xs,
+                marginTop: theme.spacing.sm,
               }}
             >
               <Text tone="danger" weight="semibold" variant="caption">
@@ -85,77 +103,90 @@ export function TransactionDetailModal({
           ) : null}
         </View>
 
-        <View
-          style={{
-            backgroundColor: theme.colors.surfaceMuted,
-            borderRadius: theme.radius.md,
-            padding: theme.spacing.md,
-            gap: theme.spacing.md,
-          }}
-        >
+        <View>
           {category !== null ? (
             <DetailRow
-              icon={<Tag size={theme.iconSize.lg} color={theme.colors.textMuted} />}
+              icon={Tag}
               label={t('categories.categoryLabel', { defaultValue: 'Category' })}
               value={category.name}
+              testID="transaction-detail-category"
             />
           ) : null}
 
           {fromAcc !== null ? (
             <DetailRow
-              icon={<CreditCard size={theme.iconSize.lg} color={theme.colors.textMuted} />}
-              label={t('transactions.fromLabel', { defaultValue: 'From' })}
+              icon={CreditCard}
+              label={isTransfer ? t('transactions.fromLabel', { defaultValue: 'From' }) : accountLabel}
               value={`${fromAcc.name} (${fromAcc.walletName})`}
+              testID="transaction-detail-from"
             />
           ) : null}
 
           {toAcc !== null ? (
             <DetailRow
-              icon={<CreditCard size={theme.iconSize.lg} color={theme.colors.textMuted} />}
-              label={
-                transaction.type === TransactionType.INCOME
-                  ? t('transactions.accountLabel', { defaultValue: 'Account' })
-                  : t('transactions.toLabel', { defaultValue: 'To' })
-              }
+              icon={CreditCard}
+              label={isTransfer ? t('transactions.toLabel', { defaultValue: 'To' }) : accountLabel}
               value={`${toAcc.name} (${toAcc.walletName})`}
+              testID="transaction-detail-to"
             />
           ) : null}
 
           <DetailRow
-            icon={<Calendar size={theme.iconSize.lg} color={theme.colors.textMuted} />}
-            label={t('transactions.transactionDateLabel', { defaultValue: 'Transaction date' })}
-            value={formatDay(transaction.transactionDate.slice(0, 10))}
-          />
-
-          <DetailRow
-            icon={<Clock size={theme.iconSize.lg} color={theme.colors.textMuted} />}
-            label={t('transactions.createdDateLabel', { defaultValue: 'Created date' })}
-            value={`${formatDay(transaction.createdAt.slice(0, 10))} ${formatTimeOfDay(transaction.createdAt)}`}
-          />
-
-          <DetailRow
-            icon={<User size={theme.iconSize.lg} color={theme.colors.textMuted} />}
-            label={t('transactions.recordedByLabel', { defaultValue: 'Recorded by' })}
-            value={transaction.createdBy.displayName}
+            icon={Calendar}
+            label={t('transactions.transactionDateLabel', { defaultValue: 'Date' })}
+            value={formatDay(dayOfInstant(transaction.transactionDate, walletTimeZone))}
+            testID="transaction-detail-date"
           />
 
           {transaction.isCrossWallet ? (
-            <DetailRow
-              icon={<UsersRound size={theme.iconSize.lg} color={theme.colors.primary} />}
-              label={t('transactions.crossWalletLabel', { defaultValue: 'Cross-wallet' })}
-              value={t('transactions.crossWalletNotice', {
-                defaultValue: 'This moves money into another wallet. It will appear in their ledger too.',
-              })}
-            />
+            // A sentence, not a value: it gets the full width instead of a right-aligned column.
+            <View className="flex-row" style={{ gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
+              <UsersRound size={theme.iconSize.md} color={theme.colors.transfer} />
+              <Text variant="label" tone="muted" style={{ flex: 1 }}>
+                {t('transactions.crossWalletNotice', {
+                  defaultValue: "This sends money to another wallet, so it'll show up in their records too.",
+                })}
+              </Text>
+            </View>
           ) : null}
         </View>
 
-        {deleteError !== null ? <Text tone="danger">{deleteError}</Text> : null}
+        <View
+          style={{
+            height: theme.borderWidth.thin,
+            backgroundColor: theme.colors.border,
+            marginVertical: theme.spacing.sm,
+          }}
+        />
+
+        <View>
+          <DetailRow
+            icon={Clock}
+            label={t('transactions.createdDateLabel', { defaultValue: 'Created' })}
+            value={`${formatDay(dayOfDate(new Date(transaction.createdAt)))} ${formatTimeOfDay(transaction.createdAt)}`}
+            secondary
+            testID="transaction-detail-created"
+          />
+          <DetailRow
+            icon={User}
+            label={t('transactions.recordedByLabel', { defaultValue: 'Added by' })}
+            value={transaction.createdBy.displayName}
+            secondary
+            testID="transaction-detail-recorded-by"
+          />
+        </View>
+
+        {deleteError !== null ? (
+          <Text variant="label" tone="danger" style={{ marginTop: theme.spacing.md }}>
+            {deleteError}
+          </Text>
+        ) : null}
 
         {isEditable ? (
-          <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.xl }}>
+          <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.lg }}>
             {onEdit ? (
               <Button
+                testID="btn-transaction-detail-edit"
                 label={t('transactions.editTransaction', { defaultValue: 'Edit transaction' })}
                 icon={Pencil}
                 variant="secondary"
@@ -167,6 +198,7 @@ export function TransactionDetailModal({
               />
             ) : null}
             <Button
+              testID="btn-transaction-detail-delete"
               label={t('transactions.cancelTransaction', { defaultValue: 'Delete transaction' })}
               icon={Trash2}
               variant="danger-outline"
@@ -196,30 +228,48 @@ export function TransactionDetailModal({
   );
 }
 
+/**
+ * One label/value line: icon, muted label on the left, the value right-aligned so a column of
+ * values scans top to bottom. A long value wraps to a second line before it truncates; the label
+ * is capped so it can never squeeze the value out. `secondary` quiets audit data (created, recorded by).
+ */
 function DetailRow({
-  icon,
+  icon: Icon,
   label,
   value,
+  secondary = false,
+  testID,
 }: {
-  icon: React.ReactNode;
+  icon: LucideIcon;
   label: string;
   value: string;
+  secondary?: boolean;
+  testID?: string;
 }) {
   const theme = useTheme();
 
   return (
-    <View className="flex-row items-center" style={{ minHeight: theme.sizes.touchTarget }}>
-      <View style={{ width: theme.sizes.badge.sm, alignItems: 'center' }}>
-        {icon}
-      </View>
-      <View className="flex-1" style={{ marginLeft: theme.spacing.md }}>
-        <Text variant="caption" tone="muted">
-          {label}
-        </Text>
-        <Text weight="medium" style={{ fontSize: theme.fontSize.sm, marginTop: theme.spacing.xxs }}>
-          {value}
-        </Text>
-      </View>
+    <View
+      testID={testID}
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      className="flex-row items-center"
+      style={{ gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}
+    >
+      <Icon size={theme.iconSize.md} color={secondary ? theme.colors.textFaint : theme.colors.textMuted} />
+      <Text variant="label" tone="muted" weight="regular" numberOfLines={1} style={{ maxWidth: '45%' }}>
+        {label}
+      </Text>
+      <Text
+        variant="label"
+        tone={secondary ? 'muted' : 'default'}
+        weight={secondary ? 'medium' : 'semibold'}
+        numberOfLines={2}
+        style={{ flex: 1, textAlign: 'right' }}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
+

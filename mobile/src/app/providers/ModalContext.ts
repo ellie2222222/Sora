@@ -23,6 +23,8 @@ export interface ModalParams {
   goalId?: string;
   /** Preselects the new account's type, for a caller that already knows which kind is being added. */
   accountType?: AccountType;
+  /** Set when opened from another sheet: Back returns to it (`onBack`), and the header's Close also closes it (`onClose`). */
+  parent?: { onBack?: () => void; onClose?: () => void };
 }
 
 export interface ModalContextValue {

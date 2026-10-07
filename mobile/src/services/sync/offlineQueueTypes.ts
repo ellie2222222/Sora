@@ -10,7 +10,7 @@ import type { ErrorCode } from '@sora/contracts';
 export const QUEUE_ENTITIES = ['transaction', 'account', 'budget', 'goal', 'category', 'contribution'] as const;
 export type QueueEntity = (typeof QUEUE_ENTITIES)[number];
 
-/** Accounts/budgets/categories archive (status-based); transactions/goals cancel; `delete` is a category's permanent removal. */
+/** Accounts/categories archive (status-based); transactions/goals cancel; `delete` is a category's or budget's permanent removal. */
 export type QueueOp = 'create' | 'update' | 'cancel' | 'archive' | 'delete';
 
 export const QUEUE_STATUSES = ['pending', 'syncing', 'synced', 'failed', 'conflict'] as const;

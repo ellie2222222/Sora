@@ -18,9 +18,9 @@ import {
   parseMoney,
   percentageOf,
   subtract,
+  todayIn,
   transferDirection,
   ZERO,
-  BudgetStatus,
   GoalStatus,
   TransactionType,
   ValuationStatus,
@@ -33,10 +33,12 @@ import {
 } from '@sora/contracts';
 
 import { guestAccountsApi } from './guestAccounts.ts';
+import { guestCategoryName } from './guestCategoryName.ts';
 import { guestError } from './guestErrors.ts';
 import { guestBudgetsApi } from './guestBudgets.ts';
 import { guestGoalsApi } from './guestGoals.ts';
 import { guestStore } from './guestStorage.ts';
+import { guestTimeZone } from './guestTimeZone.ts';
 import { type GuestTransaction, type GuestWallet } from './guestStore.ts';
 import { guestTransactionsApi } from './guestTransactions.ts';
 import { guestWalletsApi } from './guestWallets.ts';
@@ -49,14 +51,13 @@ function requireWallet(): GuestWallet {
   return wallet;
 }
 
-/** `dateFrom`/`dateTo` each default independently to the current calendar month's bound. */
-function resolvePeriod(query: DashboardQuery): { dateFrom: string; dateTo: string } {
-  const now = new Date();
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+/** `dateFrom`/`dateTo` each default independently to a bound of the month containing `today`, the wallet's. */
+function resolvePeriod(query: DashboardQuery, today: string): { dateFrom: string; dateTo: string } {
+  const [year, month] = today.split('-').map(Number) as [number, number];
+  const monthEnd = new Date(Date.UTC(year, month, 0));
 
   return {
-    dateFrom: query.dateFrom ?? monthStart.toISOString().slice(0, 10),
+    dateFrom: query.dateFrom ?? `${today.slice(0, 7)}-01`,
     dateTo: query.dateTo ?? monthEnd.toISOString().slice(0, 10),
   };
 }
@@ -97,6 +98,7 @@ function periodActivity(
   accountIds: ReadonlySet<string>,
   dateFrom: string,
   dateTo: string,
+  timeZone: string,
 ): PeriodActivity {
   const income = new Map<string, Scaled>();
   const expense = new Map<string, Scaled>();
@@ -107,8 +109,8 @@ function periodActivity(
   for (const transaction of transactions) {
     const amount = parseMoney(transaction.amount);
 
-    if (!countsAsPeriodActivity(transaction, dateFrom, dateTo)) {
-      if (!isWithinPeriod(transaction.transactionDate, dateFrom, dateTo)) continue;
+    if (!countsAsPeriodActivity(transaction, dateFrom, dateTo, timeZone)) {
+      if (!isWithinPeriod(transaction.transactionDate, dateFrom, dateTo, timeZone)) continue;
       const direction = transferDirection(transaction, accountIds);
       if (direction === 'IN') transferredIn.set(transaction.currency, add(transferredIn.get(transaction.currency) ?? ZERO, amount));
       if (direction === 'OUT') transferredOut.set(transaction.currency, add(transferredOut.get(transaction.currency) ?? ZERO, amount));
@@ -159,7 +161,7 @@ function spendingByCategory(activity: PeriodActivity): CategorySpendSlice[] {
       const category = categories.find((candidate) => candidate.id === slice.categoryId);
       return {
         categoryId: slice.categoryId,
-        categoryName: category?.name ?? '',
+        categoryName: category ? guestCategoryName(category) : '',
         icon: category?.icon ?? null,
         color: category?.color ?? null,
         amount: formatMoney(slice.amount),
@@ -172,7 +174,9 @@ function spendingByCategory(activity: PeriodActivity): CategorySpendSlice[] {
 export const guestDashboardApi = {
   async summary(query: DashboardQuery): Promise<DashboardResponse> {
     const wallet = requireWallet();
-    const { dateFrom, dateTo } = resolvePeriod(query);
+    const timeZone = guestTimeZone(wallet);
+    const today = todayIn(timeZone);
+    const { dateFrom, dateTo } = resolvePeriod(query, today);
     const { accountId } = query;
     const scoped = accountId !== undefined;
     const transactions = guestStore
@@ -185,12 +189,12 @@ export const guestDashboardApi = {
         ? guestAccountsApi.detail(accountId).then((account): CurrencyTotal[] => [{ currency: account.currency, amount: account.balance }])
         : guestWalletsApi.detail(wallet.id).then((detail) => detail.balances),
       guestTransactionsApi.list({ accountId, sortBy: '-transactionDate', page: 1, pageSize: RECENT_TRANSACTIONS_LIMIT }),
-      scoped ? [] : guestBudgetsApi.list({ walletId: wallet.id, status: BudgetStatus.ACTIVE }),
+      scoped ? [] : guestBudgetsApi.list({ walletId: wallet.id, activeOn: dayInPeriod(today, dateFrom, dateTo) }),
       scoped ? [] : guestGoalsApi.list({ walletId: wallet.id, status: GoalStatus.ACTIVE }),
     ]);
 
     const accountIds = new Set(scoped ? [accountId] : guestStore.current().accounts.map((account) => account.id));
-    const activity = periodActivity(transactions, accountIds, dateFrom, dateTo);
+    const activity = periodActivity(transactions, accountIds, dateFrom, dateTo, timeZone);
 
     let valuation: ConvertedValuation | null | undefined = undefined;
     if (query.displayCurrency) {
@@ -218,7 +222,7 @@ export const guestDashboardApi = {
 
     return {
       walletId: wallet.id,
-      period: { dateFrom, dateTo },
+      period: { dateFrom, dateTo, timeZone },
       totalBalance,
       income: toCurrencyTotals(activity.income),
       expense: toCurrencyTotals(activity.expense),
@@ -237,3 +241,10 @@ export const guestDashboardApi = {
     };
   },
 };
+
+/** Mirrors `dashboard.service.ts`: budgets are judged on today, or the period's nearest edge when it doesn't cover today. */
+function dayInPeriod(today: string, dateFrom: string, dateTo: string): string {
+  if (today < dateFrom) return dateFrom;
+  if (today > dateTo) return dateTo;
+  return today;
+}

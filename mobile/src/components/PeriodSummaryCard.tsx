@@ -142,7 +142,7 @@ export function PeriodSummaryCard({ transactions, filterType = 'ALL', testID }: 
                 </View>
                 <View className="flex-row justify-between">
                   <Text variant="label" tone="muted">
-                    {t('transactions.average', { defaultValue: 'Average' })}
+                    {t('transactions.average', { defaultValue: 'Average expense' })}
                   </Text>
                   <Money amount={avg} currency={currency} showSign={false} formatOptions={{ signDisplay: 'never' }} variant="label" />
                 </View>
@@ -212,7 +212,7 @@ export function PeriodSummaryCard({ transactions, filterType = 'ALL', testID }: 
             <View key={currency} style={{ gap: theme.spacing.sm }}>
               <View style={{ gap: theme.spacing.xxs }}>
                 <Text variant="caption" tone="muted">
-                  {t('transactions.totalTransferred', { defaultValue: 'Total transferred' })}
+                  {t('transactions.totalTransferred', { defaultValue: 'Total transfers' })}
                 </Text>
                 <Money
                   amount={transferAmount}

@@ -68,7 +68,7 @@ export function StateView({
   const theme = useTheme();
   const { t } = useTranslation();
 
-  if (variant === 'error' && isSelfResolvingError(error, [title, message], t('errors.offlineTitle', 'No internet connection'))) {
+  if (variant === 'error' && isSelfResolvingError(error, [title, message], t('errors.offlineTitle', "You're offline"))) {
     return null;
   }
 
@@ -77,14 +77,14 @@ export function StateView({
   const defaultTitles: Record<StateViewVariant, string> = {
     empty: t('errors.nothingHereYet', 'Nothing here yet'),
     error: isNetworkError(error)
-      ? t('errors.offlineTitle', 'No internet connection')
+      ? t('errors.offlineTitle', "You're offline")
       : t('errors.somethingWentWrong', 'Something went wrong. Please try again.'),
     'no-results': t('errors.noResultsFound', 'No results found'),
     informational: t('errors.nothingHereYet', 'Nothing here yet'),
   };
 
   const errorMessage = variant === 'error' && error !== undefined
-    ? (isNetworkError(error) ? t('errors.offlineTitle', 'No internet connection') : getServerErrorMessage(error, t))
+    ? (isNetworkError(error) ? t('errors.offlineTitle', "You're offline") : getServerErrorMessage(error, t))
     : undefined;
 
   const resolvedTitle = title ?? errorMessage ?? defaultTitles[variant];

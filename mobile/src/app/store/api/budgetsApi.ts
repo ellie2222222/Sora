@@ -1,4 +1,4 @@
-import { BudgetStatus, type BudgetResponse, type CreateBudgetRequest, type UpdateBudgetRequest } from '@sora/contracts';
+import type { BudgetResponse, CreateBudgetRequest, UpdateBudgetRequest } from '@sora/contracts';
 
 import { budgetsApi as budgetsHttp, type BudgetListQuery } from '@/services/api';
 import { guestBudgetsApi } from '@/services/guest';
@@ -108,35 +108,27 @@ export const budgetsApiSlice = apiSlice.injectEndpoints({
       },
       invalidatesTags: (_result, _error, { budgetId }) => (isStillQueued(budgetId) ? [] : BUDGET_TAGS),
     }),
-    archiveBudget: builder.mutation<void, string>({
+    deleteBudget: builder.mutation<void, string>({
       queryFn: (budgetId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
-        if (isGuest) return toQueryFnResult(() => guestBudgetsApi.archive(budgetId));
+        if (isGuest) return toQueryFnResult(() => guestBudgetsApi.delete(budgetId));
         if (!isCurrentlyOnline()) {
           return toQueryFnResult(async () => {
-            await enqueueOffline({ entity: 'budget', op: 'archive', localId: budgetId, serverId: budgetId, payload: {} });
+            await enqueueOffline({ entity: 'budget', op: 'delete', localId: budgetId, serverId: budgetId, payload: {} });
           });
         }
-        return toQueryFnResult(() => budgetsHttp.archive(budgetId));
+        return toQueryFnResult(() => budgetsHttp.delete(budgetId));
       },
       onQueryStarted: async (budgetId, { dispatch, queryFulfilled, getState }) => {
         try {
           await queryFulfilled;
           if (!isStillQueued(budgetId)) return;
 
-          const rootState = getState();
-          dispatch(budgetsApiSlice.util.updateQueryData('getBudget', budgetId, (draft) => {
-            draft.status = BudgetStatus.ARCHIVED;
-          }));
-          forEachCachedQueryArgs(rootState, 'listBudgets', (args) => {
-            const query = args as BudgetListQuery;
+          forEachCachedQueryArgs(getState(), 'listBudgets', (args) => {
             dispatch(
-              budgetsApiSlice.util.updateQueryData('listBudgets', query, (draft) => {
+              budgetsApiSlice.util.updateQueryData('listBudgets', args as BudgetListQuery, (draft) => {
                 const index = draft.findIndex((candidate) => candidate.id === budgetId);
-                if (index === -1) return;
-                // A list filtered to ACTIVE (Planning) no longer contains it.
-                if (query.status === BudgetStatus.ACTIVE) draft.splice(index, 1);
-                else draft[index]!.status = BudgetStatus.ARCHIVED;
+                if (index !== -1) draft.splice(index, 1);
               }),
             );
           });
@@ -155,5 +147,5 @@ export const {
   useGetBudgetQuery,
   useCreateBudgetMutation,
   useUpdateBudgetMutation,
-  useArchiveBudgetMutation,
+  useDeleteBudgetMutation,
 } = budgetsApiSlice;

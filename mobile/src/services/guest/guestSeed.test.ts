@@ -7,7 +7,7 @@ import { ensureSeeded, STARTER_CATEGORIES_VERSION } from './guestSeed.ts';
 import { guestStore } from './guestStorage.ts';
 import { seedFixture, withFreshStore } from './testSupport.ts';
 
-const STARTER_NAMES = STARTER_CATEGORIES.map((category) => category.name).sort();
+const STARTER_NAMES = STARTER_CATEGORIES.map((category) => category.names.en).sort();
 
 function categoryNames(): string[] {
   return guestStore

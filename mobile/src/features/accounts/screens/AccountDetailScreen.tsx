@@ -80,16 +80,16 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
       return (
         <StateView 
           variant="error" 
-          title={t('errors.offlineTitle', { defaultValue: 'Offline' })} 
-          message={t('errors.connectionOfflineDetail', { defaultValue: 'Check your connection.' })} 
+          title={t('errors.offlineTitle')} 
+          message={t('errors.connectionOfflineDetail')} 
         />
       );
     }
     return (
       <StateView 
         variant="error" 
-        title={t('common.error', { defaultValue: 'Error' })} 
-        message={t('errors.internalError', { defaultValue: 'Could not load account details.' })} 
+        title={t('common.error')} 
+        message={t('accounts.loadFailed')} 
       />
     );
   }
@@ -104,8 +104,8 @@ export function AccountDetailScreen({ route, navigation }: AppStackScreenProps<'
       return (
         <StateView
           variant="empty"
-          title={t('common.archived', { defaultValue: 'Account Archived' })}
-          message={t('errors.accountArchived', { defaultValue: 'This account has been archived and its history is frozen.' })}
+          title={t('accounts.archivedTitle')}
+          message={t('accounts.archivedMessage')}
         />
       );
     }

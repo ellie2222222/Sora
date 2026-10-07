@@ -9,6 +9,7 @@ import {
   Mulish_700Bold,
   useFonts,
 } from '@expo-google-fonts/mulish';
+import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { Provider as ReduxProvider } from 'react-redux';
@@ -17,13 +18,16 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '@/app/i18n';
 import '@/services/guest';
-import { AuthProvider, LocaleProvider, ThemeProvider, ToastProvider } from '@/app/providers';
+import { AuthProvider, LocaleProvider, ThemeProvider } from '@/app/providers';
+import { ToastProvider } from '@/app/providers/ToastProvider';
 import { NetworkStatusProvider } from '@/hooks';
 import { RootNavigator } from '@/app/navigation';
 import { ErrorBoundary } from '@/components';
 import { store } from '@/app/store';
 import { requestSyncNow, startSyncEngine } from '@/services/sync';
+import { silenceWebLibraryWarnings } from '@/app/config';
 
+silenceWebLibraryWarnings(Platform.OS === 'web', __DEV__);
 startSyncEngine(store);
 
 void SplashScreen.preventAutoHideAsync();

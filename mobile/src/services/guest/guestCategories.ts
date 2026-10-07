@@ -5,20 +5,20 @@
  * up the parent chain), and the duplicate-name rule mirrors the unique index
  * `uq_category_name_per_parent`: scoped to `(walletId, parentId, LOWER(name))`
  * — the same wallet, the same parent (or both root), case-insensitive —
- * with no `type` in the key (db/migrations/001_initial_wallet_schema.sql:188-189).
+ * with no `type` in the key (db/migrations/001_schema.sql:207-208).
  */
 
 import {
   createCategorySchema,
   updateCategorySchema,
   CategoryStatus,
-  BudgetStatus,
   type CategoryResponse,
   type CategoryType,
   type CreateCategoryRequest,
   type UpdateCategoryRequest,
 } from '@sora/contracts';
 
+import { guestCategoryName } from './guestCategoryName.ts';
 import { fromZodError, guestError } from './guestErrors.ts';
 import { newLocalId } from './guestIds.ts';
 import { guestStore } from './guestStorage.ts';
@@ -52,7 +52,8 @@ function toCategoryResponse(category: GuestCategory, count: number): CategoryRes
     id: category.id,
     walletId: category.walletId,
     parentId: category.parentId,
-    name: category.name,
+    systemKey: category.systemKey ?? null,
+    name: guestCategoryName(category),
     type: category.type,
     icon: category.icon,
     color: category.color,
@@ -99,14 +100,15 @@ function assertUniqueName(
       category.id !== excludingCategoryId &&
       category.walletId === walletId &&
       category.parentId === parentId &&
-      category.name.toLowerCase() === name.toLowerCase(),
+      // The stored name too: the server's unique index compares it, so a collision there would fail the upload.
+      [guestCategoryName(category), category.name].some((candidate) => candidate.toLowerCase() === name.toLowerCase()),
   );
   if (collides) throw guestError('CATEGORY_DUPLICATE_NAME');
 }
 
 /** An active budget on any category in the subtree would lose it and never compute a period again. */
 function assertNotBudgeted(budgets: readonly GuestBudget[], subtree: readonly string[]): void {
-  if (budgets.some((budget) => budget.categoryId !== null && subtree.includes(budget.categoryId) && budget.status === BudgetStatus.ACTIVE)) {
+  if (budgets.some((budget) => budget.categoryId !== null && subtree.includes(budget.categoryId))) {
     throw guestError('CATEGORY_IN_USE');
   }
 }
@@ -128,10 +130,10 @@ function collectDescendantLevels(categories: readonly GuestCategory[], rootId: s
 
 /** A new ACTIVE category with a fresh local id — shared by create and the starter seed. */
 export function newGuestCategory(
-  fields: Pick<GuestCategory, 'walletId' | 'parentId' | 'name' | 'type' | 'icon' | 'color'>,
+  fields: Pick<GuestCategory, 'walletId' | 'parentId' | 'name' | 'type' | 'icon' | 'color'> & { systemKey?: string | null },
   now: string = new Date().toISOString(),
 ): GuestCategory {
-  return { id: newLocalId(), ...fields, status: CategoryStatus.ACTIVE, createdAt: now, updatedAt: now };
+  return { id: newLocalId(), ...fields, systemKey: fields.systemKey ?? null, status: CategoryStatus.ACTIVE, createdAt: now, updatedAt: now };
 }
 
 export const guestCategoriesApi = {
@@ -142,7 +144,7 @@ export const guestCategoriesApi = {
     const responses = categories
       .filter((category) => !query.type || category.type === query.type)
       .filter((category) => !query.status || category.status === query.status)
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => guestCategoryName(a).localeCompare(guestCategoryName(b)))
       .map((category) => toCategoryResponse(category, transactionCount(transactions, category.id)));
 
     return query.tree ? buildTree(responses) : responses;
@@ -188,9 +190,9 @@ export const guestCategoriesApi = {
     const { categories, transactions, budgets } = guestStore.current();
     const existing = findCategory(categories, categoryId);
 
-    if (patch.name !== undefined) {
-      assertUniqueName(categories, wallet.id, existing.parentId, patch.name, existing.id);
-    }
+    // Mirrors categories.service.ts: only a different name is a rename, and it makes a starter category the guest's own.
+    const renamed = patch.name !== undefined && patch.name !== guestCategoryName(existing);
+    if (renamed) assertUniqueName(categories, wallet.id, existing.parentId, patch.name!, existing.id);
     // Archiving through PATCH holds the same guard and cascade as archive() (§10.4).
     const archiving = patch.status === CategoryStatus.ARCHIVED && existing.status !== CategoryStatus.ARCHIVED;
     // Restoring a child under an archived parent would leave it selectable inside a hidden subtree.
@@ -202,7 +204,7 @@ export const guestCategoriesApi = {
 
     const updated: GuestCategory = {
       ...existing,
-      name: patch.name ?? existing.name,
+      ...(renamed ? { name: patch.name!, systemKey: null } : {}),
       icon: patch.icon !== undefined ? patch.icon : existing.icon,
       color: patch.color !== undefined ? patch.color : existing.color,
       status: patch.status ?? existing.status,

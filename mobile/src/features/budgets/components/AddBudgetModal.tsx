@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { View, Pressable, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { CalendarRange } from 'lucide-react-native';
-import { BUDGET_PERIOD_TYPES, BudgetPeriodType, createBudgetSchema } from '@sora/contracts';
+import { BUDGET_PERIOD_TYPES, BudgetPeriodType, createBudgetSchema, isRepeatingBudgetPeriod } from '@sora/contracts';
 
 import {
   BottomSheetModal,
@@ -12,7 +12,6 @@ import {
   IconChip,
   Input,
   KeypadSheetFooter,
-  SheetFormHeader,
   SheetScrollArea,
   StateView,
   Text,
@@ -20,12 +19,10 @@ import {
 } from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
 // Deep-imported, not via `@/features/categories`: ModalProvider deep-imports this modal, and that
-// barrel's other exports would close a cycle (same reasoning as AddTransactionModal.tsx).
+// barrel's other exports would close a cycle (same reasoning as TransactionFormModal.tsx).
 import { CategoryGrid } from '../../categories/components/CategoryGrid.tsx';
 import { useCreateBudgetMutation, useListGoalsQuery } from '@/app/store';
 import {
-  addDays,
-  addMonths,
   endOfMonth,
   formatDay,
   formatShortDay,
@@ -37,21 +34,9 @@ import {
   type CalendarDay,
 } from '@/utils';
 
-function suggestedEnd(period: BudgetPeriodType, start: CalendarDay, currentEnd: CalendarDay): CalendarDay {
-  switch (period) {
-    case BudgetPeriodType.DAILY:
-      return start;
-    case BudgetPeriodType.MONTHLY:
-      return addDays(addMonths(start, 1), -1);
-    case BudgetPeriodType.WEEKLY:
-      return addDays(start, 6);
-    case BudgetPeriodType.YEARLY:
-      return `${parseDay(start).year}-12-31`;
-    case BudgetPeriodType.CUSTOM:
-    case BudgetPeriodType.GOAL:
-    default:
-      return currentEnd < start ? start : currentEnd;
-  }
+/** A fixed window's end, moved along when the start passes it. */
+function suggestedEnd(start: CalendarDay, currentEnd: CalendarDay): CalendarDay {
+  return currentEnd < start ? start : currentEnd;
 }
 
 type PickingDate = 'start' | 'end' | null;
@@ -65,7 +50,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { showToast } = useToast();
-  const { activeWallet } = useWallets();
+  const { activeWallet, timeZone } = useWallets();
   const walletId = activeWallet?.id;
   const [createBudget, { isLoading: isCreating }] = useCreateBudgetMutation();
   const { data: goals = [], isLoading: isLoadingGoals, isError: isErrorGoals } = useListGoalsQuery({ walletId: walletId ?? '' }, { skip: !visible || walletId === undefined });
@@ -75,8 +60,8 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [goalId, setGoalId] = useState<string | null>(null);
   const [periodType, setPeriodType] = useState<BudgetPeriodType>(BudgetPeriodType.MONTHLY);
-  const [startDate, setStartDate] = useState<CalendarDay>(() => startOfMonth(today()));
-  const [endDate, setEndDate] = useState<CalendarDay>(() => endOfMonth(today()));
+  const [startDate, setStartDate] = useState<CalendarDay>(() => startOfMonth(today(timeZone)));
+  const [endDate, setEndDate] = useState<CalendarDay>(() => endOfMonth(today(timeZone)));
   const [endTouched, setEndTouched] = useState(false);
   const [pickingDate, setPickingDate] = useState<PickingDate>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -89,8 +74,8 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
       setCategoryId(null);
       setGoalId(null);
       setPeriodType(BudgetPeriodType.MONTHLY);
-      setStartDate(startOfMonth(today()));
-      setEndDate(endOfMonth(today()));
+      setStartDate(startOfMonth(today(timeZone)));
+      setEndDate(endOfMonth(today(timeZone)));
       setEndTouched(false);
       setPickingDate(null);
       setFieldErrors({});
@@ -107,6 +92,15 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
     [BudgetPeriodType.GOAL]: t('budgets.goal', { defaultValue: 'Goal' }),
   };
 
+  // A repeating budget runs from its start until deleted, so it only takes a start (API spec §12.2).
+  const REPEATS_LABEL: Record<string, string> = {
+    [BudgetPeriodType.DAILY]: t('budgets.repeatsDaily'),
+    [BudgetPeriodType.WEEKLY]: t('budgets.repeatsWeekly', { day: formatShortDay(startDate) }),
+    [BudgetPeriodType.MONTHLY]: t('budgets.repeatsMonthly'),
+    [BudgetPeriodType.YEARLY]: t('budgets.repeatsYearly'),
+  };
+  const repeats = isRepeatingBudgetPeriod(periodType);
+
   const onConfirmRef = useRef(handleConfirm);
   onConfirmRef.current = handleConfirm;
   const onQuickDateRef = useRef(() => {});
@@ -121,33 +115,29 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
   if (walletId === undefined) {
     return (
       <BottomSheetModal visible={visible} onClose={onClose} title={t('budgets.newBudget')}>
-        <StateView variant="informational" title={t('wallets.selectWalletFirst', 'Select a wallet first')} testID="add-budget-unselected" />
+        <StateView variant="informational" title={t('wallets.selectWalletFirst', 'Pick a wallet first')} testID="add-budget-unselected" />
       </BottomSheetModal>
     );
   }
 
   function handlePeriodTypeChange(next: BudgetPeriodType) {
     setPeriodType(next);
-    const tday = today();
-    if (next === BudgetPeriodType.DAILY) {
+    const tday = today(timeZone);
+    if (next === BudgetPeriodType.DAILY || next === BudgetPeriodType.WEEKLY) {
       setStartDate(tday);
-      setEndDate(tday);
     } else if (next === BudgetPeriodType.MONTHLY) {
       setStartDate(startOfMonth(tday));
-      setEndDate(endOfMonth(tday));
     } else if (next === BudgetPeriodType.YEARLY) {
-      const year = parseDay(tday).year;
-      setStartDate(`${year}-01-01`);
-      setEndDate(`${year}-12-31`);
-    } else {
-      if (!endTouched) setEndDate(suggestedEnd(next, startDate, endDate));
+      setStartDate(`${parseDay(tday).year}-01-01`);
+    } else if (!endTouched) {
+      setEndDate(suggestedEnd(startDate, endDate));
     }
   }
 
   function handleSelectDay(day: CalendarDay) {
     if (pickingDate === 'start') {
       setStartDate(day);
-      setEndDate(endTouched ? endDate : suggestedEnd(periodType, day, endDate));
+      setEndDate(endTouched ? endDate : suggestedEnd(day, endDate));
     } else if (pickingDate === 'end') {
       setEndDate(day);
       setEndTouched(true);
@@ -159,11 +149,11 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
     if (walletId === undefined) return;
 
     if (periodType === BudgetPeriodType.GOAL && goalId === null) {
-      setFieldErrors({ goalId: t('budgets.chooseGoalFirst', { defaultValue: 'Choose a goal first.' }) });
+      setFieldErrors({ goalId: t('budgets.chooseGoalFirst', { defaultValue: 'Pick a goal first.' }) });
       return;
     }
     if (periodType !== BudgetPeriodType.GOAL && categoryId === null) {
-      setFieldErrors({ categoryId: t('budgets.chooseCategoryFirst', { defaultValue: 'Choose a category first.' }) });
+      setFieldErrors({ categoryId: t('budgets.chooseCategoryFirst', { defaultValue: 'Pick a category first.' }) });
       return;
     }
 
@@ -176,12 +166,12 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
       currency: activeWallet?.balances[0]?.currency ?? 'VND',
       periodType,
       startDate,
-      endDate,
+      endDate: repeats ? null : endDate,
     });
     if (!parsed.success) {
       const next = issueMessagesByPath(parsed.error.issues);
       if (next.endDate !== undefined) {
-        next.endDate = t('budgets.endBeforeStartError', { defaultValue: 'End date cannot be before start date.' });
+        next.endDate = t('budgets.endBeforeStartError', { defaultValue: "The end date can't come before the start date." });
       }
       setFieldErrors(next);
       return;
@@ -202,12 +192,11 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
     if (amount !== null) void handleSubmit(amount);
   }
 
-  const windowLabel = `${formatShortDay(startDate)} \u2014 ${formatShortDay(endDate)}`;
+  const windowLabel = repeats ? REPEATS_LABEL[periodType]! : `${formatShortDay(startDate)} \u2014 ${formatShortDay(endDate)}`;
   const shouldAllowManualDates = periodType === BudgetPeriodType.CUSTOM || periodType === BudgetPeriodType.GOAL || periodType === BudgetPeriodType.WEEKLY;
 
   return (
-    <BottomSheetModal visible={visible} onClose={onClose}>
-      <SheetFormHeader title={t('budgets.newBudget')} onCancel={onClose} entity="budget" />
+    <BottomSheetModal visible={visible} onClose={onClose} title={t('budgets.newBudget')} closeLabel="cancel" entity="budget">
 
       <View style={{ flexShrink: 0, marginBottom: theme.spacing.md }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md }}>
@@ -227,11 +216,11 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
         {periodType === BudgetPeriodType.GOAL ? (
           <View style={{ paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm }}>
             {isLoadingGoals ? (
-              <Text tone="muted">{t('common.loading', { defaultValue: 'Loading...' })}</Text>
+              <Text tone="muted">{t('common.loading')}</Text>
             ) : isErrorGoals ? (
-              <Text tone="danger">{t('common.error', { defaultValue: 'Error loading goals' })}</Text>
+              <Text tone="danger">{t('goals.loadFailed')}</Text>
             ) : goals.length === 0 ? (
-              <Text tone="muted">{t('goals.noGoals', { defaultValue: 'No goals found.' })}</Text>
+              <Text tone="muted">{t('goals.noGoals', { defaultValue: 'No goals yet.' })}</Text>
             ) : (
               goals.map((goal) => (
                 <Pressable
@@ -265,7 +254,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
 
       <KeypadSheetFooter
         leading={
-          shouldAllowManualDates ? (
+          !repeats ? (
             <IconChip
               icon={CalendarRange}
               label={windowLabel}
@@ -286,7 +275,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
       >
         <Input
           testID="input-budget-name"
-          placeholder={t('budgets.namePlaceholder', 'e.g. Food August')}
+          placeholder={t('budgets.namePlaceholder', 'e.g. Food in August')}
           value={name}
           onChangeText={setName}
           error={fieldErrors.name}
@@ -308,6 +297,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
 
       <DatePickerModal
         visible={pickingDate !== null}
+        today={today(timeZone)}
         selectedDay={pickingDate === 'end' ? endDate : startDate}
         onSelectDay={handleSelectDay}
         onClose={() => setPickingDate(null)}

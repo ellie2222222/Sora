@@ -29,9 +29,9 @@ import type { QueueEntity } from './offlineQueueTypes.ts';
 export interface EntityAdapter {
   create(payload: unknown, idempotencyKey: string): Promise<{ id: string }>;
   update(id: string, payload: unknown, idempotencyKey: string): Promise<void>;
-  /** Transactions delete; goals cancel; accounts/budgets/categories archive — same slot either way. */
+  /** Transactions delete; goals cancel; accounts/categories archive — same slot either way. */
   cancelOrArchive(id: string, payload: unknown, idempotencyKey: string): Promise<void>;
-  /** Only categories can be removed outright; the other entities never queue a `delete`. */
+  /** Only categories and budgets can be removed outright; the other entities never queue a `delete`. */
   deletePermanently?(id: string, idempotencyKey: string): Promise<void>;
 }
 
@@ -43,7 +43,7 @@ export type ContributionPayload = CreateContributionRequest & { goalId: string }
 export interface AdapterApis {
   transactions: Pick<typeof transactionsApi, 'create' | 'update' | 'delete'>;
   accounts: Pick<typeof accountsApi, 'create' | 'update' | 'archive'>;
-  budgets: Pick<typeof budgetsApi, 'create' | 'update' | 'archive'>;
+  budgets: Pick<typeof budgetsApi, 'create' | 'update' | 'delete'>;
   goals: Pick<typeof goalsApi, 'create' | 'update' | 'cancel' | 'addContribution'>;
   categories: Pick<typeof categoriesApi, 'create' | 'update' | 'archive' | 'deletePermanently'>;
 }
@@ -98,8 +98,11 @@ export function buildEntityAdapters(apis: AdapterApis): EntityAdapters {
       async update(id, payload, key) {
         await apis.budgets.update(id, payload as UpdateBudgetRequest, key);
       },
-      async cancelOrArchive(id, _payload, key) {
-        await apis.budgets.archive(id, key);
+      async cancelOrArchive() {
+        throw new Error('entityAdapters: budgets are deleted, never archived');
+      },
+      async deletePermanently(id, key) {
+        await apis.budgets.delete(id, key);
       },
     },
     goal: {
