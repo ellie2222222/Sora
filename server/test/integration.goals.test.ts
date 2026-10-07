@@ -122,7 +122,7 @@ describe('goals and contributions against a real database', { skip: integrationS
     const wrongCurrencyForBoth = await contribute(user, goalId, { accountId: vnd, currency: 'USD', amount: '10' });
     assert.deepEqual([wrongCurrencyForBoth.status, wrongCurrencyForBoth.body?.error?.code], [422, 'ACCOUNT_CURRENCY_MISMATCH']);
 
-    const second = await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}` } });
+    const second = await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}`, timeZone: 'Asia/Ho_Chi_Minh' } });
     assert.equal(second.status, 201);
     const ownOtherWallet = await createAccount(api, user, second.body!.data.id, { initialBalance: '5000' });
     const fromOwnOther = await contribute(user, goalId, { accountId: ownOtherWallet });

@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 
-import { parseMoney } from '@sora/contracts';
+import { parseMoney, todayIn } from '@sora/contracts';
 
 import {
   addMember,
@@ -136,16 +136,18 @@ describe('the dashboard against a real database', { skip: integrationSkipReason(
     const main = await createAccount(api, user, user.walletId, { initialBalance: '1000000' });
     const food = await categoryOf(api, user, user.walletId, 'EXPENSE');
     const now = new Date();
-    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
-    const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
-    const lastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15, 9)).toISOString();
+    // The default month is the wallet zone's (probe wallets are Asia/Ho_Chi_Minh), not UTC's.
+    const [year, month] = todayIn('Asia/Ho_Chi_Minh', now).split('-').map(Number) as [number, number];
+    const monthStart = new Date(Date.UTC(year, month - 1, 1)).toISOString().slice(0, 10);
+    const monthEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+    const lastMonth = new Date(Date.UTC(year, month - 2, 15, 9)).toISOString();
 
     await post(user, { type: 'EXPENSE', fromAccountId: main, categoryId: food, amount: '12000', transactionDate: now.toISOString() });
     await post(user, { type: 'EXPENSE', fromAccountId: main, categoryId: food, amount: '999', transactionDate: lastMonth });
 
     const response = await dashboard(user, `walletId=${user.walletId}`);
     assert.equal(response.status, 200);
-    assert.deepEqual(response.body!.data.period, { dateFrom: monthStart, dateTo: monthEnd });
+    assert.deepEqual(response.body!.data.period, { dateFrom: monthStart, dateTo: monthEnd, timeZone: 'Asia/Ho_Chi_Minh' });
     assert.deepEqual(response.body!.data.expense, [{ currency: 'VND', amount: '12000.0000' }], "last month's expense is outside the default window");
   });
 
@@ -158,7 +160,7 @@ describe('the dashboard against a real database', { skip: integrationSkipReason(
       const response = await dashboard(user, periodQuery(user));
       assert.equal(response.status, 200);
       const dash = response.body!.data;
-      assert.deepEqual(dash.period, PERIOD, 'the period is reported, not omitted');
+      assert.deepEqual(dash.period, { ...PERIOD, timeZone: 'Asia/Ho_Chi_Minh' }, 'the period is reported, not omitted');
       if (user === quiet) assert.deepEqual(dash.totalBalance, [{ currency: 'VND', amount: '1000.0000' }]);
       else assert.ok(allZero(dash.totalBalance), 'a wallet with no accounts holds nothing');
       for (const field of ['income', 'expense', 'net', 'transferredIn', 'transferredOut'] as const) {

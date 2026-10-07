@@ -30,6 +30,7 @@ interface WalletRowWithMembership {
   name: string;
   status: WalletStatus;
   owner_user_id: string;
+  time_zone: string;
   created_at: Date;
   updated_at: Date;
   role: WalletRole;
@@ -71,6 +72,7 @@ export class WalletsService {
           'wallets.name as name',
           'wallets.status as status',
           'wallets.owner_user_id as owner_user_id',
+          'wallets.time_zone as time_zone',
           'wallets.created_at as created_at',
           'wallets.updated_at as updated_at',
           'wallet_members.role as role',
@@ -114,8 +116,8 @@ export class WalletsService {
     const wallet = await this.database.db.transaction().execute(async (trx) => {
       const created = await trx
         .insertInto('wallets')
-        .values({ owner_user_id: user.id, name: request.name })
-        .returning(['id', 'name', 'status', 'owner_user_id', 'created_at', 'updated_at'])
+        .values({ owner_user_id: user.id, name: request.name, time_zone: request.timeZone })
+        .returning(['id', 'name', 'status', 'owner_user_id', 'time_zone', 'created_at', 'updated_at'])
         .executeTakeFirstOrThrow();
 
       await trx
@@ -162,10 +164,12 @@ export class WalletsService {
         .set({
           ...(request.name !== undefined ? { name: request.name } : {}),
           ...(request.status !== undefined ? { status: request.status } : {}),
+          // Re-dates no row: only which wallet day each instant is read on changes.
+          ...(request.timeZone !== undefined ? { time_zone: request.timeZone } : {}),
           updated_at: new Date(),
         })
         .where('id', '=', access.walletId)
-        .returning(['id', 'name', 'status', 'owner_user_id', 'created_at', 'updated_at'])
+        .returning(['id', 'name', 'status', 'owner_user_id', 'time_zone', 'created_at', 'updated_at'])
         .executeTakeFirstOrThrow();
 
       await this.audit.record(
@@ -230,7 +234,7 @@ export class WalletsService {
   private async row(walletId: string) {
     const found = await this.database.db
       .selectFrom('wallets')
-      .select(['id', 'name', 'status', 'owner_user_id', 'created_at', 'updated_at'])
+      .select(['id', 'name', 'status', 'owner_user_id', 'time_zone', 'created_at', 'updated_at'])
       .where('id', '=', walletId)
       .executeTakeFirst();
 
@@ -263,6 +267,7 @@ export class WalletsService {
       name: row.name,
       status: row.status,
       ownerUserId: row.owner_user_id,
+      timeZone: row.time_zone,
       role: row.role,
       relationLabel: row.relation_label,
       isOwn: row.owner_user_id === user.id,

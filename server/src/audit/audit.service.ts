@@ -1,9 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { sql, type Kysely, type Transaction } from 'kysely';
 
-import type { AuditLogResponse, WalletRole } from '@sora/contracts';
+import { nextDay, startOfDay, type AuditLogResponse, type WalletRole } from '@sora/contracts';
 
-import { dayAfter } from '../common/utc-day.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { AuditResult, DB } from '../database/types.ts';
 import type { AuditEvent, EntityType } from './audit-events.ts';
@@ -96,10 +95,16 @@ export class AuditService {
     let query = this.database.db.selectFrom('audit_logs').where('wallet_id', '=', walletId);
 
     if (filter.event) query = query.where('event', '=', filter.event);
-    if (filter.dateFrom) {
-      query = query.where('created_at', '>=', new Date(`${filter.dateFrom}T00:00:00.000Z`));
+    // Dates are the wallet's calendar days, like every other wallet date filter (§15.1).
+    if (filter.dateFrom || filter.dateTo) {
+      const { time_zone: timeZone } = await this.database.db
+        .selectFrom('wallets')
+        .select('time_zone')
+        .where('id', '=', walletId)
+        .executeTakeFirstOrThrow();
+      if (filter.dateFrom) query = query.where('created_at', '>=', startOfDay(filter.dateFrom, timeZone));
+      if (filter.dateTo) query = query.where('created_at', '<', startOfDay(nextDay(filter.dateTo), timeZone));
     }
-    if (filter.dateTo) query = query.where('created_at', '<', dayAfter(filter.dateTo));
 
     const totalRow = await query
       .select((eb) => eb.fn.countAll<string>().as('count'))

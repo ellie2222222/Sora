@@ -21,7 +21,7 @@ describe('transactions against a real database', { skip: integrationSkipReason()
   let api: TestApi;
 
   const newWallet = async (user: ProbeUser): Promise<string> =>
-    (await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}` } })).body!.data.id;
+    (await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}`, timeZone: 'Asia/Ho_Chi_Minh' } })).body!.data.id;
 
   const transact = (user: ProbeUser, body: Record<string, unknown>) =>
     api.call('POST', '/transactions', { token: user.token, body: { currency: 'VND', transactionDate: IN_PERIOD, ...body } });

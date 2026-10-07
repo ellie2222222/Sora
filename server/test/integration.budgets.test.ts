@@ -29,7 +29,7 @@ describe('budgets against a real database', { skip: integrationSkipReason() }, (
   const createBudget = (user: ProbeUser, body: Record<string, unknown>) =>
     api.call('POST', '/budgets', {
       token: user.token,
-      body: { walletId: user.walletId, name: `probe-${randomUUID()}`, amount: '1000', currency: 'VND', periodType: 'MONTHLY', ...NOVEMBER, ...body },
+      body: { walletId: user.walletId, name: `probe-${randomUUID()}`, amount: '1000', currency: 'VND', periodType: 'CUSTOM', ...NOVEMBER, ...body },
     });
 
   const post = (user: ProbeUser, body: Record<string, unknown>) =>
@@ -55,7 +55,7 @@ describe('budgets against a real database', { skip: integrationSkipReason() }, (
     const onStrangers = await createBudget(user, { categoryId: theirs });
     assert.deepEqual([onStrangers.status, onStrangers.body?.error?.code], [404, 'CATEGORY_NOT_FOUND'], 'a category in an unseen wallet must not be confirmed to exist');
 
-    const second = await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}` } });
+    const second = await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}`, timeZone: 'Asia/Ho_Chi_Minh' } });
     assert.equal(second.status, 201);
     const ownOtherCategory = await api.call('POST', '/categories', {
       token: user.token,
@@ -67,7 +67,7 @@ describe('budgets against a real database', { skip: integrationSkipReason() }, (
     assert.deepEqual([onOwnOther.status, onOwnOther.body?.error?.code], [403, 'CATEGORY_WRONG_WALLET']);
   });
 
-  it('BUD-US-01/03/04: audits create, adjust and archive against the budget', async () => {
+  it('BUD-US-01/03/04: audits create, adjust and delete against the budget', async () => {
     const { user, category } = await owner('audit');
     const created = await createBudget(user, { categoryId: category });
     assert.equal(created.status, 201);
@@ -81,7 +81,7 @@ describe('budgets against a real database', { skip: integrationSkipReason() }, (
     );
     assert.deepEqual(
       rows,
-      ['BUDGET_CREATED', 'BUDGET_UPDATED', 'BUDGET_ARCHIVED'].map((event) => ({ event, result: 'SUCCESS', actor_id: user.id, wallet_id: user.walletId })),
+      ['BUDGET_CREATED', 'BUDGET_UPDATED', 'BUDGET_DELETED'].map((event) => ({ event, result: 'SUCCESS', actor_id: user.id, wallet_id: user.walletId })),
     );
   });
 
@@ -114,24 +114,22 @@ describe('budgets against a real database', { skip: integrationSkipReason() }, (
     assert.equal((await api.call('GET', `/budgets/${created.body!.data.id}`, { token: user.token })).body!.data.spent, '100.0000');
   });
 
-  it('BUD-US-02: lists a wallet\'s budgets filtered by status and by the day they cover, and hides a budget from a non-member', async () => {
+  it('BUD-US-02: lists a wallet\'s budgets by the day they cover, a repeating one on every day from its start, and hides a budget from a non-member', async () => {
     const { user, category } = await owner('list');
     const november = (await createBudget(user, { categoryId: category })).body!.data.id as string;
     const december = (await createBudget(user, { categoryId: category, startDate: '2026-12-01', endDate: '2026-12-31' })).body!.data.id as string;
-    const archived = (await createBudget(user, { categoryId: null, startDate: '2026-11-10', endDate: '2026-11-20' })).body!.data.id as string;
-    assert.equal((await api.call('DELETE', `/budgets/${archived}`, { token: user.token })).status, 204);
+    const repeating = (await createBudget(user, { categoryId: null, periodType: 'WEEKLY', startDate: '2026-11-10', endDate: null })).body!.data.id as string;
 
     const ids = async (query: string) => {
       const response = await api.call('GET', `/budgets?walletId=${user.walletId}${query}`, { token: user.token });
       assert.equal(response.status, 200, query);
       return (response.body!.data as { id: string }[]).map((budget) => budget.id).sort();
     };
-    assert.deepEqual(await ids(''), [november, december, archived].sort());
-    assert.deepEqual(await ids('&status=ACTIVE'), [november, december].sort());
-    assert.deepEqual(await ids('&status=ARCHIVED'), [archived]);
-    assert.deepEqual(await ids('&activeOn=2026-11-15'), [november, archived].sort());
-    assert.deepEqual(await ids('&activeOn=2026-12-01'), [december]);
-    assert.deepEqual(await ids('&status=ACTIVE&activeOn=2026-11-15'), [november]);
+    assert.deepEqual(await ids(''), [november, december, repeating].sort());
+    assert.deepEqual(await ids('&activeOn=2026-11-05'), [november]);
+    assert.deepEqual(await ids('&activeOn=2026-11-15'), [november, repeating].sort());
+    assert.deepEqual(await ids('&activeOn=2026-12-01'), [december, repeating].sort());
+    assert.deepEqual(await ids('&activeOn=2031-06-01'), [repeating]);
 
     // API-05: newest window first, paged with a total.
     const page = (n: number) => api.call('GET', `/budgets?walletId=${user.walletId}&page=${n}&pageSize=2`, { token: user.token });
@@ -141,7 +139,7 @@ describe('budgets against a real database', { skip: integrationSkipReason() }, (
     const second = await page(2);
     assert.deepEqual(second.body!.meta.pagination, { page: 2, pageSize: 2, total: 3, hasMore: false });
     const paged = [...first.body!.data, ...second.body!.data] as { id: string }[];
-    assert.deepEqual(paged.map((budget) => budget.id).sort(), [november, december, archived].sort(), 'no row repeated or skipped');
+    assert.deepEqual(paged.map((budget) => budget.id).sort(), [november, december, repeating].sort(), 'no row repeated or skipped');
 
     const stranger = await registerProbeUser(api, 'budgets-list-stranger');
     const detail = await api.call('GET', `/budgets/${november}`, { token: stranger.token });
@@ -179,27 +177,60 @@ describe('budgets against a real database', { skip: integrationSkipReason() }, (
     const read = (await api.call('GET', `/budgets/${budgetId}`, { token: user.token })).body!.data;
     assert.deepEqual(
       [read.categoryId, read.periodType, read.startDate, read.endDate, read.spent],
-      [category, 'MONTHLY', NOVEMBER.startDate, NOVEMBER.endDate, '400.0000'],
+      [category, 'CUSTOM', NOVEMBER.startDate, NOVEMBER.endDate, '400.0000'],
       'category, period and dates are immutable (§12.4)',
     );
   });
 
-  it('BUD-US-04: an archived budget answers 204, stays readable as ARCHIVED, and frees its overlap slot', async () => {
-    const { user, account, category } = await owner('archive');
-    await post(user, { type: 'EXPENSE', fromAccountId: account, categoryId: category, amount: '250' });
+  it('BUD-US-04: a delete answers 204, removes the row, leaves the transactions, and frees its overlap slot', async () => {
+    const { user, account, category } = await owner('delete');
+    const spent = await post(user, { type: 'EXPENSE', fromAccountId: account, categoryId: category, amount: '250' });
     const created = await createBudget(user, { categoryId: category });
     const budgetId = created.body!.data.id as string;
 
-    const archived = await api.call('DELETE', `/budgets/${budgetId}`, { token: user.token });
-    assert.equal(archived.status, 204);
-    assert.equal(archived.body, null, '204 carries no body');
+    const deleted = await api.call('DELETE', `/budgets/${budgetId}`, { token: user.token });
+    assert.equal(deleted.status, 204);
+    assert.equal(deleted.body, null, '204 carries no body');
 
+    assert.deepEqual(await api.sql('SELECT id FROM budgets WHERE id = $1', [budgetId]), [], 'the row is gone');
     const read = await api.call('GET', `/budgets/${budgetId}`, { token: user.token });
-    assert.equal(read.status, 200);
-    assert.deepEqual([read.body!.data.status, read.body!.data.spent], ['ARCHIVED', '250.0000'], 'archived, not removed, and still derived');
+    assert.deepEqual([read.status, read.body?.error?.code], [404, 'BUDGET_NOT_FOUND']);
+    const again = await api.call('DELETE', `/budgets/${budgetId}`, { token: user.token });
+    assert.deepEqual([again.status, again.body?.error?.code], [404, 'BUDGET_NOT_FOUND']);
+    const [kept] = await api.sql<{ status: string }>('SELECT status FROM transactions WHERE id = $1', [spent.body!.data.id]);
+    assert.equal(kept?.status, 'COMPLETED', 'deleting a plan touches no transaction');
 
     const replacement = await createBudget(user, { categoryId: category });
-    assert.equal(replacement.status, 201, 'an archived budget no longer occupies the window');
+    assert.equal(replacement.status, 201, 'a deleted budget no longer occupies the window');
+  });
+
+  it('BUD-US-01/02: a monthly budget repeats every month with no end date, each read counting its own month', async () => {
+    const { user, account, category } = await owner('repeating');
+    await post(user, { type: 'EXPENSE', fromAccountId: account, categoryId: category, amount: '100', transactionDate: '2026-11-15T09:00:00.000Z' });
+    await post(user, { type: 'EXPENSE', fromAccountId: account, categoryId: category, amount: '30', transactionDate: '2027-03-10T09:00:00.000Z' });
+    const created = await createBudget(user, { categoryId: category, periodType: 'MONTHLY', startDate: '2026-11-01', endDate: null });
+    assert.equal(created.status, 201);
+    assert.equal(created.body!.data.endDate, null);
+
+    const on = async (day: string) => {
+      const listed = await api.call('GET', `/budgets?walletId=${user.walletId}&activeOn=${day}`, { token: user.token });
+      const [budget] = listed.body!.data as { periodStart: string; periodEnd: string; spent: string }[];
+      return [budget?.periodStart, budget?.periodEnd, budget?.spent];
+    };
+    assert.deepEqual(await on('2026-11-20'), ['2026-11-01', '2026-11-30', '100.0000']);
+    assert.deepEqual(await on('2027-03-01'), ['2027-03-01', '2027-03-31', '30.0000']);
+    assert.deepEqual(await on('2027-02-14'), ['2027-02-01', '2027-02-28', '0.0000']);
+
+    const later = await createBudget(user, { categoryId: category, startDate: '2027-06-01', endDate: '2027-06-30' });
+    assert.deepEqual([later.status, later.body?.error?.code], [409, 'BUDGET_PERIOD_OVERLAP'], 'a repeating budget holds its category from its start onward');
+  });
+
+  it('BUD-US-01: a repeating period refuses an end date and a fixed one requires it', async () => {
+    const { user, category } = await owner('end-date');
+    const withEnd = await createBudget(user, { categoryId: category, periodType: 'MONTHLY' });
+    assert.deepEqual([withEnd.status, withEnd.body?.error?.code], [422, 'VALIDATION_FAILED']);
+    const withoutEnd = await createBudget(user, { categoryId: category, endDate: null });
+    assert.deepEqual([withoutEnd.status, withoutEnd.body?.error?.code], [422, 'VALIDATION_FAILED']);
   });
 
   it('BUD-US-01: refuses an overlapping goal budget with 409, while budgets of other kinds on the same days are allowed', async () => {
@@ -215,5 +246,32 @@ describe('budgets against a real database', { skip: integrationSkipReason() }, (
     assert.equal(otherGoal.status, 201, 'a different goal is a different target');
     assert.equal((await createBudget(user, { categoryId: category })).status, 201, 'a category budget is not blocked by a goal budget');
     assert.equal((await createBudget(user, { categoryId: null })).status, 201, 'a wallet-wide budget is not blocked either');
+  });
+
+  it('BUD-US-02: a category budget counts its subcategories, at any depth, and reports which categories it covers', async () => {
+    const { user, account } = await owner('subtree');
+    const newCategory = async (name: string, parentId?: string) => {
+      const created = await api.call('POST', '/categories', {
+        token: user.token,
+        body: { walletId: user.walletId, name: `${name}-${randomUUID().slice(0, 8)}`, type: 'EXPENSE', parentId },
+      });
+      assert.equal(created.status, 201, JSON.stringify(created.body));
+      return created.body!.data.id as string;
+    };
+    const parent = await newCategory('probe-transport');
+    const child = await newCategory('probe-grab', parent);
+    const grandchild = await newCategory('probe-grabbike', child);
+    const unrelated = await newCategory('probe-other');
+    for (const categoryId of [parent, child, grandchild, unrelated]) {
+      assert.equal((await post(user, { type: 'EXPENSE', fromAccountId: account, categoryId, amount: '100' })).status, 201);
+    }
+
+    const onParent = await createBudget(user, { categoryId: parent });
+    assert.equal(onParent.status, 201);
+    assert.equal(onParent.body!.data.spent, '300.0000');
+    assert.deepEqual([...onParent.body!.data.categoryIds].sort(), [parent, child, grandchild].sort());
+
+    const onChild = await createBudget(user, { categoryId: child });
+    assert.equal(onChild.body!.data.spent, '200.0000', 'a child budget counts its own subtree, not its parent');
   });
 });

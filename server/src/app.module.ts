@@ -13,6 +13,7 @@ import { CommonModule } from './common/common.module.ts';
 import { EnvelopeInterceptor } from './common/envelope.interceptor.ts';
 import { IdempotencyInterceptor } from './common/idempotency.interceptor.ts';
 import { PathIdGuard } from './common/path-id.guard.ts';
+import { RequestLocaleInterceptor } from './common/request-locale.ts';
 import { ConfigModule } from './config/config.module.ts';
 import { DashboardModule } from './dashboard/dashboard.module.ts';
 import { DatabaseModule } from './database/database.module.ts';
@@ -56,6 +57,7 @@ import { WalletsModule } from './wallets/wallets.module.ts';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PathIdGuard },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    { provide: APP_INTERCEPTOR, useClass: RequestLocaleInterceptor },
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
   ],

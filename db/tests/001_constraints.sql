@@ -48,9 +48,9 @@ INSERT INTO users (id, email, password_hash, display_name, base_currency) VALUES
     ('11111111-1111-1111-1111-111111111111', 'tam@example.com',  'x', 'Tam',  'VND'),
     ('22222222-2222-2222-2222-222222222222', 'linh@example.com', 'x', 'Linh', 'VND');
 
-INSERT INTO wallets (id, owner_user_id, name) VALUES
-    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'Tam Wallet'),
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 'Linh Wallet');
+INSERT INTO wallets (id, owner_user_id, name, time_zone) VALUES
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'Tam Wallet', 'Asia/Ho_Chi_Minh'),
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 'Linh Wallet', 'Asia/Ho_Chi_Minh');
 
 INSERT INTO wallet_members (wallet_id, user_id, role) VALUES
     ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'OWNER'),
@@ -182,6 +182,63 @@ SELECT expect_reject($$
             'c0000009-0000-0000-0000-000000000009', 'Loop', 'EXPENSE')
 $$, 'categories: a category as its own parent');
 
+SELECT expect_accept($$
+    INSERT INTO categories (wallet_id, system_key, name, type)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'groceries', 'Groceries', 'EXPENSE')
+$$, 'categories: a starter category with its system key');
+
+SELECT expect_reject($$
+    INSERT INTO categories (wallet_id, system_key, name, type)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'groceries', 'Groceries (copy)', 'EXPENSE')
+$$, 'categories: a second copy of one starter in the same wallet');
+
+SELECT expect_accept($$
+    INSERT INTO categories (wallet_id, system_key, name, type)
+    VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'groceries', 'Groceries', 'EXPENSE')
+$$, 'categories: the same starter in a different wallet');
+
+-- ---------------------------------------------------------------------------
+-- category_translations
+-- ---------------------------------------------------------------------------
+
+DO $$
+BEGIN
+    IF (SELECT COUNT(*) FROM category_translations WHERE locale = 'en')
+       <> (SELECT COUNT(*) FROM category_translations WHERE locale = 'vi') THEN
+        RAISE EXCEPTION 'FAIL  category_translations: every starter key is named in both en and vi';
+    END IF;
+    RAISE NOTICE 'PASS  category_translations: every starter key is named in both en and vi';
+END;
+$$;
+
+SELECT expect_reject($$
+    INSERT INTO category_translations (system_key, locale, name) VALUES ('food', 'vi', 'Đồ ăn')
+$$, 'category_translations: a second name for one key and locale');
+
+SELECT expect_reject($$
+    INSERT INTO category_translations (system_key, locale, name) VALUES ('food', 'fr', 'Nourriture')
+$$, 'category_translations: an inactive locale');
+
+-- ---------------------------------------------------------------------------
+-- wallets.time_zone
+-- ---------------------------------------------------------------------------
+
+SELECT expect_accept($$
+    UPDATE wallets SET time_zone = 'America/Los_Angeles' WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+$$, 'wallets: an IANA time zone');
+
+SELECT expect_reject($$
+    UPDATE wallets SET time_zone = '+07:00' WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+$$, 'wallets: a fixed offset instead of an IANA name');
+
+SELECT expect_reject($$
+    UPDATE wallets SET time_zone = 'Mars/Olympus_Mons' WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+$$, 'wallets: an unknown time zone name');
+
+SELECT expect_reject($$
+    INSERT INTO wallets (owner_user_id, name) VALUES ('11111111-1111-1111-1111-111111111111', 'No zone')
+$$, 'wallets: a wallet without a time zone');
+
 -- ---------------------------------------------------------------------------
 -- transactions: shape per type
 -- ---------------------------------------------------------------------------
@@ -218,7 +275,7 @@ SELECT expect_reject($$
             'EXPENSE', 1000, 'VND', NOW())
 $$, 'transactions: an EXPENSE with no category');
 
--- The category is optional on a transfer (005_transfer_categories.sql); that it is a
+-- The category is optional on a transfer; that it is a
 -- TRANSFER-typed one is a service check, like INCOME/EXPENSE matching.
 SELECT expect_accept($$
     INSERT INTO transactions (created_by_user_id, from_account_id, to_account_id, category_id, type, amount, currency, transaction_date)
@@ -246,32 +303,39 @@ SELECT expect_reject($$
 $$, 'transactions: a negative amount');
 
 -- ---------------------------------------------------------------------------
--- budgets: one active budget per category per overlapping window
+-- budgets: one budget per category per overlapping window
 -- ---------------------------------------------------------------------------
 
 SELECT expect_accept($$
     INSERT INTO budgets (wallet_id, category_id, name, amount, currency, period_type, start_date, end_date)
     VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'c0000001-0000-0000-0000-000000000001',
-            'Food August', 3000000, 'VND', 'MONTHLY', '2026-08-01', '2026-08-31')
+            'Food August', 3000000, 'VND', 'CUSTOM', '2026-08-01', '2026-08-31')
 $$, 'budgets: a first August food budget');
 
 SELECT expect_reject($$
     INSERT INTO budgets (wallet_id, category_id, name, amount, currency, period_type, start_date, end_date)
     VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'c0000001-0000-0000-0000-000000000001',
             'Food mid-August', 1000000, 'VND', 'CUSTOM', '2026-08-15', '2026-09-15')
-$$, 'budgets: an overlapping active budget on the same category');
+$$, 'budgets: an overlapping budget on the same category');
 
 SELECT expect_accept($$
     INSERT INTO budgets (wallet_id, category_id, name, amount, currency, period_type, start_date, end_date)
     VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'c0000001-0000-0000-0000-000000000001',
-            'Food September', 3000000, 'VND', 'MONTHLY', '2026-09-01', '2026-09-30')
+            'Food September', 3000000, 'VND', 'CUSTOM', '2026-09-01', '2026-09-30')
 $$, 'budgets: an adjacent, non-overlapping period');
 
-SELECT expect_accept($$
-    INSERT INTO budgets (wallet_id, category_id, name, amount, currency, period_type, start_date, end_date, status)
-    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'c0000001-0000-0000-0000-000000000001',
-            'Food August (old)', 2000000, 'VND', 'MONTHLY', '2026-08-01', '2026-08-31', 'ARCHIVED')
-$$, 'budgets: an ARCHIVED budget overlapping an active one');
+-- 013: a repeating period has no end_date, a fixed one must have one.
+SELECT expect_reject($$
+    INSERT INTO budgets (wallet_id, category_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'c0000002-0000-0000-0000-000000000002',
+            'Monthly with an end', 1000, 'VND', 'MONTHLY', '2030-01-01', '2030-01-31')
+$$, 'budgets: a MONTHLY budget with an end_date (chk_budget_end)');
+
+SELECT expect_reject($$
+    INSERT INTO budgets (wallet_id, category_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'c0000002-0000-0000-0000-000000000002',
+            'Custom without an end', 1000, 'VND', 'CUSTOM', '2030-01-01', NULL)
+$$, 'budgets: a CUSTOM budget with no end_date (chk_budget_end)');
 
 SELECT expect_reject($$
     INSERT INTO budgets (wallet_id, category_id, name, amount, currency, period_type, start_date, end_date)
@@ -323,18 +387,18 @@ $$, 'goal_contributions: the same transaction linked twice');
 
 SELECT expect_accept($$
     INSERT INTO budgets (wallet_id, name, amount, currency, period_type, start_date, end_date)
-    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Whole wallet, 1 Nov', 500000, 'VND', 'DAILY', '2026-11-01', '2026-11-01')
-$$, 'budgets: a wallet-wide DAILY budget, with no category and no goal');
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Whole wallet, 1 Nov', 500000, 'VND', 'CUSTOM', '2026-11-01', '2026-11-01')
+$$, 'budgets: a wallet-wide one-day budget, with no category and no goal');
 
 SELECT expect_reject($$
     INSERT INTO budgets (wallet_id, name, amount, currency, period_type, start_date, end_date)
-    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Whole wallet, November', 9000000, 'VND', 'MONTHLY', '2026-11-01', '2026-11-30')
-$$, 'budgets: a second active wallet-wide budget overlapping the first');
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Whole wallet, November', 9000000, 'VND', 'CUSTOM', '2026-11-01', '2026-11-30')
+$$, 'budgets: a second wallet-wide budget overlapping the first');
 
 SELECT expect_accept($$
     INSERT INTO budgets (wallet_id, category_id, name, amount, currency, period_type, start_date, end_date)
     VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'c0000001-0000-0000-0000-000000000001',
-            'Food November', 3000000, 'VND', 'MONTHLY', '2026-11-01', '2026-11-30')
+            'Food November', 3000000, 'VND', 'CUSTOM', '2026-11-01', '2026-11-30')
 $$, 'budgets: a category budget over the same days as a wallet-wide one');
 
 SELECT expect_accept($$
@@ -347,12 +411,19 @@ SELECT expect_reject($$
     INSERT INTO budgets (wallet_id, goal_id, name, amount, currency, period_type, start_date, end_date)
     VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '40000001-0000-0000-0000-000000000001',
             'Laptop fund, December', 2000000, 'VND', 'GOAL', '2026-12-01', '2026-12-31')
-$$, 'budgets: a second active budget on the same goal overlapping the first');
+$$, 'budgets: a second budget on the same goal overlapping the first');
 
 SELECT expect_accept($$
-    INSERT INTO budgets (wallet_id, name, amount, currency, period_type, start_date, end_date)
-    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Whole wallet, 2027', 90000000, 'VND', 'YEARLY', '2027-01-01', '2027-12-31')
-$$, 'budgets: a YEARLY period');
+    INSERT INTO budgets (wallet_id, category_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'c0000002-0000-0000-0000-000000000002',
+            'Every year from 2027', 90000000, 'VND', 'YEARLY', '2027-01-01', NULL)
+$$, 'budgets: a repeating YEARLY budget with no end_date');
+
+SELECT expect_reject($$
+    INSERT INTO budgets (wallet_id, category_id, name, amount, currency, period_type, start_date, end_date)
+    VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'c0000002-0000-0000-0000-000000000002',
+            'June 2031', 1000, 'VND', 'CUSTOM', '2031-06-01', '2031-06-30')
+$$, 'budgets: a fixed budget years after a repeating one began on the same category');
 
 SELECT expect_reject($$
     INSERT INTO budgets (wallet_id, name, amount, currency, period_type, start_date, end_date)
@@ -374,7 +445,7 @@ $$, 'budgets: the GOAL period without a goal');
 SELECT expect_reject($$
     INSERT INTO budgets (wallet_id, goal_id, name, amount, currency, period_type, start_date, end_date)
     VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '40000001-0000-0000-0000-000000000001',
-            'Goal, monthly', 1000, 'VND', 'MONTHLY', '2029-03-01', '2029-03-31')
+            'Goal, monthly', 1000, 'VND', 'MONTHLY', '2029-03-01', NULL)
 $$, 'budgets: a goal with a period other than GOAL');
 
 SELECT expect_accept($$

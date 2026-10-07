@@ -27,6 +27,8 @@ export interface WalletAccess {
   role: WalletRole;
   ownerUserId: string;
   status: WalletStatus;
+  /** The wallet's IANA zone, which every calendar-day rule on it reads instants in. */
+  timeZone: string;
   relationLabel: string | null;
   memberId: string;
 }
@@ -94,6 +96,7 @@ export class WalletAccessService {
         'wallets.name as wallet_name',
         'wallets.owner_user_id as owner_user_id',
         'wallets.status as status',
+        'wallets.time_zone as time_zone',
       ])
       .where('wallet_members.wallet_id', '=', walletId)
       .where('wallet_members.user_id', '=', userId)
@@ -109,6 +112,7 @@ export class WalletAccessService {
       role: row.role,
       ownerUserId: row.owner_user_id,
       status: row.status,
+      timeZone: row.time_zone,
       relationLabel: row.relation_label,
       memberId: row.member_id,
     };
@@ -176,6 +180,7 @@ export class WalletAccessService {
         'wallets.name as wallet_name',
         'wallets.owner_user_id as owner_user_id',
         'wallets.status as wallet_status',
+        'wallets.time_zone as time_zone',
         'wallet_members.id as member_id',
         'wallet_members.role as role',
         'wallet_members.relation_label as relation_label',
@@ -199,6 +204,7 @@ export class WalletAccessService {
       role: row.role,
       ownerUserId: row.owner_user_id,
       status: row.wallet_status,
+      timeZone: row.time_zone,
       relationLabel: row.relation_label,
       memberId: row.member_id,
     };

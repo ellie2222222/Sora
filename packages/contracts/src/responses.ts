@@ -12,7 +12,6 @@ import type {
   AiMessageRole,
   AccountType,
   BudgetPeriodType,
-  BudgetStatus,
   CategoryStatus,
   CategoryType,
   GoalStatus,
@@ -95,7 +94,6 @@ export const ERROR_CODES = [
   'CATEGORY_PARENT_ARCHIVED',
   'CATEGORY_ARCHIVED',
   'TRANSACTION_NOT_FOUND',
-  'TRANSACTION_IMMUTABLE',
   'TRANSACTION_ALREADY_DELETED',
   'TRANSFER_SAME_ACCOUNT',
   'TRANSFER_CURRENCY_MISMATCH',
@@ -182,7 +180,6 @@ export const ERROR_STATUS: Record<ErrorCode, HttpStatusCode> = {
   CATEGORY_PARENT_ARCHIVED: HTTP_STATUS.CONFLICT,
   CATEGORY_ARCHIVED: HTTP_STATUS.CONFLICT,
   TRANSACTION_NOT_FOUND: HTTP_STATUS.NOT_FOUND,
-  TRANSACTION_IMMUTABLE: HTTP_STATUS.CONFLICT,
   TRANSACTION_ALREADY_DELETED: HTTP_STATUS.CONFLICT,
   TRANSFER_SAME_ACCOUNT: HTTP_STATUS.UNPROCESSABLE_ENTITY,
   TRANSFER_CURRENCY_MISMATCH: HTTP_STATUS.UNPROCESSABLE_ENTITY,
@@ -234,6 +231,8 @@ export interface WalletResponse {
   name: string;
   status: WalletStatus;
   ownerUserId: string;
+  /** IANA zone the wallet's calendar is read in: its days, months, budget windows and "today". */
+  timeZone: string;
   /** The requesting user's role on this wallet. Never null in a list they can see. */
   role: WalletRole;
   /** This viewer's own label for the wallet, e.g. "Girlfriend". */
@@ -321,6 +320,8 @@ export interface CategoryResponse {
   id: string;
   walletId: string;
   parentId: string | null;
+  /** Set on a starter category, whose `name` is translated into the request's locale; null on a custom one. */
+  systemKey: string | null;
   name: string;
   type: CategoryType;
   icon: string | null;
@@ -372,9 +373,16 @@ export interface BudgetResponse {
   currency: string;
   periodType: BudgetPeriodType;
   startDate: string;
-  endDate: string;
-  status: BudgetStatus;
+  /** Null for a repeating period: it runs until the budget is deleted. */
+  endDate: string | null;
+  /** The window `spent` covers: the current period of a repeating budget, or a fixed budget's own dates. */
+  periodStart: string;
+  periodEnd: string;
+  /** The wallet's zone; `periodStart`/`periodEnd` are calendar days in it. */
+  timeZone: string;
   categoryId: string | null;
+  /** The categories `spent` counts: `categoryId` and every subcategory beneath it. Empty for goal and wallet-wide budgets. */
+  categoryIds: string[];
   goalId: string | null;
   category: Pick<CategoryResponse, 'id' | 'name' | 'icon' | 'color'> | null;
   spent: MoneyString;
@@ -456,7 +464,8 @@ export interface ConvertedValuation {
 
 export interface DashboardResponse {
   walletId: string;
-  period: { dateFrom: string; dateTo: string };
+  /** Calendar days in `timeZone`, the wallet's zone. */
+  period: { dateFrom: string; dateTo: string; timeZone: string };
   /** Per-currency, for the same reason WalletResponse.balances is. */
   totalBalance: CurrencyTotal[];
   income: CurrencyTotal[];

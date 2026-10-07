@@ -302,13 +302,15 @@ describe('concurrent writes against a real database', { skip: integrationSkipRea
     assert.deepEqual([answered.status, answered.body?.error?.code], [404, 'CONTRIBUTION_NOT_FOUND'], 'the delete already took it');
   });
 
-  it('§10.4: a permanent delete of a category an archived budget still names is a 409, not a 500', async () => {
+  it('§10.4: a permanent delete of a category a budget still names is a 409, not a 500, and goes through once the budget is deleted', async () => {
     const user = await registerProbeUser(api, 'race-delete-category');
     const categoryId = (await newCategory(user.token, user.walletId)).body!.data.id as string;
     const budget = await juneBudget(user.token, user.walletId, categoryId);
-    assert.equal((await api.call('DELETE', `/budgets/${budget.body!.data.id}`, { token: user.token })).status, 204);
 
     const refused = await api.call('DELETE', `/categories/${categoryId}?mode=permanent`, { token: user.token });
     assert.deepEqual([refused.status, refused.body?.error?.code], [409, 'CATEGORY_IN_USE']);
+
+    assert.equal((await api.call('DELETE', `/budgets/${budget.body!.data.id}`, { token: user.token })).status, 204);
+    assert.equal((await api.call('DELETE', `/categories/${categoryId}?mode=permanent`, { token: user.token })).status, 204);
   });
 });

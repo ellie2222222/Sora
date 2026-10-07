@@ -18,6 +18,9 @@ import {
   isOverBudget,
   isWithinPeriod,
   transferDirection,
+  budgetWindow,
+  isBudgetActiveOn,
+  categorySubtreeIds,
 } from '../src/calc.ts';
 import { TransactionStatus, TransactionType } from '../src/enums.ts';
 import { formatMoneyCompact, parseMoney } from '../src/money.ts';
@@ -211,7 +214,7 @@ const spending: SpendRelevantTransaction[] = [
   },
 ];
 
-const augustFood = { walletId: TAM_WALLET, categoryId: FOOD, goalId: null, currency: 'VND', startDate: '2026-08-01', endDate: '2026-08-31' };
+const augustFood = { walletId: TAM_WALLET, categoryId: FOOD, categoryIds: [FOOD], goalId: null, currency: 'VND', startDate: '2026-08-01', endDate: '2026-08-31', timeZone: 'UTC' };
 
 describe('calculateBudgetSpent', () => {
   it('spends 1,150,000 of the August food budget', () => {
@@ -294,15 +297,15 @@ describe('goal progress', () => {
 
 describe('isWithinPeriod', () => {
   it('is inclusive on both ends by calendar day', () => {
-    assert.equal(isWithinPeriod('2026-08-01T00:00:00Z', '2026-08-01', '2026-08-31'), true);
-    assert.equal(isWithinPeriod('2026-08-31T23:30:00Z', '2026-08-01', '2026-08-31'), true);
-    assert.equal(isWithinPeriod('2026-07-31T23:59:59Z', '2026-08-01', '2026-08-31'), false);
-    assert.equal(isWithinPeriod('2026-09-01T00:00:00Z', '2026-08-01', '2026-08-31'), false);
+    assert.equal(isWithinPeriod('2026-08-01T00:00:00Z', '2026-08-01', '2026-08-31', 'UTC'), true);
+    assert.equal(isWithinPeriod('2026-08-31T23:30:00Z', '2026-08-01', '2026-08-31', 'UTC'), true);
+    assert.equal(isWithinPeriod('2026-07-31T23:59:59Z', '2026-08-01', '2026-08-31', 'UTC'), false);
+    assert.equal(isWithinPeriod('2026-09-01T00:00:00Z', '2026-08-01', '2026-08-31', 'UTC'), false);
   });
 });
 
 describe('countsAsPeriodActivity', () => {
-  const august = ['2026-08-01', '2026-08-31'] as const;
+  const august = ['2026-08-01', '2026-08-31', 'UTC'] as const;
   const base = { status: TransactionStatus.COMPLETED, transactionDate: '2026-08-15T10:00:00Z' };
 
   it('admits completed income and expense inside the window', () => {
@@ -397,15 +400,15 @@ describe('budget and goal edges a mutation run found untested', () => {
   });
 
   it('compares the full calendar day, not just the month', () => {
-    assert.equal(isWithinPeriod('2026-08-15T10:00:00Z', '2026-08-20', '2026-08-31'), false);
+    assert.equal(isWithinPeriod('2026-08-15T10:00:00Z', '2026-08-20', '2026-08-31', 'UTC'), false);
   });
 });
 
 describe('budget kinds (API spec §12.2)', () => {
   const GOAL = 'g0000001';
-  const window = { currency: 'VND', startDate: '2026-08-01', endDate: '2026-08-31' };
-  const wholeWallet = { ...window, walletId: TAM_WALLET, categoryId: null, goalId: null };
-  const laptop = { ...window, walletId: TAM_WALLET, categoryId: null, goalId: GOAL };
+  const window = { currency: 'VND', startDate: '2026-08-01', endDate: '2026-08-31', timeZone: 'UTC' };
+  const wholeWallet = { ...window, walletId: TAM_WALLET, categoryId: null, categoryIds: [], goalId: null };
+  const laptop = { ...window, walletId: TAM_WALLET, categoryId: null, categoryIds: [], goalId: GOAL };
   const expense = (overrides: Partial<SpendRelevantTransaction>): SpendRelevantTransaction => ({
     type: TransactionType.EXPENSE,
     status: TransactionStatus.COMPLETED,
@@ -441,9 +444,92 @@ describe('budget kinds (API spec §12.2)', () => {
 
   it('decides the target by goal, then category, then wallet', () => {
     const tagged = { categoryId: FOOD, goalId: GOAL, walletId: TAM_WALLET };
-    assert.equal(isBudgetTarget({ walletId: TAM_WALLET, categoryId: null, goalId: GOAL }, tagged), true);
-    assert.equal(isBudgetTarget({ walletId: TAM_WALLET, categoryId: FOOD, goalId: null }, tagged), true);
-    assert.equal(isBudgetTarget({ walletId: TAM_WALLET, categoryId: null, goalId: null }, tagged), true);
-    assert.equal(isBudgetTarget({ walletId: LINH_WALLET, categoryId: null, goalId: null }, tagged), false);
+    assert.equal(isBudgetTarget({ walletId: TAM_WALLET, categoryId: null, categoryIds: [], goalId: GOAL }, tagged), true);
+    assert.equal(isBudgetTarget({ walletId: TAM_WALLET, categoryId: FOOD, categoryIds: [FOOD], goalId: null }, tagged), true);
+    assert.equal(isBudgetTarget({ walletId: TAM_WALLET, categoryId: null, categoryIds: [], goalId: null }, tagged), true);
+    assert.equal(isBudgetTarget({ walletId: LINH_WALLET, categoryId: null, categoryIds: [], goalId: null }, tagged), false);
+  });
+});
+
+describe('parent-category budgets', () => {
+  const COFFEE = 'c-coffee';
+  const ESPRESSO = 'c-espresso';
+  const tree = [
+    { id: FOOD, parentId: null },
+    { id: COFFEE, parentId: FOOD },
+    { id: ESPRESSO, parentId: COFFEE },
+    { id: SALARY, parentId: null },
+  ];
+  const inCategory = (categoryId: string): SpendRelevantTransaction => ({
+    type: TransactionType.EXPENSE,
+    status: TransactionStatus.COMPLETED,
+    amount: parseMoney('100'),
+    currency: 'VND',
+    categoryId,
+    goalId: null,
+    walletId: TAM_WALLET,
+    transactionDate: '2026-08-15T09:00:00Z',
+  });
+
+  it('collects a category and every descendant, and nothing outside it', () => {
+    assert.deepEqual(categorySubtreeIds(FOOD, tree).sort(), [COFFEE, ESPRESSO, FOOD].sort());
+    assert.deepEqual(categorySubtreeIds(COFFEE, tree).sort(), [COFFEE, ESPRESSO].sort());
+    assert.deepEqual(categorySubtreeIds(SALARY, tree), [SALARY]);
+  });
+
+  it('terminates on a cycle instead of hanging the read', () => {
+    const cyclic = [{ id: 'a', parentId: 'b' }, { id: 'b', parentId: 'a' }];
+    assert.deepEqual(categorySubtreeIds('a', cyclic).sort(), ['a', 'b']);
+  });
+
+  it("counts subcategories' expenses toward a parent's budget, but not the reverse", () => {
+    const food = { ...augustFood, categoryIds: categorySubtreeIds(FOOD, tree) };
+    const coffee = { ...augustFood, categoryId: COFFEE, categoryIds: categorySubtreeIds(COFFEE, tree) };
+    const spendingInTree = [inCategory(FOOD), inCategory(COFFEE), inCategory(ESPRESSO)];
+    assert.equal(formatMoneyCompact(calculateBudgetSpent(food, spendingInTree)), '300');
+    assert.equal(formatMoneyCompact(calculateBudgetSpent(coffee, spendingInTree)), '200');
+  });
+
+  it('still counts the budget category itself if its subtree was left empty', () => {
+    assert.equal(formatMoneyCompact(calculateBudgetSpent({ ...augustFood, categoryIds: [] }, [inCategory(FOOD)])), '100');
+  });
+});
+
+describe('budgetWindow — repeating budgets', () => {
+  const monthly = { periodType: 'MONTHLY' as const, startDate: '2026-10-01', endDate: null };
+
+  it('follows calendar months for a monthly budget begun on the 1st, every month after', () => {
+    assert.deepEqual(budgetWindow(monthly, '2026-10-15'), { startDate: '2026-10-01', endDate: '2026-10-31' });
+    assert.deepEqual(budgetWindow(monthly, '2026-11-01'), { startDate: '2026-11-01', endDate: '2026-11-30' });
+    assert.deepEqual(budgetWindow(monthly, '2027-02-28'), { startDate: '2027-02-01', endDate: '2027-02-28' });
+  });
+
+  it('starts a 31st-anchored month on the last day of a shorter month', () => {
+    const late = { periodType: 'MONTHLY' as const, startDate: '2026-01-31', endDate: null };
+    assert.deepEqual(budgetWindow(late, '2026-02-15'), { startDate: '2026-01-31', endDate: '2026-02-27' });
+    assert.deepEqual(budgetWindow(late, '2026-02-28'), { startDate: '2026-02-28', endDate: '2026-03-30' });
+    assert.deepEqual(budgetWindow(late, '2026-03-31'), { startDate: '2026-03-31', endDate: '2026-04-29' });
+  });
+
+  it('steps weeks and years from the start date, and gives one day for a daily budget', () => {
+    const weekly = { periodType: 'WEEKLY' as const, startDate: '2026-10-05', endDate: null };
+    assert.deepEqual(budgetWindow(weekly, '2026-10-14'), { startDate: '2026-10-12', endDate: '2026-10-18' });
+    const yearly = { periodType: 'YEARLY' as const, startDate: '2026-01-01', endDate: null };
+    assert.deepEqual(budgetWindow(yearly, '2028-06-01'), { startDate: '2028-01-01', endDate: '2028-12-31' });
+    const daily = { periodType: 'DAILY' as const, startDate: '2026-10-01', endDate: null };
+    assert.deepEqual(budgetWindow(daily, '2026-10-09'), { startDate: '2026-10-09', endDate: '2026-10-09' });
+  });
+
+  it('gives the first period before the budget starts, and a fixed budget its own dates', () => {
+    assert.deepEqual(budgetWindow(monthly, '2026-09-20'), { startDate: '2026-10-01', endDate: '2026-10-31' });
+    const custom = { periodType: 'CUSTOM' as const, startDate: '2026-10-03', endDate: '2026-10-17' };
+    assert.deepEqual(budgetWindow(custom, '2027-01-01'), { startDate: '2026-10-03', endDate: '2026-10-17' });
+  });
+
+  it('counts a repeating budget active from its start onward, and a fixed one only inside its dates', () => {
+    assert.equal(isBudgetActiveOn(monthly, '2030-01-01'), true);
+    assert.equal(isBudgetActiveOn(monthly, '2026-09-30'), false);
+    const custom = { periodType: 'CUSTOM' as const, startDate: '2026-10-03', endDate: '2026-10-17' };
+    assert.deepEqual([isBudgetActiveOn(custom, '2026-10-17'), isBudgetActiveOn(custom, '2026-10-18')], [true, false]);
   });
 });

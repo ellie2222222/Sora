@@ -13,7 +13,6 @@ import {
 import { z } from 'zod';
 
 import {
-  BUDGET_STATUSES,
   ROUTES,
   createBudgetSchema,
   isoDateSchema,
@@ -31,7 +30,6 @@ import { BudgetsService } from './budgets.service.ts';
 /** List filters have no contracts schema — see WalletsController's identical note. */
 const budgetListQuerySchema = z.object({
   walletId: uuidSchema,
-  status: z.enum(BUDGET_STATUSES).optional(),
   activeOn: isoDateSchema.optional(),
   ...pageQuery,
 });
@@ -76,12 +74,12 @@ export class BudgetsController {
   }
 
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Delete(ROUTES.budgets.archive(':id'))
-  archive(
+  @Delete(ROUTES.budgets.delete(':id'))
+  delete(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') budgetId: string,
     @ClientIp() ip: string | null,
   ): Promise<void> {
-    return this.budgets.archive(user, budgetId, ip);
+    return this.budgets.delete(user, budgetId, ip);
   }
 }

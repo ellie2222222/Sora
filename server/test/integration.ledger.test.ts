@@ -43,7 +43,7 @@ describe('the ledger against a real database', { skip: integrationSkipReason() }
     api = await startTestApi();
     owner = await registerProbeUser(api, 'ledger');
     walletA = owner.walletId;
-    const second = await api.call('POST', '/wallets', { token: owner.token, body: { name: `probe-${randomUUID()}` } });
+    const second = await api.call('POST', '/wallets', { token: owner.token, body: { name: `probe-${randomUUID()}`, timeZone: 'Asia/Ho_Chi_Minh' } });
     walletB = second.body!.data.id;
     bank = await createAccount(api, owner, walletA, { initialBalance: '20000000' });
     cash = await createAccount(api, owner, walletA);
@@ -136,7 +136,7 @@ describe('the ledger against a real database', { skip: integrationSkipReason() }
     const onArchivedAccount = await transact({ type: 'EXPENSE', fromAccountId: retired, categoryId: food, amount: '1', description });
     assert.deepEqual([onArchivedAccount.status, onArchivedAccount.body?.error?.code], [409, 'ACCOUNT_ARCHIVED']);
 
-    const closedWallet = await api.call('POST', '/wallets', { token: owner.token, body: { name: `probe-${randomUUID()}` } });
+    const closedWallet = await api.call('POST', '/wallets', { token: owner.token, body: { name: `probe-${randomUUID()}`, timeZone: 'Asia/Ho_Chi_Minh' } });
     const closedAccount = await createAccount(api, owner, closedWallet.body!.data.id);
     assert.equal((await api.call('DELETE', `/wallets/${closedWallet.body!.data.id}`, { token: owner.token })).status, 204);
     const intoArchivedWallet = await transact({ type: 'TRANSFER', fromAccountId: bank, toAccountId: closedAccount, amount: '1', description });
@@ -148,7 +148,7 @@ describe('the ledger against a real database', { skip: integrationSkipReason() }
   it('WAL-US-12: keeps an archived wallet readable and renamable, refuses new entries, and audits both', async () => {
     const user = await registerProbeUser(api, 'ledger-archive-wallet');
     const mine = await createAccount(api, user, user.walletId, { initialBalance: '100' });
-    const shelved = (await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}` } })).body!.data.id as string;
+    const shelved = (await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}`, timeZone: 'Asia/Ho_Chi_Minh' } })).body!.data.id as string;
     const shelvedAccount = await createAccount(api, user, shelved);
     const transfer = await api.call('POST', '/transactions', {
       token: user.token,
@@ -198,16 +198,85 @@ describe('the ledger against a real database', { skip: integrationSkipReason() }
     assert.equal(response.body?.error?.code, 'ACCOUNT_CURRENCY_MISMATCH');
   });
 
-  it('refuses to edit amount, type or accounts, allows the descriptive fields, and deletes by status (BR-03)', async () => {
+  it('edits amount, type and accounts in place, and every balance follows (BR-03)', async () => {
+    const from = await createAccount(api, owner, walletA, { initialBalance: '1000' });
+    const to = await createAccount(api, owner, walletA, { initialBalance: '1000' });
+    const salary = await categoryOf(api, owner, walletA, 'INCOME');
+    const created = await transact({ type: 'EXPENSE', fromAccountId: from, categoryId: food, amount: '100' });
+    const id = created.body!.data.id as string;
+    const edit = (body: Record<string, unknown>) => api.call('PATCH', `/transactions/${id}`, { token: owner.token, body });
+
+    const amount = await edit({ amount: '250' });
+    assert.deepEqual([amount.status, amount.body?.data.amount], [200, '250.0000']);
+    assert.equal(await balanceOf(from), '750.0000');
+
+    const moved = await edit({ fromAccountId: to });
+    assert.equal(moved.body?.data.fromAccount.id, to);
+    assert.deepEqual([await balanceOf(from), await balanceOf(to)], ['1000.0000', '750.0000']);
+
+    const income = await edit({ type: 'INCOME', toAccountId: from, categoryId: salary });
+    assert.deepEqual([income.status, income.body?.data.type, income.body?.data.fromAccount], [200, 'INCOME', null]);
+    assert.deepEqual([await balanceOf(from), await balanceOf(to)], ['1250.0000', '1000.0000']);
+
+    const audit = await api.sql<{ note: string }>('SELECT note FROM audit_logs WHERE entity_id = $1 AND event = $2', [id, 'TRANSACTION_UPDATED']);
+    assert.equal(audit.length, 3, 'each edit is audited');
+  });
+
+  it('checks an edited transaction exactly as a create, and leaves the row unchanged when refused', async () => {
+    const usd = await createAccount(api, owner, walletA, { currency: 'USD' });
     const created = await transact({ type: 'EXPENSE', fromAccountId: cash, categoryId: food, amount: '5' });
     const id = created.body!.data.id as string;
-
-    for (const field of [{ amount: '1' }, { type: 'INCOME' }, { fromAccountId: bank }]) {
-      const edit = await api.call('PATCH', `/transactions/${id}`, { token: owner.token, body: field });
-      assert.deepEqual([edit.status, edit.body?.error?.code], [409, 'TRANSACTION_IMMUTABLE'], `PATCH ${JSON.stringify(field)}`);
-      const [row] = await api.sql<{ amount: string; type: string }>('SELECT amount::text, type FROM transactions WHERE id = $1', [id]);
-      assert.deepEqual(row, { amount: '5.0000', type: 'EXPENSE' });
+    const refusals: [Record<string, unknown>, number, string][] = [
+      [{ type: 'INCOME' }, 422, 'VALIDATION_FAILED'],
+      [{ type: 'INCOME', toAccountId: cash }, 422, 'CATEGORY_WRONG_TYPE'],
+      [{ fromAccountId: usd }, 422, 'ACCOUNT_CURRENCY_MISMATCH'],
+      [{ type: 'TRANSFER', toAccountId: cash }, 422, 'VALIDATION_FAILED'],
+      [{ amount: '0' }, 422, 'VALIDATION_FAILED'],
+    ];
+    for (const [body, status, code] of refusals) {
+      const edit = await api.call('PATCH', `/transactions/${id}`, { token: owner.token, body });
+      assert.deepEqual([edit.status, edit.body?.error?.code], [status, code], `PATCH ${JSON.stringify(body)}`);
     }
+    const [row] = await api.sql<{ amount: string; type: string; from_account_id: string }>(
+      'SELECT amount::text, type, from_account_id FROM transactions WHERE id = $1',
+      [id],
+    );
+    assert.deepEqual(row, { amount: '5.0000', type: 'EXPENSE', from_account_id: cash });
+  });
+
+  it('moves a goal contribution with the payment it backs, and refuses to make that payment anything but an expense', async () => {
+    const goal = await api.call('POST', '/goals', {
+      token: owner.token,
+      body: { walletId: walletA, name: `probe-${randomUUID()}`, targetAmount: '1000', currency: 'VND' },
+    });
+    const goalId = goal.body!.data.id as string;
+    const contribution = await api.call('POST', `/goals/${goalId}/contributions`, {
+      token: owner.token,
+      body: { accountId: cash, amount: '40', currency: 'VND', contributionDate: IN_PERIOD, recordAsTransaction: true, categoryId: food },
+    });
+    const transactionId = contribution.body!.data.transactionId as string;
+
+    const edited = await api.call('PATCH', `/transactions/${transactionId}`, { token: owner.token, body: { amount: '60', fromAccountId: bank } });
+    assert.equal(edited.status, 200);
+    const [linked] = await api.sql<{ amount: string; account_id: string }>(
+      'SELECT amount::text, account_id FROM goal_contributions WHERE transaction_id = $1',
+      [transactionId],
+    );
+    assert.deepEqual(linked, { amount: '60.0000', account_id: bank });
+
+    const salary = await categoryOf(api, owner, walletA, 'INCOME');
+    const asIncome = await api.call('PATCH', `/transactions/${transactionId}`, {
+      token: owner.token,
+      body: { type: 'INCOME', toAccountId: bank, categoryId: salary },
+    });
+    assert.deepEqual([asIncome.status, asIncome.body?.error?.code], [422, 'VALIDATION_FAILED']);
+    const [still] = await api.sql<{ type: string }>('SELECT type FROM transactions WHERE id = $1', [transactionId]);
+    assert.equal(still?.type, 'EXPENSE');
+  });
+
+  it('allows the descriptive fields, and deletes by status', async () => {
+    const created = await transact({ type: 'EXPENSE', fromAccountId: cash, categoryId: food, amount: '5' });
+    const id = created.body!.data.id as string;
     const described = await api.call('PATCH', `/transactions/${id}`, { token: owner.token, body: { description: 'probe note' } });
     assert.equal(described.body?.data.description, 'probe note');
 
@@ -226,7 +295,7 @@ describe('the ledger against a real database', { skip: integrationSkipReason() }
 
   it('reports a transfer as neither income nor expense on the dashboard, per currency (BR-06)', async () => {
     const user = await registerProbeUser(api, 'ledger-dash');
-    const other = await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}` } });
+    const other = await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}`, timeZone: 'Asia/Ho_Chi_Minh' } });
     const main = await createAccount(api, user, user.walletId, { initialBalance: '0' });
     const wallet = await createAccount(api, user, user.walletId);
     const elsewhere = await createAccount(api, user, other.body!.data.id);
@@ -276,7 +345,7 @@ describe('the ledger against a real database', { skip: integrationSkipReason() }
 
   it('scopes the dashboard to one account: a sibling-account transfer is its in/out, never income or expense', async () => {
     const user = await registerProbeUser(api, 'ledger-acct-dash');
-    const other = await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}` } });
+    const other = await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}`, timeZone: 'Asia/Ho_Chi_Minh' } });
     const main = await createAccount(api, user, user.walletId, { initialBalance: '1000000' });
     const cashBox = await createAccount(api, user, user.walletId, { initialBalance: '0' });
     const foreign = await createAccount(api, user, other.body!.data.id);

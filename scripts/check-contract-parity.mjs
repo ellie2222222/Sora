@@ -79,7 +79,7 @@ const ENUM_TO_CONSTRAINT = [
   ['TRANSACTION_TYPES', 'chk_transaction_type'],
   ['TRANSACTION_STATUSES', 'chk_transaction_status'],
   ['BUDGET_PERIOD_TYPES', 'chk_budget_period'],
-  ['BUDGET_STATUSES', 'chk_budget_status'],
+  ['REPEATING_BUDGET_PERIODS', 'chk_budget_end'],
   ['GOAL_STATUSES', 'chk_goal_status'],
   ['AI_MESSAGE_ROLES', 'chk_ai_message_role'],
   ['AI_ACTION_TYPES', 'chk_ai_message_action_type'],
@@ -177,6 +177,46 @@ if (constraintMapMatch) {
   check('every exclusion constraint maps to an error code', unmappedExclusions.length === 0, `unmapped: ${unmappedExclusions}`);
 } else {
   check('CONSTRAINT_CODES is declared in pg-error.ts', false);
+}
+
+// ---------------------------------------------------------------------------
+// 5. Starter-category translations: the migration's rows mirror STARTER_CATEGORIES
+// ---------------------------------------------------------------------------
+
+const STARTER_TS = readFileSync(join(ROOT, 'packages/contracts/src/starter-categories.ts'), 'utf8');
+const localesMatch = ENUMS_TS.match(/export const LOCALES = \[([^\]]*)\] as const/);
+const locales = localesMatch ? [...localesMatch[1].matchAll(/'([a-z]+)'/g)].map((m) => m[1]).sort() : [];
+check('LOCALES is declared in enums.ts', locales.length > 0, 'tuple not found');
+
+for (const constraintName of ['chk_user_locale', 'chk_category_translation_locale']) {
+  const match = SCHEMA_SQL.match(new RegExp(`CONSTRAINT\\s+${constraintName}\\s*\\n?\\s*CHECK\\s*\\(([^;]*?)\\)\\s*(?:,|\\n\\s*\\)|;)`, 's'));
+  const allowed = match ? [...match[1].matchAll(/'([a-z]+)'/g)].map((m) => m[1]).sort() : null;
+  check(`LOCALES matches ${constraintName}`, sameSet(locales, allowed), `contract=[${locales}] db=[${allowed}]`);
+}
+
+// Rows as `key|locale|name`. Neither side may hold an apostrophe in a name, which keeps both parsers trivial.
+const contractTranslations = [...STARTER_TS.matchAll(/key: '([a-z_]+)', names: \{([^}]*)\}/g)].flatMap(([, key, names]) =>
+  [...names.matchAll(/([a-z]+): '([^']*)'/g)].map(([, locale, name]) => `${key}|${locale}|${name}`),
+);
+const insertMatch = SCHEMA_SQL.match(/INSERT INTO category_translations \(system_key, locale, name\) VALUES([^;]*);/);
+const schemaTranslations = insertMatch
+  ? [...insertMatch[1].matchAll(/\('([a-z_]+)', '([a-z]+)', '([^']*)'\)/g)].map(([, key, locale, name]) => `${key}|${locale}|${name}`)
+  : null;
+
+check('category_translations rows are inserted in the migration', schemaTranslations !== null, 'INSERT not found');
+if (schemaTranslations !== null) {
+  const inSchema = new Set(schemaTranslations);
+  const inContract = new Set(contractTranslations);
+  const missing = contractTranslations.filter((row) => !inSchema.has(row));
+  const extra = schemaTranslations.filter((row) => !inContract.has(row));
+  check('every STARTER_CATEGORIES name has a matching category_translations row', missing.length === 0, missing.join(', '));
+  check('every category_translations row matches a STARTER_CATEGORIES name', extra.length === 0, extra.join(', '));
+
+  const keys = [...new Set(contractTranslations.map((row) => row.split('|')[0]))];
+  const untranslated = keys.flatMap((key) =>
+    locales.filter((locale) => !contractTranslations.some((row) => row.startsWith(`${key}|${locale}|`))).map((locale) => `${key}/${locale}`),
+  );
+  check('every starter category is named in every locale', untranslated.length === 0, untranslated.join(', '));
 }
 
 // ---------------------------------------------------------------------------

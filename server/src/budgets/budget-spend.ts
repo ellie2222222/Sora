@@ -7,17 +7,29 @@
 
 import type { Kysely } from 'kysely';
 
-import { parseMoney, TransactionStatus, TransactionType, type SpendRelevantTransaction } from '@sora/contracts';
+import {
+  categorySubtreeIds,
+  nextDay,
+  parseMoney,
+  startOfDay,
+  TransactionStatus,
+  TransactionType,
+  type BudgetWindow,
+  type SpendRelevantTransaction,
+} from '@sora/contracts';
 
-import { dayAfter } from '../common/utc-day.ts';
 import type { DB } from '../database/types.ts';
 
-export interface BudgetTargetRow {
+export interface BudgetSpendTarget {
   wallet_id: string;
   category_id: string | null;
+  /** `category_id` and its subcategories (`withCategorySubtrees`); empty for goal and wallet-wide budgets. */
+  category_ids: readonly string[];
   goal_id: string | null;
-  start_date: string;
-  end_date: string;
+  /** The window this read counts: a repeating budget's current period, a fixed one's own dates. */
+  window: BudgetWindow;
+  /** The wallet's zone, which the window's calendar days are read in. */
+  time_zone: string;
 }
 
 /**
@@ -28,18 +40,18 @@ export interface BudgetTargetRow {
  */
 export async function spendableExpenses(
   db: Kysely<DB>,
-  budgets: readonly BudgetTargetRow[],
+  budgets: readonly BudgetSpendTarget[],
 ): Promise<SpendRelevantTransaction[]> {
-  const categoryIds = unique(budgets.map((budget) => budget.category_id));
+  const categoryIds = unique(budgets.flatMap((budget) => budget.category_ids));
   const goalIds = unique(budgets.map((budget) => budget.goal_id));
   const walletIds = unique(
     budgets.filter((budget) => budget.category_id === null && budget.goal_id === null).map((budget) => budget.wallet_id),
   );
   if (categoryIds.length + goalIds.length + walletIds.length === 0) return [];
-  // Windows are UTC calendar days (calc.ts isWithinPeriod), so the span ends at the next UTC midnight.
-  const spanStart = `${budgets.map((budget) => budget.start_date).sort()[0]}T00:00:00.000Z`;
-  const lastDay = budgets.map((budget) => budget.end_date).sort().at(-1)!;
-  const spanEnd = dayAfter(lastDay).toISOString();
+  // Windows are wallet calendar days, so the span runs from the earliest window's local midnight
+  // to the local midnight after the latest one.
+  const spanStart = Math.min(...budgets.map((budget) => startOfDay(budget.window.startDate, budget.time_zone).getTime()));
+  const spanEnd = Math.max(...budgets.map((budget) => startOfDay(nextDay(budget.window.endDate), budget.time_zone).getTime()));
 
   const rows = await db
     .selectFrom('transactions as t')
@@ -70,6 +82,22 @@ export async function spendableExpenses(
     goalId: row.goal_id,
     walletId: row.wallet_id,
     transactionDate: row.transaction_date.toISOString(),
+  }));
+}
+
+/** Attaches each category budget's subtree, so a budget on a parent counts its subcategories too (API spec §12.2). */
+export async function withCategorySubtrees<T extends { wallet_id: string; category_id: string | null }>(
+  db: Kysely<DB>,
+  budgets: readonly T[],
+): Promise<(T & { category_ids: string[] })[]> {
+  const walletIds = unique(budgets.filter((budget) => budget.category_id !== null).map((budget) => budget.wallet_id));
+  // Archived subcategories stay in: spending recorded under them still happened.
+  const categories = walletIds.length === 0
+    ? []
+    : await db.selectFrom('categories').select(['id', 'parent_id as parentId']).where('wallet_id', 'in', walletIds).execute();
+  return budgets.map((budget) => ({
+    ...budget,
+    category_ids: budget.category_id === null ? [] : categorySubtreeIds(budget.category_id, categories),
   }));
 }
 

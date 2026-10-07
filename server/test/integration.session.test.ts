@@ -37,14 +37,14 @@ describe('session lifecycle against a real database', { skip: integrationSkipRea
   it('AUTH-US-01: register normalises the email, defaults baseCurrency to VND, and a short password is a 422 naming the field', async () => {
     const email = probeEmail('normalise');
     const registered = await api.call('POST', '/auth/register', {
-      body: { email: `  ${email.toUpperCase()}  `, password: `probe-pw-${randomUUID()}`, displayName: 'probe-normalise' },
+      body: { email: `  ${email.toUpperCase()}  `, password: `probe-pw-${randomUUID()}`, displayName: 'probe-normalise', timeZone: 'Asia/Ho_Chi_Minh' },
     });
     assert.equal(registered.status, 201);
     assert.equal(registered.body?.data.user.email, email);
     assert.equal(registered.body?.data.user.baseCurrency, 'VND');
 
     const short = await api.call('POST', '/auth/register', {
-      body: { email: probeEmail('short-pw'), password: 'elevenchars', displayName: 'probe-short-pw' },
+      body: { email: probeEmail('short-pw'), password: 'elevenchars', displayName: 'probe-short-pw', timeZone: 'Asia/Ho_Chi_Minh' },
     });
     assert.equal(short.status, 422);
     assert.equal(short.body?.error?.code, 'VALIDATION_FAILED');
@@ -59,7 +59,7 @@ describe('session lifecycle against a real database', { skip: integrationSkipRea
       throw new Error('probe: forced failure during registration');
     });
     try {
-      const response = await api.call('POST', '/auth/register', { body: { email, password: `probe-pw-${randomUUID()}`, displayName } });
+      const response = await api.call('POST', '/auth/register', { body: { email, password: `probe-pw-${randomUUID()}`, displayName, timeZone: 'Asia/Ho_Chi_Minh' } });
       assert.equal(response.status, 500);
       assert.equal(issue.mock.callCount(), 1);
     } finally {
@@ -79,7 +79,7 @@ describe('session lifecycle against a real database', { skip: integrationSkipRea
     );
 
     // The rollback must not strand the address either.
-    const retry = await api.call('POST', '/auth/register', { body: { email, password: `probe-pw-${randomUUID()}`, displayName } });
+    const retry = await api.call('POST', '/auth/register', { body: { email, password: `probe-pw-${randomUUID()}`, displayName, timeZone: 'Asia/Ho_Chi_Minh' } });
     assert.equal(retry.status, 201);
   });
 
@@ -194,7 +194,7 @@ describe('session lifecycle against a real database', { skip: integrationSkipRea
 
     it('AUTH-US-02: a first Google sign-in creates the user with a seeded wallet; a second signs the same user in', async () => {
       const { idToken, email } = googleIdentity('google-new');
-      const first = await api.call('POST', '/auth/google', { body: { idToken } });
+      const first = await api.call('POST', '/auth/google', { body: { idToken, timeZone: 'Asia/Ho_Chi_Minh' } });
       assert.equal(first.status, 200);
       assert.equal(first.body?.data.user.email, email);
       assert.equal(first.body?.data.user.hasPassword, false);
@@ -210,16 +210,16 @@ describe('session lifecycle against a real database', { skip: integrationSkipRea
         await api.sql('SELECT role, status FROM wallet_members WHERE wallet_id = $1 AND user_id = $2', [wallet.id, userId]),
         [{ role: 'OWNER', status: 'ACTIVE' }],
       );
-      const categories = await api.sql<{ name: string }>('SELECT name FROM categories WHERE wallet_id = $1', [wallet.id]);
-      const names = new Set(categories.map((row) => row.name));
-      assert.deepEqual(STARTER_CATEGORIES.filter((category) => !names.has(category.name)), []);
+      const categories = await api.sql<{ system_key: string; name: string }>('SELECT system_key, name FROM categories WHERE wallet_id = $1', [wallet.id]);
+      const seeded = new Set(categories.map((row) => `${row.system_key}|${row.name}`));
+      assert.deepEqual(STARTER_CATEGORIES.filter((category) => !seeded.has(`${category.key}|${category.names.en}`)), []);
       assert.deepEqual(await api.sql('SELECT type FROM accounts WHERE wallet_id = $1', [wallet.id]), [{ type: 'CASH' }]);
 
       const passwordLogin = await api.call('POST', '/auth/login', { body: { email, password: 'any-password-at-all' } });
       assert.equal(passwordLogin.status, 401);
       assert.equal(passwordLogin.body?.error?.code, 'CREDENTIALS_INVALID');
 
-      const again = await api.call('POST', '/auth/google', { body: { idToken } });
+      const again = await api.call('POST', '/auth/google', { body: { idToken, timeZone: 'Asia/Ho_Chi_Minh' } });
       assert.equal(again.status, 200);
       assert.equal(again.body?.data.user.id, userId);
       assert.equal((await api.sql('SELECT id FROM users WHERE LOWER(email) = $1', [email])).length, 1);
@@ -239,7 +239,7 @@ describe('session lifecycle against a real database', { skip: integrationSkipRea
     it('AUTH-US-02: Google sign-in for an email that already has a password account links it instead of creating a second user', async () => {
       const user = await registerProbeUser(api, 'google-link');
       const { idToken } = googleIdentity('google-link', user.email);
-      const linked = await api.call('POST', '/auth/google', { body: { idToken } });
+      const linked = await api.call('POST', '/auth/google', { body: { idToken, timeZone: 'Asia/Ho_Chi_Minh' } });
       assert.equal(linked.status, 200);
       assert.equal(linked.body?.data.user.id, user.id);
       assert.equal(linked.body?.data.user.hasPassword, true);
@@ -254,18 +254,18 @@ describe('session lifecycle against a real database', { skip: integrationSkipRea
     it('AUTH-US-02: a second Google account with the same verified email is refused, not swapped in for the linked one', async () => {
       const user = await registerProbeUser(api, 'google-relink');
       const first = googleIdentity('google-relink', user.email);
-      assert.equal((await api.call('POST', '/auth/google', { body: { idToken: first.idToken } })).status, 200);
+      assert.equal((await api.call('POST', '/auth/google', { body: { idToken: first.idToken, timeZone: 'Asia/Ho_Chi_Minh' } })).status, 200);
 
       const second = googleIdentity('google-relink-other', user.email);
-      const refused = await api.call('POST', '/auth/google', { body: { idToken: second.idToken } });
+      const refused = await api.call('POST', '/auth/google', { body: { idToken: second.idToken, timeZone: 'Asia/Ho_Chi_Minh' } });
       assert.deepEqual([refused.status, refused.body?.error?.code], [409, 'GOOGLE_ACCOUNT_MISMATCH']);
       assert.deepEqual(await api.sql('SELECT google_id FROM users WHERE id = $1', [user.id]), [{ google_id: payloads.get(first.idToken)!.sub }]);
 
-      assert.equal((await api.call('POST', '/auth/google', { body: { idToken: first.idToken } })).status, 200, 'the linked one still signs in');
+      assert.equal((await api.call('POST', '/auth/google', { body: { idToken: first.idToken, timeZone: 'Asia/Ho_Chi_Minh' } })).status, 200, 'the linked one still signs in');
     });
 
     it('AUTH-US-02: a Google ID token that fails verification is 401 GOOGLE_TOKEN_INVALID and creates nothing', async () => {
-      const refused = await api.call('POST', '/auth/google', { body: { idToken: `probe-google-forged-${randomUUID()}` } });
+      const refused = await api.call('POST', '/auth/google', { body: { idToken: `probe-google-forged-${randomUUID()}`, timeZone: 'Asia/Ho_Chi_Minh' } });
       assert.equal(refused.status, 401);
       assert.equal(refused.body?.error?.code, 'GOOGLE_TOKEN_INVALID');
       assert.equal(refused.body?.data ?? null, null);

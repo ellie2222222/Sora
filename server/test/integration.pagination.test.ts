@@ -41,7 +41,7 @@ describe('list pagination against a real database', { skip: integrationSkipReaso
   it('API-05: wallets, accounts, categories, members and invitations page without repeating or skipping a row', async () => {
     const owner = await registerProbeUser(api, 'paging-owner');
     for (let i = 0; i < 2; i += 1) {
-      assert.equal((await api.call('POST', '/wallets', { token: owner.token, body: { name: `probe-${randomUUID()}` } })).status, 201);
+      assert.equal((await api.call('POST', '/wallets', { token: owner.token, body: { name: `probe-${randomUUID()}`, timeZone: 'Asia/Ho_Chi_Minh' } })).status, 201);
       await createAccount(api, owner, owner.walletId);
       await addMember(api, owner, owner.walletId, await registerProbeUser(api, `paging-member-${i}`), 'VIEWER');
     }

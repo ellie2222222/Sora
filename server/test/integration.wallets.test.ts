@@ -49,7 +49,7 @@ describe('wallets, members and the audit trail against a real database', { skip:
   }
 
   async function newWallet(user: ProbeUser): Promise<string> {
-    const created = await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}` } });
+    const created = await api.call('POST', '/wallets', { token: user.token, body: { name: `probe-${randomUUID()}`, timeZone: 'Asia/Ho_Chi_Minh' } });
     assert.equal(created.status, 201);
     return created.body!.data.id;
   }
@@ -58,7 +58,7 @@ describe('wallets, members and the audit trail against a real database', { skip:
     const user = await registerProbeUser(api, 'wal-create');
     const name = `probe-${randomUUID()}`;
 
-    const created = await api.call('POST', '/wallets', { token: user.token, body: { name: `  ${name}  ` } });
+    const created = await api.call('POST', '/wallets', { token: user.token, body: { name: `  ${name}  `, timeZone: 'Asia/Ho_Chi_Minh' } });
     assert.equal(created.status, 201);
     const wallet = created.body!.data;
     assert.equal(wallet.name, name, 'the name is trimmed');
@@ -80,11 +80,11 @@ describe('wallets, members and the audit trail against a real database', { skip:
       [[wallet.id, user.id, 'OWNER', 'SUCCESS']],
     );
 
-    const longest = await api.call('POST', '/wallets', { token: user.token, body: { name: 'w'.repeat(100) } });
+    const longest = await api.call('POST', '/wallets', { token: user.token, body: { name: 'w'.repeat(100), timeZone: 'Asia/Ho_Chi_Minh' } });
     assert.equal(longest.status, 201, '100 characters is within the limit');
 
     for (const bad of ['', '   ', 'w'.repeat(101)]) {
-      const rejected = await api.call('POST', '/wallets', { token: user.token, body: { name: bad } });
+      const rejected = await api.call('POST', '/wallets', { token: user.token, body: { name: bad, timeZone: 'Asia/Ho_Chi_Minh' } });
       assert.deepEqual([rejected.status, rejected.body?.error?.code], [422, 'VALIDATION_FAILED'], `name of length ${bad.length}`);
     }
   });

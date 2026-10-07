@@ -8,10 +8,9 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import type { Kysely, Transaction } from 'kysely';
+import { sql, type Kysely, type Transaction } from 'kysely';
 
 import {
-  BudgetStatus,
   CategoryStatus,
   type CategoryResponse,
   type CategoryType,
@@ -29,6 +28,7 @@ import { translatingPgErrors } from '../common/pg-error.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
 import { lockWalletWritable, WalletAccessService, type WalletAccess } from '../wallets/wallet-access.service.ts';
+import { localizedCategoryName } from './category-name.ts';
 
 export type CategoryDeleteMode = 'archive' | 'permanent';
 
@@ -43,7 +43,10 @@ interface CategoryRow {
   id: string;
   wallet_id: string;
   parent_id: string | null;
+  system_key: string | null;
   name: string;
+  /** `name` as the caller reads it: translated for a starter category (`localizedCategoryName`). */
+  display_name: string;
   type: CategoryType;
   icon: string | null;
   color: string | null;
@@ -67,8 +70,12 @@ export class CategoriesService {
     let builder = this.database.db.selectFrom('categories').where('wallet_id', '=', query.walletId);
     if (query.type) builder = builder.where('type', '=', query.type);
     if (query.status) builder = builder.where('status', '=', query.status);
-    // An id tie-break, so offset paging never repeats or skips a row between pages.
-    const ordered = builder.selectAll().orderBy('name', 'asc').orderBy('id', 'asc');
+    // Sorted by the name the caller reads; an id tie-break, so offset paging never repeats or skips a row between pages.
+    const ordered = builder
+      .selectAll()
+      .select(localizedCategoryName('categories').as('display_name'))
+      .orderBy(localizedCategoryName('categories'), 'asc')
+      .orderBy('id', 'asc');
 
     if (query.tree) return buildTree(await this.withCounts(await ordered.execute()));
 
@@ -107,8 +114,9 @@ export class CategoriesService {
       if (parent.type !== request.type) throw new AppError('CATEGORY_WRONG_TYPE');
       await this.assertNoCycle(parent.id);
     }
+    await this.assertNameFree(request.walletId, request.parentId ?? null, request.name);
 
-    const row = await this.database.db.transaction().execute(async (trx) => {
+    const created = await this.database.db.transaction().execute(async (trx) => {
       await lockWalletWritable(trx, request.walletId);
       if (request.parentId) {
         const parent = await trx
@@ -150,7 +158,7 @@ export class CategoriesService {
       return inserted;
     });
 
-    return toCategoryResponse(row, 0);
+    return toCategoryResponse(await this.categoryRow(created.id), 0);
   }
 
   async update(
@@ -160,6 +168,9 @@ export class CategoriesService {
     ip: string | null,
   ): Promise<CategoryResponse> {
     const { category, access } = await this.requireCategoryAccess(user.id, categoryId, 'EDITOR');
+    // Sending back the name the caller already sees is not a rename, so it keeps a starter category translatable.
+    const renamed = request.name !== undefined && request.name !== category.display_name;
+    if (renamed) await this.assertNameFree(category.wallet_id, category.parent_id, request.name!, category.id);
 
     const updated = await this.database.db.transaction().execute(async (trx) => {
       let subtree: string[] = [];
@@ -183,7 +194,8 @@ export class CategoriesService {
         trx
           .updateTable('categories')
           .set({
-            ...(request.name !== undefined ? { name: request.name } : {}),
+            // A renamed starter category becomes the user's own text, shown as typed in every locale.
+            ...(renamed ? { name: request.name, system_key: null } : {}),
             ...(request.icon !== undefined ? { icon: request.icon } : {}),
             ...(request.color !== undefined ? { color: request.color } : {}),
             ...(request.status !== undefined ? { status: request.status } : {}),
@@ -212,7 +224,7 @@ export class CategoriesService {
     });
 
     const counts = await this.transactionCounts([updated.id]);
-    return toCategoryResponse(updated, counts.get(updated.id) ?? 0);
+    return toCategoryResponse(await this.categoryRow(updated.id), counts.get(updated.id) ?? 0);
   }
 
   /** DELETE /categories/{id} — `mode` picks the archive or permanent path (§10.4). */
@@ -299,7 +311,7 @@ export class CategoriesService {
       const subtree = [category.id, ...levels.flat()];
       const counts = await this.transactionCounts(subtree, trx);
       if (subtree.some((id) => (counts.get(id) ?? 0) > 0)) throw new AppError('CATEGORY_HAS_TRANSACTIONS');
-      // A budget of any status still names the category (FK), so it is in use rather than deletable.
+      // A budget still names the category (FK), so it is in use rather than deletable.
       const budget = await trx.selectFrom('budgets').select('id').where('category_id', 'in', subtree).executeTakeFirst();
       if (budget) throw new AppError('CATEGORY_IN_USE');
 
@@ -353,10 +365,31 @@ export class CategoriesService {
     const row = await this.database.db
       .selectFrom('categories')
       .selectAll()
+      .select(localizedCategoryName('categories').as('display_name'))
       .where('id', '=', categoryId)
       .executeTakeFirst();
     if (!row) throw new AppError('CATEGORY_NOT_FOUND');
     return row;
+  }
+
+  /**
+   * Checks both names a sibling has: what the caller reads, so a custom "Ăn uống" can't sit beside the starter
+   * Food shown as "Ăn uống", and the stored one `uq_category_name_per_parent` compares, for a clean 409 first.
+   */
+  private async assertNameFree(walletId: string, parentId: string | null, name: string, exceptId?: string): Promise<void> {
+    let siblings = this.database.db
+      .selectFrom('categories')
+      .select('id')
+      .where('wallet_id', '=', walletId)
+      .where((eb) =>
+        eb.or([
+          eb(sql`LOWER(${localizedCategoryName('categories')})`, '=', name.toLowerCase()),
+          eb(sql`LOWER(categories.name)`, '=', name.toLowerCase()),
+        ]),
+      );
+    siblings = parentId === null ? siblings.where('parent_id', 'is', null) : siblings.where('parent_id', '=', parentId);
+    if (exceptId !== undefined) siblings = siblings.where('id', '!=', exceptId);
+    if (await siblings.executeTakeFirst()) throw new AppError('CATEGORY_DUPLICATE_NAME');
   }
 
   /** Walks the parent chain, catching a cycle the DB's own self-parent check cannot see. */
@@ -430,15 +463,10 @@ function descendantLevels(rows: readonly LockedCategory[], rootId: string): stri
   return levels;
 }
 
-/** Refused while an active budget plans for any of them: it would lose its category and never compute a period again. */
+/** Refused while a budget plans for any of them: it would lose its category and never compute a period again. */
 async function assertNotBudgeted(trx: Transaction<DB>, subtree: readonly string[]): Promise<void> {
-  const activeBudget = await trx
-    .selectFrom('budgets')
-    .select('id')
-    .where('category_id', 'in', [...subtree])
-    .where('status', '=', BudgetStatus.ACTIVE)
-    .executeTakeFirst();
-  if (activeBudget) throw new AppError('CATEGORY_IN_USE');
+  const budget = await trx.selectFrom('budgets').select('id').where('category_id', 'in', [...subtree]).executeTakeFirst();
+  if (budget) throw new AppError('CATEGORY_IN_USE');
 }
 
 function toCategoryResponse(row: CategoryRow, transactionCount: number): CategoryResponse {
@@ -446,7 +474,8 @@ function toCategoryResponse(row: CategoryRow, transactionCount: number): Categor
     id: row.id,
     walletId: row.wallet_id,
     parentId: row.parent_id,
-    name: row.name,
+    systemKey: row.system_key,
+    name: row.display_name,
     type: row.type,
     icon: row.icon,
     color: row.color,

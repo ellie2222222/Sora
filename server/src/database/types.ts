@@ -19,7 +19,6 @@ import type {
   AiMessageRole,
   AiTransactionDraft,
   BudgetPeriodType,
-  BudgetStatus,
   CategoryStatus,
   CategoryType,
   GoalStatus,
@@ -70,6 +69,8 @@ export interface WalletsTable {
   owner_user_id: string;
   name: string;
   status: Generated<WalletStatus>;
+  /** IANA name; the zone every wallet calendar day is read in. */
+  time_zone: string;
   created_at: Timestamp;
   updated_at: Timestamp;
 }
@@ -116,6 +117,8 @@ export interface CategoriesTable {
   id: Generated<string>;
   wallet_id: string;
   parent_id: string | null;
+  /** A starter category's key into category_translations; null for a custom category. */
+  system_key: string | null;
   name: string;
   type: CategoryType;
   icon: string | null;
@@ -123,6 +126,14 @@ export interface CategoriesTable {
   status: Generated<CategoryStatus>;
   created_at: Timestamp;
   updated_at: Timestamp;
+}
+
+export interface CategoryTranslationsTable {
+  id: Generated<string>;
+  system_key: string;
+  locale: string;
+  name: string;
+  description: string | null;
 }
 
 export interface TransactionsTable {
@@ -153,8 +164,8 @@ export interface BudgetsTable {
   currency: string;
   period_type: BudgetPeriodType;
   start_date: CalendarDate;
-  end_date: CalendarDate;
-  status: Generated<BudgetStatus>;
+  /** Null for a repeating period (`chk_budget_end`). */
+  end_date: CalendarDate | null;
   created_at: Timestamp;
   updated_at: Timestamp;
 }
@@ -247,6 +258,7 @@ export interface DB {
   wallet_invitations: WalletInvitationsTable;
   accounts: AccountsTable;
   categories: CategoriesTable;
+  category_translations: CategoryTranslationsTable;
   transactions: TransactionsTable;
   budgets: BudgetsTable;
   goals: GoalsTable;

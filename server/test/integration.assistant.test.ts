@@ -2,6 +2,8 @@ import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 
+import { STARTER_CATEGORIES } from '@sora/contracts';
+
 import { addMember, categoryOf, createAccount, integrationSkipReason, nowIso, registerProbeUser, startTestApi, type ProbeUser, type TestApi } from './support/integration.ts';
 
 /** Letters only, so an account name inside a chat message is never read as an amount. */
@@ -32,7 +34,7 @@ describe('AI assistant writes and answers against a real database', { skip: inte
 
   it('AI-US-02: proposes nothing on an archived wallet, and a proposal made before archiving cannot be confirmed', async () => {
     const owner = await registerProbeUser(api, 'ai-archived');
-    const wallet = (await api.call('POST', '/wallets', { token: owner.token, body: { name: `probe-${randomUUID()}` } })).body!.data.id as string;
+    const wallet = (await api.call('POST', '/wallets', { token: owner.token, body: { name: `probe-${randomUUID()}`, timeZone: 'Asia/Ho_Chi_Minh' } })).body!.data.id as string;
     const cashName = `Probe ${lettersOnly()}`;
     const cash = await createAccount(api, owner, wallet, { name: cashName, initialBalance: '500000' });
     // Only the registration wallet is seeded with starter categories.
@@ -121,5 +123,29 @@ describe('AI assistant writes and answers against a real database', { skip: inte
     const kept = await api.call('GET', `/transactions/${transactionId}`, { token: owner.token });
     assert.deepEqual([kept.status, kept.body!.data.status, kept.body!.data.amount], [200, 'COMPLETED', '65000.0000']);
     assert.equal((await api.call('GET', `/accounts/${cash}`, { token: owner.token })).body!.data.balance, '435000.0000');
+  });
+
+  it("AI-US-02: names a stored proposal's category as the reader reads it now, not as it was drafted", async () => {
+    const owner = await registerProbeUser(api, 'ai-locale');
+    const cashName = `Probe ${lettersOnly()}`;
+    await createAccount(api, owner, owner.walletId, { name: cashName, initialBalance: '500000' });
+    const conversation = await newConversation(owner);
+
+    const sent = await api.call('POST', `/ai/conversations/${conversation}/messages`, {
+      token: owner.token,
+      headers: { 'accept-language': 'en' },
+      body: { walletId: owner.walletId, message: `Spent 40k on lunch from ${cashName}` },
+    });
+    const action = sent.body!.data.assistantMessage.action;
+    assert.equal(action.status, 'PENDING');
+    const categories = await api.call('GET', `/categories?walletId=${owner.walletId}&pageSize=200`, { token: owner.token });
+    const systemKey = categories.body!.data.find((category: { id: string }) => category.id === action.transaction.categoryId)?.systemKey;
+    const starter = STARTER_CATEGORIES.find((candidate) => candidate.key === systemKey);
+    assert.ok(starter, 'the mock proposes one of the starter categories');
+    assert.equal(action.categoryName, starter.names.en);
+
+    const history = await api.call('GET', `/ai/conversations/${conversation}/messages`, { token: owner.token, headers: { 'accept-language': 'vi' } });
+    const proposal = history.body!.data.find((message: { action: unknown }) => message.action !== null);
+    assert.equal(proposal.action.categoryName, starter.names.vi);
   });
 });

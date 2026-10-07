@@ -26,19 +26,34 @@ describe('auth against a real database', { skip: integrationSkipReason() }, () =
     );
     assert.deepEqual(membership, { role: 'OWNER', status: 'ACTIVE' });
 
-    const names = new Set(
-      (await api.sql<{ name: string }>('SELECT name FROM categories WHERE wallet_id = $1', [user.walletId])).map((row) => row.name),
+    const seeded = new Set(
+      (await api.sql<{ system_key: string; name: string }>('SELECT system_key, name FROM categories WHERE wallet_id = $1', [user.walletId]))
+        .map((row) => `${row.system_key}|${row.name}`),
     );
-    assert.deepEqual(STARTER_CATEGORIES.filter((category) => !names.has(category.name)), []);
+    assert.deepEqual(STARTER_CATEGORIES.filter((category) => !seeded.has(`${category.key}|${category.names.en}`)), []);
 
     const audit = await api.sql('SELECT 1 FROM audit_logs WHERE actor_id = $1 AND event = $2', [user.id, 'USER_REGISTERED']);
     assert.equal(audit.length, 1);
   });
 
+  it('names the default wallet and Cash account in the language chosen at sign-up', async () => {
+    const email = `probe+register-vi-${randomUUID()}@example.invalid`;
+    const registered = await api.call('POST', '/auth/register', {
+      body: { email, password: `probe-pw-${randomUUID()}`, displayName: 'An', timeZone: 'Asia/Ho_Chi_Minh', locale: 'vi' },
+    });
+    assert.equal(registered.status, 201);
+    const userId = registered.body!.data.user.id as string;
+    assert.equal(registered.body!.data.user.locale, 'vi');
+
+    const [wallet] = await api.sql<{ id: string; name: string }>('SELECT id, name FROM wallets WHERE owner_user_id = $1', [userId]);
+    assert.equal(wallet?.name, 'Ví của An');
+    assert.deepEqual(await api.sql('SELECT name FROM accounts WHERE wallet_id = $1', [wallet!.id]), [{ name: 'Tiền mặt' }]);
+  });
+
   it('refuses a second registration for the same address in another case', async () => {
     const user = await registerProbeUser(api, 'dupe');
     const again = await api.call('POST', '/auth/register', {
-      body: { email: user.email.toUpperCase(), password: user.password, displayName: 'probe-dupe-2' },
+      body: { email: user.email.toUpperCase(), password: user.password, displayName: 'probe-dupe-2', timeZone: 'Asia/Ho_Chi_Minh' },
     });
     assert.equal(again.status, 409);
     assert.equal(again.body?.error?.code, 'EMAIL_ALREADY_REGISTERED');

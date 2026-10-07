@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 import { registerSchema } from '../src/schemas.ts';
 
-const registration = (password: string) => ({ email: 'probe@example.invalid', password, displayName: 'probe' });
+const registration = (password: string) => ({ email: 'probe@example.invalid', password, displayName: 'probe', timeZone: 'Asia/Ho_Chi_Minh' });
 
 describe('registerSchema password length (spec §5.1: 12–200 characters)', () => {
   it('AUTH-US-01: accepts exactly 12 and exactly 200 characters', () => {

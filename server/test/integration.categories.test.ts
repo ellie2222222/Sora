@@ -113,7 +113,7 @@ describe('categories against a real database', { skip: integrationSkipReason() }
     assert.deepEqual([renamed.body!.data.name, renamed.body!.data.type, renamed.body!.data.parentId], [recased, 'EXPENSE', parent]);
   });
 
-  it('CAT-US-04: archives the subtree, refuses while an active budget plans for it, by DELETE or by PATCH', async () => {
+  it('CAT-US-04: archives the subtree, refuses while a budget plans for it, by DELETE or by PATCH', async () => {
     const parent = await idOf();
     const child = await idOf({ parentId: parent });
     const budget = await budgetOn(parent);
@@ -145,7 +145,7 @@ describe('categories against a real database', { skip: integrationSkipReason() }
     assert.equal((await restore(child)).body?.data.status, 'ACTIVE');
   });
 
-  it('CAT-US-04: refuses archiving a parent while an active budget plans for one of its children', async () => {
+  it('CAT-US-04: refuses archiving a parent while a budget plans for one of its children', async () => {
     const parent = await idOf();
     const child = await idOf({ parentId: parent });
     assert.equal((await budgetOn(child)).status, 201);
@@ -188,5 +188,80 @@ describe('categories against a real database', { skip: integrationSkipReason() }
     const events = await api.sql<{ event: string }>('SELECT event FROM audit_logs WHERE entity_id = $1', [unused]);
     assert.ok(events.some((row) => row.event === 'CATEGORY_DELETED'));
     assert.ok(!events.some((row) => row.event === 'CATEGORY_ARCHIVED'));
+  });
+
+  describe('starter-category names (API spec §10.1)', () => {
+    const listIn = async (acceptLanguage: string | undefined, owner: ProbeUser = user) => {
+      const response = await api.call('GET', `/categories?walletId=${owner.walletId}&pageSize=200`, {
+        token: owner.token,
+        headers: acceptLanguage === undefined ? {} : { 'accept-language': acceptLanguage },
+      });
+      assert.equal(response.status, 200);
+      return response.body!.data as { id: string; name: string; systemKey: string | null }[];
+    };
+    const foodOf = async (owner: ProbeUser) => (await listIn('en', owner)).find((category) => category.systemKey === 'food')!;
+
+    it('names a starter category in the Accept-Language locale, and a custom one exactly as typed', async () => {
+      const custom = await idOf({ name: `Tiền chợ ${randomUUID().slice(0, 8)}` });
+      const customName = (await listIn('en')).find((category) => category.id === custom)!.name;
+
+      const vi = await listIn('vi-VN,vi;q=0.9');
+      const en = await listIn('en-US');
+      assert.equal(vi.find((category) => category.systemKey === 'food')?.name, 'Ăn uống');
+      assert.equal(en.find((category) => category.systemKey === 'food')?.name, 'Food');
+      assert.equal(vi.find((category) => category.id === custom)?.name, customName);
+      assert.equal(vi.find((category) => category.id === custom)?.systemKey, null);
+    });
+
+    it("falls back to the caller's saved locale, then English for an unsupported header", async () => {
+      const viUser = await registerProbeUser(api, 'categories-vi');
+      assert.equal((await api.call('PATCH', '/auth/me/preferences', { token: viUser.token, body: { locale: 'vi' } })).status, 200);
+      assert.equal((await listIn(undefined, viUser)).find((category) => category.systemKey === 'food')?.name, 'Ăn uống');
+      assert.equal((await listIn('fr', viUser)).find((category) => category.systemKey === 'food')?.name, 'Ăn uống');
+      assert.equal((await listIn('fr')).find((category) => category.systemKey === 'food')?.name, 'Food');
+    });
+
+    it('names starter categories on transactions in the request locale too', async () => {
+      const food = await foodOf(user);
+      assert.equal((await spendOn(food.id)).status, 201);
+      const listed = await api.call('GET', `/transactions?walletId=${user.walletId}&categoryId=${food.id}`, {
+        token: user.token,
+        headers: { 'accept-language': 'vi' },
+      });
+      assert.equal(listed.body!.data[0]?.category?.name, 'Ăn uống');
+    });
+
+    it('rejects a custom name equal to a starter as the caller reads it', async () => {
+      const response = await api.call('POST', '/categories', {
+        token: user.token,
+        headers: { 'accept-language': 'vi' },
+        body: { walletId: user.walletId, name: 'ăn uống', type: 'EXPENSE' },
+      });
+      assert.deepEqual([response.status, response.body?.error?.code], [409, 'CATEGORY_DUPLICATE_NAME']);
+    });
+
+    it("rejects a starter's stored English name while the caller reads it in Vietnamese", async () => {
+      const response = await api.call('POST', '/categories', {
+        token: user.token,
+        headers: { 'accept-language': 'vi' },
+        body: { walletId: user.walletId, name: 'food', type: 'EXPENSE' },
+      });
+      assert.deepEqual([response.status, response.body?.error?.code], [409, 'CATEGORY_DUPLICATE_NAME']);
+    });
+
+    it('keeps a starter translatable when the displayed name is sent back, and makes it custom on a real rename', async () => {
+      const owner = await registerProbeUser(api, 'categories-rename');
+      const food = await foodOf(owner);
+      const patch = (body: Record<string, unknown>) =>
+        api.call('PATCH', `/categories/${food.id}`, { token: owner.token, headers: { 'accept-language': 'vi' }, body });
+
+      const recoloured = await patch({ name: 'Ăn uống', color: '#000000' });
+      assert.equal(recoloured.status, 200);
+      assert.equal(recoloured.body!.data.systemKey, 'food');
+
+      const renamed = await patch({ name: 'Đồ ăn' });
+      assert.equal(renamed.body!.data.systemKey, null);
+      assert.equal((await listIn('en', owner)).find((category) => category.id === food.id)?.name, 'Đồ ăn');
+    });
   });
 });

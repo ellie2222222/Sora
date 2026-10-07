@@ -4,7 +4,7 @@ import { OAuth2Client } from 'google-auth-library';
 import type { Transaction } from 'kysely';
 import { randomUUID } from 'node:crypto';
 
-import { STARTER_CATEGORIES } from '@sora/contracts';
+import { STARTER_CASH_ACCOUNT_NAME, STARTER_CATEGORIES, starterWalletName, type Locale } from '@sora/contracts';
 import type {
   AuthResponse,
   AuthTokens,
@@ -112,6 +112,7 @@ export class AuthService {
           user.id,
           user.display_name,
           user.base_currency,
+          request.timeZone,
           user.locale,
         );
         const refresh = await this.tokens.issueRefreshToken(user.id, trx);
@@ -292,6 +293,7 @@ export class AuthService {
         created.id,
         created.display_name,
         created.base_currency,
+        request.timeZone,
         created.locale,
       );
       return { user: created, event: AUDIT_EVENTS.USER_REGISTERED, isNew: true };
@@ -425,15 +427,16 @@ export class AuthService {
     userId: string,
     displayName: string,
     currency: string,
+    timeZone: string,
     locale?: string,
   ): Promise<{ walletId: string }> {
-    const isVi = locale === 'vi';
-    const walletName = isVi ? `Ví của ${displayName}` : `${displayName}'s Wallet`;
-    const accountName = isVi ? 'Tiền mặt' : 'Cash';
+    const seedLocale: Locale = locale === 'vi' ? 'vi' : 'en';
+    const walletName = starterWalletName(displayName, seedLocale);
+    const accountName = STARTER_CASH_ACCOUNT_NAME[seedLocale];
 
     const wallet = await trx
       .insertInto('wallets')
-      .values({ owner_user_id: userId, name: walletName })
+      .values({ owner_user_id: userId, name: walletName, time_zone: timeZone })
       .returning(['id'])
       .executeTakeFirstOrThrow();
 
@@ -447,7 +450,8 @@ export class AuthService {
       .values(
         STARTER_CATEGORIES.map((category) => ({
           wallet_id: wallet.id,
-          name: category.name,
+          system_key: category.key,
+          name: category.names.en,
           type: category.type,
           icon: category.icon,
           color: category.color,

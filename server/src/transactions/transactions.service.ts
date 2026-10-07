@@ -2,9 +2,8 @@
  * Transactions (§11 of the API specification) — the central ledger entity.
  *
  * Direction comes from `type` plus which account side is set, never from a sign
- * on `amount` (VL-04). `amount`/`type`/`fromAccountId`/`toAccountId` are
- * immutable once recorded (BR-03): a movement of money is a historical fact,
- * and every balance, budget and goal figure is derived from it.
+ * on `amount` (VL-04). Every field a create sets can be edited (BR-03); an edit
+ * that moves money is checked exactly as a create of the resulting row.
  *
  * Authorization for every write goes through
  * `WalletAccessService#requireAccountsWritable` rather than a bespoke check —
@@ -12,30 +11,36 @@
  * cross-wallet transfer rule, §2.5).
  */
 
-import { Injectable, type PipeTransform } from '@nestjs/common';
-import type { Transaction } from 'kysely';
+import { Injectable } from '@nestjs/common';
+import { sql, type Transaction } from 'kysely';
 
 import {
   TransactionStatus,
   TransactionType,
   AccountStatus,
   CategoryType,
+  createTransactionSchema,
+  mergeTransactionUpdate,
+  movesMoney,
+  nextDay,
+  startOfDay,
   type CategoryResponse,
   type CreateTransactionRequest,
   type TransactionAccountRef,
   type TransactionQuery,
   type TransactionResponse,
+  type StoredTransactionFields,
   type UpdateTransactionRequest,
 } from '@sora/contracts';
 
 import { lockAccountsForWrite } from '../accounts/account-write-lock.ts';
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';
+import { localizedCategoryName } from '../categories/category-name.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { Enveloped, paginated } from '../common/envelope.ts';
 import { paginationMeta, parseSort } from '../common/pagination.ts';
-import { dayAfter } from '../common/utc-day.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import type { DB, Executor } from '../database/types.ts';
 import { requireGoalInWallet } from '../goals/goal-access.ts';
@@ -46,30 +51,12 @@ export interface DeleteTransactionRequest {
   reason?: string;
 }
 
-/**
- * Not in `updateTransactionSchema` at all, so any attempt to set them must be
- * caught against the raw body before Zod strips them silently (BR-03).
- */
-const IMMUTABLE_FIELDS = ['amount', 'type', 'fromAccountId', 'toAccountId'] as const;
-
-/**
- * BR-03, checked on the raw body ahead of the schema pipe: the schema strips these fields,
- * so after it an attempted change would read as an empty update (422) instead of 409.
- */
-export const rejectImmutableFieldsPipe: PipeTransform = {
-  transform(value: unknown) {
-    const raw = (value ?? {}) as Record<string, unknown>;
-    const attempted = IMMUTABLE_FIELDS.filter((field) => field in raw);
-    if (attempted.length > 0) {
-      throw new AppError(
-        'TRANSACTION_IMMUTABLE',
-        undefined,
-        Object.fromEntries(attempted.map((field) => [field, ['Cannot be changed after creation']])),
-      );
-    }
-    return value;
-  },
-};
+interface CheckedWrite {
+  accountIds: string[];
+  accessMap: Map<string, AccountAccess>;
+  categoryId: string | null;
+  goalId: string | null;
+}
 
 const SORT_ALLOWLIST: Record<string, string> = {
   transactionDate: 'transactions.transaction_date',
@@ -83,6 +70,7 @@ interface TransactionRow {
   from_account_id: string | null;
   to_account_id: string | null;
   category_id: string | null;
+  goal_id: string | null;
   type: TransactionType;
   amount: string;
   currency: string;
@@ -98,9 +86,6 @@ interface CategoryRow {
   id: string;
   wallet_id: string;
   type: CategoryType;
-  name: string;
-  icon: string | null;
-  color: string | null;
 }
 
 interface TransactionJoinRow {
@@ -159,7 +144,6 @@ const TRANSACTION_COLUMNS = [
   'to_wallet.id as to_wallet_id',
   'to_wallet.name as to_wallet_name',
   'txn_category.id as category_id',
-  'txn_category.name as category_name',
   'txn_category.type as category_type',
   'txn_category.icon as category_icon',
   'txn_category.color as category_color',
@@ -198,6 +182,7 @@ export class TransactionsService {
   ): Promise<TransactionJoinRow | undefined> {
     return this.joinedQuery(executor)
       .select(TRANSACTION_COLUMNS)
+      .select(localizedCategoryName('txn_category').as('category_name'))
       .where('transactions.id', '=', transactionId)
       .executeTakeFirst();
   }
@@ -221,7 +206,7 @@ export class TransactionsService {
   private async categoryRow(categoryId: string, executor?: Executor): Promise<CategoryRow | undefined> {
     return this.executor(executor)
       .selectFrom('categories')
-      .select(['id', 'wallet_id', 'type', 'name', 'icon', 'color'])
+      .select(['id', 'wallet_id', 'type'])
       .where('id', '=', categoryId)
       .executeTakeFirst();
   }
@@ -266,9 +251,8 @@ export class TransactionsService {
   }
 
   async list(user: AuthenticatedUser, filters: TransactionQuery): Promise<Enveloped<TransactionResponse[]>> {
-    const walletIds = filters.walletId
-      ? [(await this.access.require(user.id, filters.walletId, 'VIEWER')).walletId]
-      : await this.access.accessibleWalletIds(user.id);
+    const scoped = filters.walletId ? await this.access.require(user.id, filters.walletId, 'VIEWER') : null;
+    const walletIds = scoped ? [scoped.walletId] : await this.access.accessibleWalletIds(user.id);
 
     if (walletIds.length === 0) {
       return paginated([], paginationMeta(filters.page, filters.pageSize, 0));
@@ -296,11 +280,19 @@ export class TransactionsService {
     if (filters.categoryId) builder = builder.where('txn_category.id', '=', filters.categoryId);
     if (filters.type) builder = builder.where('transactions.type', '=', filters.type);
     if (filters.status) builder = builder.where('transactions.status', '=', filters.status);
+    // Dates are wallet calendar days (§11.1). One wallet's zone gives index-friendly instant bounds;
+    // across every wallet, each row is read in its paying wallet's zone.
     if (filters.dateFrom) {
-      builder = builder.where('transactions.transaction_date', '>=', new Date(`${filters.dateFrom}T00:00:00.000Z`));
+      const from = filters.dateFrom;
+      builder = scoped
+        ? builder.where('transactions.transaction_date', '>=', startOfDay(from, scoped.timeZone))
+        : builder.where(sql<boolean>`transactions.transaction_date >= (${from}::date::timestamp AT TIME ZONE COALESCE(from_wallet.time_zone, to_wallet.time_zone))`);
     }
     if (filters.dateTo) {
-      builder = builder.where('transactions.transaction_date', '<', dayAfter(filters.dateTo));
+      const after = nextDay(filters.dateTo);
+      builder = scoped
+        ? builder.where('transactions.transaction_date', '<', startOfDay(after, scoped.timeZone))
+        : builder.where(sql<boolean>`transactions.transaction_date < (${after}::date::timestamp AT TIME ZONE COALESCE(from_wallet.time_zone, to_wallet.time_zone))`);
     }
     if (filters.minAmount) builder = builder.where('transactions.amount', '>=', filters.minAmount);
     if (filters.maxAmount) builder = builder.where('transactions.amount', '<=', filters.maxAmount);
@@ -316,7 +308,7 @@ export class TransactionsService {
       direction: 'desc',
     });
 
-    let listQuery = builder.select(TRANSACTION_COLUMNS);
+    let listQuery = builder.select(TRANSACTION_COLUMNS).select(localizedCategoryName('txn_category').as('category_name'));
     for (const key of sortKeys) {
       listQuery = listQuery.orderBy(this.database.db.dynamic.ref(key.column), key.direction);
     }
@@ -332,18 +324,14 @@ export class TransactionsService {
     return paginated(rows.map(toTransactionResponse), paginationMeta(filters.page, filters.pageSize, total));
   }
 
-  async create(
-    user: AuthenticatedUser,
-    request: CreateTransactionRequest,
-    ip: string | null,
-    trx?: Transaction<DB>,
-  ): Promise<TransactionResponse> {
+  /** Everything a create checks before writing; an edit that moves money runs it on the merged row. */
+  private async checkWrite(user: AuthenticatedUser, request: CreateTransactionRequest, executor?: Executor): Promise<CheckedWrite> {
     if (request.type === TransactionType.TRANSFER && request.fromAccountId === request.toAccountId) {
       throw new AppError('TRANSFER_SAME_ACCOUNT');
     }
 
     const accountIds = accountIdsOf(request);
-    const accessMap = await this.access.requireAccountsWritable(user.id, accountIds, trx);
+    const accessMap = await this.access.requireAccountsWritable(user.id, accountIds, executor);
 
     for (const access of accessMap.values()) {
       if (access.accountStatus === AccountStatus.ARCHIVED) throw new AppError('ACCOUNT_ARCHIVED');
@@ -367,11 +355,22 @@ export class TransactionsService {
         'fromAccountId' in request ? request.fromAccountId : null,
         'toAccountId' in request ? request.toAccountId : null,
       );
-      assertCategoryFits(await this.categoryFacts(categoryId, user.id, trx), request.type, accessMap.get(namedAccountId)!.walletId);
+      assertCategoryFits(await this.categoryFacts(categoryId, user.id, executor), request.type, accessMap.get(namedAccountId)!.walletId);
     }
 
     const goalId = request.goalId ?? null;
-    if (goalId !== null) await this.assertGoalTag(request.type, goalId, fromAccess?.walletId ?? null, trx);
+    if (goalId !== null) await this.assertGoalTag(request.type, goalId, fromAccess?.walletId ?? null, executor);
+
+    return { accountIds, accessMap, categoryId, goalId };
+  }
+
+  async create(
+    user: AuthenticatedUser,
+    request: CreateTransactionRequest,
+    ip: string | null,
+    trx?: Transaction<DB>,
+  ): Promise<TransactionResponse> {
+    const { accountIds, accessMap, categoryId, goalId } = await this.checkWrite(user, request, trx);
 
     const withTrx = async (t: Transaction<DB>) => {
       await lockAccountsForWrite(t, accountIds, request.currency);
@@ -456,6 +455,10 @@ export class TransactionsService {
 
     const accessMap = await this.access.requireAccountsWritable(user.id, accountIdsOfRow(row));
 
+    if (movesMoney(body)) {
+      return this.updateMovement(user, row, body, accessMap, ip);
+    }
+
     if (body.categoryId === null) {
       assertCategoryRemovable(row.type);
     } else if (body.categoryId !== undefined) {
@@ -498,6 +501,75 @@ export class TransactionsService {
     });
 
     return this.toResponse(transactionId);
+  }
+
+  /**
+   * An edit to amount, type, currency or accounts: the merged row is checked as a create, and a goal
+   * contribution this payment backs follows it, so the goal's progress keeps matching the ledger.
+   */
+  private async updateMovement(
+    user: AuthenticatedUser,
+    row: TransactionRow,
+    body: UpdateTransactionRequest,
+    currentAccess: Map<string, AccountAccess>,
+    ip: string | null,
+  ): Promise<TransactionResponse> {
+    const request = createTransactionSchema.parse(mergeTransactionUpdate(storedFields(row), body));
+    const { accountIds, accessMap, categoryId, goalId } = await this.checkWrite(user, request);
+
+    const backing = await this.database.db
+      .selectFrom('goal_contributions')
+      .innerJoin('goals', 'goals.id', 'goal_contributions.goal_id')
+      .select(['goal_contributions.id as id', 'goals.wallet_id as wallet_id', 'goals.currency as currency'])
+      .where('goal_contributions.transaction_id', '=', row.id)
+      .executeTakeFirst();
+    const payingAccountId = request.type === TransactionType.EXPENSE ? request.fromAccountId : null;
+    if (
+      backing &&
+      (payingAccountId === null || accessMap.get(payingAccountId)!.walletId !== backing.wallet_id || request.currency !== backing.currency)
+    ) {
+      throw new AppError('VALIDATION_FAILED', undefined, {
+        type: ["A goal contribution's payment stays an expense from the goal's wallet, in the goal's currency"],
+      });
+    }
+
+    await this.database.db.transaction().execute(async (trx) => {
+      await lockAccountsForWrite(trx, accountIds, request.currency);
+      const updated = await trx
+        .updateTable('transactions')
+        .set({
+          type: request.type,
+          amount: request.amount,
+          currency: request.currency,
+          from_account_id: request.type === TransactionType.INCOME ? null : request.fromAccountId,
+          to_account_id: request.type === TransactionType.EXPENSE ? null : request.toAccountId,
+          category_id: categoryId,
+          goal_id: goalId,
+          description: request.description ?? null,
+          transaction_date: request.transactionDate,
+          reference: request.reference ?? null,
+          updated_at: new Date(),
+        })
+        .where('id', '=', row.id)
+        // A delete can commit between the status check and this write.
+        .where('status', '!=', TransactionStatus.DELETED)
+        .executeTakeFirst();
+      if (updated.numUpdatedRows === 0n) throw new AppError('TRANSACTION_ALREADY_DELETED');
+
+      if (backing && payingAccountId !== null) {
+        await trx
+          .updateTable('goal_contributions')
+          .set({ amount: request.amount, account_id: payingAccountId, currency: request.currency })
+          .where('id', '=', backing.id)
+          .execute();
+      }
+
+      // Both the wallets it left and the ones it now touches had money move.
+      const walletIds = this.walletIdsTouched(new Map([...currentAccess, ...accessMap]));
+      await this.auditTransaction(trx, AUDIT_EVENTS.TRANSACTION_UPDATED, row.id, user.id, walletIds, ip, Object.keys(body).join(', '));
+    });
+
+    return this.toResponse(row.id);
   }
 
   async delete(
@@ -545,6 +617,23 @@ function accountIdsOf(request: CreateTransactionRequest): string[] {
   if (request.type === TransactionType.INCOME) return [request.toAccountId];
   if (request.type === TransactionType.EXPENSE) return [request.fromAccountId];
   return [request.fromAccountId, request.toAccountId];
+}
+
+/** The stored row in the contract's field names, for `mergeTransactionUpdate`. */
+function storedFields(row: TransactionRow): StoredTransactionFields {
+  return {
+    type: row.type,
+    amount: row.amount,
+    currency: row.currency,
+    fromAccountId: row.from_account_id,
+    toAccountId: row.to_account_id,
+    categoryId: row.category_id,
+    goalId: row.goal_id,
+    description: row.description,
+    transactionDate: row.transaction_date.toISOString(),
+    status: row.status,
+    reference: row.reference,
+  };
 }
 
 function accountIdsOfRow(row: TransactionRow): string[] {

@@ -30,12 +30,13 @@ import {
 import type { Selectable } from 'kysely';
 import type { z } from 'zod';
 
+import { localizedCategoryName } from '../categories/category-name.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { paginated, type Enveloped } from '../common/envelope.ts';
 import { paginationMeta } from '../common/pagination.ts';
 import { DatabaseService } from '../database/database.service.ts';
-import type { AiActionPayload, AiConversationsTable, AiMessagesTable } from '../database/types.ts';
+import type { AiActionPayload, AiConversationsTable, AiMessagesTable, Executor } from '../database/types.ts';
 import { TransactionsService } from '../transactions/transactions.service.ts';
 import { WalletAccessService, type WalletAccess } from '../wallets/wallet-access.service.ts';
 import { AiToolsService } from './ai-tools.service.ts';
@@ -118,7 +119,7 @@ export class AiService {
         .offset((query.page - 1) * query.pageSize)
         .execute(),
     ]);
-    return paginated(rows.map(toMessageResponse), paginationMeta(query.page, query.pageSize, Number(total)));
+    return paginated(await this.toMessageResponses(rows), paginationMeta(query.page, query.pageSize, Number(total)));
   }
 
   async sendMessage(
@@ -220,7 +221,7 @@ export class AiService {
         .where('id', '=', messageId)
         .returningAll()
         .executeTakeFirstOrThrow();
-      return toMessageResponse(updated);
+      return (await this.toMessageResponses([updated], trx))[0]!;
     });
   }
 
@@ -243,7 +244,24 @@ export class AiService {
       .returningAll()
       .executeTakeFirst();
     if (!updated) throw new AppError('AI_ACTION_NOT_PENDING');
-    return toMessageResponse(updated);
+    return (await this.toMessageResponses([updated]))[0]!;
+  }
+
+  /**
+   * A proposal stores the category name it was drafted with; a later read names the category as the
+   * reader reads it now, so a language switch or a rename doesn't leave old proposals showing the old name.
+   */
+  private async toMessageResponses(rows: readonly MessageRow[], executor: Executor = this.database.db): Promise<AiMessageResponse[]> {
+    const categoryIds = [...new Set(rows.flatMap((row) => (row.action_payload ? [row.action_payload.transaction.categoryId] : [])))];
+    const current = categoryIds.length === 0
+      ? []
+      : await executor
+        .selectFrom('categories')
+        .select(['id', localizedCategoryName('categories').as('name')])
+        .where('id', 'in', categoryIds)
+        .execute();
+    const nameById = new Map(current.map((category) => [category.id, category.name]));
+    return rows.map((row) => toMessageResponse(row, nameById));
   }
 
   /** Another user's conversation id answers 404, the same as one that does not exist. */
@@ -303,7 +321,7 @@ function toConversationResponse(row: ConversationRow): AiConversationResponse {
   };
 }
 
-function toMessageResponse(row: MessageRow): AiMessageResponse {
+function toMessageResponse(row: MessageRow, categoryNameById: ReadonlyMap<string, string> = new Map()): AiMessageResponse {
   return {
     id: row.id,
     conversationId: row.conversation_id,
@@ -316,7 +334,7 @@ function toMessageResponse(row: MessageRow): AiMessageResponse {
             status: row.action_status,
             transaction: row.action_payload.transaction,
             accountName: row.action_payload.accountName,
-            categoryName: row.action_payload.categoryName,
+            categoryName: categoryNameById.get(row.action_payload.transaction.categoryId) ?? row.action_payload.categoryName,
             transactionId: row.action_transaction_id,
           }
         : null,

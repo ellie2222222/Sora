@@ -28,7 +28,7 @@ export async function registerProbeUser(api: ApiCaller, tag = 'user'): Promise<P
   const unique = randomUUID();
   const email = `probe+${tag}-${unique}@example.invalid`;
   const password = `probe-pw-${unique}`;
-  const registered = await api.call('POST', '/auth/register', { body: { email, password, displayName: `probe-${tag}` } });
+  const registered = await api.call('POST', '/auth/register', { body: { email, password, displayName: `probe-${tag}`, timeZone: 'Asia/Ho_Chi_Minh' } });
   if (registered.status !== 201) throw new Error(`register failed: ${registered.status} ${JSON.stringify(registered.body)}`);
   const token = registered.body!.data.tokens.accessToken as string;
   const wallets = await api.call('GET', '/wallets', { token });

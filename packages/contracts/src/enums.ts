@@ -91,12 +91,13 @@ export const BudgetPeriodType = {
   GOAL: 'GOAL',
 } as const;
 
-export const BUDGET_STATUSES = ['ACTIVE', 'ARCHIVED'] as const;
-export type BudgetStatus = (typeof BUDGET_STATUSES)[number];
-export const BudgetStatus = {
-  ACTIVE: 'ACTIVE',
-  ARCHIVED: 'ARCHIVED',
-} as const;
+/** Periods that repeat from the start date until the budget is deleted, so they have no end date (`chk_budget_end`). */
+export const REPEATING_BUDGET_PERIODS = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'] as const;
+export type RepeatingBudgetPeriod = (typeof REPEATING_BUDGET_PERIODS)[number];
+
+export function isRepeatingBudgetPeriod(period: BudgetPeriodType): period is RepeatingBudgetPeriod {
+  return (REPEATING_BUDGET_PERIODS as readonly string[]).includes(period);
+}
 
 export const GOAL_STATUSES = ['ACTIVE', 'COMPLETED', 'CANCELLED'] as const;
 export type GoalStatus = (typeof GOAL_STATUSES)[number];

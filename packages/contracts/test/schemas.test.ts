@@ -14,8 +14,10 @@ import {
   transactionQuerySchema,
   updatePreferencesSchema,
   updateTransactionSchema,
+  mergeTransactionUpdate,
+  movesMoney,
 } from '../src/schemas.ts';
-import { BUDGET_PERIOD_TYPES } from '../src/enums.ts';
+import { BUDGET_PERIOD_TYPES, isRepeatingBudgetPeriod } from '../src/enums.ts';
 
 /** The field paths a failed parse complained about. */
 function issuePaths(result: { success: boolean; error?: { issues: { path: unknown[] }[] } }) {
@@ -219,7 +221,8 @@ describe('registerSchema', () => {
       email: '  TAM@Example.COM ',
       password: 'correct-horse-battery',
       displayName: '  Tam  ',
-      });
+      timeZone: 'Asia/Ho_Chi_Minh',
+    });
     assert.equal(result.success, true, JSON.stringify(issuePaths(result)));
     assert.equal(result.data?.email, 'tam@example.com');
     assert.equal(result.data?.displayName, 'Tam');
@@ -324,17 +327,26 @@ describe('createBudgetSchema', () => {
     endDate: '2026-10-31',
   };
 
-  it('accepts a wallet-wide budget naming neither a category nor a goal (migration 008)', () => {
-    const result = createBudgetSchema.safeParse({ ...walletWide, periodType: 'MONTHLY' });
+  it('accepts a wallet-wide budget naming neither a category nor a goal', () => {
+    const result = createBudgetSchema.safeParse({ ...walletWide, periodType: 'MONTHLY', endDate: null });
     assert.equal(result.success, true, JSON.stringify(issuePaths(result)));
   });
 
   it('accepts every period chk_budget_period admits, and nothing else', () => {
     for (const periodType of BUDGET_PERIOD_TYPES) {
-      const body = periodType === 'GOAL' ? { ...walletWide, goalId: GOAL, periodType } : { ...walletWide, periodType };
+      const endDate = isRepeatingBudgetPeriod(periodType) ? null : walletWide.endDate;
+      const body = periodType === 'GOAL' ? { ...walletWide, goalId: GOAL, periodType, endDate } : { ...walletWide, periodType, endDate };
       assert.equal(createBudgetSchema.safeParse(body).success, true, periodType);
     }
     assert.ok(issuePaths(createBudgetSchema.safeParse({ ...walletWide, periodType: 'HOURLY' })).includes('periodType'));
+  });
+
+  it('BUD-US-01: a repeating period refuses an end date, a fixed one requires it (chk_budget_end)', () => {
+    for (const periodType of ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'] as const) {
+      assert.deepEqual(issuePaths(createBudgetSchema.safeParse({ ...walletWide, periodType })), ['endDate'], periodType);
+    }
+    assert.deepEqual(issuePaths(createBudgetSchema.safeParse({ ...walletWide, periodType: 'CUSTOM', endDate: null })), ['endDate']);
+    assert.equal(createBudgetSchema.safeParse({ ...walletWide, periodType: 'MONTHLY', endDate: undefined }).success, true);
   });
 
   it('BUD-US-01: refuses a budget naming both a category and a goal (chk_budget_kind)', () => {
@@ -429,16 +441,47 @@ describe('update schemas', () => {
     assert.equal(updatePreferencesSchema.safeParse({}).success, false);
   });
 
-  it('drop the immutable transaction fields, so they can never reach an update (BR-03)', () => {
-    const result = updateTransactionSchema.safeParse({
-      amount: '5',
-      type: 'INCOME',
-      fromAccountId: ACCOUNT_A,
-      toAccountId: ACCOUNT_B,
-      description: 'Lunch',
-    });
+  it('keep amount, type, currency and accounts on a transaction update (BR-03)', () => {
+    const body = { amount: '5', type: 'INCOME', currency: 'USD', fromAccountId: null, toAccountId: ACCOUNT_B };
+    const result = updateTransactionSchema.safeParse(body);
     assert.equal(result.success, true, JSON.stringify(issuePaths(result)));
-    assert.deepEqual(result.data, { description: 'Lunch' });
-    assert.equal(updateTransactionSchema.safeParse({ amount: '5' }).success, false);
+    assert.deepEqual(result.data, body);
+  });
+
+  it('merge an update over the stored transaction in create shape', () => {
+    const stored = {
+      type: 'EXPENSE' as const,
+      amount: '100.0000',
+      currency: 'VND',
+      fromAccountId: ACCOUNT_A,
+      toAccountId: null,
+      categoryId: CATEGORY,
+      goalId: GOAL,
+      description: 'Lunch',
+      transactionDate: baseDate,
+      status: 'COMPLETED' as const,
+      reference: null,
+    };
+    assert.equal(movesMoney({ description: 'x' }), false);
+    assert.equal(movesMoney({ fromAccountId: null }), true);
+
+    const amount = createTransactionSchema.safeParse(mergeTransactionUpdate(stored, { amount: '5' }));
+    assert.equal(amount.success, true, JSON.stringify(issuePaths(amount)));
+    assert.deepEqual([amount.data?.amount, amount.data?.type, amount.data?.goalId], ['5', 'EXPENSE', GOAL]);
+
+    const income = mergeTransactionUpdate(stored, { type: 'INCOME', toAccountId: ACCOUNT_B, categoryId: CATEGORY });
+    assert.equal('fromAccountId' in income, false, 'the side income does not use is dropped');
+    assert.deepEqual([income.toAccountId, income.goalId], [ACCOUNT_B, null], 'the goal tag lapses off a non-expense');
+
+    const half = createTransactionSchema.safeParse(mergeTransactionUpdate(stored, { type: 'INCOME' }));
+    assert.deepEqual(issuePaths(half), ['toAccountId'], 'a type change without the account its new type needs is refused');
+  });
+
+  it('validate the money fields of a transaction update like a create', () => {
+    assert.deepEqual(issuePaths(updateTransactionSchema.safeParse({ amount: '0' })), ['amount']);
+    assert.equal(updateTransactionSchema.safeParse({ amount: 5 }).data?.amount, '5', 'a number amount is normalised to a string, as on create');
+    assert.deepEqual(issuePaths(updateTransactionSchema.safeParse({ type: 'REFUND' })), ['type']);
+    assert.deepEqual(issuePaths(updateTransactionSchema.safeParse({ currency: 'vnd' })), ['currency']);
+    assert.deepEqual(issuePaths(updateTransactionSchema.safeParse({ fromAccountId: 'nope' })), ['fromAccountId']);
   });
 });

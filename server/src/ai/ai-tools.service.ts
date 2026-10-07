@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AccountStatus, CategoryStatus, formatMoney } from '@sora/contracts';
 
 import { BalanceService } from '../accounts/balance.service.ts';
+import { localizedCategoryName } from '../categories/category-name.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { DashboardService } from '../dashboard/dashboard.service.ts';
 import { DatabaseService } from '../database/database.service.ts';
@@ -39,10 +40,11 @@ export class AiToolsService {
         .execute(),
       this.database.db
         .selectFrom('categories')
-        .select(['id', 'name', 'type'])
+        .select(['id', 'type'])
+        .select(localizedCategoryName('categories').as('name'))
         .where('wallet_id', '=', access.walletId)
         .where('status', '=', CategoryStatus.ACTIVE)
-        .orderBy('name')
+        .orderBy(localizedCategoryName('categories'))
         .execute(),
       this.balances.balancesForWallets([access.walletId]),
     ]);

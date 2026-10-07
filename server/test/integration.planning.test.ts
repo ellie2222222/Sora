@@ -38,7 +38,8 @@ describe('budgets and goals against a real database', { skip: integrationSkipRea
 
   it('derives spent from the window\'s completed expenses, including ones recorded before the budget existed', async () => {
     await expense({ amount: '400' });
-    await expense({ amount: '50', transactionDate: '2026-05-31T23:00:00.000Z' });
+    // 23:00 on May 31 in the probe wallet's Asia/Ho_Chi_Minh: the day before the window.
+    await expense({ amount: '50', transactionDate: '2026-05-31T16:00:00.000Z' });
     const created = await budget({ amount: '300' });
     assert.equal(created.status, 201);
     assert.deepEqual(
@@ -60,20 +61,20 @@ describe('budgets and goals against a real database', { skip: integrationSkipRea
     assert.deepEqual([overlapping.status, overlapping.body?.error?.code], [409, 'BUDGET_PERIOD_OVERLAP'], 'sharing only the last day still overlaps');
 
     await api.call('DELETE', `/budgets/${first.body!.data.id}`, { token: user.token });
-    const afterArchive = await budget({ categoryId: other, startDate: '2026-08-31', endDate: '2026-09-30' });
-    assert.equal(afterArchive.status, 201);
+    const afterDelete = await budget({ categoryId: other, startDate: '2026-08-31', endDate: '2026-09-30' });
+    assert.equal(afterDelete.status, 201);
   });
 
   it('BUD-US-01: refuses an overlapping wallet-wide budget with 409, while a category budget on the same days is allowed', async () => {
     const days = { startDate: '2026-09-01', endDate: '2026-09-30' };
-    const first = await budget({ categoryId: null, periodType: 'MONTHLY', ...days });
+    const first = await budget({ categoryId: null, ...days });
     assert.equal(first.status, 201);
     assert.deepEqual([first.body!.data.categoryId, first.body!.data.goalId], [null, null]);
 
-    const overlapping = await budget({ categoryId: null, periodType: 'DAILY', startDate: '2026-09-30', endDate: '2026-09-30' });
+    const overlapping = await budget({ categoryId: null, startDate: '2026-09-30', endDate: '2026-09-30' });
     assert.deepEqual([overlapping.status, overlapping.body?.error?.code], [409, 'BUDGET_PERIOD_OVERLAP']);
 
-    const categoryBudget = await budget({ periodType: 'MONTHLY', ...days });
+    const categoryBudget = await budget({ ...days });
     assert.equal(categoryBudget.status, 201, 'a category budget is a different kind and has its own overlap rule');
   });
 
@@ -191,7 +192,7 @@ describe('budgets and goals against a real database', { skip: integrationSkipRea
 
       const created = await api.call('POST', '/budgets', {
         token: owner.token,
-        body: { walletId: owner.walletId, categoryId: null, name: `probe-${randomUUID()}`, amount: '1000', currency: 'VND', periodType: 'MONTHLY', ...OCTOBER },
+        body: { walletId: owner.walletId, categoryId: null, name: `probe-${randomUUID()}`, amount: '1000', currency: 'VND', periodType: 'CUSTOM', ...OCTOBER },
       });
       assert.equal(created.status, 201);
       assert.equal(created.body!.data.spent, '500.0000');

@@ -23,7 +23,7 @@ import {
 import { ClientIp, CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
 import type { Enveloped } from '../common/envelope.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';
-import { rejectImmutableFieldsPipe, TransactionsService } from './transactions.service.ts';
+import { TransactionsService } from './transactions.service.ts';
 
 @Controller()
 export class TransactionsController {
@@ -58,7 +58,7 @@ export class TransactionsController {
   update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') transactionId: string,
-    @Body(rejectImmutableFieldsPipe, zodPipe(updateTransactionSchema)) body: z.infer<typeof updateTransactionSchema>,
+    @Body(zodPipe(updateTransactionSchema)) body: z.infer<typeof updateTransactionSchema>,
     @ClientIp() ip: string | null,
   ): Promise<TransactionResponse> {
     return this.transactions.update(user, transactionId, body, ip);

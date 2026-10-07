@@ -21,14 +21,16 @@ import {
   calculateGoalProgress,
   calculateGoalRemaining,
   countsAsPeriodActivity,
+  dayRange,
   formatMoney,
   isOverBudget,
   isWithinPeriod,
   maxOf,
   parseMoney,
   percentageOf,
+  todayIn,
   transferDirection,
-  BudgetStatus,
+  budgetWindow,
   GoalStatus,
   TransactionStatus,
   TransactionType,
@@ -49,9 +51,9 @@ import {
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { BalanceService } from '../accounts/balance.service.ts';
-import { spendableExpenses } from '../budgets/budget-spend.ts';
+import { spendableExpenses, withCategorySubtrees } from '../budgets/budget-spend.ts';
+import { localizedCategoryName } from '../categories/category-name.ts';
 import { CurrencyLedger, netOf } from '../common/currency-totals.ts';
-import { dayAfter } from '../common/utc-day.ts';
 import { DatabaseService } from '../database/database.service.ts';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service.ts';
 import { WalletAccessService } from '../wallets/wallet-access.service.ts';
@@ -69,8 +71,9 @@ export class DashboardService {
 
   async summary(user: AuthenticatedUser, query: DashboardQuery): Promise<DashboardResponse> {
     const access = await this.access.require(user.id, query.walletId, 'VIEWER');
-    const walletId = access.walletId;
-    const { dateFrom, dateTo } = resolvePeriod(query);
+    const { walletId, timeZone } = access;
+    const today = todayIn(timeZone);
+    const { dateFrom, dateTo } = resolvePeriod(query, today);
 
     const accountRows = await this.database.db
       .selectFrom('accounts')
@@ -92,9 +95,9 @@ export class DashboardService {
             .balanceForAccount(scopedAccount)
             .then((balance): CurrencyTotal[] => [{ currency: balance.currency, amount: formatMoney(balance.balance) }])
         : this.balances.walletBalances([walletId]).then((byWallet) => byWallet.get(walletId) ?? []),
-      this.periodActivity(accountIds, dateFrom, dateTo),
+      this.periodActivity(accountIds, dateFrom, dateTo, timeZone),
       this.recentTransactions(accountIds),
-      scopedAccount !== undefined ? [] : this.activeBudgets(walletId),
+      scopedAccount !== undefined ? [] : this.activeBudgets(walletId, dayInPeriod(today, dateFrom, dateTo), timeZone),
       scopedAccount !== undefined ? [] : this.activeGoals(walletId),
     ]);
 
@@ -105,7 +108,7 @@ export class DashboardService {
 
     return {
       walletId,
-      period: { dateFrom, dateTo },
+      period: { dateFrom, dateTo, timeZone },
       totalBalance,
       income: activity.income.toArray(),
       expense: activity.expense.toArray(),
@@ -141,6 +144,7 @@ export class DashboardService {
     accountIds: readonly string[],
     dateFrom: string,
     dateTo: string,
+    timeZone: string,
   ): Promise<{
     income: CurrencyLedger;
     expense: CurrencyLedger;
@@ -160,6 +164,7 @@ export class DashboardService {
       return { income, expense, expenseByCategory, transferredIn, transferredOut, byMember };
     }
 
+    const bounds = dayRange(dateFrom, dateTo, timeZone);
     const rows = await this.database.db
       .selectFrom('transactions as t')
       .innerJoin('users as u', 'u.id', 't.created_by_user_id')
@@ -176,8 +181,8 @@ export class DashboardService {
         'u.display_name as display_name',
       ])
       .where('t.status', '=', TransactionStatus.COMPLETED)
-      .where('t.transaction_date', '>=', new Date(`${dateFrom}T00:00:00.000Z`))
-      .where('t.transaction_date', '<', dayAfter(dateTo))
+      .where('t.transaction_date', '>=', bounds.start)
+      .where('t.transaction_date', '<', bounds.end)
       .where((eb) =>
         eb.or([
           eb('t.to_account_id', 'in', [...accountIds]),
@@ -192,8 +197,8 @@ export class DashboardService {
       const isoDate = row.transaction_date.toISOString();
       const amount = parseMoney(row.amount);
 
-      if (!countsAsPeriodActivity({ ...row, transactionDate: isoDate }, dateFrom, dateTo)) {
-        if (!isWithinPeriod(isoDate, dateFrom, dateTo)) continue;
+      if (!countsAsPeriodActivity({ ...row, transactionDate: isoDate }, dateFrom, dateTo, timeZone)) {
+        if (!isWithinPeriod(isoDate, dateFrom, dateTo, timeZone)) continue;
         const direction = transferDirection(
           { type: row.type, status: row.status, fromAccountId: row.from_account_id, toAccountId: row.to_account_id },
           ownAccounts,
@@ -257,7 +262,8 @@ export class DashboardService {
 
     const categories = await this.database.db
       .selectFrom('categories')
-      .select(['id', 'name', 'icon', 'color', 'parent_id'])
+      .select(['id', 'icon', 'color', 'parent_id'])
+      .select(localizedCategoryName('categories').as('name'))
       .where('id', 'in', slices.map((slice) => slice.categoryId))
       .execute();
     const categoryById = new Map(categories.map((category) => [category.id, category]));
@@ -313,7 +319,7 @@ export class DashboardService {
         'ta.wallet_id as to_wallet_id',
         'tw.name as to_wallet_name',
         'c.id as category_id',
-        'c.name as category_name',
+        localizedCategoryName('c').as('category_name'),
         'c.type as category_type',
         'c.icon as category_icon',
         'c.color as category_color',
@@ -383,9 +389,9 @@ export class DashboardService {
     });
   }
 
-  /** §12.1's shape, scoped to `status = 'ACTIVE'` — the dashboard's overview slice. */
-  private async activeBudgets(walletId: string): Promise<BudgetResponse[]> {
-    const budgets = await this.database.db
+  /** §12.1's shape for the budgets covering `day`, each over its period around that day — the dashboard's overview slice. */
+  private async activeBudgets(walletId: string, day: string, timeZone: string): Promise<BudgetResponse[]> {
+    const rows = await this.database.db
       .selectFrom('budgets as b')
       .leftJoin('categories as c', 'c.id', 'b.category_id')
       .select([
@@ -398,26 +404,31 @@ export class DashboardService {
         'b.period_type as period_type',
         'b.start_date as start_date',
         'b.end_date as end_date',
-        'b.status as status',
         'b.created_at as created_at',
         'b.updated_at as updated_at',
         'c.id as category_id',
-        'c.name as category_name',
+        localizedCategoryName('c').as('category_name'),
         'c.icon as category_icon',
         'c.color as category_color',
       ])
       .where('b.wallet_id', '=', walletId)
-      .where('b.status', '=', BudgetStatus.ACTIVE)
+      .where('b.start_date', '<=', day)
+      .where((eb) => eb.or([eb('b.end_date', 'is', null), eb('b.end_date', '>=', day)]))
       .execute();
 
-    if (budgets.length === 0) return [];
+    if (rows.length === 0) return [];
+    const budgets = await withCategorySubtrees(this.database.db, rows.map((row) => ({
+      ...row,
+      window: budgetWindow({ periodType: row.period_type, startDate: row.start_date, endDate: row.end_date }, day),
+      time_zone: timeZone,
+    })));
 
     const spendable = await spendableExpenses(this.database.db, budgets);
 
     return budgets.map((budget) => {
       const amount = parseMoney(budget.amount);
       const spent = calculateBudgetSpent(
-        { walletId: budget.wallet_id, categoryId: budget.category_id, goalId: budget.goal_id, currency: budget.currency, startDate: budget.start_date, endDate: budget.end_date },
+        { walletId: budget.wallet_id, categoryId: budget.category_id, categoryIds: budget.category_ids, goalId: budget.goal_id, currency: budget.currency, ...budget.window, timeZone },
         spendable,
       );
 
@@ -431,8 +442,11 @@ export class DashboardService {
         periodType: budget.period_type,
         startDate: budget.start_date,
         endDate: budget.end_date,
-        status: budget.status,
+        periodStart: budget.window.startDate,
+        periodEnd: budget.window.endDate,
+        timeZone,
         categoryId: budget.category_id,
+        categoryIds: budget.category_ids,
         category: budget.category_id !== null ? {
           id: budget.category_id,
           name: budget.category_name as string,
@@ -535,14 +549,13 @@ function memberSlices(byMember: ReadonlyMap<string, MemberActivity>): MemberSpen
     }));
 }
 
-/** `dateFrom`/`dateTo` each default independently to the current calendar month's bound. */
-function resolvePeriod(query: DashboardQuery): { dateFrom: string; dateTo: string } {
-  const now = new Date();
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+/** `dateFrom`/`dateTo` each default independently to a bound of the month containing `today`, the wallet's. */
+function resolvePeriod(query: DashboardQuery, today: string): { dateFrom: string; dateTo: string } {
+  const [year, month] = today.split('-').map(Number) as [number, number];
+  const monthEnd = new Date(Date.UTC(year, month, 0));
 
   const period = {
-    dateFrom: query.dateFrom ?? toCalendarDate(monthStart),
+    dateFrom: query.dateFrom ?? `${today.slice(0, 7)}-01`,
     dateTo: query.dateTo ?? toCalendarDate(monthEnd),
   };
   // The schema refuses an inverted pair; a lone bound can still invert against the default other end.
@@ -554,4 +567,11 @@ function resolvePeriod(query: DashboardQuery): { dateFrom: string; dateTo: strin
 
 function toCalendarDate(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+/** The day budgets are judged on: today when the period covers it, else the period's nearest edge, so a past month shows its own budgets. */
+function dayInPeriod(today: string, dateFrom: string, dateTo: string): string {
+  if (today < dateFrom) return dateFrom;
+  if (today > dateTo) return dateTo;
+  return today;
 }

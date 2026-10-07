@@ -72,7 +72,7 @@ export const ROUTES = {
     create: () => '/budgets',
     detail: (budgetId: string) => `/budgets/${budgetId}`,
     update: (budgetId: string) => `/budgets/${budgetId}`,
-    archive: (budgetId: string) => `/budgets/${budgetId}`,
+    delete: (budgetId: string) => `/budgets/${budgetId}`,
   },
 
   goals: {

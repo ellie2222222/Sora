@@ -16,7 +16,6 @@ import {
   ACCOUNT_STATUSES,
   ACCOUNT_TYPES,
   BUDGET_PERIOD_TYPES,
-  BUDGET_STATUSES,
   CATEGORY_STATUSES,
   CATEGORY_TYPES,
   DEFAULT_PAGE_SIZE,
@@ -30,7 +29,10 @@ import {
   WALLET_ROLES,
   WALLET_STATUSES,
   TransactionType,
+  isRepeatingBudgetPeriod,
+  type TransactionStatus,
 } from './enums.ts';
+import { isTimeZone } from './calendar.ts';
 import { MONEY_SCALE, parseMoney, stripCurrencyInput } from './money.ts';
 
 // ---------------------------------------------------------------------------
@@ -96,6 +98,13 @@ export const isoDateSchema = z
 
 export const isoDateTimeSchema = z.string().datetime({ offset: true });
 
+/** An IANA zone name ("Asia/Ho_Chi_Minh"), never a fixed offset — see calendar.ts `isTimeZone`. */
+export const timeZoneSchema = z
+  .string()
+  .trim()
+  .max(64)
+  .refine(isTimeZone, 'Expected an IANA time zone, e.g. Asia/Ho_Chi_Minh');
+
 const nameSchema = (max: number) => z.string().trim().min(1, 'Required').max(max);
 
 // ---------------------------------------------------------------------------
@@ -118,6 +127,8 @@ export const registerSchema = z.object({
   displayName: nameSchema(100),
   baseCurrency: currencySchema.default('VND'),
   locale: z.enum(LOCALES).optional(),
+  /** The first wallet's zone; the app sends the device's. */
+  timeZone: timeZoneSchema,
 });
 
 export const loginSchema = z.object({
@@ -133,6 +144,8 @@ export const refreshSchema = z.object({
 export const googleAuthSchema = z.object({
   idToken: z.string().min(1),
   locale: z.enum(LOCALES).optional(),
+  /** The first wallet's zone when this sign-in creates the account; ignored otherwise. */
+  timeZone: timeZoneSchema,
 });
 
 export const updatePreferencesSchema = z
@@ -148,12 +161,14 @@ export const updatePreferencesSchema = z
 
 export const createWalletSchema = z.object({
   name: nameSchema(100),
+  timeZone: timeZoneSchema,
 });
 
 export const updateWalletSchema = z
   .object({
     name: nameSchema(100).optional(),
     status: z.enum(WALLET_STATUSES).optional(),
+    timeZone: timeZoneSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
 
@@ -291,15 +306,17 @@ export const createTransactionSchema = z.discriminatedUnion('type', [
 });
 
 /**
- * Editing is restricted to the descriptive fields.
- *
- * Amount, accounts and type are immutable: a recorded movement of money is a
- * historical fact, and rewriting one retroactively changes every balance,
- * budget and goal figure derived from it with no trace. Correcting a real
- * mistake means deleting and re-recording, which leaves both rows visible.
+ * Any field a create sets can be edited. The service merges the body over the stored row and checks the
+ * result exactly as a create, so a type change must also send the account side and category the new type needs.
  */
 export const updateTransactionSchema = z
   .object({
+    type: z.enum(TRANSACTION_TYPES).optional(),
+    amount: positiveAmountSchema.optional(),
+    currency: currencySchema.optional(),
+    // null clears a side the new type doesn't use; the service clears it anyway.
+    fromAccountId: uuidSchema.nullable().optional(),
+    toAccountId: uuidSchema.nullable().optional(),
     description: z.string().trim().max(500).nullish(),
     transactionDate: isoDateTimeSchema.optional(),
     // null removes a transfer's category; the service refuses it for income and expense.
@@ -309,6 +326,50 @@ export const updateTransactionSchema = z
     reference: z.string().trim().max(100).nullish(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
+
+/** The fields of a stored transaction an update is laid over. */
+export interface StoredTransactionFields {
+  type: TransactionType;
+  amount: string;
+  currency: string;
+  fromAccountId: string | null;
+  toAccountId: string | null;
+  categoryId: string | null;
+  goalId: string | null;
+  description: string | null;
+  transactionDate: string;
+  status: TransactionStatus;
+  reference: string | null;
+}
+
+/** An update's money fields: sending any of them means the edit is checked as a create. */
+export const TRANSACTION_MOVEMENT_FIELDS = ['type', 'amount', 'currency', 'fromAccountId', 'toAccountId'] as const;
+
+export function movesMoney(body: UpdateTransactionRequest): boolean {
+  return TRANSACTION_MOVEMENT_FIELDS.some((field) => body[field] !== undefined);
+}
+
+/**
+ * The body laid over the stored transaction, in create's shape, for `createTransactionSchema` to check.
+ * The account side the resulting type doesn't use is dropped, and a goal tag lapses off a non-expense.
+ */
+export function mergeTransactionUpdate(stored: StoredTransactionFields, body: UpdateTransactionRequest): Record<string, unknown> {
+  const type = body.type ?? stored.type;
+  const pick = <T>(next: T | undefined, current: T): T => (next !== undefined ? next : current);
+  return {
+    type,
+    amount: body.amount ?? stored.amount,
+    currency: body.currency ?? stored.currency,
+    ...(type !== TransactionType.INCOME ? { fromAccountId: pick(body.fromAccountId, stored.fromAccountId) } : {}),
+    ...(type !== TransactionType.EXPENSE ? { toAccountId: pick(body.toAccountId, stored.toAccountId) } : {}),
+    categoryId: pick(body.categoryId, stored.categoryId),
+    goalId: type === TransactionType.EXPENSE ? pick(body.goalId, stored.goalId) : (body.goalId ?? null),
+    description: pick(body.description, stored.description),
+    transactionDate: body.transactionDate ?? stored.transactionDate,
+    status: stored.status,
+    reference: pick(body.reference, stored.reference),
+  };
+}
 
 export const deleteTransactionSchema = z.object({
   reason: z.string().trim().max(500).optional(),
@@ -344,11 +405,19 @@ export const createBudgetSchema = z
     currency: currencySchema,
     periodType: z.enum(BUDGET_PERIOD_TYPES),
     startDate: isoDateSchema,
-    endDate: isoDateSchema,
+    // A repeating period runs until the budget is deleted; CUSTOM and GOAL need their last day (chk_budget_end).
+    endDate: isoDateSchema.nullish(),
   })
-  .refine((value) => value.endDate >= value.startDate, {
-    message: 'End date cannot be before start date',
-    path: ['endDate'],
+  .superRefine((value, ctx) => {
+    if (isRepeatingBudgetPeriod(value.periodType)) {
+      if (value.endDate != null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A repeating budget has no end date', path: ['endDate'] });
+      }
+    } else if (value.endDate == null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'An end date is required', path: ['endDate'] });
+    } else if (value.endDate < value.startDate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'End date cannot be before start date', path: ['endDate'] });
+    }
   })
   // Exactly one kind (chk_budget_kind): category, goal (period GOAL) or wallet-wide.
   .superRefine((value, ctx) => {
@@ -367,7 +436,6 @@ export const updateBudgetSchema = z
   .object({
     name: nameSchema(100).optional(),
     amount: positiveAmountSchema.optional(),
-    status: z.enum(BUDGET_STATUSES).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
 

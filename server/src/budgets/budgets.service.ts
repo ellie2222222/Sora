@@ -1,5 +1,6 @@
 /**
- * Budgets CRUD (§12 of the API specification).
+ * Budgets CRUD (§12 of the API specification). A DAILY/WEEKLY/MONTHLY/YEARLY budget repeats until it is
+ * deleted, and its figures cover the period containing the day asked about; a delete removes the row.
  *
  * `spent`/`remaining`/`usagePercentage`/`isOverBudget` are never stored — they
  * are recomputed from completed EXPENSE transactions via @sora/contracts'
@@ -12,14 +13,15 @@ import { Injectable } from '@nestjs/common';
 import type { Transaction } from 'kysely';
 
 import {
+  budgetWindow,
   calculateBudgetRemaining,
   calculateBudgetSpent,
+  todayIn,
   calculateBudgetUsage,
   formatMoney,
   isOverBudget,
   parseMoney,
   roleSatisfies,
-  BudgetStatus,
   CategoryStatus,
   CategoryType,
   GoalStatus,
@@ -33,6 +35,7 @@ import {
 
 import { AUDIT_EVENTS, ENTITY_TYPES } from '../audit/audit-events.ts';
 import { AuditService } from '../audit/audit.service.ts';
+import { localizedCategoryName } from '../categories/category-name.ts';
 import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { paginated, type Enveloped } from '../common/envelope.ts';
@@ -42,11 +45,10 @@ import { DatabaseService } from '../database/database.service.ts';
 import type { DB } from '../database/types.ts';
 import { requireGoalInWallet } from '../goals/goal-access.ts';
 import { lockWalletWritable, WalletAccessService } from '../wallets/wallet-access.service.ts';
-import { spendableExpenses } from './budget-spend.ts';
+import { spendableExpenses, withCategorySubtrees } from './budget-spend.ts';
 
 export interface BudgetListQuery {
   walletId: string;
-  status?: BudgetStatus;
   activeOn?: string;
   page: number;
   pageSize: number;
@@ -62,8 +64,7 @@ interface BudgetRow {
   currency: string;
   period_type: BudgetPeriodType;
   start_date: string;
-  end_date: string;
-  status: BudgetStatus;
+  end_date: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -84,14 +85,14 @@ export class BudgetsService {
   ) {}
 
   async list(user: AuthenticatedUser, query: BudgetListQuery): Promise<Enveloped<BudgetResponse[]>> {
-    await this.access.require(user.id, query.walletId, 'VIEWER');
+    const { timeZone } = await this.access.require(user.id, query.walletId, 'VIEWER');
 
     let builder = this.database.db.selectFrom('budgets').where('wallet_id', '=', query.walletId);
-    if (query.status) builder = builder.where('status', '=', query.status);
     if (query.activeOn) {
+      const day = query.activeOn;
       builder = builder
-        .where('start_date', '<=', query.activeOn)
-        .where('end_date', '>=', query.activeOn);
+        .where('start_date', '<=', day)
+        .where((eb) => eb.or([eb('end_date', 'is', null), eb('end_date', '>=', day)]));
     }
 
     const [rows, totalRow] = await Promise.all([
@@ -105,7 +106,7 @@ export class BudgetsService {
         .execute(),
       builder.select((eb) => eb.fn.countAll<string>().as('count')).executeTakeFirstOrThrow(),
     ]);
-    return paginated(await this.toResponses(rows), paginationMeta(query.page, query.pageSize, Number(totalRow.count)));
+    return paginated(await this.toResponses(rows, timeZone, query.activeOn ?? todayIn(timeZone)), paginationMeta(query.page, query.pageSize, Number(totalRow.count)));
   }
 
   /**
@@ -118,7 +119,7 @@ export class BudgetsService {
     request: CreateBudgetRequest,
     ip: string | null,
   ): Promise<BudgetResponse> {
-    await this.access.requireWritable(user.id, request.walletId, 'EDITOR');
+    const { timeZone } = await this.access.requireWritable(user.id, request.walletId, 'EDITOR');
     if (request.categoryId != null) {
       await this.assertBudgetableCategory(user.id, request.walletId, request.categoryId);
     }
@@ -142,7 +143,7 @@ export class BudgetsService {
             currency: request.currency,
             period_type: request.periodType,
             start_date: request.startDate,
-            end_date: request.endDate,
+            end_date: request.endDate ?? null,
           })
           .returningAll()
           .executeTakeFirstOrThrow(),
@@ -162,20 +163,20 @@ export class BudgetsService {
       return inserted;
     });
 
-    const [response] = await this.toResponses([row]);
+    const [response] = await this.toResponses([row], timeZone);
     return response!;
   }
 
   async detail(user: AuthenticatedUser, budgetId: string): Promise<BudgetResponse> {
-    const { row } = await this.requireBudgetAccess(user.id, budgetId, 'VIEWER');
-    const [response] = await this.toResponses([row]);
+    const { row, timeZone } = await this.requireBudgetAccess(user.id, budgetId, 'VIEWER');
+    const [response] = await this.toResponses([row], timeZone);
     return response!;
   }
 
   /**
    * `categoryId`, `periodType`, `startDate` and `endDate` are immutable
    * (§12.4) — moving a window changes which transactions the budget ever
-   * covered, which is a different budget. Only `name`/`amount`/`status` are
+   * covered, which is a different budget. Only `name`/`amount` are
    * writable, so the update never has to re-derive the overlap window.
    */
   async update(
@@ -184,19 +185,15 @@ export class BudgetsService {
     request: UpdateBudgetRequest,
     ip: string | null,
   ): Promise<BudgetResponse> {
-    const { walletId, row: current } = await this.requireBudgetAccess(user.id, budgetId, 'EDITOR');
+    const { walletId, timeZone } = await this.requireBudgetAccess(user.id, budgetId, 'EDITOR');
 
     const row = await this.database.db.transaction().execute(async (trx) => {
-      // Reactivating must meet create's rule: its category or goal may have been archived since.
-      if (request.status === BudgetStatus.ACTIVE) await lockBudgetTarget(trx, current.category_id, current.goal_id);
-
       const updated = await translatingPgErrors(() =>
         trx
           .updateTable('budgets')
           .set({
             ...(request.name !== undefined ? { name: request.name } : {}),
             ...(request.amount !== undefined ? { amount: request.amount } : {}),
-            ...(request.status !== undefined ? { status: request.status } : {}),
             updated_at: new Date(),
           })
           .where('id', '=', budgetId)
@@ -219,29 +216,22 @@ export class BudgetsService {
       return updated;
     });
 
-    const [response] = await this.toResponses([row]);
+    const [response] = await this.toResponses([row], timeZone);
     return response!;
   }
 
-  /** Archives, which also releases its slot in the overlap exclusion constraint (§12.5). */
-  async archive(user: AuthenticatedUser, budgetId: string, ip: string | null): Promise<void> {
-    const { walletId, row } = await this.requireBudgetAccess(user.id, budgetId, 'EDITOR');
-    if (row.status === BudgetStatus.ARCHIVED) return;
+  /** Removes the row: a budget only plans, so no balance or other figure is derived from it (§12.5). */
+  async delete(user: AuthenticatedUser, budgetId: string, ip: string | null): Promise<void> {
+    const { walletId } = await this.requireBudgetAccess(user.id, budgetId, 'EDITOR');
 
     await this.database.db.transaction().execute(async (trx) => {
-      // Conditional, so of two concurrent archives only the one that changed the row is audited.
-      const archived = await trx
-        .updateTable('budgets')
-        .set({ status: BudgetStatus.ARCHIVED, updated_at: new Date() })
-        .where('id', '=', budgetId)
-        .where('status', '!=', BudgetStatus.ARCHIVED)
-        .returning('id')
-        .executeTakeFirst();
-      if (!archived) return;
+      // Of two concurrent deletes only the one that removed the row is audited; the other answers 404.
+      const deleted = await trx.deleteFrom('budgets').where('id', '=', budgetId).returning('id').executeTakeFirst();
+      if (!deleted) throw new AppError('BUDGET_NOT_FOUND');
 
       await this.audit.record(
         {
-          event: AUDIT_EVENTS.BUDGET_ARCHIVED,
+          event: AUDIT_EVENTS.BUDGET_DELETED,
           entityType: ENTITY_TYPES.BUDGET,
           entityId: budgetId,
           actorId: user.id,
@@ -263,9 +253,10 @@ export class BudgetsService {
     userId: string,
     budgetId: string,
     required: WalletRole,
-  ): Promise<{ row: BudgetRow; walletId: string; role: WalletRole }> {
+  ): Promise<{ row: BudgetRow; walletId: string; role: WalletRole; timeZone: string }> {
     const found = await this.database.db
       .selectFrom('budgets')
+      .innerJoin('wallets', 'wallets.id', 'budgets.wallet_id')
       .leftJoin('wallet_members', (join) =>
         join
           .onRef('wallet_members.wallet_id', '=', 'budgets.wallet_id')
@@ -283,10 +274,10 @@ export class BudgetsService {
         'budgets.period_type as period_type',
         'budgets.start_date as start_date',
         'budgets.end_date as end_date',
-        'budgets.status as status',
         'budgets.created_at as created_at',
         'budgets.updated_at as updated_at',
         'wallet_members.role as member_role',
+        'wallets.time_zone as time_zone',
       ])
       .where('budgets.id', '=', budgetId)
       .executeTakeFirst();
@@ -294,8 +285,8 @@ export class BudgetsService {
     if (!found || found.member_role === null) throw new AppError('BUDGET_NOT_FOUND');
     if (!roleSatisfies(found.member_role, required)) throw AppError.forbidden(found.member_role, found.wallet_id);
 
-    const { member_role, ...row } = found;
-    return { row, walletId: row.wallet_id, role: member_role };
+    const { member_role, time_zone, ...row } = found;
+    return { row, walletId: row.wallet_id, role: member_role, timeZone: time_zone };
   }
 
   private async assertBudgetableCategory(userId: string, walletId: string, categoryId: string): Promise<void> {
@@ -314,21 +305,30 @@ export class BudgetsService {
     if (category.type !== CategoryType.EXPENSE) throw new AppError('CATEGORY_WRONG_TYPE');
   }
 
-  /** Batched per category, so a wallet's budgets sharing one category cost a single query. */
-  private async toResponses(rows: readonly BudgetRow[]): Promise<BudgetResponse[]> {
+  /**
+   * Batched per category, so a wallet's budgets sharing one category cost a single query. `rows` all
+   * belong to one wallet, whose `timeZone` reads their windows; `day` (default: today there) picks each
+   * repeating budget's period.
+   */
+  private async toResponses(rows: readonly BudgetRow[], timeZone: string, day: string = todayIn(timeZone)): Promise<BudgetResponse[]> {
     if (rows.length === 0) return [];
 
+    const targets = await withCategorySubtrees(this.database.db, rows.map((row) => ({
+      ...row,
+      window: budgetWindow({ periodType: row.period_type, startDate: row.start_date, endDate: row.end_date }, day),
+      time_zone: timeZone,
+    })));
     const categoryIds = [...new Set(rows.map((row) => row.category_id).filter((id): id is string => id !== null))];
     const [categories, spendable] = await Promise.all([
       this.categoriesByIds(categoryIds),
-      spendableExpenses(this.database.db, rows),
+      spendableExpenses(this.database.db, targets),
     ]);
 
-    return rows.map((row) => {
+    return targets.map((row) => {
       const category = row.category_id !== null ? categories.get(row.category_id) : undefined;
       const amount = parseMoney(row.amount);
       const spent = calculateBudgetSpent(
-        { walletId: row.wallet_id, categoryId: row.category_id, goalId: row.goal_id, currency: row.currency, startDate: row.start_date, endDate: row.end_date },
+        { walletId: row.wallet_id, categoryId: row.category_id, categoryIds: row.category_ids, goalId: row.goal_id, currency: row.currency, ...row.window, timeZone },
         spendable,
       );
       const remaining = calculateBudgetRemaining(amount, spent);
@@ -337,6 +337,7 @@ export class BudgetsService {
         id: row.id,
         walletId: row.wallet_id,
         categoryId: row.category_id,
+        categoryIds: row.category_ids,
         goalId: row.goal_id,
         name: row.name,
         amount: row.amount,
@@ -344,7 +345,9 @@ export class BudgetsService {
         periodType: row.period_type,
         startDate: row.start_date,
         endDate: row.end_date,
-        status: row.status,
+        periodStart: row.window.startDate,
+        periodEnd: row.window.endDate,
+        timeZone,
         category: category ?? (row.category_id !== null ? { id: row.category_id, name: '', icon: null, color: null } : null),
         spent: formatMoney(spent),
         remaining: formatMoney(remaining),
@@ -361,7 +364,8 @@ export class BudgetsService {
     if (categoryIds.length === 0) return new Map();
     const rows = await this.database.db
       .selectFrom('categories')
-      .select(['id', 'name', 'icon', 'color'])
+      .select(['id', 'icon', 'color'])
+      .select(localizedCategoryName('categories').as('name'))
       .where('id', 'in', categoryIds)
       .execute();
     return new Map(rows.map((row) => [row.id, row]));

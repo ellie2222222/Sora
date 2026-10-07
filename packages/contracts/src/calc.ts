@@ -18,7 +18,8 @@ import {
   subtract,
   ZERO,
 } from './money.ts';
-import { TransactionStatus, TransactionType } from './enums.ts';
+import { isRepeatingBudgetPeriod, TransactionStatus, TransactionType, type BudgetPeriodType } from './enums.ts';
+import { dayOfInstant } from './calendar.ts';
 
 /** The minimum a balance calculation needs to know about a transaction. */
 export interface BalanceRelevantTransaction {
@@ -77,10 +78,14 @@ export function calculateWalletBalance(accountBalances: readonly Scaled[]): Scal
 export interface BudgetSpendInput {
   walletId: string;
   categoryId: string | null;
+  /** A category budget's category and every subcategory beneath it (`categorySubtreeIds`); empty for the other kinds. */
+  categoryIds: readonly string[];
   goalId: string | null;
   currency: string;
   startDate: string;
   endDate: string;
+  /** The budget's wallet zone, which decides the calendar day each expense falls on. */
+  timeZone: string;
 }
 
 export interface SpendRelevantTransaction {
@@ -95,7 +100,32 @@ export interface SpendRelevantTransaction {
   transactionDate: string;
 }
 
-export type BudgetTarget = Pick<BudgetSpendInput, 'walletId' | 'categoryId' | 'goalId'>;
+export type BudgetTarget = Pick<BudgetSpendInput, 'walletId' | 'categoryId' | 'categoryIds' | 'goalId'>;
+
+/**
+ * A category and all its descendants, so a budget on a parent also counts its subcategories'
+ * spending. Visited ids are tracked: the service rejects cycles, but a bad row must not hang a read.
+ */
+export function categorySubtreeIds(
+  rootId: string,
+  categories: readonly { id: string; parentId: string | null }[],
+): string[] {
+  const childrenOf = new Map<string, string[]>();
+  for (const category of categories) {
+    if (category.parentId === null) continue;
+    childrenOf.set(category.parentId, [...(childrenOf.get(category.parentId) ?? []), category.id]);
+  }
+  const subtree = new Set<string>([rootId]);
+  const pending = [rootId];
+  while (pending.length > 0) {
+    for (const child of childrenOf.get(pending.pop()!) ?? []) {
+      if (subtree.has(child)) continue;
+      subtree.add(child);
+      pending.push(child);
+    }
+  }
+  return [...subtree];
+}
 
 /** Whether an expense falls under a budget's target, whatever its date, status or currency. */
 export function isBudgetTarget(
@@ -103,7 +133,10 @@ export function isBudgetTarget(
   transaction: Pick<SpendRelevantTransaction, 'categoryId' | 'goalId' | 'walletId'>,
 ): boolean {
   if (budget.goalId != null) return transaction.goalId === budget.goalId;
-  if (budget.categoryId != null) return transaction.categoryId === budget.categoryId;
+  if (budget.categoryId != null) {
+    return transaction.categoryId === budget.categoryId
+      || (transaction.categoryId !== null && budget.categoryIds.includes(transaction.categoryId));
+  }
   return transaction.walletId === budget.walletId;
 }
 
@@ -124,7 +157,7 @@ export function calculateBudgetSpent(
     if (!isBudgetTarget(budget, transaction)) continue;
     // BR-07: a category can hold expenses in several currencies, and summing them is meaningless.
     if (transaction.currency !== budget.currency) continue;
-    if (!isWithinPeriod(transaction.transactionDate, budget.startDate, budget.endDate)) continue;
+    if (!isWithinPeriod(transaction.transactionDate, budget.startDate, budget.endDate, budget.timeZone)) continue;
     spent = add(spent, transaction.amount);
   }
 
@@ -187,12 +220,13 @@ export function countsAsPeriodActivity(
   transaction: PeriodActivityTransaction,
   dateFrom: string,
   dateTo: string,
+  timeZone: string,
 ): boolean {
   if (transaction.status !== TransactionStatus.COMPLETED) return false;
   if (transaction.type !== TransactionType.INCOME && transaction.type !== TransactionType.EXPENSE) {
     return false;
   }
-  return isWithinPeriod(transaction.transactionDate, dateFrom, dateTo);
+  return isWithinPeriod(transaction.transactionDate, dateFrom, dateTo, timeZone);
 }
 
 export interface TransferDirectionTransaction {
@@ -231,21 +265,90 @@ export function transferDirection(
 }
 
 /**
- * Inclusive date-window test.
+ * Inclusive date-window test, by wallet calendar day.
  *
- * Compares calendar days, not instants: a budget runs to the end of its
- * end_date, so an expense stamped 2026-08-31T23:30:00Z belongs to an August
- * budget even though the instant is after 2026-08-31T00:00:00Z.
+ * The instant is read in the wallet's zone before it is compared, so an expense at
+ * 23:30 local on August 31 belongs to an August budget, and one at 00:30 local on
+ * September 1 does not, whatever either is in UTC.
  */
 export function isWithinPeriod(
   transactionDate: string,
   startDate: string,
   endDate: string,
+  timeZone: string,
 ): boolean {
-  const day = calendarDay(transactionDate);
-  return day >= calendarDay(startDate) && day <= calendarDay(endDate);
+  const day = dayOfInstant(transactionDate, timeZone);
+  return day >= startDate.slice(0, 10) && day <= endDate.slice(0, 10);
 }
 
-function calendarDay(value: string): string {
-  return value.slice(0, 10);
+export interface BudgetSchedule {
+  periodType: BudgetPeriodType;
+  startDate: string;
+  endDate: string | null;
+}
+
+export interface BudgetWindow {
+  startDate: string;
+  endDate: string;
+}
+
+/** Whether a budget covers `day` (YYYY-MM-DD): on or after its start, and before its end if it has one. */
+export function isBudgetActiveOn(budget: BudgetSchedule, day: string): boolean {
+  return budget.startDate <= day && (budget.endDate === null || budget.endDate >= day);
+}
+
+/**
+ * The window a budget's `spent` covers on `day`: a fixed budget's own dates, or the period of a repeating one
+ * that contains `day` (its first period before it starts). Periods step from the start date, so a monthly
+ * budget begun on the 1st follows calendar months; one begun on the 31st starts on the month's last day when it is shorter.
+ */
+export function budgetWindow(budget: BudgetSchedule, day: string): BudgetWindow {
+  if (!isRepeatingBudgetPeriod(budget.periodType) || budget.endDate !== null) {
+    return { startDate: budget.startDate, endDate: budget.endDate ?? budget.startDate };
+  }
+  const start = utcDate(budget.startDate);
+  const target = utcDate(day < budget.startDate ? budget.startDate : day);
+
+  switch (budget.periodType) {
+    case 'DAILY':
+      return { startDate: isoDay(target), endDate: isoDay(target) };
+    case 'WEEKLY': {
+      const weeks = Math.floor((target.getTime() - start.getTime()) / (7 * DAY_MS));
+      const from = addDays(start, weeks * 7);
+      return { startDate: isoDay(from), endDate: isoDay(addDays(from, 6)) };
+    }
+    case 'MONTHLY':
+    case 'YEARLY': {
+      const step = budget.periodType === 'MONTHLY' ? 1 : 12;
+      const months = (target.getUTCFullYear() - start.getUTCFullYear()) * 12 + (target.getUTCMonth() - start.getUTCMonth());
+      let index = Math.floor(months / step);
+      if (monthsAfter(start, index * step) > target) index -= 1;
+      return {
+        startDate: isoDay(monthsAfter(start, index * step)),
+        endDate: isoDay(addDays(monthsAfter(start, (index + 1) * step), -1)),
+      };
+    }
+  }
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function utcDate(day: string): Date {
+  return new Date(`${day.slice(0, 10)}T00:00:00.000Z`);
+}
+
+function isoDay(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * DAY_MS);
+}
+
+/** `start` moved `months` calendar months on, its day clamped to that month's length (Jan 31 → Feb 28). */
+function monthsAfter(start: Date, months: number): Date {
+  const year = start.getUTCFullYear();
+  const month = start.getUTCMonth() + months;
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(start.getUTCDate(), lastDay)));
 }
