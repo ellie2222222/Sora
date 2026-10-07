@@ -3,7 +3,7 @@
 **Stories:** SRS §9 AI-US-01 Ask about a wallet · AI-US-02 Record a spend by describing it · AI-US-03 Keep and remove conversations
 **Contract:** API spec §17 AI assistant
 **Rules:** BR-05 (answers use the wallet's derived figures, never the assistant's own arithmetic), BR-06, BR-07 (no proposal in a currency other than the account's), AC-01 (another user's conversation reads as absent), rule 1 (amounts parsed exactly)
-**Code under test:** `server/src/ai/` (including `MockLlmProvider`), migration `007_ai_conversations_and_messages.sql`, `mobile/src/features/chat/`, `mobile/src/app/store/api/aiApi.ts`
+**Code under test:** `server/src/ai/` (including `MockLlmProvider`), the `ai_conversations`/`ai_messages` tables in `db/migrations/001_schema.sql`, `mobile/src/features/chat/`, `mobile/src/app/store/api/aiApi.ts`
 
 ## Objectives
 
@@ -33,7 +33,8 @@
 | TC-AI-10 | AI-US-02 | Amount parsing: `65k`, grouped digits, no amount, zero, Vietnamese with or without diacritics | Unit | Exact amounts, never via a float; nothing when absent; never zero | [ai-mock-provider:13](../../server/test/ai-mock-provider.test.ts#L13), [:22](../../server/test/ai-mock-provider.test.ts#L22), [:27](../../server/test/ai-mock-provider.test.ts#L27) | Covered |
 | TC-AI-11 | AI-US-02 | Message rows written directly | DB probe | Blank title, unknown role, empty content, an action on a user message, an action without payload, a confirmed action with no transaction, unknown action type: all rejected | [002_ai_messages:45](../../db/tests/002_ai_messages.sql#L45)–[:88](../../db/tests/002_ai_messages.sql#L88) | Covered |
 | TC-AI-12 | AI-US-01 | Guest opens the assistant; signed-in user opens chat offline | Mobile unit / E2E | Guest told it needs an account and offered sign-in, the input shown but disabled; history readable offline, sending disabled | offline and view-only rule: [chatAvailability:7](../../mobile/src/features/chat/chatAvailability.test.ts#L7), [:11](../../mobile/src/features/chat/chatAvailability.test.ts#L11), [:15](../../mobile/src/features/chat/chatAvailability.test.ts#L15) | Partial — the guest prompt is rendering only (`AiChatScreen.tsx`) and needs E2E |
-| TC-AI-13 | API §2.4 | AI routes without a bearer | Integration | 401 | [integration.auth:112](../../server/test/integration.auth.test.ts#L112) (every mounted route, AI included) | Covered |
+| TC-AI-13 | API §2.4 | AI routes without a bearer | Integration | 401 | [integration.auth:128](../../server/test/integration.auth.test.ts#L128) (every mounted route, AI included) | Covered |
+| TC-AI-14 | AI-US-02 | Read a stored proposal in another language than it was drafted in | Integration | `action.categoryName` is the category's current name in the reader's locale (spec §17) | [integration.assistant:128](../../server/test/integration.assistant.test.ts#L128) | Covered |
 
 ## Gaps, by risk
 

@@ -34,9 +34,10 @@ changed. Full detail in [CLAUDE.md](CLAUDE.md)'s Data Safety section; the essent
   override against a database you didn't create for the purpose.
 - Applied migrations are immutable and checksummed — the runner refuses to re-run one whose file
   changed. If a migration shipped wrong, write a new migration; don't edit the old file.
-- Nothing financial is hard-deleted by design (wallets/accounts/categories/budgets archive,
-  transactions are marked `DELETED`, members revoke). The one exception is a category with no
-  transactions and no budget on it or any descendant (`?mode=permanent`, API spec §10.4). Anything
+- Nothing financial is hard-deleted by design (wallets/accounts/categories archive,
+  transactions are marked `DELETED`, members revoke). The exceptions are a category with no
+  transactions and no budget on it or any descendant (`?mode=permanent`, API spec §10.4), and a
+  budget, which only plans (API spec §12.5). Anything
   else that looks hard-deleted is a bug, not a feature to work around.
 
 ## Deploying
@@ -84,6 +85,11 @@ node scripts/migrate.mjs --reset       # DROP everything, re-apply — guarded, 
 Connection comes from `DATABASE_URL` (or `PG*` env vars `pg` reads natively). A migration whose
 already-applied file content changed is refused outright with a message naming the file — that
 means someone edited a shipped migration; write a new one instead of trying to force it through.
+
+The schema is one file, `db/migrations/001_schema.sql`; the 13 pre-production migrations were folded
+into it on 2026-10-05. A database built from those older files fails with `relation "users" already
+exists`. Rebuild it with `npm run db:reset` (its name must look disposable). For the Docker stack,
+recreate its volume.
 
 ## Configuration
 

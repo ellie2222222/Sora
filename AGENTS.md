@@ -17,7 +17,7 @@ When requirements or documentation disagree, authority is strictly prioritized (
 
 | # | Document | Authority over |
 |---|---|---|
-| 1 | [`db/migrations/001_initial_wallet_schema.sql`](db/migrations/001_initial_wallet_schema.sql) | The schema. What the database actually permits |
+| 1 | [`db/migrations/001_schema.sql`](db/migrations/001_schema.sql) | The schema. What the database actually permits |
 | 2 | [`packages/contracts/src/`](packages/contracts/src/) | Enums, validation schemas, response types, error codes, route paths, money/derivation math |
 | 3 | [`docs/API_SPECIFICATION.md`](docs/API_SPECIFICATION.md) | The endpoint contract: auth, authorization, validation, errors, side effects per endpoint |
 | 4 | [`SRS.md`](SRS.md) | What the system does and why — domain model, business flows, user stories |
@@ -63,7 +63,7 @@ When requirements or documentation disagree, authority is strictly prioritized (
 ```text
 sora/
 ├── packages/contracts/        # @sora/contracts — Shared source of truth (Zod, enums, money, routes)
-│   └── src/                   # enums.ts, money.ts, calc.ts, schemas.ts, responses.ts, routes.ts, starter-categories.ts
+│   └── src/                   # enums.ts, money.ts, calendar.ts, calc.ts, schemas.ts, responses.ts, routes.ts, starter-categories.ts
 ├── server/                    # @sora/server — NestJS 12 ESM, Kysely typed SQL, pg; Dockerfile (optional image)
 │   └── src/                   # auth/, wallets/, accounts/, categories/, transactions/, budgets/, goals/, dashboard/,
 │                              # audit/, ai/, exchange-rate/, health/, config/, database/, common/
@@ -74,9 +74,9 @@ sora/
 │   ├── migrations/            # Raw SQL forward-only migrations (immutable once applied)
 │   └── tests/                 # Constraint probes executed against real Postgres
 ├── scripts/                   # migrate.mjs (migration runner), check-contract-parity.mjs, sync-agent-skills.mjs, audit-runtime-deps.mjs
-├── docs/                      # API_SPECIFICATION.md, DESIGN_GUIDELINES.md, ERROR_CODES.md, LOCALIZED_DEFAULTS_RULE.md
+├── docs/                      # API_SPECIFICATION.md, DESIGN_GUIDELINES.md, ERROR_CODES.md, LOCALIZED_DEFAULTS_RULE.md, DEVICE_NETWORKING.md
 │   └── test-plans/            # Per-feature test plans: SRS §9 story → test case → test file:line
-├── plans/                     # architecture/ and mobile/ design plans
+├── plans/                     # architecture/, mobile/ and tooling/ design plans
 ├── webpage/                   # Parked; not part of the build, CI or compose
 ├── .github/                   # workflows/ci.yml, dependabot.yml
 ├── .agents/

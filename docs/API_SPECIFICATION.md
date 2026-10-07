@@ -67,7 +67,7 @@ Amounts are always **positive**; direction comes from the transaction `type` and
 | Calendar date | `YYYY-MM-DD` | `2026-08-22` |
 | Instant | ISO-8601 with offset | `2026-08-22T10:30:00Z` |
 
-Budget windows are **inclusive on both ends** and compared by calendar day, so an expense at `2026-08-31T23:30:00Z` falls inside an August budget.
+Every calendar date a wallet is judged on is a day in the **wallet's time zone** (§2.12), never UTC and never the caller's. Budget windows are **inclusive on both ends** and compared by that day, so in an `Asia/Ho_Chi_Minh` wallet an expense at `2026-08-31T16:30:00Z` (23:30 local) falls inside an August budget, and one at `2026-08-31T17:30:00Z` (00:30 on September 1 local) does not.
 
 ### 2.4 Authentication
 
@@ -136,6 +136,29 @@ Mutating endpoints accept an optional `Idempotency-Key` header. A replay with th
 - The same key with a **different** body is refused with `422 VALIDATION_FAILED`.
 - A first attempt that **failed** is not remembered, so its retry runs normally.
 - Keys are scoped per user and kept for 24 hours, in memory per API process.
+
+### 2.11 Locale
+
+Starter categories (§5.1) are named in the request's locale wherever a category name appears — categories, transactions, budgets, the dashboard, the AI assistant's wallet snapshot. The locale is the highest-weighted supported language in `Accept-Language` (`vi-VN` reads as `vi`), else the caller's saved `locale` (§5.7), else `en`. A starter category without a translation in that locale falls back to English. A custom category is always returned exactly as its author typed it.
+
+Translations live in `category_translations`, keyed by the category's `system_key`; they mirror `STARTER_CATEGORIES` in `packages/contracts`, which `scripts/check-contract-parity.mjs` checks. `CategoryResponse.systemKey` is set on a starter category and `null` on a custom one.
+
+### 2.12 Time zones
+
+Every wallet has a `timeZone`: an IANA name such as `Asia/Ho_Chi_Minh` or `America/Los_Angeles`, never a fixed offset. The API refuses `+07:00`, `GMT+7` or an unknown name with `422 VALIDATION_FAILED`, and `chk_wallet_time_zone` refuses them at the database. It is the zone in which that wallet's instants become calendar days, for **every** member alike. That covers:
+- transaction `dateFrom`/`dateTo` filters (§11.1);
+- budget windows and their `spent` (§12);
+- dashboard periods and their default month (§14);
+- audit date filters (§15.1);
+- "today", wherever an endpoint defaults to it.
+
+A date filter is the half-open interval from local midnight of `dateFrom` to local midnight after `dateTo`, so DST days are 23 or 25 hours long.
+
+Example: in an `Asia/Ho_Chi_Minh` wallet, `2026-10-31T23:30:00Z` is 06:30 on November 1, so it belongs to November 1 and to November. In an `America/Los_Angeles` wallet the same instant is October 31.
+
+Instants (`transactionDate`, `contributionDate`, `createdAt`) are stored as given and never rewritten. Changing a wallet's zone (§6.4) changes only which day each instant is read on, so figures near midnight can move between days, months and budget periods. Nothing stores a derived local date.
+
+The app proposes the device's zone when a wallet is created (§5.1, §6.2), and the owner can change it.
 
 ---
 
@@ -243,7 +266,9 @@ Mutating endpoints accept an optional `Idempotency-Key` header. A replay with th
   "email": "tam@example.com",
   "password": "correct-horse-battery",
   "displayName": "Tam",
-  "baseCurrency": "VND"
+  "baseCurrency": "VND",
+  "locale": "vi",
+  "timeZone": "Asia/Ho_Chi_Minh"
 }
 ```
 
@@ -255,6 +280,8 @@ Mutating endpoints accept an optional `Idempotency-Key` header. A replay with th
 | `password` | 12–200 characters. Length only — no composition rules, which measurably push users toward predictable substitutions (NIST SP 800-63B) |
 | `displayName` | 1–100 characters after trim |
 | `baseCurrency` | `^[A-Z]{3}$`, defaults to `VND` |
+| `locale` | optional; one of `LOCALES` (`en`, `vi`). Saved as the user's language and used to name the first wallet and Cash account; when omitted, `en` (the column default) |
+| `timeZone` | required; an IANA zone (§2.12). The first wallet's time zone; the app sends the device's |
 
 **Response `201`** — `AuthResponse`: the new `user` plus `tokens`.
 
@@ -263,8 +290,8 @@ Mutating endpoints accept an optional `Idempotency-Key` header. A replay with th
 **Side effects**
 
 1. Creates the `users` row (password hashed with Argon2id).
-2. Creates a **default wallet** named after `displayName` plus an `OWNER` membership row — a user with no wallet cannot record anything, so registration that left them empty-handed would strand them on an unusable first screen.
-3. Seeds that wallet with the starter categories in `packages/contracts/src/starter-categories.ts` — expense, income and transfer.
+2. Creates a **default wallet** named after `displayName` plus an `OWNER` membership row — a user with no wallet cannot record anything, so registration that left them empty-handed would strand them on an unusable first screen. The wallet and its default `CASH` account are named in the request's `locale` (`"{displayName}'s Wallet"` / `Cash`, or `"Ví của {displayName}"` / `Tiền mặt`); the app asks for the language on its sign-up screen.
+3. Seeds that wallet with the starter categories in `packages/contracts/src/starter-categories.ts` — expense, income and transfer — each with its `system_key`, so its name follows the reader's locale (§2.11).
 4. Issues and stores a refresh-token hash.
 5. Audit: `USER_REGISTERED`.
 
@@ -337,9 +364,9 @@ Mutating endpoints accept an optional `Idempotency-Key` header. A replay with th
 | **Authorization** | None |
 | **Rate limit** | 10/min per IP |
 
-**Request** — `googleAuthSchema`: `{ "idToken": "..." }`, the ID token Google's SDK returns to the client. The API verifies its signature and `aud` claim against `GOOGLE_CLIENT_ID` server-side — the client's own decoding of the token is never trusted.
+**Request** — `googleAuthSchema`: `{ "idToken": "...", "locale"?: "en" | "vi", "timeZone": "Asia/Ho_Chi_Minh" }`. `locale` and `timeZone` are used only when this sign-in creates the account, to name its wallet and set its zone as §5.1 does. `idToken` is the ID token Google's SDK returns to the client. The API verifies its signature and `aud` claim against `GOOGLE_CLIENT_ID` server-side — the client's own decoding of the token is never trusted.
 
-**Response `200`** — `AuthResponse`. A first sign-in for that Google account creates the user (email taken from the verified token, `password_hash` null — `chk_user_has_credential` (migration 002) requires a password hash or a Google id, so password sign-in stays refused for it), a default wallet named `"{displayName}'s Wallet"`, its starter categories, and one default `CASH` account — the same seeding `POST /auth/register` performs. A Google account whose email already has a password-based `users` row is linked to it (`google_id` is set on the existing row) rather than creating a second user, so a person who registered with a password and later taps "Sign in with Google" keeps one account, one set of wallets. Linking happens only while the row has no Google account yet: a different Google account with the same verified email is refused, never swapped in for the one already linked.
+**Response `200`** — `AuthResponse`. A first sign-in for that Google account creates the user (email taken from the verified token, `password_hash` null — `chk_user_has_credential` requires a password hash or a Google id, so password sign-in stays refused for it), a default wallet named in `locale` as §5.1 describes, its starter categories, and one default `CASH` account — the same seeding `POST /auth/register` performs. A Google account whose email already has a password-based `users` row is linked to it (`google_id` is set on the existing row) rather than creating a second user, so a person who registered with a password and later taps "Sign in with Google" keeps one account, one set of wallets. Linking happens only while the row has no Google account yet: a different Google account with the same verified email is refused, never swapped in for the one already linked.
 
 **Errors** — `401 GOOGLE_TOKEN_INVALID` (bad signature, wrong audience, or expired) · `409 GOOGLE_ACCOUNT_MISMATCH` (the email's account is already linked to a different Google account) · `429 RATE_LIMITED`
 
@@ -374,7 +401,7 @@ Every wallet the caller can reach — owned and shared-with alike.
 
 **Query** — `?status=ACTIVE|ARCHIVED` (default `ACTIVE`), `?includeOwn=true|false`, `?includeShared=true|false` (both default `true`; any other value is `422`), `?page&pageSize` (§2.8)
 
-**Response `200`** — `WalletResponse[]`, oldest first, plus `meta.pagination`. Each carries the caller's own `role`, their `relationLabel` ("Girlfriend"), `isOwn`, and `balances` **per currency**.
+**Response `200`** — `WalletResponse[]`, oldest first, plus `meta.pagination`. Each carries the caller's own `role`, their `relationLabel` ("Girlfriend"), `isOwn`, the wallet's `timeZone` (§2.12), and `balances` **per currency**.
 
 > `balances` is an array, not a scalar. A wallet holding a VND and a USD account has no single total, and inventing one by adding the two numbers together produces a figure that is silently meaningless. Conversion is out of scope for v1.
 
@@ -389,9 +416,9 @@ Every wallet the caller can reach — owned and shared-with alike.
 | **Auth** | Bearer |
 | **Authorization** | Any authenticated user may create a wallet |
 
-**Request** — `createWalletSchema`: `{ "name": "Mom's Money" }`
+**Request** — `createWalletSchema`: `{ "name": "Mom's Money", "timeZone": "Asia/Ho_Chi_Minh" }`
 
-**Validation** — `name` 1–100 characters after trim.
+**Validation** — `name` 1–100 characters after trim; `timeZone` required, an IANA zone (§2.12). The app starts it at the device's zone for the creator to confirm or change.
 
 **Response `201`** — `WalletResponse`.
 
@@ -419,7 +446,7 @@ Every wallet the caller can reach — owned and shared-with alike.
 | **Auth** | Bearer |
 | **Min role** | `OWNER` |
 
-**Request** — `updateWalletSchema`: `{ "name"?, "status"? }`, at least one key.
+**Request** — `updateWalletSchema`: `{ "name"?, "status"?, "timeZone"? }`, at least one key. A new `timeZone` re-reads every instant in the new zone and rewrites none (§2.12), so the app confirms it first.
 
 **Response `200`** — the updated `WalletResponse`.
 
@@ -717,7 +744,7 @@ Archives.
 
 **Query** — `?walletId=uuid` (required), `?type=INCOME|EXPENSE|TRANSFER`, `?status=`, `?tree=true|false` (default `false`; any other value is `422`), `?page&pageSize` (§2.8)
 
-**Response `200`** — `CategoryResponse[]` by name, plus `meta.pagination`, each carrying `transactionCount` — how many transactions (any status) point at it. The app reads this before offering to delete a category: non-zero means "delete" must mean archive, not permanent removal (§10.4). With `tree=true`, roots carry populated `children`, each with its own `transactionCount`, and the whole tree comes back unpaged: a page of a tree would cut children off from their parents.
+**Response `200`** — `CategoryResponse[]` sorted by name as the caller reads it (§2.11), plus `meta.pagination`, each carrying `transactionCount` — how many transactions (any status) point at it. The app reads this before offering to delete a category: non-zero means "delete" must mean archive, not permanent removal (§10.4). With `tree=true`, roots carry populated `children`, each with its own `transactionCount`, and the whole tree comes back unpaged: a page of a tree would cut children off from their parents.
 
 **Errors** — `404 WALLET_NOT_FOUND` · `422 VALIDATION_FAILED`
 
@@ -732,7 +759,7 @@ Archives.
 **Validation**
 
 - `parentId`, when given, must belong to the **same wallet** and have the **same `type`** — an expense category nested under an income parent would make a category tree that cannot be summed — and must not be archived (`409 CATEGORY_PARENT_ARCHIVED`).
-- Name unique case-insensitively among siblings (`uq_category_name_per_parent`).
+- Name unique case-insensitively among siblings (`uq_category_name_per_parent`), and also against the siblings' names as the caller reads them: a custom "Ăn uống" is refused beside the starter Food read in Vietnamese (`409 CATEGORY_DUPLICATE_NAME`).
 - A category cannot be its own parent (`chk_category_not_own_parent`); deeper cycles are rejected in the service layer as `CATEGORY_CYCLE`.
 
 **Response `201`** — `CategoryResponse`.
@@ -749,7 +776,9 @@ Archives.
 
 **Request** — `updateCategorySchema`: `{ "name"?, "icon"?, "color"?, "status"? }`
 
-**Validation** — `type` is immutable: flipping a category from `EXPENSE` to `INCOME` would invert the sign of every transaction already classified under it. `parentId` is immutable for the same reason budgets aggregate by category. `status: ARCHIVED` is the archive of §10.4 by another route: refused while an active budget references the category, and child categories are archived with it. `status: ACTIVE` on a child whose parent is still archived is refused: restore the parent first.
+**Renaming a starter category** makes it custom: the new name is stored as typed and `systemKey` becomes `null`, so every member reads that name in every locale from then on. Sending back the name the caller already reads (an edit form resubmitting it unchanged) is not a rename and keeps the category translatable. A new name is checked for duplicates as in §10.2.
+
+**Validation** — `type` is immutable: flipping a category from `EXPENSE` to `INCOME` would invert the sign of every transaction already classified under it. `parentId` is immutable for the same reason budgets aggregate by category. `status: ARCHIVED` is the archive of §10.4 by another route: refused while a budget references the category, and child categories are archived with it. `status: ACTIVE` on a child whose parent is still archived is refused: restore the parent first.
 
 **Response `200`** — `CategoryResponse`.
 
@@ -771,7 +800,7 @@ A category with transactions on it is not something the app silently loses histo
 
 **Response `204`**.
 
-**Errors** — `404 CATEGORY_NOT_FOUND` · `409 CATEGORY_IN_USE` when archiving and an **active** budget still references it or any descendant (archiving it would leave a budget that can never compute a period again), or when `mode=permanent` and a budget of **any** status still references it or a descendant · `409 CATEGORY_HAS_TRANSACTIONS` when `mode=permanent` and it, or any descendant whatever its status, has transactions.
+**Errors** — `404 CATEGORY_NOT_FOUND` · `409 CATEGORY_IN_USE` when archiving and a budget still references it or any descendant (archiving it would leave a budget that can never compute a period again), or when `mode=permanent` and a budget of **any** status still references it or a descendant · `409 CATEGORY_HAS_TRANSACTIONS` when `mode=permanent` and it, or any descendant whatever its status, has transactions.
 
 Archive, restore and permanent delete lock every category of the wallet before reading the tree, and a category or budget create share-locks the category it names, so none of them can act on a tree another is changing.
 
@@ -798,6 +827,8 @@ Enforced three times, deliberately: by the `createTransactionSchema` discriminat
 | **Auth** | Bearer · **Min role** `VIEWER` |
 
 **Query** — `transactionQuerySchema`: `walletId`, `accountId`, `categoryId`, `type`, `status`, `dateFrom`, `dateTo`, `minAmount`, `maxAmount`, `search`, `page`, `pageSize`, `sortBy` (default `-transactionDate`)
+
+`dateFrom`/`dateTo` are calendar days in the wallet's zone (§2.12). With `walletId`, that wallet's zone; without it, each transaction is read in its paying wallet's zone (the receiving one for income).
 
 Results are restricted to transactions touching an account in a wallet the caller can read. A cross-wallet transfer is visible to members of **either** side — each of them genuinely had money move.
 
@@ -870,9 +901,9 @@ A `TRANSFER` category only labels the movement; the transfer still never counts 
 |---|---|
 | **Auth** | Bearer · **Min role** `EDITOR` |
 
-**Request** — `updateTransactionSchema`: `{ "description"?, "transactionDate"?, "categoryId"? (uuid or null), "goalId"? (uuid or null), "reference"? }`
+**Request** — `updateTransactionSchema`: `{ "type"?, "amount"?, "currency"?, "fromAccountId"? (uuid or null), "toAccountId"? (uuid or null), "description"?, "transactionDate"?, "categoryId"? (uuid or null), "goalId"? (uuid or null), "reference"? }`
 
-**Validation** — `amount`, `type`, `fromAccountId` and `toAccountId` are **immutable**. A recorded movement of money is a historical fact; rewriting one silently changes every balance, budget figure and goal total derived from it. Correcting a real mistake means §11.5 then a fresh create, which leaves both rows visible. Attempting to change an immutable field returns `409 TRANSACTION_IMMUTABLE`. A `DELETED` transaction cannot be edited at all.
+**Validation** — every field a create sets can be edited. When `type`, `amount`, `currency` or an account is sent, the body is laid over the stored row and the result is checked exactly as §11.2 checks a create: the per-type shape (a type change must send the account side and category the new type needs; the side it no longer uses is cleared), `EDITOR` on every wallet named before and after, account and wallet not archived, currency matching every account, the category's type and wallet, and the goal tag. A goal tag lapses when the transaction stops being an expense. A transaction that backs a goal contribution (§13.6) carries its new amount and account into that contribution, and must stay an `EXPENSE` from the goal's wallet in the goal's currency (`422 VALIDATION_FAILED`). A `DELETED` transaction cannot be edited at all.
 
 A changed `categoryId` must keep the same `type` and wallet. `"categoryId": null` removes a transfer's category; on an income or expense it is refused with `422 CATEGORY_WRONG_TYPE`, since those always carry one.
 
@@ -880,9 +911,9 @@ A changed `goalId` follows the §11.2 rules: an `EXPENSE` only (`422 VALIDATION_
 
 **Response `200`** — `TransactionResponse`.
 
-**Errors** — `409 TRANSACTION_IMMUTABLE` · `409 TRANSACTION_ALREADY_DELETED` · `422 CATEGORY_WRONG_TYPE` · `404 TRANSACTION_NOT_FOUND`
+**Errors** — `409 TRANSACTION_ALREADY_DELETED` · `422 VALIDATION_FAILED` · `422 CATEGORY_WRONG_TYPE` · `422 CATEGORY_WRONG_WALLET` · `422 ACCOUNT_CURRENCY_MISMATCH` · `422 TRANSFER_CURRENCY_MISMATCH` · `409 ACCOUNT_ARCHIVED` · `409 WALLET_ARCHIVED` · `404 TRANSACTION_NOT_FOUND` · `404 ACCOUNT_NOT_FOUND` · `403 FORBIDDEN`
 
-**Side effects** — audit `TRANSACTION_UPDATED` with the changed field names.
+**Side effects** — audit `TRANSACTION_UPDATED` with the changed field names, once per wallet the transaction touched before or after the edit.
 
 ### 11.5 POST /transactions/{id}/delete
 
@@ -908,9 +939,9 @@ A changed `goalId` follows the §11.2 rules: an `EXPENSE` only (`422 VALIDATION_
 |---|---|
 | **Auth** | Bearer · **Min role** `VIEWER` |
 
-**Query** — `?walletId=uuid` (required), `?status=`, `?activeOn=YYYY-MM-DD` (budgets whose window contains that day), `?page&pageSize` (§2.8)
+**Query** — `?walletId=uuid` (required), `?activeOn=YYYY-MM-DD` (budgets covering that day: started on or before it and, for a fixed window, not ended before it), `?page&pageSize` (§2.8)
 
-**Response `200`** — `BudgetResponse[]`, newest window first, plus `meta.pagination`. Each carries derived `spent`, `remaining`, `usagePercentage`, `isOverBudget`.
+**Response `200`** — `BudgetResponse[]`, newest start first, plus `meta.pagination`. Each carries derived `spent`, `remaining`, `usagePercentage`, `isOverBudget` over its `periodStart`–`periodEnd`: the period containing `activeOn` (when omitted, today in the wallet's zone, §2.12). Each also carries `timeZone`, the wallet's, in which `periodStart`/`periodEnd` are read.
 
 **Errors** — `404 WALLET_NOT_FOUND`
 
@@ -926,15 +957,17 @@ A changed `goalId` follows the §11.2 rules: an `EXPENSE` only (`422 VALIDATION_
 {
   "walletId": "uuid", "categoryId": "uuid", "goalId": null, "name": "Food August",
   "amount": "3000000", "currency": "VND",
-  "periodType": "MONTHLY", "startDate": "2026-08-01", "endDate": "2026-08-31"
+  "periodType": "MONTHLY", "startDate": "2026-08-01", "endDate": null
 }
 ```
 
-A budget is exactly one kind, and its kind decides what `spent` counts. In every kind, `spent` counts only `COMPLETED` `EXPENSE` transactions in the budget's `currency`, dated inside the window by calendar day. Transfers never count (BR-06).
+**Repeating and fixed periods.** `DAILY`, `WEEKLY`, `MONTHLY` and `YEARLY` repeat from `startDate` until the budget is deleted, so they take no `endDate`; each read reports the period containing the day asked about, stepping from `startDate` (a monthly budget begun on the 1st follows calendar months; one begun on the 31st starts on a shorter month's last day). `CUSTOM` and `GOAL` cover the fixed window `startDate`–`endDate`. Every `BudgetResponse` carries `periodStart`/`periodEnd`, the window its figures cover.
+
+A budget is exactly one kind, and its kind decides what `spent` counts. `BudgetResponse.categoryIds` lists the categories a category budget counts — its own and every descendant — and is empty for the other kinds. In every kind, `spent` counts only `COMPLETED` `EXPENSE` transactions in the budget's `currency`, dated inside the current window by calendar day in the wallet's zone (§2.12). Transfers never count (BR-06).
 
 | Kind | `categoryId` | `goalId` | `periodType` | `spent` counts expenses… |
 |---|---|---|---|---|
-| Category | set | `null` | `DAILY` · `WEEKLY` · `MONTHLY` · `YEARLY` · `CUSTOM` | in that category |
+| Category | set | `null` | `DAILY` · `WEEKLY` · `MONTHLY` · `YEARLY` · `CUSTOM` | in that category or any subcategory beneath it, at any depth |
 | Goal | `null` | set | `GOAL` | tagged with that goal (`goalId`, §11.2), including a contribution's backing expense (§13.7) |
 | Wallet-wide | `null` | `null` | `DAILY` · `WEEKLY` · `MONTHLY` · `YEARLY` · `CUSTOM` | paid from any account in `walletId` |
 
@@ -943,15 +976,16 @@ A budget is exactly one kind, and its kind decides what `spent` counts. In every
 | Rule | Failure |
 |---|---|
 | `amount > 0` | `422` |
+| A repeating period has no `endDate`; `CUSTOM` and `GOAL` have one (`chk_budget_end`) | `422 VALIDATION_FAILED` |
 | `endDate >= startDate` | `422` (`chk_budget_dates`) |
 | Category is `EXPENSE` and belongs to `walletId` | `422 CATEGORY_WRONG_TYPE` / `403 CATEGORY_WRONG_WALLET`; `404 CATEGORY_NOT_FOUND` when the category's wallet is not visible to the caller (AC-01) |
 | Category is not archived | `409 CATEGORY_ARCHIVED` |
 | Exactly one kind, as in the table above | `422 VALIDATION_FAILED` (`chk_budget_kind`) |
 | Goal exists and belongs to `walletId` | `404 GOAL_NOT_FOUND` |
 | Goal is `ACTIVE` | `409 GOAL_NOT_ACTIVE` |
-| No **overlapping active** budget of the same kind and target (category, goal, or wallet) | `409 BUDGET_PERIOD_OVERLAP` |
+| No **overlapping** budget of the same kind and target (category, goal, or wallet) | `409 BUDGET_PERIOD_OVERLAP` |
 
-> The overlap rule is enforced by a GIST exclusion constraint (`excl_budget_category_overlap`; goal and wallet-wide budgets use `excl_budget_goal_overlap` and `excl_budget_overall_overlap`) over `daterange(start_date, end_date, '[]')`, not by a unique index — two budgets can overlap without sharing either endpoint, which no unique index can express. Archived budgets are excluded from the constraint, so last August's budget does not block this August's.
+> The overlap rule is enforced by a GIST exclusion constraint (`excl_budget_category_overlap`; goal and wallet-wide budgets use `excl_budget_goal_overlap` and `excl_budget_overall_overlap`) over `daterange(start_date, end_date, '[]')`, not by a unique index — two budgets can overlap without sharing either endpoint, which no unique index can express. A repeating budget's open end is an unbounded range, so it holds its target from its start onward; delete it to plan that target differently.
 
 **Response `201`** — `BudgetResponse` with `spent` already computed over existing transactions — creating a budget mid-month must immediately show what has been spent so far, not zero.
 
@@ -969,17 +1003,17 @@ A budget is exactly one kind, and its kind decides what `spent` counts. In every
 |---|---|
 | **Auth** | Bearer · **Min role** `EDITOR` |
 
-**Request** — `updateBudgetSchema`: `{ "name"?, "amount"?, "status"? }`
+**Request** — `updateBudgetSchema`: `{ "name"?, "amount"? }`
 
-**Validation** — `categoryId`, `goalId`, `periodType`, `startDate` and `endDate` are immutable; moving a window changes which transactions the budget ever covered, which is a different budget. Archive and create instead. Setting `status: ACTIVE` meets §12.2's rules again: its category must not be archived (`409 CATEGORY_ARCHIVED`), its goal must be `ACTIVE` (`409 GOAL_NOT_ACTIVE`), and it must not overlap (`409 BUDGET_PERIOD_OVERLAP`).
+**Validation** — `categoryId`, `goalId`, `periodType`, `startDate` and `endDate` are immutable; moving a window changes which transactions the budget ever covered, which is a different budget. Delete and create instead.
 
-**Response `200`** — `BudgetResponse`. **Errors** — `404` · `409` · `422`.
+**Response `200`** — `BudgetResponse`. **Errors** — `404` · `422`.
 
 **Side effects** — audit `BUDGET_UPDATED`.
 
 ### 12.5 DELETE /budgets/{id}
 
-Archives (`status = ARCHIVED`), which also releases its slot in the overlap constraint. `204`. Audit `BUDGET_ARCHIVED`, once: archiving an archived budget is a no-op.
+Deletes the budget row outright, releasing its slot in the overlap constraint. A budget only plans: no balance, transaction or goal figure is derived from it, so nothing else changes. `204`. Min role `EDITOR`. Audit `BUDGET_DELETED`; its audit rows stay. A second delete is `404 BUDGET_NOT_FOUND`.
 
 ---
 
@@ -1068,11 +1102,11 @@ One request answering the four questions the dashboard exists to answer: how muc
 |---|---|
 | **Auth** | Bearer · **Min role** `VIEWER` |
 
-**Query** — `dashboardQuerySchema`: `walletId` (required), `accountId` (optional — one of this wallet's accounts, see below), `dateFrom`, `dateTo` (each defaults to its end of the current calendar month; a resolved `dateFrom` after `dateTo` is `422 VALIDATION_FAILED`), `displayCurrency` (optional, three-letter code)
+**Query** — `dashboardQuerySchema`: `walletId` (required), `accountId` (optional — one of this wallet's accounts, see below), `dateFrom`, `dateTo` (calendar days in the wallet's zone, §2.12; each defaults to its end of the current month there; a resolved `dateFrom` after `dateTo` is `422 VALIDATION_FAILED`), `displayCurrency` (optional, three-letter code)
 
 **`accountId`** narrows every figure to that one account. `totalBalance` is that account's balance, and `income`/`expense`/`spendingByCategory`/`spendingByMember`/`recentTransactions` count only transactions touching it. The account is now the boundary, so a transfer to or from a *sibling* account in the same wallet appears in `transferredIn`/`transferredOut`. At wallet level that transfer is internal and appears in neither. It is still never income or expense (BR-06). `activeBudgets` and `activeGoals` are wallet-level, not per-account, so an account-scoped response returns them as `[]` rather than wallet figures that would read as the account's. An `accountId` that is not one of `walletId`'s accounts is `404 ACCOUNT_NOT_FOUND`: the wallet is already authorised, so this reveals nothing about another wallet (AC-01).
 
-**Response `200`** — `DashboardResponse`: `totalBalance`, `income`, `expense`, `net`, `transferredIn`, `transferredOut` (each **per currency**), `spendingByCategory` (descending, with percentages), `spendingByMember`, `recentTransactions` (10), `activeBudgets`, `activeGoals`, `period` (the resolved `dateFrom`/`dateTo`), `valuation` (optional — present only when `displayCurrency` was supplied).
+**Response `200`** — `DashboardResponse`: `totalBalance`, `income`, `expense`, `net`, `transferredIn`, `transferredOut` (each **per currency**), `spendingByCategory` (descending, with percentages), `spendingByMember`, `recentTransactions` (10), `activeBudgets` (the budgets covering today in the wallet's zone, or the period's nearest day when the period doesn't include today, each over its period around that day), `activeGoals`, `period` (the resolved `dateFrom`/`dateTo` and the wallet's `timeZone` they are read in), `valuation` (optional — present only when `displayCurrency` was supplied).
 
 > `income` and `expense` **exclude transfers entirely**. This is the single most consequential rule in the product: a wallet that moved 2,000,000 from bank to cash has not earned or spent anything, and a dashboard that says otherwise makes every other number untrustworthy.
 
@@ -1098,7 +1132,7 @@ One request answering the four questions the dashboard exists to answer: how muc
 |---|---|
 | **Auth** | Bearer · **Min role** `OWNER` |
 
-**Query** — `?event=`, `?dateFrom=`, `?dateTo=`, `page`, `pageSize`
+**Query** — `?event=`, `?dateFrom=`, `?dateTo=` (calendar days in the wallet's zone, §2.12), `page`, `pageSize`
 
 **Response `200`** — `AuditLogResponse[]`: `id`, `event`, `entityType`, `entityId`, `result`, `actorId`, `actorRole`, `note`, `createdAt`. Denied attempts (`ACCESS_DENIED`, §16.1) appear alongside successes.
 
@@ -1112,7 +1146,7 @@ One request answering the four questions the dashboard exists to answer: how muc
 
 ### 16.1 What is logged
 
-Audited at `INFO`: transaction created / updated / deleted; account, category, budget, goal created / updated / archived; member invited / accepted / removed / role changed; ownership transferred; wallet created / archived; login, logout, registration. Every `401` and `403` is logged at `WARN` with actor, role and target. A `403` to a member (role too low) is also audited against that wallet as `ACCESS_DENIED`, `result = DENIED`, with the method and path as its note, so the owner's trail shows the attempt (SRS WAL-US-13). A `404` standing in for no membership (AC-01) is not, since no wallet resolved for that caller.
+Audited at `INFO`: transaction created / updated / deleted; account, category, goal created / updated / archived; budget created / updated / deleted; member invited / accepted / removed / role changed; ownership transferred; wallet created / archived; login, logout, registration. Every `401` and `403` is logged at `WARN` with actor, role and target. A `403` to a member (role too low) is also audited against that wallet as `ACCESS_DENIED`, `result = DENIED`, with the method and path as its note, so the owner's trail shows the attempt (SRS WAL-US-13). A `404` standing in for no membership (AC-01) is not, since no wallet resolved for that caller.
 
 Never logged: passwords, tokens (access, refresh, or invitation), or password hashes. User ids and emails may appear at `INFO`.
 
@@ -1122,7 +1156,7 @@ Multi-row writes run in one database transaction: wallet + owner membership, inv
 
 ### 16.3 Deletion policy
 
-Nothing financial is hard-removed. Wallets, accounts, categories, budgets are archived; transactions are marked `DELETED` (status flip, row stays); members are revoked. The only true row removal is a goal contribution, and that marks its backing transaction `DELETED` rather than erasing it. Transactions are the source of truth for every derived figure, so a destroyed row silently changes historical answers.
+Nothing financial is hard-removed. Wallets, accounts and categories are archived; a budget, which only plans, is deleted outright (§12.5); transactions are marked `DELETED` (status flip, row stays); members are revoked. The only true row removal is a goal contribution, and that marks its backing transaction `DELETED` rather than erasing it. Transactions are the source of truth for every derived figure, so a destroyed row silently changes historical answers.
 
 ### 16.4 Currency scope for v1
 
@@ -1138,7 +1172,7 @@ A conversation belongs to the user who created it. Another user's conversation i
 
 The model is pluggable behind one server-side interface. The default is a deterministic keyword-rule provider that needs no API key; every figure it states comes from a tool, never from its own arithmetic. Replies are written in the request's `locale` (`en` or `vi`).
 
-Types: `AiConversationResponse` `{id, walletId, title, createdAt, updatedAt}` · `AiMessageResponse` `{id, conversationId, role (USER | ASSISTANT), content, action, createdAt}` · `AiActionResponse` `{type (CREATE_TRANSACTION), status (PENDING | CONFIRMED | DISMISSED), transaction, accountName, categoryName, transactionId}`. `transaction` is an income or expense in exactly the §11.2 request shape (`aiTransactionDraftSchema`), in the account's own currency (BR-07); `accountName`/`categoryName` are the names at proposal time.
+Types: `AiConversationResponse` `{id, walletId, title, createdAt, updatedAt}` · `AiMessageResponse` `{id, conversationId, role (USER | ASSISTANT), content, action, createdAt}` · `AiActionResponse` `{type (CREATE_TRANSACTION), status (PENDING | CONFIRMED | DISMISSED), transaction, accountName, categoryName, transactionId}`. `transaction` is an income or expense in exactly the §11.2 request shape (`aiTransactionDraftSchema`), in the account's own currency (BR-07); `accountName` is the name at proposal time; `categoryName` is the category's current name as the reader reads it (§2.11), falling back to the name at proposal time if the category no longer resolves.
 
 Conversations and their messages are chat history, not financial data, so §17.3 removes them outright. A confirmed proposal's transaction is unaffected.
 
@@ -1237,7 +1271,7 @@ Conversations and their messages are chat history, not financial data, so §17.3
 | Section | Schema / type | Database constraint |
 |---|---|---|
 | §5 Auth | `registerSchema`, `loginSchema`, `refreshSchema` | `uq_users_email`, `chk_user_currency` |
-| §6 Wallets | `createWalletSchema`, `updateWalletSchema` | `chk_wallet_status` |
+| §6 Wallets | `createWalletSchema`, `updateWalletSchema`, `timeZoneSchema` | `chk_wallet_status`, `chk_wallet_time_zone` |
 | §7 Members | `updateMemberSchema` | `uq_wallet_member`, `uq_wallet_single_owner`, `chk_wallet_member_role` |
 | §8 Invitations | `inviteMemberSchema`, `acceptInvitationSchema` | `chk_invitation_role`, `uq_wallet_invitation_open` |
 | §9 Accounts | `createAccountSchema`, `updateAccountSchema` | `chk_account_type`, `chk_account_currency` |

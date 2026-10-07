@@ -429,6 +429,36 @@ never touches fill, or it becomes indistinguishable from hover. Prefer an enable
 inline validation error over a disabled button with no explanation. Pressed state is tracked with
 local state, never a function `style` (CLAUDE.md Part 7 rule 15).
 
+### Button roles
+
+Pick the variant from what the action does, not from what looks right in one place:
+
+| Role | Variant | Examples |
+|---|---|---|
+| The sheet's or card's main action | `primary` | Save, the keypad's confirm |
+| A secondary action beside it | `secondary` | Edit transaction, Add contribution, Today |
+| A destructive action that opens a confirmation | `danger-outline` | Delete budget, Cancel goal, Delete transaction |
+| A destructive settings action | `danger-soft` | Clear all data |
+| The confirmation that actually destroys | `danger` (`ConfirmDialog` `destructive`) | "Archive", "Delete" inside the dialog |
+
+A filled `danger` button outside a confirmation competes with the primary action next to it.
+
+### Sheet header
+
+Every sheet with a title uses `BottomSheetModal`'s own header, never a hand-built row: Back on the
+left, the title centred, Cancel (a form that discards input, `closeLabel="cancel"`) or Close on the
+right, muted so it never competes with the title. Back appears only when there is somewhere to go
+back to: a sheet rendered inside another gets it automatically, and closes just itself; a sheet
+reached from another through `ModalProvider` gets it through `ModalParams.parent`; a step inside one
+sheet passes `onBack`. Close on a stacked sheet closes the whole stack. A root sheet has no Back.
+
+### Choosing a date
+
+A date the user plans toward (a goal's deadline) opens `DatePresetSheet`: quick options computed
+from today, each showing the day it resolves to, then a Custom date row that opens the calendar one
+sheet deeper. A date the user records (when a transaction happened) opens `DatePickerModal`
+directly. Either accepts a day in the past.
+
 ### Selection / highlight
 
 Change more than one property together (border weight/color + background tint + icon color) — a

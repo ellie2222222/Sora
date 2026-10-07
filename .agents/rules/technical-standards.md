@@ -88,7 +88,7 @@
 - **Immutability**: Applied migrations are immutable. Never edit historical migrations; create a new migration for schema changes.
 - **Data Safety**:
   - Never drop databases, truncate tables, or run unconstrained `DELETE`/`UPDATE` operations.
-  - Financial records are never hard-deleted: wallets, accounts, categories and budgets are archived, transactions are marked `DELETED` (the row stays), members are `REVOKED`. The one hard delete is a category with no transactions and no budget on it or any descendant (`DELETE /categories/{id}?mode=permanent`, API spec §10.4).
+  - Financial records are never hard-deleted: wallets, accounts and categories are archived, transactions are marked `DELETED` (the row stays), members are `REVOKED`. The hard deletes are a category with no transactions and no budget on it or any descendant (`DELETE /categories/{id}?mode=permanent`, API spec §10.4) and a budget, which only plans (`DELETE /budgets/{id}`, §12.5).
 
 ---
 

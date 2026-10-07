@@ -111,11 +111,11 @@ contract, or the API specification, **those three win** (see [§1.5](#15-related
 
 | Term | Definition |
 | --- | --- |
-| **Wallet** | One person's finances — the sharing boundary. Not a renamed workspace: it has no type, and membership is a grant to an individual, not a seat in a group |
+| **Wallet** | One person's finances — the sharing boundary. Not a renamed workspace: it has no type, and membership is a grant to an individual, not a seat in a group. Carries the IANA time zone every member's calendar maths on it uses (`packages/contracts/src/calendar.ts`) |
 | **DTO** | Data Transfer Object; the request/response shapes in `packages/contracts/src/responses.ts` and `schemas.ts` |
 | **JWT** | JSON Web Token; HS256, signed with `JWT_SECRET` |
 | **Kysely** | The typed SQL query builder this API uses instead of an ORM — queries are written, not generated from a model that could drift from the schema |
-| **Archival** | This system's only removal mechanism for wallets, accounts, categories, budgets and goals — a `status` column (`ACTIVE`/`ARCHIVED`), not a `deleted_at` timestamp. Nothing financial is hard-deleted; see [BR-09](SRS.md#4-business-rules) |
+| **Archival** | This system's removal mechanism for wallets, accounts, categories and goals — a `status` column (`ACTIVE`/`ARCHIVED`), not a `deleted_at` timestamp. A budget, which only plans, is deleted outright; see [BR-09](SRS.md#4-business-rules) |
 | **Cancellation** | The transaction-specific removal mechanism (`status = 'CANCELLED'`) — the row stays, visibly, alongside whatever corrected it |
 | **Wallet scope** | Filtering by wallet membership (role ≥ required rank) at the service layer, via `RequireWalletRoleGuard` |
 | **Envelope** | Every response body's `{success, message?, data, meta}` wrapper, defined once in `ApiEnvelope<T>` |
@@ -143,8 +143,7 @@ Flyway or Alembic — neither is used here).
 
 ## 2. Technical Domain Model (TDM)
 
-**Last synced with the schema: 2026-09-16** (`db/migrations/001_initial_wallet_schema.sql`,
-`002_google_auth_and_preferences.sql`, `003_exchange_rate_snapshots.sql`).
+**Last synced with the schema: 2026-10-05** (`db/migrations/001_schema.sql`).
 
 ### 2.0 Domain Model Diagram
 
@@ -296,12 +295,12 @@ wallets at once and a single FK could only name one of them ([BR-03](SRS.md#4-bu
 
 | SRS Entity | Table | Notes |
 | --- | --- | --- |
-| User | `users` | `password_hash` nullable since migration 002 (Google-only accounts); `theme`/`locale` are display preferences, not business data |
+| User | `users` | `password_hash` nullable (Google-only accounts); `theme`/`locale` are display preferences, not business data |
 | Wallet | `wallets` | Owner reference plus derived membership; archived, never deleted |
 | WalletMember | `wallet_members` | Roles: `OWNER`, `EDITOR`, `VIEWER`. `uq_wallet_single_owner` (partial unique index) makes "exactly one active owner" a database-enforced invariant, not just a service check |
 | WalletInvitation | `wallet_invitations` | Only the token hash is stored; `uq_wallet_invitation_open` allows at most one live invitation per wallet+email |
 | Account | `accounts` | `initial_balance` has no `CHECK (>= 0)` — a credit card legitimately opens negative |
-| Category | `categories` | Self-referencing `parent_id`; `chk_category_not_own_parent` blocks the one-hop cycle, deeper cycles are a service-layer check |
+| Category | `categories` | Self-referencing `parent_id`; `chk_category_not_own_parent` blocks the one-hop cycle, deeper cycles are a service-layer check. `system_key` links a starter category to its `category_translations` rows; `uq_category_system_key` keeps one copy per wallet |
 | Transaction | `transactions` | `chk_transaction_shape` enforces the account/category shape per type (income has no `from_account_id`, transfer has no `category_id`, etc.) at the database level |
 | Budget | `budgets` | `excl_budget_category_overlap`, `excl_budget_goal_overlap` and `excl_budget_overall_overlap` are GIST exclusion constraints over `daterange(start_date, end_date, '[]')` — a plain unique index cannot express "no overlapping window" |
 | Goal | `goals` | No stored progress; see GoalContribution |
@@ -598,7 +597,7 @@ the real API — it is not a second local dataset.
   data there (`device_accounts` plus the owners of cached rows and open queue rows) warns with
   that account's masked email and offers to continue or sign out. Guest data keeps its own upload
   flow (§4.3).
-- **What queues:** create/update/cancel/archive for transactions, accounts, budgets and categories;
+- **What queues:** create/update/cancel/archive for transactions, accounts and categories; create/update/delete for budgets;
   goal create; goal contributions (payload carries `goalId`, so a contribution to a goal created
   offline waits for that goal's server id); and a category's permanent delete (`op: 'delete'`).
   Wallets, members and invitations are online-only.
@@ -846,12 +845,11 @@ grouped here for readability only.
 | `CATEGORY_WRONG_WALLET` | 403 | Category belongs to a different wallet |
 | `CATEGORY_DUPLICATE_NAME` | 409 | Sibling name collision (case-insensitive) |
 | `CATEGORY_CYCLE` | 422 | Parent assignment would create a cycle |
-| `CATEGORY_IN_USE` | 409 | Archive refused — an active budget still plans for it |
+| `CATEGORY_IN_USE` | 409 | Archive refused — a budget still plans for it |
 | `CATEGORY_HAS_TRANSACTIONS` | 409 | Permanent delete refused — the category or a child has transactions |
 | `CATEGORY_PARENT_ARCHIVED` | 409 | Restore refused — the parent is still archived; or a child created under an archived parent |
-| `CATEGORY_ARCHIVED` | 409 | A budget created on, or reactivated against, an archived category |
+| `CATEGORY_ARCHIVED` | 409 | A budget created on an archived category |
 | `TRANSACTION_NOT_FOUND` | 404 | No such transaction |
-| `TRANSACTION_IMMUTABLE` | 409 | Edit attempted on a field that cannot change |
 | `TRANSACTION_ALREADY_CANCELLED` | 409 | Cancel attempted twice |
 | `TRANSFER_SAME_ACCOUNT` | 422 | Service backstop for a same-account transfer; over HTTP `createTransactionSchema` answers `VALIDATION_FAILED` first |
 | `TRANSFER_CURRENCY_MISMATCH` | 422 | The two accounts don't share a currency |
@@ -870,21 +868,24 @@ grouped here for readability only.
 
 ## 7. Database Schema
 
-**The migration files are the schema.** This section is a readable summary; it is not copied
+**The migration file is the schema.** This section is a readable summary; it is not copied
 DDL, so it cannot itself drift from what `node scripts/migrate.mjs` actually applies — read
-[`001_initial_wallet_schema.sql`](db/migrations/001_initial_wallet_schema.sql),
-[`002_google_auth_and_preferences.sql`](db/migrations/002_google_auth_and_preferences.sql), and
-[`003_exchange_rate_snapshots.sql`](db/migrations/003_exchange_rate_snapshots.sql) for exact
-column types, defaults and constraint definitions.
+[`001_schema.sql`](db/migrations/001_schema.sql) for exact column types, defaults and constraint
+definitions.
 
-**Tables (001):** `users`, `refresh_tokens`, `wallets`, `wallet_members`, `wallet_invitations`,
-`accounts`, `categories`, `transactions`, `budgets`, `goals`, `goal_contributions`, `audit_logs`.
+**Tables:** `users`, `refresh_tokens`, `wallets`, `wallet_members`, `wallet_invitations`,
+`accounts`, `categories`, `category_translations`, `goals`, `transactions`, `budgets`,
+`goal_contributions`, `audit_logs`, `exchange_rate_snapshots`, `ai_conversations`, `ai_messages`.
 
-**Migration 002** makes `users.password_hash` nullable, adds `google_id` (unique where not null),
-`theme` and `locale`, and adds `chk_user_has_credential` — a row must have a password **or** a
-Google id, never neither.
+`categories.system_key` marks a starter category; its name is read per request locale from
+`category_translations` (one row per key and locale, mirroring `STARTER_CATEGORIES`, checked by
+`check-contract-parity.mjs`), falling back to English, then to the stored name. A custom category
+has no key and reads as typed ([API spec §2.11](docs/API_SPECIFICATION.md#211-locale)).
 
-**Migration 003** adds `exchange_rate_snapshots` (§2.0) — one row per `(snapshot_date,
+`users.password_hash` is nullable for Google-only accounts, and `chk_user_has_credential` requires
+a password **or** a Google id, never neither.
+
+`exchange_rate_snapshots` (§2.0) holds one row per `(snapshot_date,
 base_currency)`, storing the provider's full `rates` object as `jsonb`, `source` and `fetched_at`.
 Supports the dashboard's optional converted total ([§4.5](#45-exchange-rate--dashboard-valuation));
 not referenced by `check-contract-parity.mjs`, since it backs a computed response field
@@ -984,7 +985,7 @@ ahead of an SRS update for them.
 | BUD-US-01 | Create a budget | `POST /budgets` |
 | BUD-US-02 | Watch a budget | `GET /budgets` / `GET /budgets/{id}` (derived `spent`/`remaining`/`usagePercentage`) |
 | BUD-US-03 | Adjust a budget | `PATCH /budgets/{id}` |
-| BUD-US-04 | Archive a budget | `DELETE /budgets/{id}` |
+| BUD-US-04 | Delete a budget | `DELETE /budgets/{id}` |
 
 ### SAV-US — Saving Goals
 
@@ -1021,9 +1022,10 @@ ahead of an SRS update for them.
 
 ### Archival, not soft deletion
 
-Wallets, accounts, categories, budgets and goals carry a `status` column and are archived, never
+Wallets, accounts, categories and goals carry a `status` column and are archived, never
 marked `deleted_at` and never row-deleted. Transactions are cancelled (a third status value, not
-archival). The one true deletion is a goal contribution. See [BR-09](SRS.md#4-business-rules).
+archival). The true deletions are a goal contribution, an unused category, and a budget, which only
+plans. See [BR-09](SRS.md#4-business-rules).
 
 ### Cross-wallet transfer atomicity
 

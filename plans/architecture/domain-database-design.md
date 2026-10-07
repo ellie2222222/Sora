@@ -4,7 +4,7 @@
 
 This document defines the domain model, ERD, database schema, constraints, indexes, and core business rules for a personal finance tracker where a wallet can be shared across real users — tracking your own money and a friend's/family's/lover's money side by side, with per-user roles.
 
-> **Authority:** [`db/migrations/001_initial_wallet_schema.sql`](../../db/migrations/001_initial_wallet_schema.sql) is the schema. This document explains *why* it is shaped that way; where the two ever disagree, the migration is right and this file is stale. The SQL quoted below is reproduced from it, not authored here.
+> **Authority:** [`db/migrations/001_schema.sql`](../../db/migrations/001_schema.sql) is the schema. This document explains *why* it is shaped that way; where the two ever disagree, the migration is right and this file is stale. The SQL quoted below is reproduced from it, not authored here.
 
 Core entities:
 
@@ -239,7 +239,8 @@ Income
 | id | UUID | Yes | Primary key |
 | wallet_id | UUID | Yes | Owning wallet |
 | parent_id | UUID | No | Parent category |
-| name | VARCHAR(100) | Yes | Category name |
+| system_key | VARCHAR(50) | No | Starter category's key into `category_translations`; null for a custom category (`uq_category_system_key`: one per wallet) |
+| name | VARCHAR(100) | Yes | Category name — the English fallback for a starter category, the typed text for a custom one |
 | type | VARCHAR(20) | Yes | INCOME or EXPENSE |
 | icon | VARCHAR(50) | No | UI icon |
 | color | VARCHAR(20) | No | UI color |
@@ -252,6 +253,7 @@ Rules:
 - A category cannot be its own parent.
 - Expense transactions use expense categories; income transactions use income categories.
 - Transfer transactions may optionally use a transfer category; they never count as income or expense.
+- A starter category is read in the reader's locale from `category_translations` (one row per `system_key` and locale, mirroring `STARTER_CATEGORIES`), falling back to English; renaming it clears `system_key` and makes it custom. Two members of one wallet can therefore read its starter categories in different languages.
 
 ---
 
@@ -322,20 +324,22 @@ amount = positive
 
 ## 9. Budget
 
-Defines planned spending for a category and period. Scoped to a wallet.
+Defines planned spending for a category, a goal or the whole wallet. Scoped to a wallet. A DAILY,
+WEEKLY, MONTHLY or YEARLY budget repeats from `start_date` until deleted; CUSTOM and GOAL cover a
+fixed window. Budgets are deleted outright: nothing is derived from them.
 
 | Field | Type | Required | Description |
 |---|---|---:|---|
 | id | UUID | Yes | Primary key |
 | wallet_id | UUID | Yes | Owning wallet |
-| category_id | UUID | Yes | Budget category |
+| category_id | UUID | No | Budget category; null for a goal or wallet-wide budget |
+| goal_id | UUID | No | Goal of a GOAL budget (`chk_budget_kind`) |
 | name | VARCHAR(100) | Yes | Budget name |
-| amount | DECIMAL(19,4) | Yes | Planned amount |
+| amount | DECIMAL(19,4) | Yes | Planned amount per period |
 | currency | CHAR(3) | Yes | Budget currency |
-| period_type | VARCHAR(20) | Yes | WEEKLY, MONTHLY, CUSTOM |
-| start_date | DATE | Yes | Period start |
-| end_date | DATE | Yes | Period end |
-| status | VARCHAR(20) | Yes | ACTIVE, ARCHIVED |
+| period_type | VARCHAR(20) | Yes | DAILY, WEEKLY, MONTHLY, YEARLY, CUSTOM, GOAL |
+| start_date | DATE | Yes | First day; a repeating budget's periods step from it |
+| end_date | DATE | No | Last day of a CUSTOM/GOAL window; null for a repeating period (`chk_budget_end`) |
 | created_at | TIMESTAMPTZ | Yes | Creation time |
 | updated_at | TIMESTAMPTZ | Yes | Update time |
 
@@ -344,8 +348,8 @@ Do not make `spent_amount` the authoritative field. Calculate it from completed 
 ```text
 spent =
 SUM(completed EXPENSE transactions
-    matching category
-    within budget period)
+    in the category or any of its subcategories
+    within the budget's current period)
 
 remaining = budget.amount - spent
 ```
@@ -541,13 +545,13 @@ erDiagram
         uuid id PK
         uuid wallet_id FK
         uuid category_id FK
+        uuid goal_id FK
         varchar name
         decimal amount
         char currency
         varchar period_type
         date start_date
         date end_date
-        varchar status
         timestamptz created_at
         timestamptz updated_at
     }
@@ -609,7 +613,7 @@ erDiagram
 
 # 14. PostgreSQL Schema
 
-Reproduced from [`db/migrations/001_initial_wallet_schema.sql`](db/migrations/001_initial_wallet_schema.sql), which is the authority. Column defaults (`gen_random_uuid()`, `NOW()`) and the `pgcrypto`/`btree_gist` extension setup are in the migration and omitted here for readability.
+Reproduced from [`db/migrations/001_schema.sql`](../../db/migrations/001_schema.sql), which is the authority. Column defaults (`gen_random_uuid()`, `NOW()`) and the `pgcrypto`/`btree_gist` extension setup are in the migration and omitted here for readability.
 
 ## Users
 
@@ -655,13 +659,18 @@ CREATE TABLE wallets (
     owner_user_id UUID NOT NULL REFERENCES users(id),
     name VARCHAR(100) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    time_zone VARCHAR(64) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT chk_wallet_status
-        CHECK (status IN ('ACTIVE', 'ARCHIVED'))
+        CHECK (status IN ('ACTIVE', 'ARCHIVED')),
+    CONSTRAINT chk_wallet_time_zone
+        CHECK (is_iana_time_zone(time_zone))
 );
 ```
+
+`time_zone` is the IANA zone the wallet's calendar is read in: which day and month each `TIMESTAMPTZ` instant belongs to, and what "today" is, for every member alike (API spec §2.12). Instants are never rewritten and no local date is stored, so changing the zone only re-reads them. `is_iana_time_zone()` checks the name against `pg_timezone_names`.
 
 ## Wallet Members
 
@@ -795,10 +804,12 @@ CREATE TABLE transactions (
 ## Budgets
 
 ```sql
+-- Abridged from db/migrations/001_schema.sql, which is authoritative.
 CREATE TABLE budgets (
     id UUID PRIMARY KEY,
     wallet_id UUID NOT NULL REFERENCES wallets(id),
-    category_id UUID NOT NULL REFERENCES categories(id),
+    category_id UUID REFERENCES categories(id),
+    goal_id UUID REFERENCES goals(id),
 
     name VARCHAR(100) NOT NULL,
     amount DECIMAL(19,4) NOT NULL,
@@ -806,21 +817,20 @@ CREATE TABLE budgets (
 
     period_type VARCHAR(20) NOT NULL,
     start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-
-    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    end_date DATE,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT chk_budget_amount CHECK (amount > 0),
     CONSTRAINT chk_budget_period
-        CHECK (period_type IN ('WEEKLY', 'MONTHLY', 'CUSTOM')),
+        CHECK (period_type IN ('DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY', 'CUSTOM', 'GOAL')),
     CONSTRAINT chk_budget_dates
         CHECK (end_date >= start_date),
-    CONSTRAINT chk_budget_status
-        CHECK (status IN ('ACTIVE', 'ARCHIVED'))
+    CONSTRAINT chk_budget_end
+        CHECK ((period_type IN ('DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY')) = (end_date IS NULL))
 );
+-- Plus chk_budget_kind and the excl_budget_{category,goal,overall}_overlap GIST exclusions.
 ```
 
 ## Goals
@@ -951,7 +961,7 @@ Pending/cancelled transactions should not affect the completed balance.
 spent =
 SUM(completed expense transactions
     matching category
-    within budget period)
+    within the budget's current period)
 
 remaining = budget.amount - spent
 

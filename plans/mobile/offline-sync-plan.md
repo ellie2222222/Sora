@@ -127,7 +127,7 @@ visible in the list immediately (spec §1's core requirement), which Phase 4 cov
 ## 4. Local write path (transactions, create)
 
 ```
-User submits AddTransactionModal
+User submits TransactionFormModal
         ↓
 Validate against createTransactionSchema (already happens today — unchanged)
         ↓
@@ -143,8 +143,8 @@ Background sync engine (§6) picks it up when online
 ```
 
 Edit/cancel follow the same shape: enqueue, optimistically patch the cache, let the sync engine
-reconcile. BR-03 (transaction immutability) is unaffected — it's still enforced both client-side
-(unchanged) and server-side; offline queueing doesn't relax it.
+reconcile. An edit that moves money (BR-03 now allows amount, type and accounts) reverses the old
+figures and applies the new ones in the cache, as one in-place change; the server checks it as a create when it syncs.
 
 ## 5. Background sync engine
 
@@ -203,9 +203,8 @@ dependency," bundled into the section-1 sign-off rather than a separate ask.
   `ERROR_CODES` → the existing i18n locale files, matching how errors are already surfaced
   elsewhere — no new error-presentation mechanism).
 - **Conflict strategy (concurrent edit by another wallet member) is explicitly out of scope for
-  the transactions pilot**, per BR-03: transactions are immutable except for `description`/
-  `transactionDate`/`categoryId`/`reference`, and cancel-then-recreate is the existing correction
-  pattern — so a same-record double-edit race is narrow. Revisit once budgets/goals (which *do*
+  the transactions pilot**: a same-record double-edit race between two members is narrow, and the
+  last write wins (every field is now editable in place, BR-03). Revisit once budgets/goals (which *do*
   have contested mutable fields) are in scope (Phase 5) rather than design a general
   last-write-wins/merge strategy now for a case the pilot barely has.
 
@@ -234,7 +233,8 @@ dependency," bundled into the section-1 sign-off rather than a separate ask.
   pilot is verified end-to-end.
 - No changes to guest mode's own upload system — it already does its job; this plan is for
   already-authenticated wallet members.
-- No change to BR-03 transaction immutability or any other business rule.
+- No change to any business rule. (BR-03 later made every transaction field editable; offline edits
+  follow it.)
 
 ## 11. Verification plan
 

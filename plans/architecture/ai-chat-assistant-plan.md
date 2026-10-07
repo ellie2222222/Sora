@@ -73,7 +73,7 @@ sequenceDiagram
 
 ## 3. Domain Model & Database Schema
 
-### Database Migration: `db/migrations/007_ai_conversations_and_messages.sql`
+### Database schema: `ai_conversations`/`ai_messages` in `db/migrations/001_schema.sql`
 
 ```sql
 BEGIN;
@@ -337,7 +337,7 @@ const [isPressed, setIsPressed] = useState(false);
 ## 9. Step-by-Step Implementation Roadmap
 
 ### Phase 1: Database Migration & Schema
-- [x] Create `db/migrations/007_ai_conversations_and_messages.sql`.
+- [x] Add `ai_conversations`/`ai_messages` to the schema.
 - [x] Execute `npm run db:migrate` (scratch database; `db:test` probes pass).
 - [x] Add probe tests in `db/tests/` to verify foreign key cascades and role checks.
 
@@ -382,7 +382,7 @@ const [isPressed, setIsPressed] = useState(false);
 
 ### Contracts & Database
 - [ ] `npm run build -w @sora/contracts` succeeds without type errors.
-- [ ] `007_ai_conversations_and_messages.sql` applies cleanly on top of existing migrations.
+- [x] The schema applies cleanly to an empty database (`npm run db:test`).
 - [ ] Deleting a user cascades and deletes all associated AI conversations and messages.
 - [ ] Deleting a wallet sets `wallet_id` on associated conversations to `NULL` without deleting the chat.
 

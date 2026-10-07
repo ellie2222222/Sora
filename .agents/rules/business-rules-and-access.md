@@ -30,14 +30,15 @@ One canonical term per concept across code, SQL, API, and UI:
 - A `TRANSFER` whose two accounts belong to *different* wallets is a single transaction. It is the primary mechanism to settle balances between partners/collaborators.
 - Cross-wallet transfers require `EDITOR` role on **both** wallets. Read access to someone's wallet must never permit pushing money into it.
 
-### BR-03 — Transaction Immutability
-- `amount`, `type`, `fromAccountId`, and `toAccountId` cannot be edited (`409 TRANSACTION_IMMUTABLE`).
-- Financial transactions are historical facts. Editing them rewrites balances, budget figures, and goal progress.
-- Correcting an entry is delete + create (the transaction is marked `DELETED`, so both rows stay visible). Only `description`, `transactionDate`, `categoryId`, `goalId` (an expense's goal tag), and `reference` are mutable.
+### BR-03 — Transactions Are Editable In Place
+- Every field a create sets can be edited, including `amount`, `type`, `fromAccountId` and `toAccountId`.
+- An edit that moves money is checked exactly as a create of the resulting row, and audited against every wallet it touched before and after.
+- A goal contribution the transaction backs moves with it; that payment must stay an expense from the goal's wallet, in its currency.
 
-### BR-04 — Non-Overlapping Budget Windows
-- At most one `ACTIVE` budget per category per overlapping date range.
-- Enforced at the database level by the Postgres GIST exclusion constraint `excl_budget_category_overlap` (goal and wallet-wide budgets: `excl_budget_goal_overlap`, `excl_budget_overall_overlap`), not by a simple unique index. Archived budgets are excluded.
+### BR-04 — Non-Overlapping Budget Windows, Repeating Periods
+- `DAILY`/`WEEKLY`/`MONTHLY`/`YEARLY` budgets repeat from their start date until deleted (no end date, `chk_budget_end`); each read reports the period containing the day asked about (`budgetWindow`). `CUSTOM` and `GOAL` are fixed windows.
+- At most one budget per target over overlapping days, enforced by the Postgres GIST exclusion constraints `excl_budget_category_overlap`, `excl_budget_goal_overlap`, `excl_budget_overall_overlap`, not by a simple unique index. A repeating budget's open end is unbounded.
+- Budgets are deleted outright; nothing is derived from them.
 
 ### BR-05 — Derived Values are Never Stored
 - Account balances, wallet totals, budget spend/remaining/usage, and saving goal progress are **computed dynamically from ledger transactions on every read**.

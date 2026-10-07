@@ -15,8 +15,10 @@ plans/
 │   ├── domain-database-design.md             # Domain entities, ERD, schema rationale, constraints
 │   ├── multi-currency-plan.md                # Multi-currency ledger architecture & converted totals
 │   └── exchange-rate-resilience-plan.md      # FX caching, stale rate fallback, daily snapshots
-└── mobile/                                   # Client application roadmap and offline capabilities
-    └── offline-sync-plan.md                  # Offline-first data entry & background sync engine
+├── mobile/                                   # Client application roadmap and offline capabilities
+│   └── offline-sync-plan.md                  # Offline-first data entry & background sync engine
+└── tooling/                                  # Developer tooling
+    └── seed-data-plan.md                     # Realistic demo/dev seed data through the API
 ```
 
 ---
@@ -30,6 +32,8 @@ plans/
 | [`domain-database-design.md`](architecture/domain-database-design.md) | **Active Reference** | Defines the core domain model (User, Wallet, Account, Transaction, Category, Budget, Goal), ERD, PostgreSQL schema rationale, and business rules (BR-01 through BR-10). |
 | [`multi-currency-plan.md`](architecture/multi-currency-plan.md) | **Implemented** | Master architecture establishing Sora as an exact native-currency ledger with optional base-currency converted totals. |
 | [`exchange-rate-resilience-plan.md`](architecture/exchange-rate-resilience-plan.md) | **Implemented** | Design for handling FX rate unavailability, stale rate fallbacks, transparency indicators, and daily historical snapshot storage (`exchange_rate_snapshots`). |
+| [`timezone.md`](architecture/timezone.md) | **Brief** | Requirements for wallet calendar time: an IANA `wallets.time_zone`, and every wallet day, month and "today" read in it. |
+| [`wallet-timezone-plan.md`](architecture/wallet-timezone-plan.md) | **Implemented** | The audit of every instant-to-day site, the decisions taken against the brief, and the phase checklist. |
 | [`ai-chat-assistant-plan.md`](architecture/ai-chat-assistant-plan.md) | **Implemented** | AI assistant chat: pluggable model provider (deterministic stand-in by default), draft-and-confirm transactions, centre mobile tab. As-built differences in its §0. |
 
 ### 2. Mobile Client (`plans/mobile/`)
@@ -37,6 +41,13 @@ plans/
 | Document | Status | Summary |
 |---|---|---|
 | [`offline-sync-plan.md`](mobile/offline-sync-plan.md) | **Draft** | Architecture specification for local-first optimistic mutations, mutation queue serialization via AsyncStorage, and background network reconciliation. |
+
+
+### 3. Tooling (`plans/tooling/`)
+
+| Document | Status | Summary |
+|---|---|---|
+| [`seed-data-plan.md`](tooling/seed-data-plan.md) | **Draft** | API-driven seed of a year of realistic data across four personas: every account, category, transaction, budget and goal kind, plus read-back verification. |
 
 `modal-ui-form-plan.md`, a one-off review brief for tracing modal/form UI fields to their real
 domain/schema representation, was removed once fully executed — its findings and fixes are recorded in

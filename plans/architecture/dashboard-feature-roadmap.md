@@ -62,7 +62,7 @@ change, but not zero backend touch either. See the phased breakdown below for wh
 | 36 (partial) | "Duplicate transaction" quick-create | UI shortcut only; "split transaction" is Tier B/C, see below |
 | 37 | Quick actions (add expense/income/transfer, contribution, budget) | Already substantially built via `ModalProvider`/FAB; "scan receipt" is **Tier C** |
 | 38 (partial) | Filter by date/account/wallet/category/type/amount | Weaker than previously stated here: only account and (via nav param) category *pre-selection* exist (`AppStackParamList.Transactions: { accountId?; categoryId? }`); there is no filter UI for type/amount/date-range on any screen today. Building one is aggregation/UI work, no schema change — genuinely Tier A, just not "mostly done" |
-| 39 | Sync/data-quality status | **Already done, not a task.** `ConnectionSyncStatus` (online/offline + syncing/pending/failed + pending count + retry) already renders inside `WalletContextBar`, which `DashboardScreen` already wraps its content in |
+| 39 | Sync/data-quality status | **Already done, not a task.** `ConnectionSyncStatus` (offline / server connected / server unreachable + syncing/pending/failed + pending count + retry) already renders inside `WalletContextBar`, which `DashboardScreen` already wraps its content in |
 | 40 | Dashboard customization (widget picker, hide balances, default period/wallet) | Pure mobile-side preference storage, no backend |
 
 ## Implementation breakdown (Tier A, phased)
@@ -229,7 +229,7 @@ single-phase breakdown the same way, once actually scheduled.
 | 26 | Tags / custom dimensions | A new `tags` table + join table |
 | 27 | Payment method analytics | A `payment_method` field on `Transaction` |
 | 28 | Location analytics | A `location` field on `Transaction` |
-| 36 (split transaction) | Splitting one transaction across categories | Conflicts with BR-03 (immutable `amount`/`type`) as currently written — needs its own design, not just a column |
+| 36 (split transaction) | Splitting one transaction across categories | Needs its own design, not just a column: one transaction would carry several categories and amounts |
 
 ## Tier C — conflicts with an explicit SRS §1.6 decision
 

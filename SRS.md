@@ -191,13 +191,13 @@ Two shapes in that diagram carry most of the model's meaning:
 | Entity | Definition | Lifecycle |
 | --- | --- | --- |
 | **User** | A person who can sign in. Identified by email, case-insensitively. | Created at registration, together with a starter wallet, its OWNER membership and a starter category tree. |
-| **Wallet** | One person's finances. Has exactly one active OWNER at all times. | Created by any signed-in user; archived, never deleted — archiving stops new writes and leaves everything readable, because deleting it would rewrite the other side of every cross-wallet transfer it took part in. |
+| **Wallet** | One person's finances. Has exactly one active OWNER at all times, and one IANA time zone its calendar is read in. | Created by any signed-in user; archived, never deleted — archiving stops new writes and leaves everything readable, because deleting it would rewrite the other side of every cross-wallet transfer it took part in. Its time zone starts as the creator's device zone and only the owner changes it; a change re-reads every recorded moment and rewrites none. |
 | **WalletMember** | A user's role on a wallet, plus the relation label. | Created by accepting an invitation, or alongside the wallet for its creator; role changed by the owner; revoked rather than deleted, so a former member's past entries still name a person instead of going anonymous. |
 | **WalletInvitation** | An offer of EDITOR or VIEWER addressed to an email address. | Created by the owner and shown its single-use credential exactly once; accepted, revoked, or left to expire after seven days. At most one live invitation per wallet and email at a time. |
 | **Account** | Where money sits, in one currency. | Created by an editor; its type and opening amount are fixed for life, and its currency once anything names it; archived when closed, keeping its history and every transfer it is a side of. |
-| **Category** | An income, expense or transfer classification, optionally nested under a parent of the same wallet and the same type. | Seeded at registration, extended by editors; type and parent are fixed once transactions classify against it; archived, with its children, and cannot be archived while an active budget still plans for it. |
+| **Category** | An income, expense or transfer classification, optionally nested under a parent of the same wallet and the same type. A seeded (starter) category reads in each reader's language; a category an editor creates or renames reads exactly as typed. | Seeded at registration, extended by editors; type and parent are fixed once transactions classify against it; archived, with its children, and cannot be archived while a budget still plans for it. |
 | **Transaction** | A recorded movement of money: INCOME, EXPENSE or TRANSFER, always a positive amount. | Recorded by an editor; only its description, date, category and reference are ever correctable; cancelled rather than deleted, so a mistake and its correction are both visible. |
-| **Budget** | A planned amount for one category, one goal, or the whole wallet over one inclusive window. | Created by an editor; its category, window and period type are fixed, because moving a window changes which history it ever covered and is therefore a different budget; archived, which releases its slot in the no-overlap rule. |
+| **Budget** | A planned amount for one category (including its subcategories), one goal, or the whole wallet: every day, week, month or year from its start until deleted, or over one fixed inclusive window. | Created by an editor; its category, start, window and period type are fixed, because moving them changes which history it covers and is therefore a different budget; deleted outright, which releases its slot in the no-overlap rule. |
 | **Goal** | A savings target, optionally dated. | Created by an editor; completed when reached, or cancelled — and cancelling keeps the contributions, which record money that really was set aside. |
 | **GoalContribution** | One funding event: either an earmark, or a record of money that actually left an account. | Created by an editor; at most one contribution may point at any one transaction, so a single payment cannot be counted toward a goal twice; removed, which cancels its backing transaction rather than erasing it. |
 | **AuditLog** | Append-only record of a financial or membership event, with actor, role, target and outcome. | Written by the system, never edited or deleted, readable by the wallet's owner. |
@@ -213,7 +213,7 @@ Two shapes in that diagram carry most of the model's meaning:
 | Wallet | classifies with | Category | 1:N | A category belongs to one wallet; a parent must be in the same wallet and of the same type |
 | Account | is a side of | Transaction | 1:N per side | A transaction names one or two accounts depending on its type; **the two accounts of a transfer may belong to different wallets** |
 | Category | classifies | Transaction | 1:N | Required on income and expense, optional on a transfer — where a transfer-typed category only labels the movement ("Savings", "Debt Repayment") |
-| Category | is planned for | Budget | 1:N | At most one active budget per category per overlapping window |
+| Category | is planned for | Budget | 1:N | At most one budget per category per overlapping window |
 | Goal | is funded by | GoalContribution | 1:N | Progress is the sum of contributions, never a stored running total |
 | GoalContribution | may be backed by | Transaction | 0..1 : 1 | A transaction backs at most one contribution |
 | User | recorded | Transaction | 1:N | Every transaction names the person who entered it, for the life of the record |
@@ -290,9 +290,9 @@ Field-level rules. Each is a requirement on what the system accepts and refuses,
 | --- | --- | --- | --- |
 | FR-35 | Category | Required, exactly one, expense-typed, in the same wallet | A budget answers "how much may go to *this*"; a multi-category budget cannot answer it per category without becoming several budgets |
 | FR-36 | Amount, currency | Required, positive; currency fixed | — |
-| FR-37 | Window | Start and end dates, **inclusive on both ends**, end not before start, compared by calendar day | An expense late on the last day of the month belongs to that month's budget; comparing instants would drop it |
+| FR-37 | Window | Start and end dates, **inclusive on both ends**, end not before start, compared by calendar day in the wallet's time zone | An expense late on the last day of the month belongs to that month's budget; comparing instants would drop it, and comparing UTC days would file early-morning spending under the day before for anyone east of UTC |
 | FR-38 | Period type | Weekly, monthly or custom — a label on the window, fixed for life | Descriptive; the window is what is actually enforced |
-| FR-39 | Overlap | At most one **active** budget per category per overlapping window. Archived budgets do not block | Two active plans for the same category and days give a spend figure two different meanings. Last August's budget must not block this August's |
+| FR-39 | Overlap | At most one budget per category per overlapping window; a repeating budget covers every day from its start | Two plans for the same category and days give a spend figure two different meanings |
 | FR-40 | Spend, remaining, usage | **Derived** from completed expenses in that category and window. Remaining may go negative; usage may read above 100% | "You are 400,000 over" is precisely the number a budget exists to surface, and clamping it hides the case it was built for |
 | FR-41 | Editability | Name, amount and status only | Moving a window changes which history the budget ever covered, which makes it a different budget |
 | FR-42 | Creation mid-window | A budget created mid-window immediately shows what has already been spent in it | A budget that starts at zero on the 20th of the month reports a fiction for the rest of that month |
@@ -337,14 +337,14 @@ Balances, budget spend/remaining/usage, and goal progress are computed from tran
 **BR-07: Only completed transactions count.**
 Pending and cancelled transactions are visible records — of an intention and of a mistake respectively — and contribute to no derived figure. Cancelling a transaction therefore drops its amount out of every balance, budget and dashboard total on the next read, while the cancelled row remains as the record of what happened.
 
-**BR-08: Transactions are effectively immutable.**
-Only description, date, category and reference may be corrected. Amount, type and the accounts cannot change. Correcting a real mistake means cancelling the transaction and recording a fresh one, which leaves both rows visible — that visibility is the point. A cancelled transaction cannot be edited at all, and cancelling one twice is refused rather than silently repeated.
+**BR-08: Transactions are editable in place.**
+Every field a transaction was recorded with can be corrected, amount, type and accounts included. A correction that moves money is checked exactly as recording the corrected transaction would be, and is audited against every wallet it touched before and after; every derived figure follows on the next read. A goal contribution the transaction backs moves with it, and that payment must stay an expense from the goal's wallet. A cancelled transaction cannot be edited at all, and cancelling one twice is refused rather than silently repeated.
 
 **BR-09: Nothing financial is hard-deleted.**
-Wallets, accounts, categories and budgets are archived; transactions are cancelled; members and invitations are revoked. The single true deletion in the product is a goal contribution, and removing one cancels its backing transaction rather than erasing it. Transactions are the source of truth for every derived figure, so a destroyed row silently changes answers about the past.
+Wallets, accounts and categories are archived; transactions are cancelled; members and invitations are revoked. The true deletions are a goal contribution (removing one cancels its backing transaction rather than erasing it), an unused category, and a budget, which only plans and from which nothing is derived. Transactions are the source of truth for every derived figure, so a destroyed row silently changes answers about the past.
 
-**BR-10: At most one active budget per category per overlapping window.**
-Two active budgets for the same category over overlapping days would give "spent" two different meanings at once. Note that two windows can overlap without sharing a start or end date, so this is a genuine overlap rule and not a uniqueness rule on the dates. Archived budgets are exempt, so last year's plan does not block this year's.
+**BR-10: At most one budget per category per overlapping window.**
+Two budgets for the same category over overlapping days would give "spent" two different meanings at once. Note that two windows can overlap without sharing a start or end date, so this is a genuine overlap rule and not a uniqueness rule on the dates. Deleting a budget frees its days for a new one.
 
 **BR-11: Invitations are single-use, expiring, and addressed to a person.**
 An invitation names an email address, grants EDITOR or VIEWER only, expires after seven days, and can be redeemed exactly once — and only by a signed-in user whose own email matches the invited address. At most one live invitation exists per wallet and address, so re-inviting revokes the previous offer rather than leaving two credentials that both work. Its credential is shown once, at creation, and never again.
@@ -374,7 +374,7 @@ Reading a dashboard may optionally ask for its total balance converted into one 
 - A transfer must be absent from every income and expense figure the system produces, at every grain.
 - Cancelling a transaction must change every figure derived from it, in one direction, immediately on the next read.
 - Multi-part operations complete entirely or not at all: registration and its starter wallet; a wallet and its owner membership; an invitation acceptance; an ownership handover; a contribution and its backing transaction.
-- Two people acting on the same wallet at the same time must not be able to produce a state the rules forbid — in particular two active owners, or two overlapping active budgets for one category.
+- Two people acting on the same wallet at the same time must not be able to produce a state the rules forbid — in particular two active owners, or two overlapping budgets for one category.
 
 **Security & privacy:**
 
@@ -541,7 +541,7 @@ Ranks are cumulative: a required role is satisfied by any role of at least that 
 - A transfer between two accounts of different currencies → `TRANSFER_CURRENCY_MISMATCH`.
 - A second active food budget for W2 overlapping the first → `BUDGET_PERIOD_OVERLAP`.
 - Linh attempts to leave W2 at step 22 while still its sole owner → `WALLET_LAST_OWNER`.
-- Any attempt to change a transaction's amount, type or accounts → `TRANSACTION_IMMUTABLE`.
+- Correcting a transaction's amount, type or accounts into a shape a new transaction couldn't take (a missing account side, a category of the wrong type, a currency the account doesn't hold) → the same error that create would give.
 
 ---
 
@@ -646,15 +646,15 @@ Ranks are cumulative: a required role is satisfied by any role of at least that 
 5. Transfers never contribute, whatever their accounts ([BR-04](#4-business-rules)).
 6. Cancelling an expense reduces the spend on the next read.
 7. The member may change the budget's name, amount or status. The category and the window cannot change.
-8. Archiving the budget releases its slot, so a fresh budget may be created over the same or an overlapping window.
+8. Deleting the budget releases its slot, so a fresh budget may be created over the same or an overlapping window.
 
 **Negative flows**
 
-- Overlapping active budget for the same category → `BUDGET_PERIOD_OVERLAP`. Note this triggers on genuine overlap, not only on identical dates.
+- Overlapping budget for the same category → `BUDGET_PERIOD_OVERLAP`. Note this triggers on genuine overlap, not only on identical dates.
 - End before start, or a non-positive amount → `VALIDATION_FAILED`.
 - Income category → `CATEGORY_WRONG_TYPE`; category from another wallet → `CATEGORY_WRONG_WALLET`.
-- Attempting to move the window or change the category → refused; archive and create instead.
-- Archiving a category an active budget still plans for → `CATEGORY_IN_USE`, because that budget could never compute its period again.
+- Attempting to move the window or change the category → refused; delete and create instead.
+- Archiving a category a budget still plans for → `CATEGORY_IN_USE`, because that budget could never compute its period again.
 
 ---
 
@@ -771,6 +771,7 @@ Story-ID prefixes: **AUTH-US**, **WAL-US** (wallets & sharing), **ACC-US**, **TX
 - Email and password are required; the address must be available **case-insensitively** (`Foo@x.com` collides with `foo@x.com`).
 - The password must be 12–200 characters. No composition rules are imposed, and none are hinted at in the form.
 - A base currency is captured, defaulting to VND.
+- A preferred language (English or Vietnamese) is chosen on the sign-up screen, preselected to the app's current language; it names the new wallet and its Cash account and becomes the account's saved language.
 - On success, all of the following exist or none do: the user; a wallet named for their display name; their OWNER membership on it; a starter category tree.
 - The user is signed in on completion and lands on a usable, empty dashboard for their new wallet — they can record an expense without any further setup.
 - The registration is audited.
@@ -1148,7 +1149,7 @@ The most rule-dense feature in the product, because a transaction is the only th
 
 - Captures a positive amount, a source account, an **expense** category, a date, and optionally a description and reference. No destination account.
 - Same currency, category-type, category-wallet and archival rules as TXN-US-01, mirrored.
-- The expense immediately affects: the account's balance and expense total; the spend of any active budget for that category whose window contains the date (compared by calendar day, so an expense late on the window's last day is inside it); and the wallet's dashboard expense and net.
+- The expense immediately affects: the account's balance and expense total; the spend of any active budget for that category whose window contains the date (compared by calendar day in the wallet's time zone, so an expense late on the window's last day is inside it); and the wallet's dashboard expense and net.
 - Recording is available on wallets the member does not own — recording a partner's expense on their behalf is an ordinary action, and the audit trail names who did it.
 - An expense may optionally be **tagged with one of the wallet's saving goals**, so the goal's budget counts it. Only an expense can carry a goal, and the goal must belong to the paying account's wallet.
 - The record is audited.
@@ -1227,19 +1228,20 @@ The most rule-dense feature in the product, because a transaction is the only th
 
 ---
 
-#### TXN-US-07: Correct a transaction's description
+#### TXN-US-07: Edit a transaction
 
-**As a** member with editing rights, **I want to** fix what a transaction says, **so that** history reads correctly without my rewriting what happened.
+**As a** member with editing rights, **I want to** correct anything about a transaction, **so that** a wrong amount, type or account is fixed where it is rather than re-recorded.
 
 **Acceptance criteria**
 
-- Editable: description, date, category, goal tag (an expense only), reference. **Nothing else.**
-- **Amount, type, source account and destination account cannot change**, and attempting it is refused with a distinct, explanatory outcome rather than being silently ignored.
-- A changed category must keep the same type and the same wallet; a changed goal tag must name a goal in the paying account's wallet.
+- Editable: every field the transaction was recorded with — type, amount, accounts, category, goal tag (an expense only), description, date, reference.
+- The edit uses the same form as recording a transaction, filled with the current values.
+- The corrected transaction meets every rule a new one would: the account side and category its type needs, editor rights on every wallet named before and after, matching currency, accounts not archived.
+- A goal contribution the transaction backs follows its new amount and account; it must stay an expense from the goal's wallet.
 - A cancelled transaction cannot be edited at all.
-- The correction is audited **naming which fields changed**.
+- The correction is audited **naming which fields changed**, against every wallet it touched.
 
-**Error cases:** `TRANSACTION_IMMUTABLE` · `TRANSACTION_ALREADY_DELETED` · `CATEGORY_WRONG_TYPE` · `CATEGORY_WRONG_WALLET` · `TRANSACTION_NOT_FOUND` · `FORBIDDEN`
+**Error cases:** `TRANSACTION_ALREADY_DELETED` · `VALIDATION_FAILED` · `CATEGORY_WRONG_TYPE` · `CATEGORY_WRONG_WALLET` · `ACCOUNT_CURRENCY_MISMATCH` · `ACCOUNT_ARCHIVED` · `TRANSACTION_NOT_FOUND` · `FORBIDDEN`
 
 ---
 
@@ -1275,6 +1277,7 @@ The most rule-dense feature in the product, because a transaction is the only th
 - Categories are per wallet; one wallet's tree never appears in another's.
 - Filterable by income/expense and by status; requestable flat or as a tree with children under their parents.
 - Archived categories are left out when the caller asks for `ACTIVE` only (every picker and the category screen do), but still render on the historical transactions that reference them.
+- Starter categories read in the reader's language (the app's, else their saved one, else English) everywhere a category is named, so two members of one wallet can each read them in their own language; a category someone created or renamed reads exactly as typed.
 
 ---
 
@@ -1287,7 +1290,7 @@ The most rule-dense feature in the product, because a transaction is the only th
 - Captures name, type (income or expense), an optional parent, and optional icon and colour.
 - A parent must be **in the same wallet and of the same type**. An expense nested under an income parent produces a tree that cannot be summed.
 - A category cannot be its own parent, and no cycle of any length is accepted.
-- Names are unique among siblings, case-insensitively — two "Food" categories under one parent make every category report ambiguous.
+- Names are unique among siblings, case-insensitively — two "Food" categories under one parent make every category report ambiguous. That includes a starter category's name as the creator reads it: "Ăn uống" is refused beside the starter Food read in Vietnamese.
 - Creation is audited.
 
 **Error cases:** `CATEGORY_DUPLICATE_NAME` · `CATEGORY_WRONG_TYPE` · `CATEGORY_WRONG_WALLET` · `CATEGORY_CYCLE` · `CATEGORY_NOT_FOUND` (unknown parent)
@@ -1304,6 +1307,7 @@ The most rule-dense feature in the product, because a transaction is the only th
 - **Type is immutable**: flipping a category from expense to income would invert the meaning of every transaction already classified under it.
 - **Parent is immutable**, because budgets aggregate by category and moving one changes what every past budget covered.
 - Sibling name uniqueness still applies.
+- Renaming a starter category makes it the wallet's own: it reads as typed in every language from then on. Saving an edit that leaves the shown name unchanged is not a rename.
 - Restoring a child is refused while its parent is still archived; the parent comes back first.
 
 **Error cases:** `CATEGORY_DUPLICATE_NAME` · `CATEGORY_IN_USE` · `CATEGORY_PARENT_ARCHIVED` · `CATEGORY_NOT_FOUND` · `FORBIDDEN`
@@ -1342,11 +1346,9 @@ The most rule-dense feature in the product, because a transaction is the only th
   - a **goal budget** — one saving goal, with the goal period;
   - a **wallet-wide budget** — neither, with a daily, weekly, monthly, yearly or custom period.
   Naming both a category and a goal, or pairing the goal period with anything but a goal, is refused.
-- Captures a positive amount and currency, and a start and end date **inclusive on both ends**.
-- The end date may not precede the start date.
+- Captures a positive amount and currency, and a start date. A **daily, weekly, monthly or yearly budget repeats from its start until deleted** and has no end date; a monthly budget begun on the 1st follows calendar months. A custom or goal budget also has an end date, **inclusive on both ends**, which may not precede the start date.
 - A category must be expense-typed and belong to the named wallet. A goal must belong to the named wallet and still be active.
-- **No other active budget of the same kind and target may overlap the window** — the same category, the same goal, or (for wallet-wide budgets) the same wallet. Two windows can overlap without sharing an endpoint, and that too is refused. Budgets of different kinds never block each other.
-- Archived budgets do not block: last August's budget must not prevent this August's.
+- **No other budget of the same kind and target may overlap it** — the same category, the same goal, or (for wallet-wide budgets) the same wallet. Two windows can overlap without sharing an endpoint, and that too is refused; a repeating budget covers every day from its start. Budgets of different kinds never block each other.
 - The new budget **immediately reports the spend already recorded inside its window**, not zero — a budget created on the 20th that reads zero misrepresents the month.
 - Creation is audited.
 
@@ -1361,14 +1363,15 @@ The most rule-dense feature in the product, because a transaction is the only th
 **Acceptance criteria**
 
 - Reports spend, remaining, usage as a percentage, and whether it is over — all **derived** from completed expenses in the budget's currency and window, never stored. Which expenses count depends on the kind:
-  - a category budget: expenses in that category;
+  - a category budget: expenses in that category or any subcategory beneath it;
   - a goal budget: expenses tagged with that goal, including the expense a contribution records when money actually left an account;
   - a wallet-wide budget: every expense paid from any of the wallet's accounts.
 - **Remaining goes negative once overspent, and usage reads above 100%.** "You are 400,000 over" is exactly the number a budget exists to surface; clamping either figure hides the case it was built for.
 - **Transfers never contribute**, whatever accounts they touch — including a transfer to a partner's wallet ([BR-04](#4-business-rules)).
 - Cancelled and pending transactions never contribute.
-- The window is compared by **calendar day**, so an expense stamped late on the last day of the window is inside it.
-- Budgets can be listed for a wallet, filtered by status, and asked for by "active on this day".
+- A repeating budget reports **the current period** (this month, this week…), and each new period starts again from zero; the period shown is named ("Oct 2026"), not a date range.
+- The window is compared by **calendar day in the wallet's time zone**, so an expense stamped late on the last day of the window is inside it, and one just after local midnight is not.
+- Budgets can be listed for a wallet, and asked for by "active on this day", which also picks the period a repeating budget reports.
 
 **Error cases:** `BUDGET_NOT_FOUND` · `WALLET_NOT_FOUND`
 
@@ -1380,8 +1383,8 @@ The most rule-dense feature in the product, because a transaction is the only th
 
 **Acceptance criteria**
 
-- Editable: name, amount, status.
-- **Category, period label, start date and end date are immutable.** Moving a window changes which history the budget ever covered, which makes it a different budget; archive this one and create that one.
+- Editable: name, amount.
+- **Category, period, start date and end date are immutable.** Moving a window changes which history the budget ever covered, which makes it a different budget; delete this one and create that one.
 - Changing the amount changes remaining and usage on the next read, and never changes spend.
 - The change is audited.
 
@@ -1389,16 +1392,16 @@ The most rule-dense feature in the product, because a transaction is the only th
 
 ---
 
-#### BUD-US-04: Archive a budget
+#### BUD-US-04: Delete a budget
 
-**As a** member with editing rights, **I want to** retire a budget, **so that** it leaves the active list and stops blocking a replacement.
+**As a** member with editing rights, **I want to** delete a budget, **so that** it is gone and stops blocking a replacement.
 
 **Acceptance criteria**
 
-- Archiving keeps the budget readable as history.
+- Deleting removes the budget outright; no transaction, balance or goal changes, since a budget only plans.
 - It **releases the budget's slot in the overlap rule**, so a fresh budget may cover the same or an overlapping window.
-- No hard delete is offered.
-- Archiving is audited.
+- There is no archived state.
+- Deleting is audited, and the audit entry stays.
 
 **Error cases:** `BUDGET_NOT_FOUND` · `FORBIDDEN`
 
@@ -1417,6 +1420,8 @@ The most rule-dense feature in the product, because a transaction is the only th
 
 - Captures a name, a positive target amount, a currency, and an optional description and target date.
 - **A goal with no target date is valid** — an undated intention is a real goal, not an incomplete form.
+- The app offers the target date as quick options counted from today (end of this month, in 3 or 6
+  months, end of this year, in 1 or 2 years) or any custom day; a past deadline is allowed.
 - The goal starts with no contributions and therefore zero progress.
 - Creation is audited.
 
@@ -1713,7 +1718,7 @@ The most rule-dense feature in the product, because a transaction is the only th
 | No membership reads as not-found, never forbidden | BR-05 | WAL-US-02, WAL-US-07, TXN-US-04, DASH-US-01, Flows §8.2, §8.4 |
 | One active owner, always | BR-02 | WAL-US-08, WAL-US-10, WAL-US-11, Flow §8.9 |
 | Derived figures are never stored | BR-06 | ACC-US-02, ACC-US-03, BUD-US-02, SAV-US-03 |
-| Transactions are effectively immutable | BR-08 | TXN-US-07, TXN-US-08 |
+| Transactions are editable in place | BR-08 | TXN-US-07, TXN-US-08 |
 | Nothing financial is hard-deleted | BR-09 | ACC-US-05, CAT-US-04, BUD-US-04, SAV-US-05, SAV-US-06, WAL-US-12, TXN-US-08 |
 | Totals are per currency, never summed across | BR-13 | WAL-US-02, DASH-US-01, DASH-US-02 |
 | A converted dashboard total is approximate, optional, and never authoritative | BR-16 | DASH-US-03 |

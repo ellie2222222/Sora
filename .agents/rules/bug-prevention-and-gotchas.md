@@ -96,3 +96,7 @@ Each rule below was established to permanently prevent a regression of a specifi
 - The guest store is the guest's ledger: a signed-in read must never fall back to it when offline.
 - Signed-in reads go through `readSignedIn`: on a network failure they rethrow, and RTK Query keeps the last data or the account's own saved copy.
 - The in-memory cache is reset when the session ends; the SQLite read cache and offline-queue rows are keyed by account, so another account's data is never read.
+
+### 18. A Wallet's Calendar Day Is Its Time Zone's, Never UTC's or the Device's
+- `instant.slice(0, 10)` and `T00:00:00.000Z` bounds filed every early-morning entry in Vietnam (UTC+7) under the day before, in the list, the dashboard and every budget.
+- An instant becomes a wallet day only through [`packages/contracts/src/calendar.ts`](../../packages/contracts/src/calendar.ts) (`dayOfInstant`, `todayIn`, `dayRange`, `withDay`), given the wallet's `timeZone`. Every member gets the same day; a changed zone re-reads instants without rewriting them. Display-only times stay on the device.

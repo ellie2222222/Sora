@@ -155,7 +155,9 @@ npm run dev:mobile:clear           # same, with Metro's cache cleared — use wh
 
 Set `EXPO_PUBLIC_API_BASE_URL` to a host **the device** can reach. On a physical phone `localhost`
 resolves to the phone itself, so it must be your machine's LAN address; the API's
-`CORS_ORIGINS` needs to allow the Expo dev origin in return.
+`CORS_ORIGINS` needs to allow the Expo dev origin in return. Every setup (emulator, USB, same
+Wi-Fi, another network; API in Docker or local) is walked through in
+[docs/DEVICE_NETWORKING.md](docs/DEVICE_NETWORKING.md).
 
 For `a` (open on Android) to boot an emulator by itself, set `ANDROID_HOME` to the SDK, e.g.
 `%LOCALAPPDATA%\Android\Sdk` on Windows, then open a new terminal. Expo finds the emulator only
@@ -266,8 +268,8 @@ Login returns an identical `401` for an unknown email and a wrong password, so i
 to enumerate registered addresses. A caller with no membership on a wallet gets `404`, not
 `403` — `403` would confirm the resource exists to someone who cannot read it.
 
-Nothing financial is hard-deleted: wallets, accounts, categories and budgets are archived,
-transactions are cancelled, members are revoked. Transactions are the source of truth for every
+Nothing financial is hard-deleted: wallets, accounts and categories are archived,
+transactions are cancelled, members are revoked. A budget only plans, so it is deleted outright. Transactions are the source of truth for every
 derived figure, so a destroyed row would silently change historical answers.
 
 ## License

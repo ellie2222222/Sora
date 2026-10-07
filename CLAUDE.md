@@ -260,7 +260,7 @@ machine-checked, which is why they outrank the narrative documents.
 
 | # | Document | Authority over |
 |---|---|---|
-| 1 | [`db/migrations/001_initial_wallet_schema.sql`](db/migrations/001_initial_wallet_schema.sql) | The schema. What the database actually permits |
+| 1 | [`db/migrations/001_schema.sql`](db/migrations/001_schema.sql) | The schema. What the database actually permits |
 | 2 | [`packages/contracts/src/`](packages/contracts/src/) | Enums, validation, response shapes, error codes, route paths, money/derivation math |
 | 3 | [`docs/API_SPECIFICATION.md`](docs/API_SPECIFICATION.md) | The endpoint contract: auth, authorization, validation, errors, side effects per endpoint |
 | 4 | [`SRS.md`](SRS.md) | What the system does and why — domain model, business flows, user stories |
@@ -300,6 +300,7 @@ sora/
 │   ├── src/
 │   │   ├── enums.ts           # domain enums + roleSatisfies()/rankOf()
 │   │   ├── money.ts           # MoneyString ↔ scaled bigint; never a JS number
+│   │   ├── calendar.ts        # instant + wallet time zone → calendar day; the only such conversion
 │   │   ├── calc.ts            # every derived value (balance, spent, progress)
 │   │   ├── schemas.ts         # Zod request validation
 │   │   ├── responses.ts       # response DTOs, ERROR_CODES, ERROR_STATUS
@@ -326,7 +327,7 @@ sora/
 │       ├── features/           # one directory per domain feature, each with its own barrel
 │       ├── components/         # shared UI primitives, barrel-exported
 │       ├── design-system/      # colors, spacing, radius, sizes, shadows, typography tokens
-│       ├── services/           # api/, auth/, guest/ (local-first guest mode), haptics/, storage/, sync/ (offline queue, per-account read cache)
+│       ├── services/           # api/, auth/, guest/ (local-first guest mode), haptics/, locale/ (the app language outside React), storage/, sync/ (offline queue, per-account read cache)
 │       └── hooks/  utils/
 ├── db/
 │   ├── migrations/            # raw SQL, forward-only, immutable once applied
@@ -337,12 +338,15 @@ sora/
 │   ├── API_SPECIFICATION.md
 │   ├── DESIGN_GUIDELINES.md   # product principles, loading/empty/error states, visual tokens (MB-11)
 │   ├── ERROR_CODES.md  LOCALIZED_DEFAULTS_RULE.md
+│   ├── DEVICE_NETWORKING.md   # reaching the API from an emulator or phone, per network and API host
 │   └── test-plans/            # per-feature test plans: SRS §9 story → test case → test file:line
 ├── plans/
 │   ├── README.md
 │   ├── architecture/          # domain-database-design.md, multi-currency-plan.md, exchange-rate-resilience-plan.md,
-│   │                          # ai-chat-assistant-plan.md, dashboard-current-state.md, dashboard-feature-roadmap.md
-│   └── mobile/                # offline-sync-plan.md (offline mutation queue), e2e-framework-decision.md, transaction-ui-plan.md
+│   │                          # ai-chat-assistant-plan.md, dashboard-current-state.md, dashboard-feature-roadmap.md,
+│   │                          # timezone.md (brief) + wallet-timezone-plan.md
+│   ├── mobile/                # offline-sync-plan.md (offline mutation queue), e2e-framework-decision.md, transaction-ui-plan.md
+│   └── tooling/               # seed-data-plan.md (realistic seed data through the API)
 ├── verifications/             # verification/audit reports, YYYY-MM-DD-short-slug.md
 ├── webpage/                   # parked; not part of the build, CI or compose
 ├── .claude/skills/  .agents/  .codex/   # canonical skills; Codex/Antigravity ports (see Project Skills)
@@ -463,19 +467,22 @@ boundary, and read access to someone's wallet must not let you push money into i
 > force the settlement between two people to be recorded as two disconnected entries that
 > nothing reconciles — which is the exact failure the wallet model exists to remove.
 
-**BR-03 — Transaction immutability.**
-`amount`, `type`, `fromAccountId` and `toAccountId` cannot be edited (`409
-TRANSACTION_IMMUTABLE`). A recorded movement of money is a historical fact, and every balance,
-budget figure and goal total is derived from it — rewriting one silently rewrites all of them.
-Correcting a mistake is delete + create, which leaves both rows visible. Only `description`,
-`transactionDate`, `categoryId`, `goalId` (an expense's goal tag) and `reference` are mutable.
+**BR-03 — Transactions are editable in place.**
+Every field a create sets can be edited, `amount`, `type` and both accounts included. An edit that
+moves money is checked exactly as a create of the resulting row (shape, roles on every wallet named
+before and after, currency, category, goal tag), audited against every wallet it touched, and
+every balance, budget and goal figure follows on the next read (BR-05). A goal contribution the
+transaction backs moves with it, and the payment must stay an expense from the goal's wallet.
 
-**BR-04 — Budget windows do not overlap.**
-At most one `ACTIVE` budget per category per overlapping date range, enforced by the GIST
-exclusion constraint `excl_budget_category_overlap`; goal and wallet-wide budgets have their own
-(`excl_budget_goal_overlap`, `excl_budget_overall_overlap`, migration 008). Two windows can overlap without sharing an
-endpoint, which no unique index can express. Archived budgets are excluded, so last August does
-not block this August.
+**BR-04 — Budget windows do not overlap, and periodic budgets repeat.**
+A `DAILY`/`WEEKLY`/`MONTHLY`/`YEARLY` budget repeats from its start date until it is deleted (no
+end date, `chk_budget_end`); each read reports the period containing the day asked about
+(`budgetWindow` in `calc.ts`). `CUSTOM` and `GOAL` cover a fixed window. At most one budget per
+target over overlapping days, enforced by the GIST exclusion constraints `excl_budget_category_overlap`,
+`excl_budget_goal_overlap` and `excl_budget_overall_overlap`; a repeating budget's
+open end is unbounded, so it holds its target until deleted. Two windows can overlap without
+sharing an endpoint, which no unique index can express. Budgets are deleted outright: a budget
+only plans, and nothing is derived from it.
 
 **BR-05 — Derived values are never stored.**
 Account balance, wallet totals, budget `spent`/`remaining`/`usage`, and goal
@@ -607,12 +614,13 @@ reachable only by its visible text, which breaks on any copy change or translati
 | List row | `row-[entity]-[id]` | `row-transaction-<uuid>` |
 | Picker | `picker-[entity]` | `picker-wallet` |
 | Bottom sheet / modal | `sheet-[entity]` | `sheet-transaction` |
-| Sheet's Cancel | `btn-cancel-[entity]` | `btn-cancel-transaction` |
+| Sheet's Cancel / Close | `btn-cancel-[entity]` | `btn-cancel-transaction` |
+| Sheet's Back | `btn-back-[entity]` | `btn-back-wallet` |
 | Picker option | `option-[entity]-[id]` | `option-category-<uuid>` |
 | Segmented choice | `btn-[entity]-[field]-[value]` | `btn-transaction-type-EXPENSE` |
 | Calculator keypad | `keypad-[entity]`; keys `-key-<label>`, submit `-key-confirm` | `keypad-transaction-key-confirm` |
 
-`SheetFormHeader`'s `entity` prop sets both sheet ids. Screens that stay mounted together (tabs, a
+`BottomSheetModal`'s `entity` prop sets all three sheet ids. Screens that stay mounted together (tabs, a
 stack's lower screen) can share an id, so a flow checks its `screen-*` root before acting.
 
 ### Mobile Conventions
@@ -796,11 +804,12 @@ Synthetic test data is cleaned up by its own obviously-fake identifier only (an 
 `probe+<uuid>@example.invalid`, a wallet named `scratch-...`), never by an unfiltered statement
 and never by "everything created today".
 
-Nothing financial is hard-*removed* by design: wallets, accounts, categories and budgets are
-archived, transactions are marked `DELETED` (the row stays — only the status changes; see BR-03),
-members are revoked. The one hard delete is a category with no transactions and no budget on it
-or any descendant (`DELETE /categories/{id}?mode=permanent`, spec §10.4) — nothing derived reads
-it. Don't add a path that removes a financial row outright.
+Nothing financial is hard-*removed* by design: wallets, accounts and categories are archived,
+transactions are marked `DELETED` (the row stays — only the status changes), members are revoked.
+Two rows that nothing derived reads may be deleted: a category with no transactions and no budget
+on it or any descendant (`DELETE /categories/{id}?mode=permanent`, spec §10.4), and a budget,
+which only plans (`DELETE /budgets/{id}`, spec §12.5). Don't add a path that removes a ledger row
+(transaction, account, contribution) outright.
 
 ### Security Requirements
 
@@ -922,8 +931,8 @@ rewriting it.
     **do not translate or touch inactive locales** — only `en.ts` and `vi.ts` are maintained, and
     `vi.ts` must maintain 100% key parity with `en.ts` (`TranslationResource`). Inactive locale files
     are typed as `InactiveTranslationResource` (`DeepPartial<TranslationResource>`) so missing keys
-    never fail typechecks. `LOCALES` in `@sora/contracts` and `SUPPORTED_LOCALES` in
-    `mobile/src/app/i18n/index.ts` are both `['en', 'vi'] as const`.
+    never fail typechecks. `LOCALES` in `@sora/contracts` is `['en', 'vi'] as const`, and
+    `SUPPORTED_LOCALES` in `mobile/src/app/i18n/index.ts` re-exports it rather than restating it.
 
 14. **A barrel (`index.ts` re-exporting a directory) is an API boundary for outside callers, not a
     place to route every internal dependency through.** `mobile/src/**` uses per-directory barrels
@@ -1047,3 +1056,10 @@ rewriting it.
     user switch. The in-memory cache is reset whenever the session ends. The SQLite read cache
     and the queue rows are keyed by account, so another account's data stays on the device but
     is never read.
+
+18. **A wallet's calendar day is its time zone's, never UTC's or the device's.** `instant.slice(0, 10)`
+    and `T00:00:00.000Z` bounds filed every early-morning entry in Vietnam (UTC+7) under the day
+    before, in the list, the dashboard and every budget. An instant becomes a wallet day only
+    through `packages/contracts/src/calendar.ts` (`dayOfInstant`, `todayIn`, `dayRange`, `withDay`)
+    with the wallet's `timeZone`. Every member gets the same day, and a changed zone re-reads
+    instants without rewriting them. Display-only times (`formatTimeOfDay`) stay on the device.
