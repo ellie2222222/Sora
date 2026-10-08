@@ -401,7 +401,7 @@ Every wallet the caller can reach — owned and shared-with alike.
 
 **Query** — `?status=ACTIVE|ARCHIVED` (default `ACTIVE`), `?includeOwn=true|false`, `?includeShared=true|false` (both default `true`; any other value is `422`), `?page&pageSize` (§2.8)
 
-**Response `200`** — `WalletResponse[]`, oldest first, plus `meta.pagination`. Each carries the caller's own `role`, their `relationLabel` ("Girlfriend"), `isOwn`, the wallet's `timeZone` (§2.12), and `balances` **per currency**.
+**Response `200`** — `WalletResponse[]`, oldest first, plus `meta.pagination`. Each carries the caller's own `role`, the `relationLabel` the owner gave the caller's membership ("Girlfriend": the inviter's word for the member, not a wallet name), `isOwn`, the wallet's `timeZone` (§2.12), and `balances` **per currency**.
 
 > `balances` is an array, not a scalar. A wallet holding a VND and a USD account has no single total, and inventing one by adding the two numbers together produces a figure that is silently meaningless. Conversion is out of scope for v1.
 
@@ -584,7 +584,7 @@ Invitations are addressed to an **email**, not a user id, so you can invite some
 |---|---|
 | `email` | valid, trimmed, lowercased |
 | `role` | `EDITOR` or `VIEWER` only — `INVITABLE_ROLES`. Inviting straight to `OWNER` is rejected by both the schema and the `chk_invitation_role` constraint |
-| `relationLabel` | ≤ 50 characters, optional |
+| `relationLabel` | ≤ 50 characters, optional. The inviter's word for the invitee (SRS FR-11) |
 
 Rejected when the email already belongs to an `ACTIVE` member, or when an open invitation for this `(wallet, email)` already exists — `uq_wallet_invitation_open` enforces the latter in the database, so re-inviting must revoke first rather than stacking up tokens that all still work. An *expired* open invitation is not live: creating a new one revokes it in the same transaction (audited `INVITATION_REVOKED`), so its old token then answers `404` rather than `410`.
 

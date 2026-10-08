@@ -235,7 +235,7 @@ export interface WalletResponse {
   timeZone: string;
   /** The requesting user's role on this wallet. Never null in a list they can see. */
   role: WalletRole;
-  /** This viewer's own label for the wallet, e.g. "Girlfriend". */
+  /** The owner's word for this viewer on their membership, e.g. "Girlfriend" (SRS FR-11); not a name for the wallet. */
   relationLabel: string | null;
   isOwn: boolean;
   memberCount: number;

@@ -175,7 +175,7 @@ export const updateWalletSchema = z
 export const inviteMemberSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   role: z.enum(INVITABLE_ROLES),
-  /** How the invitee refers to this wallet, e.g. "Girlfriend" or "Mom". */
+  /** The inviter's own word for the invitee, e.g. "Girlfriend" or "Mom" (SRS FR-11); never a wallet name. */
   relationLabel: z.string().trim().max(50).optional(),
 });
 

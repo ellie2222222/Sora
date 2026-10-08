@@ -113,7 +113,7 @@ Grants a `User` other than the owner a role on a `Wallet` — this is what makes
 | wallet_id | UUID | Yes | The shared wallet |
 | user_id | UUID | Yes | The user being granted access |
 | role | VARCHAR(20) | Yes | OWNER, EDITOR, VIEWER |
-| relation_label | VARCHAR(50) | No | How this member refers to the wallet, e.g. "Girlfriend", "Mom" — subjective per viewer, not an attribute of the wallet itself |
+| relation_label | VARCHAR(50) | No | The inviter's word for this member, e.g. "Girlfriend", "Mom" (SRS FR-11) — descriptive, shown in the member list, never used as the wallet's name |
 | status | VARCHAR(20) | Yes | ACTIVE, REVOKED |
 | joined_at | TIMESTAMPTZ | Yes | When the membership took effect |
 | created_at | TIMESTAMPTZ | Yes | Creation timestamp |
@@ -1072,7 +1072,7 @@ Wallet: Tâm's Wallet
   Goal: New Laptop — 30,000,000 VND
 
 Wallet: Linh's Wallet
-  members: Linh (OWNER), Tâm (EDITOR, relation_label = "Girlfriend")
+  members: Linh (OWNER), Tâm (EDITOR, relation_label = "Boyfriend")
   Accounts:
     └── Techcombank VND
 ```

@@ -55,13 +55,9 @@ export function WalletSwitcher() {
   const { showToast } = useToast();
 
   const formatWalletName = (name: string) => (name === GUEST_WALLET_NAME ? t('wallets.yourWallet') : name);
-  const displayNameOf = (wallet: WalletResponse) =>
-    wallet.isOwn ? formatWalletName(wallet.name) : wallet.relationLabel ?? formatWalletName(wallet.name);
-
-
 
   const currentWallet = activeWallet ?? wallets[0] ?? null;
-  const displayName = currentWallet ? displayNameOf(currentWallet) : t('wallets.yourWallet', { defaultValue: 'Your wallet' });
+  const displayName = currentWallet ? formatWalletName(currentWallet.name) : t('wallets.yourWallet', { defaultValue: 'Your wallet' });
 
   const close = () => setOpen(false);
   // Account screens live in the app stack, so the sheet gets out of the way before navigating there.
@@ -78,7 +74,7 @@ export function WalletSwitcher() {
         return t('wallets.newWallet');
       case 'detail': {
         const wallet = wallets.find((candidate) => candidate.id === page.walletId);
-        return wallet !== undefined ? displayNameOf(wallet) : t('wallets.walletDetails');
+        return wallet !== undefined ? formatWalletName(wallet.name) : t('wallets.walletDetails');
       }
       case 'members':
         return t('wallets.members');
@@ -245,7 +241,7 @@ function WalletRow({
   const { t } = useTranslation();
 
   const formatWalletName = (name: string) => (name === GUEST_WALLET_NAME ? t('wallets.yourWallet') : name);
-  const displayName = wallet.isOwn ? formatWalletName(wallet.name) : wallet.relationLabel ?? formatWalletName(wallet.name);
+  const displayName = formatWalletName(wallet.name);
 
   return (
     <Pressable
@@ -265,7 +261,7 @@ function WalletRow({
           <Text weight={active ? 'semibold' : 'regular'}>{displayName}</Text>
           {!wallet.isOwn ? (
             <Text variant="caption" tone="muted">
-              {formatWalletName(wallet.name)} · {getRoleLabel(wallet.role, t)}
+              {getRoleLabel(wallet.role, t)}
             </Text>
           ) : displayName !== t('wallets.yourWallet') ? (
             <Text variant="caption" tone="muted">
