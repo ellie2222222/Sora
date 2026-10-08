@@ -15,6 +15,7 @@ import {
   SlideSwap,
   StateView,
   SwipeableRow,
+  Text,
   type SwipeRowAction,
 } from '@/components';
 import { useModal, useTheme, useToast, useWallets } from '@/app/providers';
@@ -25,8 +26,17 @@ import { today, isNetworkError } from '@/utils';
 import { useListBudgetsQuery, useListGoalsQuery } from '@/app/store';
 import { BudgetCard, BudgetItemSkeleton } from '../components/BudgetCard.tsx';
 import { GoalCard, GoalItemSkeleton } from '../components/GoalCard.tsx';
+import { BUDGET_GROUPS, budgetGroupOn, GOAL_GROUPS, groupedRows, isGoalOverdue, type BudgetGroup } from '../planningSections.ts';
 
 type PlanningSection = 'budgets' | 'goals';
+
+function GroupHeading({ label, testID }: { label: string; testID: string }) {
+  return (
+    <Text testID={testID} variant="label" tone="muted">
+      {label}
+    </Text>
+  );
+}
 
 export function PlanningScreen() {
   const theme = useTheme();
@@ -41,7 +51,7 @@ export function PlanningScreen() {
   const [deletingBudgetId, setDeletingBudgetId] = useState<string | null>(null);
   const [cancellingGoalId, setCancellingGoalId] = useState<string | null>(null);
 
-  // Editing lives in each detail sheet, so Edit opens it; the list shows the budgets covering today, all editable.
+  // Editing lives in each detail sheet, so Edit opens it. Every budget stays editable, ended or not.
   const budgetActions = (budget: BudgetResponse): SwipeRowAction[] =>
     permissions.canWrite
       ? [
@@ -49,8 +59,9 @@ export function PlanningScreen() {
           { key: 'delete', label: t('common.delete'), icon: Trash2, tone: 'danger', onPress: () => setDeletingBudgetId(budget.id), testID: 'btn-delete-budget' },
         ]
       : [];
+  // The detail sheet edits only an active goal, and a finished one can't be cancelled.
   const goalActions = (goal: GoalResponse): SwipeRowAction[] =>
-    permissions.canWrite
+    permissions.canWrite && goal.status === GoalStatus.ACTIVE
       ? [
           { key: 'edit', label: t('common.edit'), icon: Pencil, tone: 'primary', onPress: () => setSelectedGoalId(goal.id), testID: 'btn-edit-goal' },
           // Not btn-cancel-goal: that id is the add-goal sheet's Cancel (NC-04).
@@ -58,15 +69,21 @@ export function PlanningScreen() {
         ]
       : [];
 
-  const budgets = useListBudgetsQuery(
-    { walletId: activeWalletId ?? '', activeOn: today(timeZone) },
-    { skip: activeWalletId === null },
-  );
+  // Every budget and goal, grouped below, so ended and upcoming budgets and finished goals stay reachable.
+  const budgets = useListBudgetsQuery({ walletId: activeWalletId ?? '' }, { skip: activeWalletId === null });
+  const goals = useListGoalsQuery({ walletId: activeWalletId ?? '' }, { skip: activeWalletId === null });
+  const todayInWallet = today(timeZone);
 
-  const goals = useListGoalsQuery(
-    { walletId: activeWalletId ?? '', status: GoalStatus.ACTIVE },
-    { skip: activeWalletId === null },
-  );
+  const budgetGroupLabel: Record<BudgetGroup, string> = {
+    current: t('planning.current'),
+    upcoming: t('planning.upcoming'),
+    ended: t('planning.ended'),
+  };
+  const goalGroupLabel: Record<GoalStatus, string> = {
+    ACTIVE: t('planning.activeGoals'),
+    COMPLETED: t('planning.completedGoals'),
+    CANCELLED: t('planning.cancelledGoals'),
+  };
 
   // Like the transaction list: the empty state carries its own create action, so the Fab joins only once rows exist.
   const activeList = section === 'budgets' ? budgets : goals;
@@ -133,17 +150,21 @@ export function PlanningScreen() {
     return (
       <RefreshableFlatList
         testID="list-budgets"
-        data={items}
-        keyExtractor={(item) => item.id}
+        data={groupedRows(items, BUDGET_GROUPS, (budget) => budgetGroupOn(budget, todayInWallet))}
+        keyExtractor={(row) => row.key}
         contentContainerStyle={listContentStyle}
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
         onScrollBeginDrag={closeOpenSwipeRow}
-        renderItem={({ item }) => (
-          <SwipeableRow actions={budgetActions(item)} radius={theme.radius.lg} onActivate={() => setSelectedBudgetId(item.id)}>
-            <BudgetCard budget={item} onPress={() => setSelectedBudgetId(item.id)} />
-          </SwipeableRow>
-        )}
+        renderItem={({ item: row }) =>
+          row.kind === 'header' ? (
+            <GroupHeading label={budgetGroupLabel[row.group]} testID={`heading-budgets-${row.group}`} />
+          ) : (
+            <SwipeableRow actions={budgetActions(row.item)} radius={theme.radius.lg} onActivate={() => setSelectedBudgetId(row.item.id)}>
+              <BudgetCard budget={row.item} onPress={() => setSelectedBudgetId(row.item.id)} />
+            </SwipeableRow>
+          )
+        }
       />
     );
   };
@@ -193,19 +214,27 @@ export function PlanningScreen() {
     return (
       <RefreshableFlatList
         testID="list-goals"
-        data={items}
-        keyExtractor={(item) => item.id}
+        data={groupedRows(items, GOAL_GROUPS, (goal) => goal.status)}
+        keyExtractor={(row) => row.key}
         contentContainerStyle={listContentStyle}
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
         onScrollBeginDrag={closeOpenSwipeRow}
-        renderItem={({ item }) => (
-          <ListItemEnter>
-            <SwipeableRow actions={goalActions(item)} radius={theme.radius.lg} onActivate={() => setSelectedGoalId(item.id)}>
-              <GoalCard goal={item} onPress={() => setSelectedGoalId(item.id)} />
-            </SwipeableRow>
-          </ListItemEnter>
-        )}
+        renderItem={({ item: row }) =>
+          row.kind === 'header' ? (
+            <GroupHeading label={goalGroupLabel[row.group]} testID={`heading-goals-${row.group}`} />
+          ) : (
+            <ListItemEnter>
+              <SwipeableRow actions={goalActions(row.item)} radius={theme.radius.lg} onActivate={() => setSelectedGoalId(row.item.id)}>
+                <GoalCard
+                  goal={row.item}
+                  overdue={isGoalOverdue(row.item, todayInWallet)}
+                  onPress={() => setSelectedGoalId(row.item.id)}
+                />
+              </SwipeableRow>
+            </ListItemEnter>
+          )
+        }
       />
     );
   };

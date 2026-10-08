@@ -14,15 +14,15 @@ tested and where. When a story changes, update its plan in the same change.
 | [Accounts](accounts.md)                                 | ACC-US-01..05                              |            19 |            19 |            0 |            0 |            0 |
 | [Transactions](transactions.md)                         | TXN-US-01..08                              |            38 |            38 |            0 |            0 |            0 |
 | [Categories](categories.md)                             | CAT-US-01..04                              |            25 |            25 |            0 |            0 |            0 |
-| [Budgets](budgets.md)                                   | BUD-US-01..04                              |            24 |            24 |            0 |            0 |            0 |
-| [Saving goals](goals.md)                                | SAV-US-01..06                              |            25 |            25 |            0 |            0 |            0 |
+| [Budgets](budgets.md)                                   | BUD-US-01..04                              |            25 |            25 |            0 |            0 |            0 |
+| [Saving goals](goals.md)                                | SAV-US-01..06                              |            26 |            26 |            0 |            0 |            0 |
 | [Dashboard &amp; exchange rates](dashboard.md)          | DASH-US-01..04                             |            23 |            23 |            0 |            0 |            0 |
 | [Guest mode](guest.md)                                  | GST-US-01..02                              |            19 |            18 |            1 |            0 |            0 |
 | [AI assistant](ai.md)                                   | AI-US-01..03                               |            14 |            13 |            1 |            0 |            0 |
 | [Offline sync (mobile, cross-cutting)](offline-sync.md) | — (`plans/mobile/offline-sync-plan.md`) |            20 |            20 |            0 |            0 |            0 |
-| **Total**                                        |                                            | **278** | **276** |  **2** |  **0** |  **0** |
+| **Total**                                        |                                            | **280** | **278** |  **2** |  **0** |  **0** |
 
-Counts are as of 2026-10-04 (`verifications/2026-10-04-e2e-cases-covered.md`).
+Counts are as of 2026-10-07 (TC-BUD-25 and TC-SAV-26 added; earlier counts from `verifications/2026-10-04-e2e-cases-covered.md`).
 
 ## Where to start
 

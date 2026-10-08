@@ -7,7 +7,7 @@ import { Card, Money, ProgressBar, Skeleton, SyncStatusDot, Text } from '@/compo
 import { useTheme } from '@/app/providers';
 import { selectQueueEntryFor } from '@/app/store';
 
-export function GoalCard({ goal, onPress }: { goal: GoalResponse; onPress: () => void }) {
+export function GoalCard({ goal, overdue = false, onPress }: { goal: GoalResponse; overdue?: boolean; onPress: () => void }) {
   const theme = useTheme();
   const { t } = useTranslation();
   const syncStatus = useSelector(selectQueueEntryFor('goal', goal.id))?.status;
@@ -15,9 +15,16 @@ export function GoalCard({ goal, onPress }: { goal: GoalResponse; onPress: () =>
   return (
     <Pressable testID={`row-goal-${goal.id}`} accessibilityRole="button" onPress={onPress}>
       <Card>
-        <View className="flex-row items-center" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.xs }}>
-          <Text weight="semibold">{goal.name}</Text>
-          <SyncStatusDot status={syncStatus} />
+        <View className="flex-row items-center justify-between" style={{ marginBottom: theme.spacing.xs }}>
+          <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
+            <Text weight="semibold">{goal.name}</Text>
+            <SyncStatusDot status={syncStatus} />
+          </View>
+          {overdue ? (
+            <Text testID={`badge-goal-overdue-${goal.id}`} variant="caption" tone="danger">
+              {t('goals.overdue')}
+            </Text>
+          ) : null}
         </View>
 
         <View className="flex-row" style={{ gap: theme.spacing.xs, marginBottom: theme.spacing.sm }}>
@@ -35,7 +42,7 @@ export function GoalCard({ goal, onPress }: { goal: GoalResponse; onPress: () =>
             {goal.progressPercentage.toFixed(0)}%
           </Text>
           {goal.targetDate !== null ? (
-            <Text variant="caption" tone="muted">
+            <Text variant="caption" tone={overdue ? 'danger' : 'muted'}>
               {t('goals.deadline')}: {goal.targetDate}
             </Text>
           ) : null}
