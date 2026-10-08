@@ -73,6 +73,73 @@ would use — so override `POSTGRES_HOST_PORT` in `.env` first if something's al
 **After any deploy**, confirm the health check reports `"database": "up"` — a `503` with
 `"database": "down"` means the API started but can't reach Postgres (see below).
 
+## Building the mobile app
+
+Expo bakes every `EXPO_PUBLIC_*` value into the bundle at build time, so set the API URL **before**
+building. A release build refuses a plain `http://` API URL at startup (`apiUrlPolicy.ts`) unless
+`EXPO_PUBLIC_ALLOW_INSECURE_API=true`; Android also blocks cleartext in a release build unless the
+prebuild ran with `SORA_E2E_BUILD=1` (`app.config.js`). Use both only for a LAN or emulator build.
+
+**Cloud, with EAS** (`mobile/eas.json`; project `tam-le-team/sora` in `app.json`). `mobile/.env` is
+gitignored and isn't uploaded, so give the build its URL as an EAS environment variable or in the
+profile's `env` in `eas.json`:
+
+```bash
+cd mobile
+npx eas-cli login
+npx eas-cli build --platform android --profile preview      # internal build, install link printed at the end
+npx eas-cli build --platform android --profile production   # store build, version auto-incremented
+```
+
+The `development` profile needs `expo-dev-client`, which isn't a dependency yet.
+
+**Local APK, no EAS account.** `mobile/android/` is generated (gitignored); `--clean` rebuilds it.
+The release APK is signed with the debug key, which is fine for sideloading but not for a store.
+
+```bash
+cd mobile
+npx expo prebuild --platform android --clean --no-install
+cd android
+EXPO_PUBLIC_API_BASE_URL=https://api.example.com NODE_ENV=production ./gradlew assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+`./gradlew assembleDebug` instead builds an APK that loads JavaScript from Metro
+(`npm run dev:mobile`). The E2E APK, which talks to a local API over plain HTTP, has its own steps in
+[`mobile/e2e/README.md`](mobile/e2e/README.md). Reaching a local API from an emulator or phone:
+[`docs/DEVICE_NETWORKING.md`](docs/DEVICE_NETWORKING.md).
+
+## Demo data
+
+`npm run db:seed` (`scripts/seed/`, [plan](plans/tooling/seed-data-plan.md)) writes a year of data for
+four users through a **running API**: about 2,700 transactions plus every account, category, budget
+and goal kind. It then reads everything back and checks it. It only adds data, and nothing removes
+it but dropping the database, so point it at a database you can lose: a fresh one, or an empty
+local `sora_dev`.
+
+```bash
+npm run db:seed -- --dry-run                                    # build and check the ledger, no API call
+SEED_API_URL=http://127.0.0.1:3000 npm run db:seed              # seed what the API at :3000 writes to
+SEED_API_URL=… npm run db:seed -- --guest-fixture demo.json     # also write An's wallet as guest-mode data
+```
+
+Logins go to `.env.seed`, created ids to `.seed/<runId>.json` (both gitignored); sign in as
+`SEED_AN_EMAIL`. `SEED` (default 2) and `SEED_ANCHOR` (default: today in Vietnam) fix the data, so
+seed on the day of a demo. The exchange-rate check needs an API booted with
+`EXCHANGE_RATE_API_URL=http://127.0.0.1:3418 EXCHANGE_RATE_CACHE_TTL_MINUTES=1` against
+`node scripts/seed/rates-stub.mts`, plus `SEED_RATES_URL=http://127.0.0.1:3418`. The stub's rates
+land in that database's snapshot table, so use a scratch database for it.
+
+Guest-mode demo data, in a development build: write the fixture, serve it, and start Metro with its
+URL, then use guest Settings → "Load demo data" (it replaces the guest data on that device).
+
+```bash
+npm run db:seed -- --dry-run --guest-fixture demo.json
+node scripts/seed/serve-guest-fixture.mts demo.json            # http://127.0.0.1:3420/; FIXTURE_HOST=0.0.0.0 for a phone
+EXPO_PUBLIC_DEMO_FIXTURE_URL=http://10.0.2.2:3420/ npm run dev:mobile
+SEED_API_URL=… node scripts/seed/guest-upload-check.mts demo.json   # the guest → account upload, checked from Node
+```
+
 ## Database migrations
 
 ```bash
@@ -166,11 +233,12 @@ case the Data Safety rules forbid without asking first.
 
 ## CI reference
 
-`.github/workflows/ci.yml` runs four jobs: **contracts** (types, unit tests, contract/schema
-parity — everything else depends on this), **database** (migrate against real Postgres, run
-constraint suites, then re-run to prove migrations are idempotent), **server** (typecheck, migrate
-a test database, run tests), **mobile** (typecheck, tests, and an `expo export` bundle as a proxy
-for "the app would start," since no emulator runs in CI).
+`.github/workflows/ci.yml` runs six jobs: **contracts** (types, unit tests, contract/schema
+parity), **database** (migrate against real Postgres, run constraint suites, then re-run to prove
+migrations are idempotent), **server** (typecheck, migrate a test database, run tests), **mobile**
+(typecheck, tests, and an `expo export` bundle as a first signal that every import resolves),
+**e2e** (after server and mobile: builds the E2E APK and runs `mobile/e2e` on an Android emulator),
+and **audit** (runtime dependency advisories; nothing waits on it).
 
 ## Monitoring / alerting
 

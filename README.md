@@ -164,6 +164,9 @@ For `a` (open on Android) to boot an emulator by itself, set `ANDROID_HOME` to t
 through `ANDROID_HOME` or an `emulator` on `PATH`. Without either it reports "No Android connected
 device found" even when an emulator exists.
 
+**Demo data**: `npm run db:seed` fills the database a running API writes to with a year of realistic
+data for four users; see [RUNBOOK.md](RUNBOOK.md#demo-data).
+
 **Both at once**, from the repo root:
 
 ```bash

@@ -38,6 +38,8 @@ export const env = {
    * three are optional so the app still runs without Google sign-in configured
    * — LoginScreen hides the button rather than rendering one that would 400.
    */
+  /** Where a development build's guest Settings fetches demo data from (scripts/seed/serve-guest-fixture.mts). */
+  demoFixtureUrl: process.env.EXPO_PUBLIC_DEMO_FIXTURE_URL,
   googleClientIdWeb: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB,
   googleClientIdIos: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS,
   googleClientIdAndroid: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID,

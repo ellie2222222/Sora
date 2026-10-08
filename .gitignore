@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Seed runs: every created id, per run (scripts/seed, plans/tooling/seed-data-plan.md)
+.seed/
+
 # Python
 __pycache__/
 *.py[cod]

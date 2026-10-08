@@ -73,7 +73,8 @@ sora/
 ├── db/
 │   ├── migrations/            # Raw SQL forward-only migrations (immutable once applied)
 │   └── tests/                 # Constraint probes executed against real Postgres
-├── scripts/                   # migrate.mjs (migration runner), check-contract-parity.mjs, sync-agent-skills.mjs, audit-runtime-deps.mjs
+├── scripts/                   # migrate.mjs (migration runner), check-contract-parity.mjs, sync-agent-skills.mjs, audit-runtime-deps.mjs,
+│                              # seed/ (demo data through the API, plans/tooling/seed-data-plan.md)
 ├── docs/                      # API_SPECIFICATION.md, DESIGN_GUIDELINES.md, ERROR_CODES.md, LOCALIZED_DEFAULTS_RULE.md, DEVICE_NETWORKING.md
 │   └── test-plans/            # Per-feature test plans: SRS §9 story → test case → test file:line
 ├── plans/                     # architecture/, mobile/ and tooling/ design plans
@@ -123,6 +124,7 @@ node scripts/check-contract-parity.mjs         # Mechanical schema <-> contracts
 npm run agents:check                           # .agents/skills matches .claude/skills
 npm run db:migrate                             # Run SQL migrations
 npm run db:test                                # Run database constraint probes
+npm run db:seed                                # Demo data through a running API (SEED_API_URL); --dry-run needs none
 npm run dev:server                             # Start server in watch mode
 npm run dev:mobile                             # Start Expo mobile app
 npm run dev:mobile:clear                       # Same, with Metro's cache cleared

@@ -332,7 +332,8 @@ sora/
 ├── db/
 │   ├── migrations/            # raw SQL, forward-only, immutable once applied
 │   └── tests/                 # psql constraint probes against a real Postgres
-├── scripts/                   # migrate.mjs (migration runner), check-contract-parity.mjs, sync-agent-skills.mjs, audit-runtime-deps.mjs
+├── scripts/                   # migrate.mjs (migration runner), check-contract-parity.mjs, sync-agent-skills.mjs, audit-runtime-deps.mjs,
+│                              # seed/ (demo data through the API, plans/tooling/seed-data-plan.md)
 ├── .github/                   # workflows/ci.yml (contracts + database → server; contracts → mobile; server + mobile → e2e; audit standalone), dependabot.yml
 ├── docs/
 │   ├── API_SPECIFICATION.md
@@ -346,7 +347,7 @@ sora/
 │   │                          # ai-chat-assistant-plan.md, dashboard-current-state.md, dashboard-feature-roadmap.md,
 │   │                          # timezone.md (brief) + wallet-timezone-plan.md
 │   ├── mobile/                # offline-sync-plan.md (offline mutation queue), e2e-framework-decision.md, transaction-ui-plan.md
-│   └── tooling/               # seed-data-plan.md (realistic seed data through the API)
+│   └── tooling/               # seed-data-plan.md (realistic seed data through the API, scripts/seed/)
 ├── verifications/             # verification/audit reports, YYYY-MM-DD-short-slug.md
 ├── webpage/                   # parked; not part of the build, CI or compose
 ├── .claude/skills/  .agents/  .codex/   # canonical skills; Codex/Antigravity ports (see Project Skills)
@@ -386,6 +387,7 @@ node scripts/check-contract-parity.mjs        # contract ↔ schema ↔ API spec
 
 npm run db:migrate                            # apply db/migrations/*.sql in order
 npm run db:test                               # apply, then run db/tests/*.sql probes
+npm run db:seed                               # demo data through a running API (SEED_API_URL); --dry-run needs none
 
 npm run setup                                 # install + build contracts + migrate, one shot
 npm run dev:server                            # server: build, then watch + auto-restart

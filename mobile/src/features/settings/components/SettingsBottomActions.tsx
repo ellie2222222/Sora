@@ -1,18 +1,25 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { LogOut, Trash2, LogIn } from 'lucide-react-native';
+import { Database, LogOut, Trash2, LogIn } from 'lucide-react-native';
 import { Button, ConfirmDialog } from '@/components';
-import { useAuth } from '@/app/providers';
-import { guestStore } from '@/services/guest';
+import { env } from '@/app/config';
+import { useAuth, useToast } from '@/app/providers';
+import { invalidateEverything, useAppDispatch } from '@/app/store';
+import { guestStore, loadGuestFixture } from '@/services/guest';
+
+const demoFixtureUrl = __DEV__ ? env.demoFixtureUrl : undefined;
 
 export function SettingsBottomActions() {
   const { t } = useTranslation();
   const { isGuest, logout, exitGuestModeToAuth } = useAuth();
+  const { showToast } = useToast();
+  const dispatch = useAppDispatch();
 
   const [confirmingLogout, setConfirmingLogout] = useState(false);
   const [confirmingClearAll, setConfirmingClearAll] = useState(false);
   const [confirmingGuestClear, setConfirmingGuestClear] = useState(false);
+  const [confirmingLoadDemo, setConfirmingLoadDemo] = useState(false);
 
   async function handleClearAllData() {
     await guestStore.clear();
@@ -22,6 +29,18 @@ export function SettingsBottomActions() {
   async function handleClearGuestData() {
     await guestStore.clear();
     await exitGuestModeToAuth();
+  }
+
+  async function handleLoadDemo(url: string) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await loadGuestFixture(await response.json());
+      dispatch(invalidateEverything());
+      showToast(t('guest.settings.loadDemoDone'), 'success');
+    } catch {
+      showToast(t('guest.settings.loadDemoFailed'), 'error');
+    }
   }
 
   return (
@@ -56,6 +75,16 @@ export function SettingsBottomActions() {
               onPress={() => void exitGuestModeToAuth()}
               fullWidth
             />
+            {demoFixtureUrl ? (
+              <Button
+                testID="settings-guest-load-demo"
+                label={t('guest.settings.loadDemo')}
+                icon={Database}
+                variant="secondary"
+                onPress={() => setConfirmingLoadDemo(true)}
+                fullWidth
+              />
+            ) : null}
             <Button
               testID="settings-guest-clear"
               label={t('guest.settings.clearData')}
@@ -107,6 +136,21 @@ export function SettingsBottomActions() {
         }}
         onCancel={() => setConfirmingGuestClear(false)}
       />
+
+      {demoFixtureUrl ? (
+        <ConfirmDialog
+          visible={confirmingLoadDemo}
+          title={t('guest.settings.loadDemoConfirmTitle')}
+          message={t('guest.settings.loadDemoConfirmBody')}
+          confirmLabel={t('guest.settings.loadDemo')}
+          variant="danger"
+          onConfirm={() => {
+            setConfirmingLoadDemo(false);
+            void handleLoadDemo(demoFixtureUrl);
+          }}
+          onCancel={() => setConfirmingLoadDemo(false)}
+        />
+      ) : null}
     </>
   );
 }

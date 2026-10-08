@@ -14,11 +14,12 @@
   "scripts": {
     "build": "npm run build --workspace @sora/contracts && npm run build --workspace @sora/server",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc -p scripts/seed/tsconfig.json",
     "lint": "npm run lint --workspaces --if-present",
     "db:migrate": "node scripts/migrate.mjs",
     "db:reset": "node scripts/migrate.mjs --reset",
     "db:test": "node scripts/migrate.mjs --constraints",
+    "db:seed": "node scripts/seed/seed-demo.mts",
     "setup": "npm install && npm run build --workspace @sora/contracts && npm run db:migrate",
     "dev": "concurrently -k -n server,mobile -c blue,magenta \"npm:dev:server\" \"npm:dev:mobile\"",
     "dev:server": "npm run start:dev --workspace @sora/server",

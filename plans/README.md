@@ -18,7 +18,7 @@ plans/
 ├── mobile/                                   # Client application roadmap and offline capabilities
 │   └── offline-sync-plan.md                  # Offline-first data entry & background sync engine
 └── tooling/                                  # Developer tooling
-    └── seed-data-plan.md                     # Realistic demo/dev seed data through the API
+    └── seed-data-plan.md                     # Realistic demo/dev seed data through the API (scripts/seed/)
 ```
 
 ---
@@ -47,7 +47,7 @@ plans/
 
 | Document | Status | Summary |
 |---|---|---|
-| [`seed-data-plan.md`](tooling/seed-data-plan.md) | **Draft** | API-driven seed of a year of realistic data across four personas: every account, category, transaction, budget and goal kind, plus read-back verification. |
+| [`seed-data-plan.md`](tooling/seed-data-plan.md) | **Implemented** | API-driven seed of a year of realistic data across four personas: every account, category, transaction, budget and goal kind, plus read-back verification. |
 
 `modal-ui-form-plan.md`, a one-off review brief for tracing modal/form UI fields to their real
 domain/schema representation, was removed once fully executed — its findings and fixes are recorded in
