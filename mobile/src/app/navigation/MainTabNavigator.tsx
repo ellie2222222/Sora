@@ -1,10 +1,18 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { CalendarRange, LayoutDashboard, PieChart, Settings as SettingsIcon, Sparkles } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AiChatScreen } from '@/features/chat';
@@ -17,12 +25,42 @@ import type { MainTabParamList } from './types.ts';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
+/** The newly selected tab's icon dips, then springs back with a little lift: feedback that the tap landed. */
+function TabIconBounce({ focused, children }: { focused: boolean; children: ReactNode }) {
+  const reduceMotion = useReducedMotion();
+  const scale = useSharedValue(1);
+  const lift = useSharedValue(0);
+  const wasFocused = useRef(focused);
+
+  useEffect(() => {
+    if (focused && !wasFocused.current && !reduceMotion) {
+      scale.value = withSequence(
+        withTiming(0.86, { duration: 80, easing: Easing.out(Easing.quad) }),
+        withSpring(1, { damping: 13, stiffness: 420, mass: 0.5 }),
+      );
+      lift.value = withSequence(
+        withTiming(-4, { duration: 90, easing: Easing.out(Easing.quad) }),
+        withSpring(0, { damping: 13, stiffness: 380, mass: 0.5 }),
+      );
+    }
+    wasFocused.current = focused;
+  }, [focused, reduceMotion]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: lift.value }, { scale: scale.value }],
+  }));
+
+  return <Animated.View style={style}>{children}</Animated.View>;
+}
+
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [containerWidth, setContainerWidth] = useState(0);
 
+  const reduceMotion = useReducedMotion();
   const translateX = useSharedValue(0);
+  const stretch = useSharedValue(1);
   const isInitialized = useSharedValue(false);
 
   const totalTabs = state.routes.length;
@@ -34,21 +72,26 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
     const targetX = state.index * tabWidth + (tabWidth - indicatorWidth) / 2;
 
-    if (!isInitialized.value) {
+    if (!isInitialized.value || reduceMotion) {
       translateX.value = targetX;
       isInitialized.value = true;
     } else {
       // Decelerates onto the tab and stops dead — the same horizontal-motion
-      // treatment as `SlideSwap`, rather than springing past it and back.
+      // treatment as `SlideSwap`, rather than springing past it and back. Only its
+      // width is fluid: it stretches in flight and springs back to size on arrival.
       translateX.value = withTiming(targetX, {
         duration: 260,
         easing: Easing.out(Easing.cubic),
       });
+      stretch.value = withSequence(
+        withTiming(1.8, { duration: 100, easing: Easing.out(Easing.quad) }),
+        withSpring(1, { damping: 13, stiffness: 320, mass: 0.5 }),
+      );
     }
-  }, [state.index, containerWidth, tabWidth]);
+  }, [state.index, containerWidth, tabWidth, reduceMotion]);
 
   const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
+    transform: [{ translateX: translateX.value }, { scaleX: stretch.value }],
   }));
 
   return (
@@ -115,7 +158,9 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             style={{ paddingVertical: theme.spacing.xs }}
           >
             {options.tabBarIcon ? (
-              options.tabBarIcon({ focused: isFocused, color, size: theme.iconSize.xxl })
+              <TabIconBounce focused={isFocused}>
+                {options.tabBarIcon({ focused: isFocused, color, size: theme.iconSize.xxl })}
+              </TabIconBounce>
             ) : null}
             <Text
               className="text-xs"
