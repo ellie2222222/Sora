@@ -509,9 +509,15 @@ queue, never replace one mid-animation. One consistent position app-wide.
 
 ### Motion
 
-Motion communicates state change, movement, hierarchy or feedback — never decoration, continuous
-motion, or bounce. Duration scales with the size of the change: small (checkbox, icon swap)
-100–200ms; larger (panel slide, sheet) 250–400ms — past ~400ms it feels sluggish. Entering:
+Motion communicates state change, movement, hierarchy or feedback — never decoration or continuous
+motion. A bounce only as tap feedback on the control itself, settled within the 400ms below, never
+on content, and skipped under Reduce Motion: the newly selected bottom tab's icon dips and springs
+back, and the tab indicator stretches in flight (`MainTabNavigator.tsx`). One exception to "never
+continuous": a long-running operation's own progress screen (the guest upload, `features/guest/`)
+keeps a circling ring, a breathing halo and a passing highlight going while the work runs, because
+that motion is what says it is still alive. It stops the moment the work stops, and Reduce Motion
+stills it. Duration scales with the
+size of the change: small (checkbox, icon swap) 100–200ms; larger (panel slide, sheet) 250–400ms — past ~400ms it feels sluggish. Entering:
 ease-out. Exiting: ease-in. Animation never blocks or delays an action.
 
 ### Form validation

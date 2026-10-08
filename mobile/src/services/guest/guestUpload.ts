@@ -1,13 +1,14 @@
 /**
  * The guest → real-account upload sequencer.
  *
- * Fixed order, FK-driven: categories → accounts → transactions → budgets →
- * goals (created ACTIVE) → goal contributions → goal status transition →
- * archive whatever was locally archived. The server never accepts a
- * client-supplied `id`, so every phase builds a local-id → server-id map as
- * it goes, persisted in `guestStore`'s `uploadProgress` — a retry after an
- * app kill re-reads those maps and skips whatever already has an entry,
- * rather than re-uploading it.
+ * Fixed order, FK-driven: categories → accounts → goals (created ACTIVE) →
+ * goal contributions → transactions → budgets → goal status transitions →
+ * archive whatever was locally archived. Statuses wait until after budgets,
+ * because a goal budget can't be created on a goal that is no longer ACTIVE.
+ * The server never accepts a client-supplied `id`, so every phase builds a
+ * local-id → server-id map as it goes, persisted in `guestStore`'s
+ * `uploadProgress` — a retry after a cancel or an app kill re-reads those maps
+ * and skips whatever already has an entry, rather than re-uploading it.
  *
  * A contribution's backing transaction (`GuestContribution.transactionId`
  * set) is uploaded exclusively through `goalsApi.addContribution({
@@ -297,8 +298,8 @@ async function uploadBudgets(walletId: string, apis: UploadApis): Promise<void> 
 async function uploadGoals(walletId: string, apis: UploadApis): Promise<void> {
   const { goals } = guestStore.current();
 
-  // Phase 1: create every goal ACTIVE — contributions need GOAL_NOT_ACTIVE
-  // to not have fired yet, so status transitions wait until phase 3.
+  // Every goal is created ACTIVE: a contribution or a goal budget on an inactive
+  // one is refused with GOAL_NOT_ACTIVE, so statuses wait for settleGoalStatuses.
   for (const goal of goals) {
     if (goal.id in progressOf(guestStore.current()).goalMap) continue;
 
@@ -313,7 +314,6 @@ async function uploadGoals(walletId: string, apis: UploadApis): Promise<void> {
     await recordMap('goalMap', goal.id, response.id);
   }
 
-  // Phase 2: every contribution.
   const { contributions, transactions } = guestStore.current();
   for (const contribution of contributions) {
     if (contribution.id in progressOf(guestStore.current()).contributionMap) continue;
@@ -352,8 +352,11 @@ async function uploadGoals(walletId: string, apis: UploadApis): Promise<void> {
       await recordMap('transactionMap', backingTransaction.id, response.transactionId);
     }
   }
+}
 
-  // Phase 3: status transitions, now that every contribution has landed.
+/** Not tracked in the progress maps: a repeated cancel or complete changes nothing on the server. */
+async function settleGoalStatuses(apis: UploadApis): Promise<void> {
+  const { goals } = guestStore.current();
   for (const goal of goals) {
     if (goal.status === GoalStatus.ACTIVE) continue;
     const mappedGoalId = progressOf(guestStore.current()).goalMap[goal.id]!;
@@ -387,50 +390,127 @@ async function archiveLocallyArchived(apis: UploadApis): Promise<void> {
   }
 }
 
-export type UploadPhase = 'categories' | 'accounts' | 'transactions' | 'budgets' | 'goals' | 'contributions' | 'archives';
-export type UploadProgressCallback = (phase: UploadPhase, completed: boolean) => void;
+/** The order `uploadGuestData` runs its phases in. Goal statuses settle inside `archives`. */
+export const UPLOAD_PHASES = ['categories', 'accounts', 'goals', 'transactions', 'budgets', 'archives'] as const;
+export type UploadPhase = (typeof UPLOAD_PHASES)[number];
+
+/** Thrown by `uploadGuestData` when its signal aborts. Everything recorded before it stays mapped. */
+export class GuestUploadCancelledError extends Error {
+  constructor() {
+    super('Guest upload cancelled');
+    this.name = 'GuestUploadCancelledError';
+  }
+}
+
+/**
+ * Checks the signal before every request rather than aborting one in flight, so a
+ * request that started always gets its answer recorded and a resume never has to
+ * reconcile a create whose outcome is unknown.
+ */
+function stopWhenAborted(apis: UploadApis, signal: AbortSignal | undefined): UploadApis {
+  if (!signal) return apis;
+  const guard = <Group extends object>(group: Group): Group =>
+    Object.fromEntries(
+      Object.entries(group).map(([name, method]) => [
+        name,
+        (...args: unknown[]) => {
+          if (signal.aborted) throw new GuestUploadCancelledError();
+          return (method as (...params: unknown[]) => unknown).apply(group, args);
+        },
+      ]),
+    ) as Group;
+  return {
+    categories: guard(apis.categories),
+    accounts: guard(apis.accounts),
+    transactions: guard(apis.transactions),
+    budgets: guard(apis.budgets),
+    goals: guard(apis.goals),
+  };
+}
+
+function phaseRows(data: GuestData, progress: GuestUploadProgress): Record<Exclude<UploadPhase, 'archives'>, [local: { id: string }[], mapped: Record<string, string>][]> {
+  return {
+    categories: [[data.categories, progress.categoryMap]],
+    accounts: [[data.accounts, progress.accountMap]],
+    goals: [[data.goals, progress.goalMap], [data.contributions, progress.contributionMap]],
+    transactions: [[data.transactions, progress.transactionMap]],
+    budgets: [[data.budgets, progress.budgetMap]],
+  };
+}
+
+export interface UploadStepCount {
+  done: number;
+  total: number;
+}
+
+/**
+ * Read from the saved maps rather than reported by the run, so a paused upload shows the
+ * same steps after a relaunch. `archives` sends goal statuses and archives, which create
+ * nothing to map, so its rows count as done only once the upload is.
+ */
+export function uploadStatusOf(
+  data: GuestData,
+  finished = false,
+): { donePhases: UploadPhase[]; steps: Record<UploadPhase, UploadStepCount>; doneRows: number; totalRows: number } {
+  const progress = data.uploadProgress ?? emptyUploadProgress('');
+  const rows = phaseRows(data, progress);
+  const closingRows =
+    data.categories.filter((category) => category.status === CategoryStatus.ARCHIVED).length +
+    data.accounts.filter((account) => account.status === AccountStatus.ARCHIVED).length +
+    data.goals.filter((goal) => goal.status !== GoalStatus.ACTIVE).length;
+
+  const steps = {} as Record<UploadPhase, UploadStepCount>;
+  const donePhases: UploadPhase[] = [];
+  let prefixUnbroken = true;
+  for (const phase of UPLOAD_PHASES) {
+    const count =
+      phase === 'archives'
+        ? { done: finished ? closingRows : 0, total: closingRows }
+        : rows[phase].reduce(
+            (sum, [local, mapped]) => ({ done: sum.done + local.filter((row) => row.id in mapped).length, total: sum.total + local.length }),
+            { done: 0, total: 0 },
+          );
+    steps[phase] = count;
+    prefixUnbroken &&= phase === 'archives' ? finished : count.done === count.total;
+    if (prefixUnbroken) donePhases.push(phase);
+  }
+
+  // The closing step counts as one row even when it has nothing to send, so 100% means finished.
+  const doneRows = UPLOAD_PHASES.reduce((sum, phase) => sum + steps[phase].done, 0) + (finished && closingRows === 0 ? 1 : 0);
+  const totalRows = UPLOAD_PHASES.reduce((sum, phase) => sum + steps[phase].total, 0) + (closingRows === 0 ? 1 : 0);
+  return { donePhases, steps, doneRows, totalRows };
+}
+
+export interface UploadOptions {
+  /** Stops before the next request; rejects with `GuestUploadCancelledError`. */
+  signal?: AbortSignal;
+}
 
 /**
  * Uploads every locally-tracked record into `walletId`. Safe to call again
- * after a partial failure or an app kill — each phase skips whatever its
- * `uploadProgress` map already covers.
+ * after a partial failure, a cancel or an app kill — each phase skips whatever
+ * its `uploadProgress` map already covers.
  */
 export async function uploadGuestData(
   walletId: string,
   injectedApis?: UploadApis,
-  onProgress?: UploadProgressCallback,
+  { signal }: UploadOptions = {},
 ): Promise<void> {
   const data = guestStore.current();
   if (!data.wallet) return;
 
-  const apis = injectedApis ?? (await defaultApis());
+  const apis = stopWhenAborted(injectedApis ?? (await defaultApis()), signal);
+  if (signal?.aborted) throw new GuestUploadCancelledError();
 
   if (!data.uploadProgress || data.uploadProgress.walletId !== walletId) {
     await guestStore.mutate((current) => ({ ...current, uploadProgress: emptyUploadProgress(walletId) }));
   }
 
-  onProgress?.('categories', false);
   await uploadCategories(walletId, apis);
-  onProgress?.('categories', true);
-
-  onProgress?.('accounts', false);
   await uploadAccounts(walletId, apis);
-  onProgress?.('accounts', true);
-
-  onProgress?.('goals', false);
   await uploadGoals(walletId, apis);
-  onProgress?.('goals', true);
-
-  onProgress?.('transactions', false);
   await uploadTransactions(apis);
-  onProgress?.('transactions', true);
-
-  onProgress?.('budgets', false);
   await uploadBudgets(walletId, apis);
-  onProgress?.('budgets', true);
-
-  onProgress?.('archives', false);
+  await settleGoalStatuses(apis);
   await archiveLocallyArchived(apis);
-  onProgress?.('archives', true);
 }
-

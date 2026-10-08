@@ -3,7 +3,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { ConfirmDialog } from '@/components';
-import { GuestUploadScreen } from '@/features/guest';
+import { GuestUploadIndicator, GuestUploadScreen } from '@/features/guest';
 import { WalletProvider, useAuth, useTheme } from '@/app/providers';
 import { AppNavigator } from './AppNavigator.tsx';
 import { AuthNavigator } from './AuthNavigator.tsx';
@@ -16,8 +16,16 @@ import { AuthNavigator } from './AuthNavigator.tsx';
 export function RootNavigator() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { isAuthenticated, isGuest, pendingGuestUpload, restoring, otherAccountNotice, dismissOtherAccountNotice, logout } =
-    useAuth();
+  const {
+    isAuthenticated,
+    isGuest,
+    pendingGuestUpload,
+    guestUploadInBackground,
+    restoring,
+    otherAccountNotice,
+    dismissOtherAccountNotice,
+    logout,
+  } = useAuth();
 
   if (restoring) {
     return (
@@ -40,6 +48,7 @@ export function RootNavigator() {
       ) : (
         <AuthNavigator />
       )}
+      <GuestUploadIndicator visible={guestUploadInBackground} />
       <ConfirmDialog
         visible={isAuthenticated && otherAccountNotice !== null}
         variant="info"

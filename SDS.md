@@ -366,8 +366,9 @@ enabled.
 
 **Whose money am I looking at** ([SRS §6.2](SRS.md#62-whose-money-am-i-looking-at)) — the wallet
 in context is shown on every money-bearing screen; switching wallets is one action
-(`WalletProvider`); a shared wallet is visually distinct from the user's own and shows the
-viewer's own relation label.
+(`WalletProvider`); a shared wallet is visually distinct from the user's own and shows its own
+name and the viewer's role. The relation label is the inviter's word for the member, shown in the
+member list only (SRS FR-11).
 
 **Money is unambiguous** ([SRS §6.4](SRS.md#64-money-is-unambiguous)) — every amount carries its
 currency; per-currency totals are never summed or averaged into one figure; transfers are
@@ -393,7 +394,7 @@ Real screens under `mobile/src/features/*/screens/`, grouped by feature:
 | Categories | `CategoryListScreen` |
 | Wallets | No screens — the wallet sheet (`WalletSwitcher`, opened from every screen's `WalletContextBar`) lists the wallets and pages through details, members, invitations, activity (the audit trail, `WAL-US-13`, owner-only) and wallet creation |
 | Auth | `LoginScreen`, `RegisterScreen`, `AcceptInvitationScreen` |
-| Guest | `GuestUploadScreen` — the wallet-choice/upload-progress screen for [GST-US-02](SRS.md#gst-us-02-bring-my-guest-data-into-a-real-wallet); rendered in place of the normal app by `RootNavigator` whenever local guest data is pending upload |
+| Guest | `GuestUploadScreen` — the wallet-choice/upload-progress screen for [GST-US-02](SRS.md#gst-us-02-bring-my-guest-data-into-a-real-wallet); rendered in place of the normal app by `RootNavigator` whenever local guest data is pending upload, unless the user sent the upload to the background (`GuestUploadIndicator` then shows its progress at the top of the app) |
 | Settings | `SettingsScreen` |
 
 Creating a transaction, budget, goal, contribution, or account is a `BottomSheetModal` opened via
@@ -544,10 +545,16 @@ Entirely client-side — no server route is involved until a guest chooses to up
 - **Upload on real sign-in:** `AuthProvider`'s `pendingGuestUpload` becomes true whenever local
   guest data exists and the user is not (or no longer) a guest. `RootNavigator` renders
   `GuestUploadScreen` in place of the normal app until it resolves. `services/guest/
-  guestUpload.ts` sequences the upload in FK order — categories → accounts → transactions →
-  budgets → goals/contributions → archived-item cleanup — persisting a local-id→server-id map in
-  guest storage after each phase so an interrupted upload resumes rather than repeats
+  guestUpload.ts` sequences the upload in FK order — categories → accounts → goals/contributions →
+  transactions → budgets → goal statuses → archived-item cleanup — persisting a local-id→server-id
+  map in guest storage after each row so an interrupted upload resumes rather than repeats
   ([GST-US-02](SRS.md#gst-us-02-bring-my-guest-data-into-a-real-wallet)'s idempotency requirement).
+  The run belongs to `guestUploadTask`, not the screen: "Continue in background" sets
+  `inBackground`, which lifts `pendingGuestUpload` so the app shows with `GuestUploadIndicator` on
+  top; Cancel aborts its signal, and the sequencer stops before its next request, so the one in
+  flight is always recorded. The screen derives its steps and percentage from the saved maps
+  (`uploadStatusOf`), so a paused upload reads the same after a relaunch. Signing out resets the
+  run.
   A contribution recorded with a backing transaction uploads through exactly one call
   (`goalsApi.addContribution({recordAsTransaction: true, ...})`), never duplicated through the
   plain transactions phase.

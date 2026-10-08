@@ -414,7 +414,7 @@ The client is a phone app used one-handed, often standing at a till. The require
 
 - The wallet currently in context is visible on every screen that shows money, never inferred from memory. Recording a partner's expense into your own wallet is the single most damaging mistake a user can make with the product.
 - Switching between the wallets a user can reach is one action.
-- A wallet shared with the user is visually distinct from their own, and shows the relation label they gave it.
+- A wallet shared with the user is visually distinct from their own and shows the wallet's own name with the user's role. The relation label is the inviter's word for the member (FR-11), so it appears in the owner's member list, never as a wallet's name.
 - A cross-wallet transfer shows *both* wallet names in history, so a reader can see whose account each side touched.
 
 ### 6.3 Roles are visible, not discovered by failure
@@ -1372,6 +1372,7 @@ The most rule-dense feature in the product, because a transaction is the only th
 - A repeating budget reports **the current period** (this month, this week…), and each new period starts again from zero; the period shown is named ("Oct 2026"), not a date range.
 - The window is compared by **calendar day in the wallet's time zone**, so an expense stamped late on the last day of the window is inside it, and one just after local midnight is not.
 - Budgets can be listed for a wallet, and asked for by "active on this day", which also picks the period a repeating budget reports.
+- The app lists every budget, grouped as **Current**, **Upcoming** (starts after today) and **Ended** (a fixed window that finished before today), with today read in the wallet's zone. A past or future budget stays reachable rather than disappearing from the list. A repeating budget is current from its start date until it's deleted.
 
 **Error cases:** `BUDGET_NOT_FOUND` · `WALLET_NOT_FOUND`
 
@@ -1457,6 +1458,7 @@ The most rule-dense feature in the product, because a transaction is the only th
 - **Remaining floors at zero** — overshooting a target does not leave a negative gap — and **progress caps at 100%**, so a display cannot exceed full.
 - Reports how many contributions there are, and lists them paged, each showing whether it moved money.
 - Goals can be listed for a wallet and filtered by status.
+- The app lists every goal, grouped as **In progress**, **Completed** and **Cancelled**, so a finished goal stays visible. An active goal whose target date has passed in the wallet's zone is marked **Overdue**; the API has no such field, so the app derives it.
 
 **Error cases:** `GOAL_NOT_FOUND` · `WALLET_NOT_FOUND`
 
@@ -1606,8 +1608,9 @@ The most rule-dense feature in the product, because a transaction is the only th
 - The process is safe to interrupt and resume: an entry already recorded is never recorded a second time if the app is closed and reopened mid-upload.
 - Local guest data is discarded only once every entry has a real counterpart.
 - Declining to complete the upload immediately leaves the local data intact and offers the same choice again later.
+- While it runs, the upload can be cancelled or moved to the background. Cancelling stops it before its next entry; what already landed stays, and resuming continues from there. In the background the app is usable and a small indicator at the top shows the progress and reopens the upload.
 
-**Error cases:** none — an interruption resumes rather than fails; nothing about this flow is user-facing-error-shaped by design.
+**Error cases:** a failed request pauses the upload with the reason and a resume; nothing is lost or recorded twice, since an interruption resumes rather than restarts.
 
 ---
 

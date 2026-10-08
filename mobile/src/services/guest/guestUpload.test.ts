@@ -12,7 +12,7 @@ import { beforeEach, describe, it } from 'node:test';
 
 import { ApiError } from '../../utils/errors.ts';
 import { guestStore } from './guestStorage.ts';
-import { uploadGuestData, type UploadApis } from './guestUpload.ts';
+import { GuestUploadCancelledError, UPLOAD_PHASES, uploadGuestData, uploadStatusOf, type UploadApis } from './guestUpload.ts';
 import {
   ACCOUNT_ID,
   EXPENSE_CATEGORY_ID,
@@ -742,5 +742,103 @@ describe('uploadGuestData — archives last', () => {
     });
 
     await assert.rejects(() => uploadGuestData(TARGET_WALLET, fake.apis));
+  });
+});
+
+describe('uploadGuestData — goal budgets on a finished goal', () => {
+  it('settles goal statuses only after budgets, since a budget on an inactive goal is refused', async () => {
+    await seedFullLedger();
+    await guestStore.mutate((data) => ({
+      ...data,
+      goals: data.goals.map((goal) => ({ ...goal, status: 'COMPLETED' as const })),
+      budgets: data.budgets.map((budget) => ({ ...budget, categoryId: null, goalId: data.goals[0]!.id, periodType: 'GOAL' as const })),
+    }));
+    const fake = recordingApis();
+
+    await uploadGuestData(TARGET_WALLET, fake.apis);
+
+    const order = fake.methods();
+    assert.ok(order.indexOf('budgets.create') < order.indexOf('goals.update'));
+  });
+});
+
+describe('uploadGuestData — cancel', () => {
+  it('stops before the next request once the signal aborts, keeping what already landed', async () => {
+    await seedFullLedger();
+    const controller = new AbortController();
+    const fake = recordingApis();
+    const createAccount = fake.apis.accounts.create;
+    fake.apis.accounts.create = async (...args) => {
+      const response = await createAccount(...args);
+      controller.abort();
+      return response;
+    };
+
+    await assert.rejects(() => uploadGuestData(TARGET_WALLET, fake.apis, { signal: controller.signal }), GuestUploadCancelledError);
+
+    // The request in flight finished and was recorded; nothing after it was sent.
+    assert.equal(fake.of('accounts.create').length, 1);
+    assert.equal(Object.keys(guestStore.current().uploadProgress!.accountMap).length, 1);
+    assert.equal(fake.of('transactions.create').length, 0);
+
+    const resumed = recordingApis();
+    await uploadGuestData(TARGET_WALLET, resumed.apis);
+    assert.equal(resumed.of('categories.create').length, 0);
+    assert.equal(resumed.of('accounts.create').length, 1);
+    assert.equal(resumed.of('transactions.create').length, 1);
+  });
+
+  it('sends nothing when the signal has already aborted', async () => {
+    await seedFullLedger();
+    const controller = new AbortController();
+    controller.abort();
+    const fake = recordingApis();
+
+    await assert.rejects(() => uploadGuestData(TARGET_WALLET, fake.apis, { signal: controller.signal }), GuestUploadCancelledError);
+    assert.deepEqual(fake.methods(), []);
+  });
+});
+
+describe('uploadStatusOf', () => {
+  it('reports nothing done before an upload starts', async () => {
+    await seedFullLedger();
+    const status = uploadStatusOf(guestStore.current());
+    assert.deepEqual(status.donePhases, []);
+    assert.equal(status.doneRows, 0);
+  });
+
+  it('counts the steps finished in order up to where an upload stopped', async () => {
+    await seedFullLedger();
+    const failing = recordingApis({ failOn: { method: 'budgets.create', times: 1 } });
+    await assert.rejects(() => uploadGuestData(TARGET_WALLET, failing.apis));
+
+    const data = guestStore.current();
+    const status = uploadStatusOf(data);
+    assert.deepEqual(status.donePhases, ['categories', 'accounts', 'goals', 'transactions']);
+    assert.deepEqual(status.steps.goals, { done: data.goals.length + data.contributions.length, total: data.goals.length + data.contributions.length });
+    assert.deepEqual(status.steps.budgets, { done: 0, total: data.budgets.length });
+    assert.equal(status.totalRows - status.doneRows, data.budgets.length + 1);
+  });
+
+  it('reports every step and row once the upload has finished', async () => {
+    await seedFullLedger();
+    await uploadGuestData(TARGET_WALLET, recordingApis().apis);
+
+    const status = uploadStatusOf(guestStore.current(), true);
+    assert.deepEqual(status.donePhases, [...UPLOAD_PHASES]);
+    assert.equal(status.doneRows, status.totalRows);
+  });
+
+  it('counts archived entities and finished goals in the closing step, done only once the upload is', async () => {
+    await seedFullLedger();
+    await guestStore.mutate((data) => ({
+      ...data,
+      accounts: data.accounts.map((account) => (account.id === OTHER_ACCOUNT_ID ? { ...account, status: 'ARCHIVED' as const } : account)),
+      goals: data.goals.map((goal) => ({ ...goal, status: 'CANCELLED' as const })),
+    }));
+    await uploadGuestData(TARGET_WALLET, recordingApis().apis);
+
+    assert.deepEqual(uploadStatusOf(guestStore.current()).steps.archives, { done: 0, total: 2 });
+    assert.deepEqual(uploadStatusOf(guestStore.current(), true).steps.archives, { done: 2, total: 2 });
   });
 });

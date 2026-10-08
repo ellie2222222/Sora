@@ -11,7 +11,7 @@ import type { AuthTokens, GoogleAuthRequest, LoginRequest, RegisterRequest, User
 
 import { authApi } from '@/services/api';
 import { session, userIdFromAccessToken, type StoredSession } from '@/services/auth';
-import { ensureSeeded, guestStore, uploadGuestData } from '@/services/guest';
+import { ensureSeeded, guestStore, guestUploadTask, uploadGuestData } from '@/services/guest';
 import { GUEST_MODE_STORAGE_KEY, PRE_OWNERSHIP_OWNER_STORAGE_KEY, preferencesStore } from '@/services/storage';
 import { localCache, maskEmail, offlineQueue, ORPHANED_OWNER } from '@/services/sync';
 import { isNetworkError, isUnauthenticated } from '@/utils';
@@ -43,7 +43,10 @@ interface AuthContextValue {
    * kill mid-upload leaves this recoverable rather than stuck.
    */
   pendingGuestUpload: boolean;
-  resolveGuestUpload: (walletId: string, onProgress?: (phase: string, completed: boolean) => void) => Promise<void>;
+  /** As above, but the user sent the upload (running or paused) to the background: the app shows. */
+  guestUploadInBackground: boolean;
+  /** Starts or resumes the upload into `walletId` on `guestUploadTask`; local data is cleared once it all lands. */
+  startGuestUpload: (walletId: string) => void;
   /** Masked emails of other accounts whose saved data is on this device, set by a login that found some. */
   otherAccountNotice: string[] | null;
   dismissOtherAccountNotice: () => void;
@@ -88,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   const [restoring, setRestoring] = useState(true);
   const [isGuest, setIsGuestState] = useState(false);
   const [guestHasData, setGuestHasData] = useState(false);
+  const [uploadInBackground, setUploadInBackground] = useState(guestUploadTask.current().inBackground);
   const [otherAccountNotice, setOtherAccountNotice] = useState<string[] | null>(null);
 
   // RTK Query `queryFn` endpoints see only Redux state, so Redux takes the flag first, before the
@@ -107,8 +111,14 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
 
   // A failed refresh ends the session without going through logout().
   useEffect(() => {
-    if (stored === null) clearServerCache();
+    if (stored === null) {
+      clearServerCache();
+      // The upload writes as this session; the next one picks its own wallet.
+      guestUploadTask.reset();
+    }
   }, [stored, clearServerCache]);
+
+  useEffect(() => guestUploadTask.subscribe((task) => setUploadInBackground(task.inBackground)), []);
 
   useEffect(() => {
     // Subscribing before restoring means a refresh that fails during startup
@@ -177,13 +187,15 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     clearServerCache();
   }, [clearServerCache, setIsGuest]);
 
-  const resolveGuestUpload = useCallback(
-    async (walletId: string, onProgress?: (phase: string, completed: boolean) => void) => {
-      await uploadGuestData(walletId, undefined, onProgress);
-      await guestStore.clear();
-      // Anything cached under a guest local id is now stale: the same records
-      // exist server-side under different ids.
-      clearServerCache();
+  const startGuestUpload = useCallback(
+    (walletId: string) => {
+      void guestUploadTask.start(walletId, async (signal) => {
+        await uploadGuestData(walletId, undefined, { signal });
+        await guestStore.clear();
+        // Anything cached under a guest local id is now stale: the same records
+        // exist server-side under different ids.
+        clearServerCache();
+      });
     },
     [clearServerCache],
   );
@@ -245,8 +257,9 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       isGuest,
       enterGuestMode,
       exitGuestModeToAuth,
-      pendingGuestUpload: stored !== null && guestHasData,
-      resolveGuestUpload,
+      pendingGuestUpload: stored !== null && guestHasData && !uploadInBackground,
+      guestUploadInBackground: stored !== null && guestHasData && uploadInBackground,
+      startGuestUpload,
       otherAccountNotice,
       dismissOtherAccountNotice,
     }),
@@ -262,7 +275,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       enterGuestMode,
       exitGuestModeToAuth,
       guestHasData,
-      resolveGuestUpload,
+      uploadInBackground,
+      startGuestUpload,
       otherAccountNotice,
       dismissOtherAccountNotice,
     ],

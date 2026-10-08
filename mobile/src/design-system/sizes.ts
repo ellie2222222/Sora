@@ -26,6 +26,8 @@ export const sizes = {
   tabBar: { height: 56, indicatorWidth: 36 },
   /** Track thickness: `sm` for a comparison row, `md` in a list card, `lg` in a detail sheet. */
   progressBar: { sm: 6, md: 8, lg: 12 },
+  /** The guest upload's progress ring; `glow` is the square its soft halo is drawn in. */
+  syncRing: { size: 128, stroke: 3, glow: 224 },
   /** Revealed action under a swiped row: a short label on one line under its icon. */
   swipeAction: 76,
   /** Scrolling lists inside sheets and dialogs stop growing here and scroll instead. */
