@@ -24,7 +24,7 @@ In `.claude/skills/`. Reach for these instead of improvising the same sweep by h
 | `comment-audit` | Comment-only sweep: removes "what" comments, stale rationale, commented-out code, untracked `TODO`s, and adds a missing "why" where non-obvious code has none. Never changes logic |
 | `restructure` | Where files live: misplaced or orphaned files, naming drift, layout that no longer matches the documented architecture |
 | `extract-modules` | Splits code out of screens into dedicated files — duplicated/oversized inline components, label maps, shared types, pure helpers, hooks — and re-points callers |
-| `i18n-audit` | Translation catalog: orphaned/missing keys, en/vi parity and untranslated copies, drifted `defaultValue`s, hardcoded UI text |
+| `i18n-audit` | Translation catalog: orphaned/missing keys, parity across every locale and untranslated copies, drifted `defaultValue`s, hardcoded UI text |
 | `scratch-probe` | Runs a changed server path against a disposable Postgres + freshly built API with probe data, then tears down by exact name |
 | `infra-audit` | Whether the system's design and operational posture still fit its scale — distinct from `double-check` (bugs in what exists) |
 | `brainstorm-features` | Feature suggestions grounded in this repo's actual current patterns, discovered live |
@@ -657,9 +657,9 @@ an incomplete screen.
 `toLocaleString` on a raw string. `formatMoney`/`formatMoneyCompact` in `@sora/contracts` produce a
 wire `MoneyString`, not display text.
 
-**MB-09** — Active locales are English and Vietnamese only (`['en', 'vi'] as const`). Never spend time
-translating new keys into disabled languages (`fr`, `de`, `es`, etc.). Only `en.ts` and `vi.ts` are
-maintained with full key parity.
+**MB-09** — Every locale in `LOCALES` (`en`, `vi`, `de`, `es`, `fr`, `hi`, `ja`, `ko`, `ru`, `zh`) is active
+and maintained at full key parity with `en.ts`. A new or reworded key is translated into all ten in the same
+change.
 
 **MB-10** — Cross-directory imports go through the target's `@/...` barrel (`@/components`,
 `@/features/<name>`, `@/services/<name>`, `@/app/<providers,store,navigation,i18n>`), never a deep
@@ -928,13 +928,16 @@ rewriting it.
     `Co-Authored-By: Claude`, no model names — not in commit messages, PR bodies, code comments,
     or docs.
 
-13. **Active locales are English and Vietnamese only (`en`, `vi`).** All other locales (`de`, `es`,
-    `fr`, `hi`, `ja`, `ko`, `ru`, `zh`) are disabled. When adding or updating translation keys,
-    **do not translate or touch inactive locales** — only `en.ts` and `vi.ts` are maintained, and
-    `vi.ts` must maintain 100% key parity with `en.ts` (`TranslationResource`). Inactive locale files
-    are typed as `InactiveTranslationResource` (`DeepPartial<TranslationResource>`) so missing keys
-    never fail typechecks. `LOCALES` in `@sora/contracts` is `['en', 'vi'] as const`, and
-    `SUPPORTED_LOCALES` in `mobile/src/app/i18n/index.ts` re-exports it rather than restating it.
+13. **All ten locales are maintained, and a language is one tuple.** `LOCALES` in `@sora/contracts`
+    lists them; `SUPPORTED_LOCALES` in `mobile/src/app/i18n/index.ts` re-exports it, the
+    `chk_user_locale`/`chk_category_translation_locale` constraints admit exactly it (the parity script
+    checks), and `CATALOGS` in `locales/catalogs.ts` is typed `Record<Locale, LocaleResource>`, so a
+    language added to the tuple without a catalog fails to compile. Every catalog is a `LocaleResource`:
+    every key `en.ts` has, plus the extra plural forms its grammar needs. The eight non-en/vi files were
+    once typed as a `DeepPartial` and left untouched while keys were added; they fell ~146 keys behind and
+    their surviving strings went stale, some carrying another language's characters. `localeParity.test.ts`
+    and `plurals.test.ts` now hold every catalog to `en.ts`'s keys, placeholders and each language's CLDR
+    plural forms (Russian needs `_few`/`_many`, or most counts fall back to English).
 
 14. **A barrel (`index.ts` re-exporting a directory) is an API boundary for outside callers, not a
     place to route every internal dependency through.** `mobile/src/**` uses per-directory barrels
@@ -987,7 +990,7 @@ rewriting it.
 
     **The fix**: never pass a function to a `Pressable`'s `style`. Track `pressed` (or whatever
     interaction state is needed) via local `useState` + `onPressIn`/`onPressOut`, and pass `style` as
-    a plain object or array built from that state — e.g. `Button.tsx`, `MonthSelector.tsx`,
+    a plain object or array built from that state — e.g. `Button.tsx`, `PeriodBar.tsx`,
     `DatePickerModal.tsx`, `LanguageSection.tsx`, `CollapsibleSection.tsx`, and `AppearanceSection.tsx`
     all follow this shape now. For a row rendered from a `.map()`, track *which* item is pressed (its
     key) in one piece of state rather than one `useState` per row. If a component's public API still

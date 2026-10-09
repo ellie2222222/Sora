@@ -61,9 +61,9 @@ Each rule below was established to permanently prevent a regression of a specifi
 ### 12. Strict Ban on AI-Authorship Trailers
 - No `Co-Authored-By: ...`, `Generated with...`, or AI model names in commits, PR descriptions, code comments, or documentation.
 
-### 13. Active Locales: English (`en`) and Vietnamese (`vi`) Only
-- All other locales (`de`, `es`, `fr`, `hi`, `ja`, `ko`, `ru`, `zh`) are inactive.
-- When adding or editing i18n keys, modify **only** `en.ts` and `vi.ts` with 100% key parity. Do not generate keys for inactive locales.
+### 13. All Ten Locales Are Maintained
+- `LOCALES` (`en`, `vi`, `de`, `es`, `fr`, `hi`, `ja`, `ko`, `ru`, `zh`) is the one list; the DB locale constraints and `CATALOGS` follow it.
+- When adding or editing i18n keys, update every locale file. Partial catalogs once fell ~146 keys behind and went stale; `localeParity.test.ts` and `plurals.test.ts` now enforce keys, placeholders and each language's plural forms.
 
 ### 14. Barrel Export Require Cycles
 - Avoid circular dependencies in `mobile/src/**`:

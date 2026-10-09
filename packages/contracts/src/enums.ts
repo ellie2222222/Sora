@@ -145,8 +145,12 @@ export const AiActionStatus = {
 export const THEME_NAMES = ['obsidian', 'quartz', 'sage', 'terracotta', 'violet'] as const;
 export type ThemeName = (typeof THEME_NAMES)[number];
 
-export const LOCALES = ['en', 'vi'] as const;
+export const LOCALES = ['en', 'vi', 'de', 'es', 'fr', 'hi', 'ja', 'ko', 'ru', 'zh'] as const;
 export type Locale = (typeof LOCALES)[number];
+
+export function isLocale(value: string): value is Locale {
+  return (LOCALES as readonly string[]).includes(value);
+}
 
 /**
  * Ranking used by every access check. A required role is satisfied by any role

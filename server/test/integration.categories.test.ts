@@ -217,8 +217,8 @@ describe('categories against a real database', { skip: integrationSkipReason() }
       const viUser = await registerProbeUser(api, 'categories-vi');
       assert.equal((await api.call('PATCH', '/auth/me/preferences', { token: viUser.token, body: { locale: 'vi' } })).status, 200);
       assert.equal((await listIn(undefined, viUser)).find((category) => category.systemKey === 'food')?.name, 'Ăn uống');
-      assert.equal((await listIn('fr', viUser)).find((category) => category.systemKey === 'food')?.name, 'Ăn uống');
-      assert.equal((await listIn('fr')).find((category) => category.systemKey === 'food')?.name, 'Food');
+      assert.equal((await listIn('it', viUser)).find((category) => category.systemKey === 'food')?.name, 'Ăn uống');
+      assert.equal((await listIn('it')).find((category) => category.systemKey === 'food')?.name, 'Food');
     });
 
     it('names starter categories on transactions in the request locale too', async () => {

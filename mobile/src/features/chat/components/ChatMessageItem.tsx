@@ -24,7 +24,7 @@ export function ChatMessageItem({
   return (
     <View
       testID={`row-ai-message-${message.id}`}
-      style={{ alignItems: fromUser ? 'flex-end' : 'flex-start', marginVertical: theme.spacing.xs }}
+      style={{ alignItems: fromUser ? 'flex-end' : 'flex-start', marginVertical: theme.spacing.sm }}
     >
       <View
         style={{
@@ -38,7 +38,7 @@ export function ChatMessageItem({
         <Text tone={fromUser ? 'onPrimary' : 'default'}>{message.content}</Text>
       </View>
       {message.action ? (
-        <View style={{ width: '85%' }}>
+        <View style={{ maxWidth: '85%' }}>
           <ActionProposalCard
             messageId={message.id}
             action={message.action}

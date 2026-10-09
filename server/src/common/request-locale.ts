@@ -10,7 +10,7 @@ import { Injectable, type CallHandler, type ExecutionContext, type NestIntercept
 import type { Request } from 'express';
 import { Observable, type Subscription } from 'rxjs';
 
-import { LOCALES, type Locale } from '@sora/contracts';
+import { isLocale, type Locale } from '@sora/contracts';
 
 import { DatabaseService } from '../database/database.service.ts';
 
@@ -21,10 +21,6 @@ const storage = new AsyncLocalStorage<Locale>();
 /** English outside a request (a test, a background job), where nothing asked for a language. */
 export function requestLocale(): Locale {
   return storage.getStore() ?? DEFAULT_LOCALE;
-}
-
-function isLocale(value: string): value is Locale {
-  return (LOCALES as readonly string[]).includes(value);
 }
 
 /** The highest-weighted supported language in an `Accept-Language` header; region subtags are ignored (`vi-VN` → `vi`). */

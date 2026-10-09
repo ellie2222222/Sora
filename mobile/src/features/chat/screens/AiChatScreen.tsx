@@ -14,7 +14,7 @@ import {
   useListAiMessagesInfiniteQuery,
   useSendAiMessageMutation,
 } from '@/app/store';
-import type { AiMessageResponse } from '@sora/contracts';
+import { isLocale, type AiMessageResponse } from '@sora/contracts';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { useNetworkStatus } from '@/hooks';
 import { canLoadMore, flattenPages, getServerErrorMessage, isNetworkError } from '@/utils';
@@ -118,7 +118,7 @@ function SignedInChat() {
 
   if (activeWalletId === null) return <NoWalletState testID="ai-no-wallet" />;
 
-  const locale = i18n.language === 'vi' ? 'vi' : 'en';
+  const locale = isLocale(i18n.language) ? i18n.language : 'en';
   const isSending = pendingText !== null;
   const { canSend, blockedReason: blocked } = chatAvailability({ isOnline, isSending, canWrite: permissions.canWrite });
 
@@ -275,7 +275,7 @@ function PendingExchange({ text }: { text: string | null }) {
   const theme = useTheme();
   const { t } = useTranslation();
   return (
-    <View style={{ gap: theme.spacing.xs, marginVertical: theme.spacing.xs }}>
+    <View style={{ gap: theme.spacing.xs, marginVertical: theme.spacing.sm }}>
       <View style={{ alignSelf: 'flex-end', maxWidth: '85%', padding: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderRadius: theme.radius.lg, backgroundColor: theme.colors.primary }}>
         <Text tone="onPrimary">{text}</Text>
       </View>
@@ -289,7 +289,7 @@ function PendingExchange({ text }: { text: string | null }) {
 function ChatMessageSkeleton({ fromUser }: { fromUser: boolean }) {
   const theme = useTheme();
   return (
-    <View style={{ alignItems: fromUser ? 'flex-end' : 'flex-start', marginVertical: theme.spacing.xs }}>
+    <View style={{ alignItems: fromUser ? 'flex-end' : 'flex-start', marginVertical: theme.spacing.sm }}>
       <Skeleton width={fromUser ? '55%' : '70%'} height={theme.lineHeight.md + 2 * theme.spacing.md} radius={theme.radius.lg} />
     </View>
   );

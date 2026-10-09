@@ -72,7 +72,7 @@ export function ActionProposalCard({
               label={t('ai.proposal.dismiss')}
               icon={X}
               size="sm"
-              variant="ghost"
+              variant="outline"
               disabled={isBusy}
               onPress={onDismiss}
             />

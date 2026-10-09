@@ -241,12 +241,25 @@ const SPENDING_WORDS =['spend', 'spent', 'spending', 'expense', 'expenses', 'chi
 // Copy
 // ---------------------------------------------------------------------------
 
+/** Digit grouping and decimal mark per language, applied to the exact decimal string (never a float). */
+const NUMBER_FORMAT: Readonly<Record<Locale, { group: string; decimal: string }>> = {
+  en: { group: ',', decimal: '.' },
+  vi: { group: '.', decimal: ',' },
+  de: { group: '.', decimal: ',' },
+  es: { group: '.', decimal: ',' },
+  fr: { group: ' ', decimal: ',' },
+  hi: { group: ',', decimal: '.' },
+  ja: { group: ',', decimal: '.' },
+  ko: { group: ',', decimal: '.' },
+  ru: { group: ' ', decimal: ',' },
+  zh: { group: ',', decimal: '.' },
+};
+
 function displayAmount(amount: string, currency: string, locale: Locale): string {
   const compact = formatMoneyCompact(parseMoney(amount));
   const negative = compact.startsWith('-');
   const [whole, fraction] = (negative ? compact.slice(1) : compact).split('.');
-  const group = locale === 'vi' ? '.' : ',';
-  const decimal = locale === 'vi' ? ',' : '.';
+  const { group, decimal } = NUMBER_FORMAT[locale];
   const grouped = whole!.replace(/\B(?=(\d{3})+(?!\d))/g, group);
   return `${negative ? '-' : ''}${grouped}${fraction ? decimal + fraction : ''} ${currency}`;
 }
@@ -310,5 +323,173 @@ const COPY = {
     goalsIntro: 'Mục tiêu tiết kiệm của bạn:',
     goalLine: (name: string, current: string, target: string, progress: number) =>
       `• ${name}: ${current} / ${target} (${progress}%)`,
+  },
+  de: {
+    help: 'Ich kann eine Ausgabe oder Einnahme erfassen („50k fürs Mittagessen aus Bargeld ausgegeben“) und Fragen zu Ihren Kontoständen, Ihren Ausgaben in diesem Monat, Budgets und Sparzielen beantworten.',
+    viewerOnly: (wallet: string) => `Sie haben für ${wallet} nur Lesezugriff, daher kann ich dort keine Transaktionen vorbereiten.`,
+    walletArchived: (wallet: string) => `${wallet} ist archiviert und nimmt keine neuen Transaktionen an.`,
+    noAccounts: 'Diese Geldbörse hat noch keine aktiven Konten. Fügen Sie zuerst eines hinzu.',
+    whichAccount: (names: string[]) => `Welches Konto war es? Diese Geldbörse hat: ${names.join(', ')}.`,
+    currencyMismatch: (account: string, currency: string, mentioned: string) => `${account} wird in ${currency} geführt, daher kann ich dort nichts in ${mentioned} erfassen.`,
+    noCategory: (type: 'INCOME' | 'EXPENSE') => (type === 'INCOME' ? 'Diese Geldbörse hat noch keine Einnahmenkategorien. Fügen Sie zuerst eine hinzu.' : 'Diese Geldbörse hat noch keine Ausgabenkategorien. Fügen Sie zuerst eine hinzu.'),
+    proposal: (type: 'INCOME' | 'EXPENSE', amount: string, account: string, category: string) =>
+      type === 'INCOME' ? `Hier ist ein Entwurf für eine Einnahme von ${amount} auf ${account}, Kategorie ${category}. Bestätigen Sie ihn, um ihn zu erfassen.` : `Hier ist ein Entwurf für eine Ausgabe von ${amount} von ${account}, Kategorie ${category}. Bestätigen Sie ihn, um ihn zu erfassen.`,
+    balancesIntro: (wallet: string) => `Kontostände in ${wallet}:`,
+    noSpending: 'Diesen Monat wurde noch nichts ausgegeben.',
+    spendingIntro: (totals: string) => `Sie haben diesen Monat ${totals} ausgegeben.`,
+    noBudgets: 'Diese Geldbörse hat keine aktiven Budgets.',
+    budgetsIntro: 'Ihre aktiven Budgets:',
+    budgetLine: (name: string, spent: string, amount: string, usage: number, over: boolean) =>
+      `• ${name}: ${spent} / ${amount} (${usage}%)${over ? ' — Budget überschritten' : ''}`,
+    noGoals: 'Diese Geldbörse hat keine aktiven Sparziele.',
+    goalsIntro: 'Ihre Sparziele:',
+    goalLine: (name: string, current: string, target: string, progress: number) => `• ${name}: ${current} / ${target} (${progress}%)`,
+  },
+  es: {
+    help: 'Puedo registrar un gasto o un ingreso ("Gasté 50k en el almuerzo con Efectivo") y responder preguntas sobre tus saldos, los gastos de este mes, tus presupuestos y tus metas.',
+    viewerOnly: (wallet: string) => `Solo tienes acceso de lectura a ${wallet}, así que no puedo preparar transacciones ahí.`,
+    walletArchived: (wallet: string) => `${wallet} está archivada, así que no acepta transacciones nuevas.`,
+    noAccounts: 'Esta cartera aún no tiene cuentas activas. Añade una primero.',
+    whichAccount: (names: string[]) => `¿En qué cuenta fue? Esta cartera tiene: ${names.join(', ')}.`,
+    currencyMismatch: (account: string, currency: string, mentioned: string) => `${account} usa ${currency}, así que no puedo registrar ${mentioned} ahí.`,
+    noCategory: (type: 'INCOME' | 'EXPENSE') => (type === 'INCOME' ? 'Esta cartera aún no tiene categorías de ingresos. Añade una primero.' : 'Esta cartera aún no tiene categorías de gastos. Añade una primero.'),
+    proposal: (type: 'INCOME' | 'EXPENSE', amount: string, account: string, category: string) =>
+      type === 'INCOME' ? `Aquí tienes un borrador de ingreso de ${amount} a ${account}, en ${category}. Confírmalo para registrarlo.` : `Aquí tienes un borrador de gasto de ${amount} desde ${account}, en ${category}. Confírmalo para registrarlo.`,
+    balancesIntro: (wallet: string) => `Saldos en ${wallet}:`,
+    noSpending: 'Aún no has gastado nada este mes.',
+    spendingIntro: (totals: string) => `Este mes has gastado ${totals}.`,
+    noBudgets: 'Esta cartera no tiene presupuestos activos.',
+    budgetsIntro: 'Tus presupuestos activos:',
+    budgetLine: (name: string, spent: string, amount: string, usage: number, over: boolean) =>
+      `• ${name}: ${spent} / ${amount} (${usage}%)${over ? ' — presupuesto superado' : ''}`,
+    noGoals: 'Esta cartera no tiene metas de ahorro activas.',
+    goalsIntro: 'Tus metas de ahorro:',
+    goalLine: (name: string, current: string, target: string, progress: number) => `• ${name}: ${current} / ${target} (${progress}%)`,
+  },
+  fr: {
+    help: 'Je peux enregistrer une dépense ou un revenu (« Dépensé 50k pour le déjeuner en Espèces ») et répondre à vos questions sur vos soldes, vos dépenses du mois, vos budgets et vos objectifs.',
+    viewerOnly: (wallet: string) => `Vous n’avez qu’un accès en lecture à ${wallet}, je ne peux donc pas y préparer de transactions.`,
+    walletArchived: (wallet: string) => `${wallet} est archivé et n’accepte plus de nouvelles transactions.`,
+    noAccounts: 'Ce portefeuille n’a encore aucun compte actif. Ajoutez-en un d’abord.',
+    whichAccount: (names: string[]) => `Sur quel compte ? Ce portefeuille contient : ${names.join(', ')}.`,
+    currencyMismatch: (account: string, currency: string, mentioned: string) => `${account} est en ${currency}, je ne peux donc pas y enregistrer ${mentioned}.`,
+    noCategory: (type: 'INCOME' | 'EXPENSE') => (type === 'INCOME' ? 'Ce portefeuille n’a encore aucune catégorie de revenus. Ajoutez-en une d’abord.' : 'Ce portefeuille n’a encore aucune catégorie de dépenses. Ajoutez-en une d’abord.'),
+    proposal: (type: 'INCOME' | 'EXPENSE', amount: string, account: string, category: string) =>
+      type === 'INCOME' ? `Voici un brouillon de revenu de ${amount} sur ${account}, dans ${category}. Confirmez pour l’enregistrer.` : `Voici un brouillon de dépense de ${amount} depuis ${account}, dans ${category}. Confirmez pour l’enregistrer.`,
+    balancesIntro: (wallet: string) => `Soldes de ${wallet} :`,
+    noSpending: 'Aucune dépense ce mois-ci pour l’instant.',
+    spendingIntro: (totals: string) => `Vous avez dépensé ${totals} ce mois-ci.`,
+    noBudgets: 'Ce portefeuille n’a aucun budget actif.',
+    budgetsIntro: 'Vos budgets actifs :',
+    budgetLine: (name: string, spent: string, amount: string, usage: number, over: boolean) =>
+      `• ${name} : ${spent} / ${amount} (${usage} %)${over ? ' — budget dépassé' : ''}`,
+    noGoals: 'Ce portefeuille n’a aucun objectif d’épargne actif.',
+    goalsIntro: 'Vos objectifs d’épargne :',
+    goalLine: (name: string, current: string, target: string, progress: number) => `• ${name} : ${current} / ${target} (${progress} %)`,
+  },
+  hi: {
+    help: 'मैं कोई खर्च या आय दर्ज कर सकता हूँ ("नकद से लंच पर 50k खर्च किए"), और आपके बैलेंस, इस महीने के खर्च, बजट और लक्ष्यों के बारे में सवालों के जवाब दे सकता हूँ।',
+    viewerOnly: (wallet: string) => `आपके पास ${wallet} को सिर्फ़ देखने की अनुमति है, इसलिए मैं वहाँ लेन-देन तैयार नहीं कर सकता।`,
+    walletArchived: (wallet: string) => `${wallet} आर्काइव है, इसलिए इसमें नए लेन-देन नहीं जुड़ सकते।`,
+    noAccounts: 'इस वॉलेट में अभी कोई सक्रिय खाता नहीं है। पहले एक खाता जोड़ें।',
+    whichAccount: (names: string[]) => `यह किस खाते से था? इस वॉलेट में ये खाते हैं: ${names.join(', ')}।`,
+    currencyMismatch: (account: string, currency: string, mentioned: string) => `${account} में ${currency} रखी जाती है, इसलिए मैं वहाँ ${mentioned} दर्ज नहीं कर सकता।`,
+    noCategory: (type: 'INCOME' | 'EXPENSE') => (type === 'INCOME' ? 'इस वॉलेट में अभी आय की कोई श्रेणी नहीं है। पहले एक श्रेणी जोड़ें।' : 'इस वॉलेट में अभी खर्च की कोई श्रेणी नहीं है। पहले एक श्रेणी जोड़ें।'),
+    proposal: (type: 'INCOME' | 'EXPENSE', amount: string, account: string, category: string) =>
+      type === 'INCOME' ? `यह ${account} में ${amount} की आय का ड्राफ़्ट है, श्रेणी ${category}। दर्ज करने के लिए पुष्टि करें।` : `यह ${account} से ${amount} के खर्च का ड्राफ़्ट है, श्रेणी ${category}। दर्ज करने के लिए पुष्टि करें।`,
+    balancesIntro: (wallet: string) => `${wallet} में बैलेंस:`,
+    noSpending: 'इस महीने अभी तक कुछ खर्च नहीं हुआ।',
+    spendingIntro: (totals: string) => `इस महीने आपने ${totals} खर्च किए हैं।`,
+    noBudgets: 'इस वॉलेट में कोई सक्रिय बजट नहीं है।',
+    budgetsIntro: 'आपके सक्रिय बजट:',
+    budgetLine: (name: string, spent: string, amount: string, usage: number, over: boolean) =>
+      `• ${name}: ${spent} / ${amount} (${usage}%)${over ? ' — बजट से ज़्यादा' : ''}`,
+    noGoals: 'इस वॉलेट में कोई सक्रिय बचत लक्ष्य नहीं है।',
+    goalsIntro: 'आपके बचत लक्ष्य:',
+    goalLine: (name: string, current: string, target: string, progress: number) => `• ${name}: ${current} / ${target} (${progress}%)`,
+  },
+  ja: {
+    help: '支出や収入を記録したり（例:「現金からランチに1,000円使った」）、残高、今月の支出、予算、貯金目標について答えたりできます。',
+    viewerOnly: (wallet: string) => `${wallet}は閲覧のみの権限のため、そこに取引を用意することはできません。`,
+    walletArchived: (wallet: string) => `${wallet}はアーカイブ済みのため、新しい取引を追加できません。`,
+    noAccounts: 'このウォレットにはまだ有効な口座がありません。先に口座を追加してください。',
+    whichAccount: (names: string[]) => `どの口座の取引ですか？このウォレットの口座: ${names.join(', ')}。`,
+    currencyMismatch: (account: string, currency: string, mentioned: string) => `${account}は${currency}の口座のため、${mentioned}を記録することはできません。`,
+    noCategory: (type: 'INCOME' | 'EXPENSE') => (type === 'INCOME' ? 'このウォレットにはまだ収入カテゴリがありません。先にカテゴリを追加してください。' : 'このウォレットにはまだ支出カテゴリがありません。先にカテゴリを追加してください。'),
+    proposal: (type: 'INCOME' | 'EXPENSE', amount: string, account: string, category: string) =>
+      type === 'INCOME' ? `${account}への${amount}の収入（カテゴリ: ${category}）の下書きです。確認すると記録されます。` : `${account}からの${amount}の支出（カテゴリ: ${category}）の下書きです。確認すると記録されます。`,
+    balancesIntro: (wallet: string) => `${wallet}の残高:`,
+    noSpending: '今月はまだ支出がありません。',
+    spendingIntro: (totals: string) => `今月の支出は${totals}です。`,
+    noBudgets: 'このウォレットには有効な予算がありません。',
+    budgetsIntro: '有効な予算:',
+    budgetLine: (name: string, spent: string, amount: string, usage: number, over: boolean) =>
+      `• ${name}: ${spent} / ${amount} (${usage}%)${over ? ' — 予算超過' : ''}`,
+    noGoals: 'このウォレットには進行中の貯金目標がありません。',
+    goalsIntro: 'あなたの貯金目標:',
+    goalLine: (name: string, current: string, target: string, progress: number) => `• ${name}: ${current} / ${target} (${progress}%)`,
+  },
+  ko: {
+    help: '지출이나 수입을 기록하고("현금으로 점심 50k 지출"), 잔액, 이번 달 지출, 예산, 목표에 대한 질문에 답할 수 있어요.',
+    viewerOnly: (wallet: string) => `${wallet}에 대한 조회 권한만 있어서 거기에는 거래를 준비할 수 없어요.`,
+    walletArchived: (wallet: string) => `${wallet}은(는) 보관된 지갑이라 새 거래를 받을 수 없어요.`,
+    noAccounts: '이 지갑에는 아직 사용 중인 계좌가 없어요. 먼저 계좌를 추가하세요.',
+    whichAccount: (names: string[]) => `어느 계좌였나요? 이 지갑에는 ${names.join(', ')}이(가) 있어요.`,
+    currencyMismatch: (account: string, currency: string, mentioned: string) => `${account}은(는) ${currency} 계좌라서 ${mentioned}을(를) 기록할 수 없어요.`,
+    noCategory: (type: 'INCOME' | 'EXPENSE') => (type === 'INCOME' ? '이 지갑에는 아직 수입 카테고리가 없어요. 먼저 카테고리를 추가하세요.' : '이 지갑에는 아직 지출 카테고리가 없어요. 먼저 카테고리를 추가하세요.'),
+    proposal: (type: 'INCOME' | 'EXPENSE', amount: string, account: string, category: string) =>
+      type === 'INCOME' ? `${account}(으)로 들어온 ${amount} 수입 초안이에요. 카테고리: ${category}. 확인하면 기록돼요.` : `${account}에서 나간 ${amount} 지출 초안이에요. 카테고리: ${category}. 확인하면 기록돼요.`,
+    balancesIntro: (wallet: string) => `${wallet}의 잔액:`,
+    noSpending: '이번 달에는 아직 지출이 없어요.',
+    spendingIntro: (totals: string) => `이번 달에 ${totals}을(를) 썼어요.`,
+    noBudgets: '이 지갑에는 진행 중인 예산이 없어요.',
+    budgetsIntro: '진행 중인 예산:',
+    budgetLine: (name: string, spent: string, amount: string, usage: number, over: boolean) =>
+      `• ${name}: ${spent} / ${amount} (${usage}%)${over ? ' — 예산 초과' : ''}`,
+    noGoals: '이 지갑에는 진행 중인 저축 목표가 없어요.',
+    goalsIntro: '저축 목표:',
+    goalLine: (name: string, current: string, target: string, progress: number) => `• ${name}: ${current} / ${target} (${progress}%)`,
+  },
+  ru: {
+    help: 'Я могу записать расход или доход («Потратил 50k на обед со счёта Наличные») и ответить на вопросы о ваших балансах, расходах за этот месяц, бюджетах и целях.',
+    viewerOnly: (wallet: string) => `У вас доступ к кошельку «${wallet}» только для просмотра, поэтому я не могу готовить там операции.`,
+    walletArchived: (wallet: string) => `Кошелёк «${wallet}» в архиве, поэтому новые операции в нём не принимаются.`,
+    noAccounts: 'В этом кошельке пока нет активных счетов. Сначала добавьте счёт.',
+    whichAccount: (names: string[]) => `С какого счёта это было? В этом кошельке есть: ${names.join(', ')}.`,
+    currencyMismatch: (account: string, currency: string, mentioned: string) => `Счёт «${account}» ведётся в ${currency}, поэтому я не могу записать на него ${mentioned}.`,
+    noCategory: (type: 'INCOME' | 'EXPENSE') => (type === 'INCOME' ? 'В этом кошельке пока нет категорий доходов. Сначала добавьте категорию.' : 'В этом кошельке пока нет категорий расходов. Сначала добавьте категорию.'),
+    proposal: (type: 'INCOME' | 'EXPENSE', amount: string, account: string, category: string) =>
+      type === 'INCOME' ? `Вот черновик дохода ${amount} на счёт «${account}» в категории «${category}». Подтвердите, чтобы записать его.` : `Вот черновик расхода ${amount} со счёта «${account}» в категории «${category}». Подтвердите, чтобы записать его.`,
+    balancesIntro: (wallet: string) => `Балансы в кошельке «${wallet}»:`,
+    noSpending: 'В этом месяце расходов пока нет.',
+    spendingIntro: (totals: string) => `В этом месяце вы потратили ${totals}.`,
+    noBudgets: 'В этом кошельке нет активных бюджетов.',
+    budgetsIntro: 'Ваши активные бюджеты:',
+    budgetLine: (name: string, spent: string, amount: string, usage: number, over: boolean) =>
+      `• ${name}: ${spent} / ${amount} (${usage}%)${over ? ' — сверх бюджета' : ''}`,
+    noGoals: 'В этом кошельке нет активных целей накоплений.',
+    goalsIntro: 'Ваши цели накоплений:',
+    goalLine: (name: string, current: string, target: string, progress: number) => `• ${name}: ${current} / ${target} (${progress}%)`,
+  },
+  zh: {
+    help: '我可以帮您记录一笔支出或收入（例如“午餐用现金花了 50k”），也能回答有关余额、本月支出、预算和储蓄目标的问题。',
+    viewerOnly: (wallet: string) => `您对 ${wallet} 只有查看权限，所以我无法在其中准备交易。`,
+    walletArchived: (wallet: string) => `${wallet} 已归档，不再接受新交易。`,
+    noAccounts: '此钱包还没有活跃账户，请先添加一个。',
+    whichAccount: (names: string[]) => `是哪个账户？此钱包有：${names.join(', ')}。`,
+    currencyMismatch: (account: string, currency: string, mentioned: string) => `${account} 使用 ${currency}，所以我无法在其中记录 ${mentioned}。`,
+    noCategory: (type: 'INCOME' | 'EXPENSE') => (type === 'INCOME' ? '此钱包还没有收入分类，请先添加一个。' : '此钱包还没有支出分类，请先添加一个。'),
+    proposal: (type: 'INCOME' | 'EXPENSE', amount: string, account: string, category: string) =>
+      type === 'INCOME' ? `这是一笔收入草稿：${amount} 计入 ${account}，分类为“${category}”。确认后即可记录。` : `这是一笔支出草稿：从 ${account} 支出 ${amount}，分类为“${category}”。确认后即可记录。`,
+    balancesIntro: (wallet: string) => `${wallet} 的余额：`,
+    noSpending: '本月还没有任何支出。',
+    spendingIntro: (totals: string) => `您本月已支出 ${totals}。`,
+    noBudgets: '此钱包没有进行中的预算。',
+    budgetsIntro: '您进行中的预算：',
+    budgetLine: (name: string, spent: string, amount: string, usage: number, over: boolean) =>
+      `• ${name}：${spent} / ${amount}（${usage}%）${over ? ' — 已超支' : ''}`,
+    noGoals: '此钱包没有进行中的储蓄目标。',
+    goalsIntro: '您的储蓄目标：',
+    goalLine: (name: string, current: string, target: string, progress: number) => `• ${name}：${current} / ${target}（${progress}%）`,
   },
 } satisfies Record<Locale, unknown>;

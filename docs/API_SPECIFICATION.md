@@ -280,7 +280,7 @@ The app proposes the device's zone when a wallet is created (§5.1, §6.2), and 
 | `password` | 12–200 characters. Length only — no composition rules, which measurably push users toward predictable substitutions (NIST SP 800-63B) |
 | `displayName` | 1–100 characters after trim |
 | `baseCurrency` | `^[A-Z]{3}$`, defaults to `VND` |
-| `locale` | optional; one of `LOCALES` (`en`, `vi`). Saved as the user's language and used to name the first wallet and Cash account; when omitted, `en` (the column default) |
+| `locale` | optional; one of `LOCALES` (`en`, `vi`, `de`, `es`, `fr`, `hi`, `ja`, `ko`, `ru`, `zh`). Saved as the user's language and used to name the first wallet and Cash account; when omitted, `en` (the column default) |
 | `timeZone` | required; an IANA zone (§2.12). The first wallet's time zone; the app sends the device's |
 
 **Response `201`** — `AuthResponse`: the new `user` plus `tokens`.
@@ -364,7 +364,7 @@ The app proposes the device's zone when a wallet is created (§5.1, §6.2), and 
 | **Authorization** | None |
 | **Rate limit** | 10/min per IP |
 
-**Request** — `googleAuthSchema`: `{ "idToken": "...", "locale"?: "en" | "vi", "timeZone": "Asia/Ho_Chi_Minh" }`. `locale` and `timeZone` are used only when this sign-in creates the account, to name its wallet and set its zone as §5.1 does. `idToken` is the ID token Google's SDK returns to the client. The API verifies its signature and `aud` claim against `GOOGLE_CLIENT_ID` server-side — the client's own decoding of the token is never trusted.
+**Request** — `googleAuthSchema`: `{ "idToken": "...", "locale"?: "<one of LOCALES>", "timeZone": "Asia/Ho_Chi_Minh" }`. `locale` and `timeZone` are used only when this sign-in creates the account, to name its wallet and set its zone as §5.1 does. `idToken` is the ID token Google's SDK returns to the client. The API verifies its signature and `aud` claim against `GOOGLE_CLIENT_ID` server-side — the client's own decoding of the token is never trusted.
 
 **Response `200`** — `AuthResponse`. A first sign-in for that Google account creates the user (email taken from the verified token, `password_hash` null — `chk_user_has_credential` requires a password hash or a Google id, so password sign-in stays refused for it), a default wallet named in `locale` as §5.1 describes, its starter categories, and one default `CASH` account — the same seeding `POST /auth/register` performs. A Google account whose email already has a password-based `users` row is linked to it (`google_id` is set on the existing row) rather than creating a second user, so a person who registered with a password and later taps "Sign in with Google" keeps one account, one set of wallets. Linking happens only while the row has no Google account yet: a different Google account with the same verified email is refused, never swapped in for the one already linked.
 
@@ -1170,7 +1170,7 @@ A chat that answers questions about one wallet and can **propose** an income or 
 
 A conversation belongs to the user who created it. Another user's conversation id is `404 AI_CONVERSATION_NOT_FOUND`, the same as an id that does not exist. Each message names the wallet it is about, and read access to that wallet is checked on every send (AC-01: a non-member gets `404 WALLET_NOT_FOUND`). The assistant reads only that wallet, through read-only tools: its active accounts with their derived balances, its active categories, and the current month's §14.1 figures (so transfers are never income or expense, BR-06).
 
-The model is pluggable behind one server-side interface. The default is a deterministic keyword-rule provider that needs no API key; every figure it states comes from a tool, never from its own arithmetic. Replies are written in the request's `locale` (`en` or `vi`).
+The model is pluggable behind one server-side interface. The default is a deterministic keyword-rule provider that needs no API key; every figure it states comes from a tool, never from its own arithmetic. Replies are written in the request's `locale` (any of `LOCALES`).
 
 Types: `AiConversationResponse` `{id, walletId, title, createdAt, updatedAt}` · `AiMessageResponse` `{id, conversationId, role (USER | ASSISTANT), content, action, createdAt}` · `AiActionResponse` `{type (CREATE_TRANSACTION), status (PENDING | CONFIRMED | DISMISSED), transaction, accountName, categoryName, transactionId}`. `transaction` is an income or expense in exactly the §11.2 request shape (`aiTransactionDraftSchema`), in the account's own currency (BR-07); `accountName` is the name at proposal time; `categoryName` is the category's current name as the reader reads it (§2.11), falling back to the name at proposal time if the category no longer resolves.
 
@@ -1232,7 +1232,7 @@ Conversations and their messages are chat history, not financial data, so §17.3
 |---|---|
 | **Auth** | Bearer · the conversation's owner · **Min role** `VIEWER` on `walletId` |
 
-**Request** — `sendAiMessageSchema`: `walletId` (required), `message` (1–2000, trimmed), `locale` (`en` \| `vi`, default `en`)
+**Request** — `sendAiMessageSchema`: `walletId` (required), `message` (1–2000, trimmed), `locale` (one of `LOCALES`, default `en`)
 
 **Response `201`** — `SendAiMessageResponse` `{conversation, userMessage, assistantMessage}`. `assistantMessage.action` is set only when the caller holds `EDITOR` on an active wallet and the proposal names that wallet's own active account and a category of the matching type in the account's currency. Otherwise the assistant explains in text and proposes nothing.
 

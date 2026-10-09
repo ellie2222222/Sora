@@ -1,7 +1,7 @@
-import type { TranslationResource } from './en.ts';
+import type { LocaleResource } from './en.ts';
 
-/** Vietnamese strings. Keys must mirror en.ts exactly — enforced by `TranslationResource` and localeParity.test.ts. */
-const vi: TranslationResource = {
+/** Vietnamese strings. Keys must mirror en.ts exactly — enforced by `LocaleResource` and localeParity.test.ts. */
+const vi: LocaleResource = {
   common: {
     save: 'Lưu',
     cancel: 'Hủy',
@@ -28,6 +28,8 @@ const vi: TranslationResource = {
     yesterday: 'Hôm qua',
     selectYear: 'Chọn năm',
     selectDate: 'Chọn ngày',
+    viewBy: 'Xem theo',
+    otherCurrencies: 'Các loại tiền khác',
     back: 'Quay lại',
     matchConfirmPrompt: 'Để xác nhận, nhập "{{word}}" vào bên dưới:',
     refresh: 'Làm mới',
@@ -143,6 +145,7 @@ const vi: TranslationResource = {
     logoutConfirmTitle: 'Đăng xuất?',
     logoutConfirmBody: 'Bạn sẽ cần đăng nhập lại để xem ví của mình.',
     clearAllData: 'Xóa toàn bộ dữ liệu',
+    devUploadPreview: 'Xem trước màn hình tải lên',
     clearAllConfirmTitle: 'Xóa toàn bộ dữ liệu?',
     clearAllConfirmBody: 'Mọi thứ lưu trên thiết bị này sẽ bị xóa và bạn sẽ được đăng xuất. Dữ liệu trên máy chủ vẫn an toàn.',
     themeNames: {
@@ -190,6 +193,8 @@ const vi: TranslationResource = {
     addAccount: 'Thêm tài khoản',
     detailTitle: 'Tài khoản',
     selectAccount: 'Chọn một tài khoản',
+    filterByAccount: 'Lọc theo tài khoản',
+    moreAccounts: 'Các tài khoản khác',
     noAccountsHereYet: 'Chưa có tài khoản nào ở đây.',
     bankAccount: 'Tài khoản ngân hàng',
     cash: 'Tiền mặt',
@@ -202,8 +207,8 @@ const vi: TranslationResource = {
     noWalletSelected: 'Bạn chưa chọn ví.',
     transferredIn: 'Chuyển vào',
     transferredOut: 'Chuyển ra',
-    viewTransactions_one: 'Xem {{count}} giao dịch →',
-    viewTransactions_other: 'Xem {{count}} giao dịch →',
+    viewTransactions_one: 'Xem {{count}} giao dịch',
+    viewTransactions_other: 'Xem {{count}} giao dịch',
     namePlaceholder: 'vd: Vietcombank VND',
     editAccount: 'Sửa tài khoản',
     archiveAccount: 'Lưu trữ tài khoản',
@@ -261,6 +266,11 @@ const vi: TranslationResource = {
       indicatorFailed: 'Chưa tải lên xong · Chạm để thử lại',
       indicatorHint: 'Mở màn hình tải lên',
       done: 'Dữ liệu đã vào ví của bạn',
+      preview: {
+        close: 'Đóng bản xem trước',
+        simulateFailure: 'Giả lập lỗi',
+        backgroundHint: 'Ứng dụng sẽ hiện ở đây và vẫn dùng được. Chạm thanh phía trên để quay lại màn hình tải lên.',
+      },
     },
   },
   categories: {
@@ -382,23 +392,20 @@ const vi: TranslationResource = {
     spent: 'đã chi',
     noData: 'Chưa có gì để hiển thị.',
     incomeVsExpenses: 'Thu nhập và chi tiêu',
+    versusPeriod: 'so với {{period}}',
     topCategories: 'Danh mục chi tiêu nhiều nhất',
     newThisPeriod: 'mới',
     savingsRate: 'Bạn giữ lại được {{rate}}% số tiền kiếm được.',
     negativeSavingsRate: 'Bạn đã chi nhiều hơn thu {{rate}}%.',
+    spentMultiple: 'Bạn đã chi gấp {{multiple}} lần số tiền kiếm được.',
     transferredIn: 'Vào',
     transferredOut: 'Ra',
-    inShort: 'Chuyển vào',
-    outShort: 'Chuyển ra',
-    cashFlow: 'Dòng tiền',
     whoSpentWhat: 'Ai chi bao nhiêu',
     memberEarned: 'Thu nhập',
     activeBudgets: 'Ngân sách đang chạy',
     activeGoals: 'Mục tiêu đang theo đuổi',
     andMore: '+{{count}} nữa',
     insightsFor: 'Nhận xét · {{period}}',
-    savedPercent: 'Bạn đã tiết kiệm {{rate}}% thu nhập.',
-    spentMorePercent: 'Bạn đã chi nhiều hơn thu {{rate}}%.',
     biggestExpense: '{{category}} là khoản chi lớn nhất, chiếm {{percentage}}% tổng chi tiêu.',
     spendingChangedPeriod: 'Chi tiêu cho {{category}} đã {{direction}} {{change}}% so với kỳ trước.',
     increased: 'tăng',
@@ -475,8 +482,8 @@ const vi: TranslationResource = {
     noActivityMessage: 'Mọi thay đổi trong ví này sẽ hiện ở đây.',
   },
   transactions: {
-    title: 'Giao dịch',
     showingNewest: 'Đang hiện {{count}} giao dịch mới nhất trên {{total}}. Cuộn để xem đủ tổng.',
+    clearCategoryFilter: 'Chỉ hiện {{category}}. Chạm để hiện mọi danh mục',
     filterAll: 'Tất cả',
     filterExpense: 'Chi tiêu',
     filterIncome: 'Thu nhập',

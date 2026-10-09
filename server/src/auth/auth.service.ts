@@ -4,7 +4,7 @@ import { OAuth2Client } from 'google-auth-library';
 import type { Transaction } from 'kysely';
 import { randomUUID } from 'node:crypto';
 
-import { STARTER_CASH_ACCOUNT_NAME, STARTER_CATEGORIES, starterWalletName, type Locale } from '@sora/contracts';
+import { STARTER_CASH_ACCOUNT_NAME, STARTER_CATEGORIES, isLocale, starterWalletName, type Locale } from '@sora/contracts';
 import type {
   AuthResponse,
   AuthTokens,
@@ -430,7 +430,7 @@ export class AuthService {
     timeZone: string,
     locale?: string,
   ): Promise<{ walletId: string }> {
-    const seedLocale: Locale = locale === 'vi' ? 'vi' : 'en';
+    const seedLocale: Locale = locale !== undefined && isLocale(locale) ? locale : 'en';
     const walletName = starterWalletName(displayName, seedLocale);
     const accountName = STARTER_CASH_ACCOUNT_NAME[seedLocale];
 

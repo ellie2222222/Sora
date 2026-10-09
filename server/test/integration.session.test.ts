@@ -294,7 +294,7 @@ describe('session lifecycle against a real database', { skip: integrationSkipRea
 
     for (const [body, field] of [
       [{ theme: 'neon' }, 'theme'],
-      [{ locale: 'fr' }, 'locale'],
+      [{ locale: 'it' }, 'locale'],
       [{}, null],
       // Base currency is not a preference (§5.7 takes theme and locale only), so this carries no field to update.
       [{ baseCurrency: 'USD' }, null],

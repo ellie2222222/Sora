@@ -78,7 +78,7 @@ group) before merging to `main`. Where this file and CLAUDE.md disagree, CLAUDE.
 - [ ] Icons from `lucide-react-native` (MB-05); colours from design tokens, dark and light both checked (MB-06)
 - [ ] Loading, empty, error and success states all handled (MB-07)
 - [ ] Money rendered via `<Money>` / `formatMoneyString` (MB-08)
-- [ ] Every new string is in `en.ts` **and** `vi.ts`, at full parity; inactive locales untouched (MB-09, rule 13)
+- [ ] Every new string is in all ten locale files, at full parity (MB-09, rule 13)
 - [ ] Cross-directory imports go through `@/…` barrels, siblings relative (MB-10, rule 14)
 - [ ] No function `style` on a `Pressable` (rule 15)
 - [ ] `docs/DESIGN_GUIDELINES.md` Part 4 check run (MB-11)

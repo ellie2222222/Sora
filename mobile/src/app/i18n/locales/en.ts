@@ -30,6 +30,8 @@ const en = {
     yesterday: 'Yesterday',
     selectYear: 'Pick a year',
     selectDate: 'Pick a date',
+    viewBy: 'View by',
+    otherCurrencies: 'Other currencies',
     back: 'Back',
     matchConfirmPrompt: 'Just to be sure, type "{{word}}" below:',
     refresh: 'Refresh',
@@ -145,6 +147,7 @@ const en = {
     logoutConfirmTitle: 'Log out?',
     logoutConfirmBody: "You'll need to sign in again to see your wallets.",
     clearAllData: 'Clear all data',
+    devUploadPreview: 'Preview the upload screen',
     clearAllConfirmTitle: 'Clear all data?',
     clearAllConfirmBody: 'This clears everything saved on this device and signs you out. Your data on the server stays safe.',
     themeNames: {
@@ -192,6 +195,8 @@ const en = {
     addAccount: 'Add account',
     detailTitle: 'Account',
     selectAccount: 'Pick an account',
+    filterByAccount: 'Filter by account',
+    moreAccounts: 'More accounts',
     noAccountsHereYet: 'No accounts here yet.',
     bankAccount: 'Bank account',
     cash: 'Cash',
@@ -204,8 +209,8 @@ const en = {
     noWalletSelected: 'No wallet picked yet.',
     transferredIn: 'Transferred in',
     transferredOut: 'Transferred out',
-    viewTransactions_one: 'View {{count}} transaction →',
-    viewTransactions_other: 'View {{count}} transactions →',
+    viewTransactions_one: 'View {{count}} transaction',
+    viewTransactions_other: 'View {{count}} transactions',
     namePlaceholder: 'e.g. Vietcombank VND',
     editAccount: 'Edit account',
     archiveAccount: 'Archive account',
@@ -263,6 +268,11 @@ const en = {
       indicatorFailed: "Upload didn't finish · Tap to retry",
       indicatorHint: 'Opens the upload',
       done: 'Your data is now in your wallet',
+      preview: {
+        close: 'Close preview',
+        simulateFailure: 'Simulate a failure',
+        backgroundHint: 'The app would be here, still usable. Tap the bar at the top to go back to the upload.',
+      },
     },
   },
   categories: {
@@ -384,23 +394,20 @@ const en = {
     spent: 'spent',
     noData: 'Nothing to show yet.',
     incomeVsExpenses: 'Income vs expenses',
+    versusPeriod: 'vs {{period}}',
     topCategories: 'Top categories',
     newThisPeriod: 'new',
     savingsRate: 'You kept {{rate}}% of what you earned.',
     negativeSavingsRate: 'You spent {{rate}}% more than you earned.',
+    spentMultiple: 'You spent {{multiple}}× what you earned.',
     transferredIn: 'In',
     transferredOut: 'Out',
-    inShort: 'Transferred in',
-    outShort: 'Transferred out',
-    cashFlow: 'Cash flow',
     whoSpentWhat: 'Who spent what',
     memberEarned: 'Earned',
     activeBudgets: 'Active budgets',
     activeGoals: 'Active goals',
     andMore: '+{{count}} more',
     insightsFor: 'Insights · {{period}}',
-    savedPercent: 'You saved {{rate}}% of your income.',
-    spentMorePercent: 'You spent {{rate}}% more than you earned.',
     biggestExpense: '{{category}} was your biggest expense, at {{percentage}}% of spending.',
     spendingChangedPeriod: '{{category}} spending {{direction}} {{change}}% from the period before.',
     increased: 'increased',
@@ -477,8 +484,8 @@ const en = {
     noActivityMessage: 'Every change made in this wallet will show up here.',
   },
   transactions: {
-    title: 'Transactions',
     showingNewest: 'Showing the newest {{count}} of {{total}}. Scroll for the full totals.',
+    clearCategoryFilter: 'Showing {{category}} only. Tap to show every category',
     filterAll: 'All',
     filterExpense: 'Expense',
     filterIncome: 'Income',
@@ -625,9 +632,10 @@ const en = {
 export default en;
 export type TranslationResource = typeof en;
 
-type DeepPartial<T> = {
-  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
-};
+/** Plural forms English never uses but other languages need (Russian `_few`/`_many`), allowed beside every `_one`/`_other` pair. */
+type ExtraPluralForms = { [key: `${string}_${'zero' | 'two' | 'few' | 'many'}`]: string };
 
-/** Loose shape for disabled/inactive locales so new keys in en.ts do not trigger compile errors */
-export type InactiveTranslationResource = DeepPartial<TranslationResource>;
+type WithPluralForms<T> = { [P in keyof T]: T[P] extends object ? WithPluralForms<T[P]> : T[P] } & ExtraPluralForms;
+
+/** Every key `en.ts` has, plus whatever extra plural forms the language's grammar needs. */
+export type LocaleResource = WithPluralForms<TranslationResource>;

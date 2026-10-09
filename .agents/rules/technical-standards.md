@@ -60,8 +60,8 @@
   - UI and state design follow [`docs/DESIGN_GUIDELINES.md`](../../docs/DESIGN_GUIDELINES.md) (product principles, loading/empty/error architecture, visual tokens); run its Part 4 check before calling UI work done (MB-11).
   - Icons sourced strictly from `lucide-react-native`.
 - **Active Locales**:
-  - Active locales are strictly English (`en`) and Vietnamese (`vi`) (`['en', 'vi'] as const`).
-  - Never translate new keys into disabled locales (`de`, `es`, `fr`, `hi`, `ja`, `ko`, `ru`, `zh`). Full key parity is maintained between `en.ts` and `vi.ts`.
+  - All ten locales in `LOCALES` are active: `en`, `vi`, `de`, `es`, `fr`, `hi`, `ja`, `ko`, `ru`, `zh`.
+  - Every catalog is a `LocaleResource` at full key parity with `en.ts`; a new or reworded key is translated into all ten in the same change.
 - **Test Selectors**:
   - Use `testID` attributes, the only stable selector the Maestro E2E suite (`id:`) can address. The full pattern table is `CLAUDE.md` → NC-04:
     - Root screens: `screen-[name]`

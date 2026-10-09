@@ -203,11 +203,13 @@ $$, 'categories: the same starter in a different wallet');
 
 DO $$
 BEGIN
-    IF (SELECT COUNT(*) FROM category_translations WHERE locale = 'en')
-       <> (SELECT COUNT(*) FROM category_translations WHERE locale = 'vi') THEN
-        RAISE EXCEPTION 'FAIL  category_translations: every starter key is named in both en and vi';
+    IF EXISTS (
+        SELECT locale FROM category_translations GROUP BY locale
+        HAVING COUNT(*) <> (SELECT COUNT(*) FROM category_translations WHERE locale = 'en')
+    ) OR (SELECT COUNT(DISTINCT locale) FROM category_translations) <> 10 THEN
+        RAISE EXCEPTION 'FAIL  category_translations: every starter key is named in all ten locales';
     END IF;
-    RAISE NOTICE 'PASS  category_translations: every starter key is named in both en and vi';
+    RAISE NOTICE 'PASS  category_translations: every starter key is named in all ten locales';
 END;
 $$;
 
@@ -216,8 +218,8 @@ SELECT expect_reject($$
 $$, 'category_translations: a second name for one key and locale');
 
 SELECT expect_reject($$
-    INSERT INTO category_translations (system_key, locale, name) VALUES ('food', 'fr', 'Nourriture')
-$$, 'category_translations: an inactive locale');
+    INSERT INTO category_translations (system_key, locale, name) VALUES ('food', 'pt', 'Alimentação')
+$$, 'category_translations: a locale outside LOCALES');
 
 -- ---------------------------------------------------------------------------
 -- wallets.time_zone

@@ -189,7 +189,9 @@ const locales = localesMatch ? [...localesMatch[1].matchAll(/'([a-z]+)'/g)].map(
 check('LOCALES is declared in enums.ts', locales.length > 0, 'tuple not found');
 
 for (const constraintName of ['chk_user_locale', 'chk_category_translation_locale']) {
-  const match = SCHEMA_SQL.match(new RegExp(`CONSTRAINT\\s+${constraintName}\\s*\\n?\\s*CHECK\\s*\\(([^;]*?)\\)\\s*(?:,|\\n\\s*\\)|;)`, 's'));
+  // The last definition wins, as in constraintValues(): a later migration widens the list.
+  const matches = [...SCHEMA_SQL.matchAll(new RegExp(`CONSTRAINT\\s+${constraintName}\\s*\\n?\\s*CHECK\\s*\\(([^;]*?)\\)\\s*(?:,|\\n\\s*\\)|;)`, 'gs'))];
+  const match = matches[matches.length - 1];
   const allowed = match ? [...match[1].matchAll(/'([a-z]+)'/g)].map((m) => m[1]).sort() : null;
   check(`LOCALES matches ${constraintName}`, sameSet(locales, allowed), `contract=[${locales}] db=[${allowed}]`);
 }
@@ -198,10 +200,14 @@ for (const constraintName of ['chk_user_locale', 'chk_category_translation_local
 const contractTranslations = [...STARTER_TS.matchAll(/key: '([a-z_]+)', names: \{([^}]*)\}/g)].flatMap(([, key, names]) =>
   [...names.matchAll(/([a-z]+): '([^']*)'/g)].map(([, locale, name]) => `${key}|${locale}|${name}`),
 );
-const insertMatch = SCHEMA_SQL.match(/INSERT INTO category_translations \(system_key, locale, name\) VALUES([^;]*);/);
-const schemaTranslations = insertMatch
-  ? [...insertMatch[1].matchAll(/\('([a-z_]+)', '([a-z]+)', '([^']*)'\)/g)].map(([, key, locale, name]) => `${key}|${locale}|${name}`)
-  : null;
+// A migration that adds locales inserts their rows separately, so every INSERT counts.
+const insertMatches = [...SCHEMA_SQL.matchAll(/INSERT INTO category_translations \(system_key, locale, name\) VALUES([^;]*);/g)];
+const schemaTranslations =
+  insertMatches.length > 0
+    ? insertMatches.flatMap((insert) =>
+        [...insert[1].matchAll(/\('([a-z_]+)', '([a-z]+)', '([^']*)'\)/g)].map(([, key, locale, name]) => `${key}|${locale}|${name}`),
+      )
+    : null;
 
 check('category_translations rows are inserted in the migration', schemaTranslations !== null, 'INSERT not found');
 if (schemaTranslations !== null) {

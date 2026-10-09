@@ -31,7 +31,20 @@ describe('STARTER_CATEGORIES', () => {
   it('names the default wallet and Cash account in each locale', () => {
     assert.equal(starterWalletName('An', 'en'), "An's Wallet");
     assert.equal(starterWalletName('An', 'vi'), 'Ví của An');
-    assert.deepEqual(LOCALES.map((locale) => STARTER_CASH_ACCOUNT_NAME[locale]), ['Cash', 'Tiền mặt']);
+    assert.equal(STARTER_CASH_ACCOUNT_NAME.en, 'Cash');
+    assert.equal(STARTER_CASH_ACCOUNT_NAME.vi, 'Tiền mặt');
+    for (const locale of LOCALES) {
+      assert.ok(starterWalletName('An', locale).includes('An'), locale);
+      assert.ok(STARTER_CASH_ACCOUNT_NAME[locale].trim().length > 0, locale);
+    }
+  });
+
+  // The seed inserts every starter under one wallet, and uq_category_name_per_parent compares LOWER(name).
+  it('gives every starter a distinct name in every locale', () => {
+    for (const locale of LOCALES) {
+      const names = STARTER_CATEGORIES.map((category) => category.names[locale].toLocaleLowerCase(locale));
+      assert.equal(new Set(names).size, names.length, locale);
+    }
   });
 
   it('names a starter in the requested locale and leaves a custom category as typed', () => {

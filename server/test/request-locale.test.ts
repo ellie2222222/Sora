@@ -15,8 +15,9 @@ describe('parseAcceptLanguage', () => {
   });
 
   it('picks the highest-weighted supported language, skipping unsupported ones', () => {
-    assert.equal(parseAcceptLanguage('fr-FR,fr;q=0.9,vi;q=0.8,en;q=0.7'), 'vi');
+    assert.equal(parseAcceptLanguage('pt-BR,pt;q=0.9,vi;q=0.8,en;q=0.7'), 'vi');
     assert.equal(parseAcceptLanguage('en;q=0.4, vi;q=0.6'), 'vi');
+    assert.equal(parseAcceptLanguage('ja-JP,ja;q=0.9,en;q=0.5'), 'ja');
   });
 
   it('breaks a weight tie by header order', () => {
@@ -26,7 +27,7 @@ describe('parseAcceptLanguage', () => {
   it('returns null when nothing usable was asked for', () => {
     assert.equal(parseAcceptLanguage(undefined), null);
     assert.equal(parseAcceptLanguage(''), null);
-    assert.equal(parseAcceptLanguage('fr, de'), null);
+    assert.equal(parseAcceptLanguage('pt, it'), null);
     assert.equal(parseAcceptLanguage('vi;q=0'), null);
     assert.equal(parseAcceptLanguage('*'), null);
   });
@@ -73,7 +74,7 @@ describe('RequestLocaleInterceptor', () => {
 
   it("falls back to the caller's saved locale when the header names nothing supported", async () => {
     const { interceptor } = interceptorWithProfileLocale('vi');
-    const seen = await firstValueFrom(interceptor.intercept(contextFor({ headers: { 'accept-language': 'fr' }, user: { id: 'u' } }), reportsLocale));
+    const seen = await firstValueFrom(interceptor.intercept(contextFor({ headers: { 'accept-language': 'pt' }, user: { id: 'u' } }), reportsLocale));
     assert.equal(seen, 'vi');
   });
 

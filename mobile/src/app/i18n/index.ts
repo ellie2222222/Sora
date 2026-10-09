@@ -16,14 +16,16 @@ import { initReactI18next } from 'react-i18next';
 import { LOCALES, type Locale } from '@sora/contracts';
 
 import { LOCALE_STORAGE_KEY, preferencesStore } from '@/services/storage';
-import en from './locales/en.ts';
-import vi from './locales/vi.ts';
+import { CATALOGS } from './locales/catalogs.ts';
 
 // The contract's tuple, so the app, the API's locale check and the translation table cannot disagree.
 export const SUPPORTED_LOCALES = LOCALES;
 export type SupportedLocale = Locale;
 
 const DEFAULT_LOCALE: SupportedLocale = 'en';
+
+/** Plural forms English lacks but another language's grammar needs, such as Russian `_few`/`_many`. */
+const EXTRA_PLURAL_FORM = /_(zero|two|few|many)$/;
 
 function isSupportedLocale(value: string | null | undefined): value is SupportedLocale {
   return value !== null && value !== undefined && (SUPPORTED_LOCALES as readonly string[]).includes(value);
@@ -38,20 +40,19 @@ void i18next.use(initReactI18next).init({
   compatibilityJSON: 'v4',
   lng: DEFAULT_LOCALE,
   fallbackLng: DEFAULT_LOCALE,
-  resources: {
-    en: { translation: en },
-    vi: { translation: vi },
-  },
+  resources: Object.fromEntries(SUPPORTED_LOCALES.map((locale) => [locale, { translation: CATALOGS[locale] }])),
   interpolation: { escapeValue: false },
   react: { useSuspense: false },
 });
 
 if (__DEV__) {
-  warnOnKeyMismatch(en, vi, 'vi.ts');
+  for (const locale of SUPPORTED_LOCALES) {
+    if (locale !== DEFAULT_LOCALE) warnOnKeyMismatch(CATALOGS[DEFAULT_LOCALE], CATALOGS[locale], `${locale}.ts`);
+  }
 }
 
 /**
- * Locale files are typed against `en.ts`'s shape (`TranslationResource`), so a
+ * Locale files are typed against `en.ts`'s shape (`LocaleResource`), so a
  * missing key is already a build-time error — this only catches the other
  * direction: a key a locale has that `en.ts` doesn't (a typo'd path, or a key
  * added to one file and forgotten in the other), which the type system can't
@@ -64,7 +65,8 @@ function warnOnKeyMismatch(reference: object, other: object, targetName = 'local
   const otherKeys = new Set(Object.keys(other));
 
   for (const key of otherKeys) {
-    if (!referenceKeys.has(key)) {
+    const extraPluralForm = EXTRA_PLURAL_FORM.test(key) && referenceKeys.has(key.replace(EXTRA_PLURAL_FORM, '_other'));
+    if (!referenceKeys.has(key) && !extraPluralForm) {
       console.warn(`[i18n] ${targetName} has a key en.ts does not: ${path}${key}`);
       continue;
     }
