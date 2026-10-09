@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Plus, Receipt } from 'lucide-react-native';
 import { View } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { TransactionStatus, TransactionType, type TransactionResponse } from '@sora/contracts';
 
@@ -17,18 +18,20 @@ import {
   PeriodSummaryCard,
   RefreshableFlatList,
   SegmentedControl,
-  SlideSwap,
   StateView,
   Text,
   TransactionDayCard,
+  useSwapOffset,
 } from '@/components';
 import { useAuth, useModal, useTheme, useToast, useWallets } from '@/app/providers';
 import { useListTransactionsInfiniteQuery } from '@/app/store';
+import { AccountScopePicker } from '@/features/accounts';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { useWarmAddTransactionReads } from '../hooks/useWarmAddTransactionReads.ts';
+import { CategoryFilterChip } from './CategoryFilterChip.tsx';
 import { DeleteTransactionDialog } from './DeleteTransactionDialog.tsx';
 import { TransactionDetailModal } from './TransactionDetailModal';
-import { TransactionDaysSkeleton, TransactionListSkeleton } from './TransactionListSkeleton';
+import { PeriodSummarySkeleton, TransactionDaysSkeleton, TransactionListSkeleton } from './TransactionListSkeleton';
 import {
   canLoadMore,
   flattenPages,
@@ -55,6 +58,9 @@ interface DaySection {
   monthTransactions: TransactionResponse[] | null;
 }
 
+/** The summary, the sticky filters, then the days; a window with none shows its state in the footer. */
+type ListRow = 'summary' | 'filter' | DaySection;
+
 const FILTER_TYPES = ['ALL', TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.TRANSFER] as const;
 
 const FILTER_LABEL_KEY = {
@@ -72,20 +78,22 @@ const EMPTY_TITLE_KEY = {
   [TransactionType.TRANSFER]: 'home.noTransfersTitle',
 } as const;
 
-/**
- * The transaction-list shell shared by the Home tab (unfiltered, the whole
- * wallet's history) and the Transactions stack screen (filtered by account
- * or category) — same fetch/loading/empty/error/list shape either way.
- */
+/** The Home tab's transaction list, the wallet's whole history unless an account, category or type narrows it. */
 export function TransactionListScreen({
   accountId,
+  accountFilter,
   categoryId,
+  onClearCategory,
   onAddTransaction,
   fabBottomOffset,
   testIDPrefix,
 }: {
   accountId?: string;
+  /** Shows account chips above the type filter; the caller owns the choice and passes it back as `accountId`. */
+  accountFilter?: { selectedAccountId: string | null; onSelect: (accountId: string | null) => void };
   categoryId?: string;
+  /** Shows the category as a chip that drops the filter; without it a category filter is fixed. */
+  onClearCategory?: () => void;
   onAddTransaction: () => void;
   fabBottomOffset: number;
   testIDPrefix: string;
@@ -126,20 +134,20 @@ export function TransactionListScreen({
   // month keeps last month's rows on screen while the new month loads (no skeleton flash);
   // changing scope or type must clear them, so one wallet's or one type's rows never read as another's.
   const scopeKey = `${walletId ?? ''}|${accountId ?? ''}|${categoryId ?? ''}|${filterType}`;
-  const [displayedItems, setDisplayedItems] = useState<TransactionResponse[]>([]);
-  const [displayedScopeKey, setDisplayedScopeKey] = useState(scopeKey);
-  if (scopeKey !== displayedScopeKey) {
-    setDisplayedScopeKey(scopeKey);
-    setDisplayedItems([]);
-  }
-  useEffect(() => {
+  // `currentData`, not `data`: RTK keeps the previous arguments' result in `data` while new ones
+  // load, so only `currentData` tells this window's rows apart from "not answered yet".
+  const loadedItems = useMemo(
     // Deleted transactions stay in the ledger (BR-03) but a deleted entry
     // reads as noise here, not history — it's excluded from every derived
     // figure server-side already, so the list should match.
-    if (transactions.data) {
-      setDisplayedItems(flattenPages(transactions.data.pages).filter((item) => item.status !== TransactionStatus.DELETED));
-    }
-  }, [transactions.data]);
+    () => (transactions.currentData ? flattenPages(transactions.currentData.pages).filter((item) => item.status !== TransactionStatus.DELETED) : null),
+    [transactions.currentData],
+  );
+  const [kept, setKept] = useState<{ scopeKey: string; items: TransactionResponse[] }>({ scopeKey, items: [] });
+  if (loadedItems !== null && (kept.items !== loadedItems || kept.scopeKey !== scopeKey)) {
+    setKept({ scopeKey, items: loadedItems });
+  }
+  const awaitingWindow = loadedItems === null;
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -151,7 +159,7 @@ export function TransactionListScreen({
     }
   };
 
-  const items = scopeKey === displayedScopeKey ? displayedItems : [];
+  const items = loadedItems ?? (kept.scopeKey === scopeKey ? kept.items : []);
 
   const showFab = !transactions.isLoading && items.length > 0;
 
@@ -206,10 +214,83 @@ export function TransactionListScreen({
     if (canLoadMore(transactions)) void transactions.fetchNextPage();
   };
 
-  const renderContent = () => {
+  const periodOffset = useSwapOffset(dateFrom);
+  const filterOffset = useSwapOffset(FILTER_TYPES.indexOf(filterType));
+  // The filter sits in the list but must not slide with the rows, so each row piece applies the offset itself.
+  const bodySlide = useAnimatedStyle(() => ({ transform: [{ translateX: periodOffset.value + filterOffset.value }] }));
 
+  // The filter is a row, not part of a list header, so the list can pin it while the summary scrolls away.
+  const rows = useMemo<ListRow[]>(() => ['summary', 'filter', ...sections], [sections]);
+  const windowEmpty = sections.length === 0;
 
-    if (transactions.isError && items.length === 0 && !isNetworkError(transactions.error)) {
+  const periodBar = (
+    <View style={{ paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.xs, paddingBottom: theme.spacing.sm }}>
+      <PeriodBar
+        period={period}
+        anchor={selectedDay}
+        onChangePeriod={setPeriod}
+        onShift={(delta) => setSelectedDay((current) => shiftAnchor(period, current, delta))}
+        onOpenPicker={() => setShowDatePicker(true)}
+        testIDPrefix={testIDPrefix}
+        today={walletToday}
+      />
+    </View>
+  );
+
+  const summary = (
+    <View>
+      <View style={{ paddingHorizontal: theme.spacing.md }}>
+        {hasMorePages ? (
+          <View className="flex-row justify-end">
+            <Text variant="caption" tone="muted" testID={`${testIDPrefix}-period-truncated`}>
+              {t('transactions.showingNewest', { count: fetchedCount, total: windowTotal })}
+            </Text>
+          </View>
+        ) : awaitingWindow && items.length === 0 ? (
+          <PeriodSummarySkeleton />
+        ) : (
+          <PeriodSummaryCard transactions={items} filterType={filterType} testID={`${testIDPrefix}-period-summary`} />
+        )}
+      </View>
+
+      {/* Only meaningful while a day *is* the window — in any wider one it would
+          pick a day the list does not narrow to. */}
+      {period === 'daily' ? (
+        <View style={{ paddingHorizontal: theme.spacing.sm, paddingTop: theme.spacing.sm }}>
+          <DateStrip selectedDay={selectedDay} onSelectDay={setSelectedDay} today={walletToday} testID={`${testIDPrefix}-date-strip`} />
+        </View>
+      ) : null}
+    </View>
+  );
+
+  const filterBar = (
+    <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, gap: theme.spacing.sm, backgroundColor: theme.colors.background }}>
+      {accountFilter !== undefined && walletId !== undefined ? (
+        <AccountScopePicker
+          walletId={walletId}
+          selectedAccountId={accountFilter.selectedAccountId}
+          onSelect={accountFilter.onSelect}
+          testID={`picker-${testIDPrefix}-account`}
+        />
+      ) : null}
+      {categoryId !== undefined && onClearCategory !== undefined && walletId !== undefined ? (
+        <CategoryFilterChip walletId={walletId} categoryId={categoryId} onClear={onClearCategory} testID={`btn-clear-${testIDPrefix}-category`} />
+      ) : null}
+      <SegmentedControl
+        options={FILTER_TYPES.map((type) => ({
+          value: type,
+          label: t(FILTER_LABEL_KEY[type]),
+          // Not `btn-transaction-type-*`: the add sheet's type picker owns that id and opens over this screen.
+          testID: `btn-transaction-filter-${type}`,
+        }))}
+        value={filterType}
+        onChange={setFilterType}
+      />
+    </View>
+  );
+
+  const renderEmptyBody = () => {
+    if (transactions.isError && !isNetworkError(transactions.error)) {
       return (
         <StateView
           variant="error"
@@ -222,108 +303,70 @@ export function TransactionListScreen({
     }
 
     // A new type or scope starts a fresh query; until it answers, empty means "not loaded yet".
-    if (items.length === 0 && transactions.isFetching) {
+    if (awaitingWindow && !transactions.isError) {
       return (
-        <View style={{ paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.sm }}>
+        <View style={{ paddingHorizontal: theme.spacing.md }}>
           <TransactionDaysSkeleton />
         </View>
       );
     }
 
-    if (items.length === 0) {
-      return (
-        <StateView
-          variant="empty"
-          icon={Receipt}
-          title={t(EMPTY_TITLE_KEY[filterType], { period: formatPeriodLabel(period, selectedDay) })}
-          message={t(filterType === 'ALL' ? 'home.noTransactionsMessage' : 'home.noFilteredMessage')}
-          primaryAction={{
-            label: t('common.create'),
-            onPress: onAddTransaction,
-            icon: Plus,
-          }}
-          testID={`${testIDPrefix}-empty`}
-          entrance="none"
-        />
-      );
-    }
-
     return (
-      <RefreshableFlatList<DaySection>
-        testID="list-transactions"
-        data={sections}
-        keyExtractor={(section) => section.day}
-        renderItem={({ item: section }) => (
-          <View>
-            {section.isNewMonth ? (
-              <View
-                className="flex-row items-center justify-between"
-                style={{
-                  marginTop: section.isFirst ? 0 : theme.spacing.lg,
-                  marginBottom: theme.spacing.sm,
-                  marginHorizontal: theme.spacing.xxs,
-                  gap: theme.spacing.md,
-                }}
-              >
-                <Text variant="title" weight="bold" numberOfLines={1} style={{ flexShrink: 0 }}>
-                  {formatMonthYear(section.day)}
-                </Text>
-                {section.monthTransactions !== null ? (
-                  <IncomeExpenseTotals
-                    transactions={section.monthTransactions}
-                    testID={`${testIDPrefix}-month-totals-${section.day.slice(0, 7)}`}
-                  />
-                ) : null}
-              </View>
-            ) : null}
-            <TransactionDayCard
-              day={section.day}
-              transactions={section.data}
-              showTotals={section.showTotals}
-              onPress={handlePressTransaction}
-              onEdit={permissions.canWrite ? handleEditTransaction : undefined}
-              onDelete={permissions.canWrite ? handleDeleteTransaction : undefined}
-              today={walletToday}
-            />
-          </View>
-        )}
-        onScrollBeginDrag={closeOpenSwipeRow}
-        onEndReached={handleEndReached}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={
-          <ListLoadMoreFooter
-            isFetchingNextPage={transactions.isFetchingNextPage}
-            hasNextPage={hasMorePages}
-            isError={transactions.isError}
-            onRetry={() => void transactions.fetchNextPage()}
-            testID={`${testIDPrefix}-list-footer`}
-          />
-        }
-        contentContainerStyle={{
-          paddingHorizontal: theme.spacing.md,
-          paddingTop: theme.spacing.sm,
-          paddingBottom: fabListPaddingBottom(theme, fabBottomOffset),
+      <StateView
+        variant="empty"
+        icon={Receipt}
+        title={t(EMPTY_TITLE_KEY[filterType], { period: formatPeriodLabel(period, selectedDay) })}
+        message={t(filterType === 'ALL' ? 'home.noTransactionsMessage' : 'home.noFilteredMessage')}
+        primaryAction={{
+          label: t('common.create'),
+          onPress: onAddTransaction,
+          icon: Plus,
         }}
-        refreshing={isRefreshing}
-        onRefresh={handleRefresh}
+        testID={`${testIDPrefix}-empty`}
+        entrance="none"
       />
     );
   };
 
+  const renderDay = (section: DaySection) => (
+    <Animated.View style={[{ paddingHorizontal: theme.spacing.md }, bodySlide]}>
+      {section.isNewMonth ? (
+        <View
+          className="flex-row items-center justify-between"
+          style={{
+            marginTop: section.isFirst ? 0 : theme.spacing.lg,
+            marginBottom: theme.spacing.sm,
+            marginHorizontal: theme.spacing.xxs,
+            gap: theme.spacing.md,
+          }}
+        >
+          <Text variant="title" weight="bold" numberOfLines={1} style={{ flexShrink: 0 }}>
+            {formatMonthYear(section.day)}
+          </Text>
+          {section.monthTransactions !== null ? (
+            <IncomeExpenseTotals
+              transactions={section.monthTransactions}
+              testID={`${testIDPrefix}-month-totals-${section.day.slice(0, 7)}`}
+            />
+          ) : null}
+        </View>
+      ) : null}
+      <TransactionDayCard
+        day={section.day}
+        transactions={section.data}
+        showTotals={section.showTotals}
+        onPress={handlePressTransaction}
+        onEdit={permissions.canWrite ? handleEditTransaction : undefined}
+        onDelete={permissions.canWrite ? handleDeleteTransaction : undefined}
+        today={walletToday}
+      />
+    </Animated.View>
+  );
+
   return (
     <AnimatedScreen testID={`screen-${testIDPrefix}`}>
       <WalletContextBar>
-        <View style={{ paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.xs }}>
-          <PeriodBar
-            period={period}
-            anchor={selectedDay}
-            onChangePeriod={setPeriod}
-            onShift={(delta) => setSelectedDay((current) => shiftAnchor(period, current, delta))}
-            onOpenPicker={() => setShowDatePicker(true)}
-            testIDPrefix={testIDPrefix}
-            today={walletToday}
-          />
-        </View>
+        {periodBar}
         {(activeWalletId === null && walletsLoading) || (transactions.isLoading && items.length === 0) ? (
           <TransactionListSkeleton />
         ) : activeWalletId === null ? (
@@ -336,61 +379,57 @@ export function TransactionListScreen({
           </View>
         ) : (
           <>
-            <View style={{ paddingHorizontal: theme.spacing.md }}>
-              {hasMorePages ? (
-                <View className="flex-row justify-end" style={{ marginTop: theme.spacing.xs }}>
-              <Text variant="caption" tone="muted" testID={`${testIDPrefix}-period-truncated`}>
-                {t('transactions.showingNewest', { count: fetchedCount, total: windowTotal })}
-              </Text>
-            </View>
-          ) : (
-            <View style={{ marginTop: theme.spacing.sm }}>
-              <PeriodSummaryCard transactions={items} filterType={filterType} testID={`${testIDPrefix}-period-summary`} />
-            </View>
-          )}
-        </View>
+            <RefreshableFlatList<ListRow>
+              testID="list-transactions"
+              data={rows}
+              keyExtractor={(row) => (typeof row === 'string' ? row : row.day)}
+              stickyHeaderIndices={[rows.indexOf('filter')]}
+              renderItem={({ item: row }) =>
+                row === 'summary' ? (
+                  summary
+                ) : row === 'filter' ? (
+                  filterBar
+                ) : (
+                  renderDay(row)
+                )
+              }
+              ListFooterComponent={
+                windowEmpty ? (
+                  // Keyed per pane, as SlideSwap keys its subtree, so two StateViews never share state.
+                  <Animated.View key={`${dateFrom}|${filterType}`} style={bodySlide}>
+                    {renderEmptyBody()}
+                  </Animated.View>
+                ) : items.length > 0 ? (
+                  <Animated.View style={[{ paddingHorizontal: theme.spacing.md }, bodySlide]}>
+                    <ListLoadMoreFooter
+                      isFetchingNextPage={transactions.isFetchingNextPage}
+                      hasNextPage={hasMorePages}
+                      isError={transactions.isError}
+                      onRetry={() => void transactions.fetchNextPage()}
+                      testID={`${testIDPrefix}-list-footer`}
+                    />
+                  </Animated.View>
+                ) : null
+              }
+              onScrollBeginDrag={closeOpenSwipeRow}
+              onEndReached={handleEndReached}
+              onEndReachedThreshold={0.5}
+              // The footer is the only part that can grow, so an empty or error state centres in the space below the filters.
+              ListFooterComponentStyle={
+                windowEmpty ? { flexGrow: 1, justifyContent: awaitingWindow && !transactions.isError ? 'flex-start' : 'center' } : undefined
+              }
+              contentContainerStyle={{ flexGrow: 1, paddingBottom: items.length > 0 ? fabListPaddingBottom(theme, fabBottomOffset) : 0 }}
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+            />
 
-        {/* Only meaningful while a day *is* the window — in any wider one it would
-            pick a day the list does not narrow to. */}
-        {period === 'daily' ? (
-          <View style={{ paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs }}>
-            <DateStrip selectedDay={selectedDay} onSelectDay={setSelectedDay} today={walletToday} testID={`${testIDPrefix}-date-strip`} />
-          </View>
-        ) : null}
-
-        <View
-          style={{
-            paddingHorizontal: theme.spacing.md,
-            paddingBottom: theme.spacing.sm,
-            paddingTop: period === 'daily' ? 0 : theme.spacing.xs,
-          }}
-        >
-          <SegmentedControl
-            options={FILTER_TYPES.map((type) => ({
-              value: type,
-              label: t(FILTER_LABEL_KEY[type]),
-              // Not `btn-transaction-type-*`: the add sheet's type picker owns that id and opens over this screen.
-              testID: `btn-transaction-filter-${type}`,
-            }))}
-            value={filterType}
-            onChange={setFilterType}
-          />
-        </View>
-
-        <SlideSwap swapKey={dateFrom} style={{ flex: 1 }}>
-          <SlideSwap swapKey={FILTER_TYPES.indexOf(filterType)} style={{ flex: 1 }}>
-            {renderContent()}
-          </SlideSwap>
-        </SlideSwap>
-
-        {showFab ? (
-          <Fab
-            testID="btn-add-transaction"
-            bottomOffset={fabBottomOffset}
-            onPress={onAddTransaction}
-          />
-        ) : null}
-
+            {showFab ? (
+              <Fab
+                testID="btn-add-transaction"
+                bottomOffset={fabBottomOffset}
+                onPress={onAddTransaction}
+              />
+            ) : null}
           </>
         )}
         <DatePickerModal
@@ -420,5 +459,3 @@ export function TransactionListScreen({
     </AnimatedScreen>
   );
 }
-
-

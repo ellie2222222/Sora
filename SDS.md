@@ -385,12 +385,12 @@ Real screens under `mobile/src/features/*/screens/`, grouped by feature:
 
 | Feature | Screens |
 | --- | --- |
-| Home | `HomeScreen` |
+| Home | `HomeScreen` — the wallet's transactions, with account chips (`AccountScopePicker`) and type filters; an account's "View transactions" opens this tab narrowed to that account |
 | Planning | `PlanningScreen` (a segmented Budgets/Goals list; there is no separate `BudgetsScreen`/`GoalsScreen`) |
 | Chat | `AiChatScreen` (the AI tab: one conversation at a time, history and new chat in its header, proposals confirmed in place; guests see a sign-in prompt, and offline the history stays readable with sending disabled) |
 | Dashboard | `DashboardScreen` (a read-only monthly/yearly view over the dashboard's own derived figures — see the note below; not report generation/export, which stays out of scope per [SRS.md §1.6](SRS.md#16-out-of-scope)) |
-| Transactions | `TransactionsScreen` (list; add/detail are `ModalProvider` modals, not screens — see below) |
-| Accounts | `AccountDetailScreen`. The list with net worth is `AccountsOverview`, rendered by `DashboardScreen` in its wallet view; its account chips (`AccountScopePicker`) narrow the dashboard to one account |
+| Transactions | No screen of its own — the list is the Home tab (`TransactionListScreen`), which an account's "View transactions" or a dashboard category opens already filtered; add/detail are `ModalProvider` modals, not screens — see below |
+| Accounts | No screens — one account's detail is `AccountDetailModal`, a `BottomSheetModal` opened from `AccountsOverview` and from the wallet sheet's account rows. The list with net worth is `AccountsOverview`, rendered by `DashboardScreen` in its wallet view; its account chips (`AccountScopePicker`) narrow the dashboard to one account |
 | Categories | `CategoryListScreen` |
 | Wallets | No screens — the wallet sheet (`WalletSwitcher`, opened from every screen's `WalletContextBar`) lists the wallets and pages through details, members, invitations, activity (the audit trail, `WAL-US-13`, owner-only) and wallet creation |
 | Auth | `LoginScreen`, `RegisterScreen`, `AcceptInvitationScreen` |

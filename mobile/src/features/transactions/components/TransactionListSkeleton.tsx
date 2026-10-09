@@ -7,52 +7,57 @@ export function TransactionListSkeleton() {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.xs }}>
-        {/* We leave space for the real PeriodBar which is rendered outside, but if this skeleton encompasses the summary card, we put it here */}
-        <View style={{ marginTop: theme.spacing.sm }}>
-          <Card elevated style={{ gap: theme.spacing.md }}>
-            <View style={{ gap: theme.spacing.sm }}>
-              <View className="flex-row">
-                <View style={{ flex: 1, gap: theme.spacing.xs }}>
-                  <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
-                  <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.heading} radius={theme.radius.sm} />
-                </View>
-                <View style={{ flex: 1, gap: theme.spacing.xs }}>
-                  <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
-                  <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.heading} radius={theme.radius.sm} />
-                </View>
-              </View>
-              <View
-                style={{
-                  gap: theme.spacing.xs,
-                  paddingTop: theme.spacing.sm,
-                  borderTopWidth: theme.borderWidth.thin,
-                  borderTopColor: theme.colors.border,
-                }}
-              >
-                <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
-                <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
-              </View>
-            </View>
-          </Card>
-        </View>
+      <View style={{ paddingHorizontal: theme.spacing.md }}>
+        <PeriodSummarySkeleton />
       </View>
 
       {/* Tabs Skeleton */}
       <View
         style={{
           paddingHorizontal: theme.spacing.md,
-          paddingBottom: theme.spacing.sm,
-          paddingTop: theme.spacing.xs,
+          paddingVertical: theme.spacing.sm,
         }}
       >
         <SegmentedControlSkeleton count={4} />
       </View>
 
-      <View style={{ paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.sm, flex: 1 }}>
+      <View style={{ paddingHorizontal: theme.spacing.md, flex: 1 }}>
         <TransactionDaysSkeleton />
       </View>
     </View>
+  );
+}
+
+/** Shaped like `PeriodSummaryCard`, for the summary while its window loads. */
+export function PeriodSummarySkeleton() {
+  const theme = useTheme();
+
+  return (
+    <Card elevated style={{ gap: theme.spacing.md }}>
+      <View style={{ gap: theme.spacing.sm }}>
+        <View className="flex-row">
+          <View style={{ flex: 1, gap: theme.spacing.xs }}>
+            <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
+            <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.heading} radius={theme.radius.sm} />
+          </View>
+          <View style={{ flex: 1, gap: theme.spacing.xs }}>
+            <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
+            <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.heading} radius={theme.radius.sm} />
+          </View>
+        </View>
+        <View
+          style={{
+            gap: theme.spacing.xs,
+            paddingTop: theme.spacing.sm,
+            borderTopWidth: theme.borderWidth.thin,
+            borderTopColor: theme.colors.border,
+          }}
+        >
+          <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
+          <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
+        </View>
+      </View>
+    </Card>
   );
 }
 

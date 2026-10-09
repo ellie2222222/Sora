@@ -26,7 +26,7 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
   // Real boxes rather than hitSlop: slop around two icons this close together would overlap.
   const targetStyle = { width: targetSize, height: targetSize, alignItems: 'center', justifyContent: 'center' } as const;
   // Grows to fit the "Saved 14:32" note, which shares the connection icon's tap target.
-  const savedNoteTargetStyle = { ...targetStyle, width: undefined, minWidth: targetSize, flexDirection: 'row' } as const;
+  const savedNoteTargetStyle = { ...targetStyle, width: undefined, minWidth: targetSize, flexDirection: 'row', gap: theme.spacing.sm } as const;
   // Pulls the last icon back to the header's edge, since its box is wider than the glyph.
   const iconInset = (targetSize - theme.iconSize.md) / 2;
   const {
@@ -56,7 +56,7 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
   const canRetry = !isGuest && isOnline && (syncStatus === 'pending' || syncStatus === 'failed');
 
   return (
-    <View className="flex-row items-center" style={{ marginRight: -iconInset }} testID={testID}>
+    <View className="flex-row items-center" style={{ marginRight: -iconInset, gap: theme.spacing.xs }} testID={testID}>
       <Pressable
         testID={`${testID}-connection`}
         accessibilityRole="button"

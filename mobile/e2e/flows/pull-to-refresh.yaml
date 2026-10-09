@@ -21,8 +21,8 @@ tags:
 - assertNotVisible:
     text: ${output.description}
 
-# Must start on list-transactions, below the period bar and summary card (from ~52% down); the
-# card above it can't be pulled. 56%→95% is ~250dp, past the ~146dp a 110dp refresh pull needs.
+# Must start inside list-transactions, below the pinned period bar; the summary card scrolls
+# inside it, so a pull starting there counts. 56%→95% is ~250dp, past the ~146dp a 110dp refresh pull needs.
 - swipe:
     start: 50%, 56%
     end: 50%, 95%

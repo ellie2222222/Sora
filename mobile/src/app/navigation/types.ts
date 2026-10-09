@@ -9,7 +9,8 @@ export type AuthStackParamList = {
 };
 
 export type MainTabParamList = {
-  Home: undefined;
+  /** Opens the list narrowed to one account or category, switching to its wallet first when that is not the active one. */
+  Home: { walletId: string; accountId?: string; categoryId?: string } | undefined;
   Planning: undefined;
   Ai: undefined;
   Dashboard: undefined;
@@ -18,17 +19,14 @@ export type MainTabParamList = {
 
 /**
  * Screens reachable from anywhere in the signed-in app, layered over the tab
- * bar. Kept in one root stack rather than nested per tab, since a budget or goal
- * detail opens from both Planning and Dashboard, and Transactions from more than one tab.
+ * bar. Kept in one root stack rather than nested per tab, since more than one tab opens them.
  */
 export type AppStackParamList = {
   // Typed with NavigatorScreenParams so a caller can deep-link straight into a tab
   // instead of only ever landing on whichever tab was last active.
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
-  AccountDetail: { accountId: string };
   AddAccount: { walletId?: string } | undefined;
   CategoryList: { walletId?: string } | undefined;
-  Transactions: { accountId?: string; categoryId?: string } | undefined;
 
 
 };

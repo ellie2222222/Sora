@@ -4,19 +4,19 @@ import { useTranslation } from 'react-i18next';
 import { Archive, Save } from 'lucide-react-native';
 import { updateAccountSchema, type AccountDetailResponse } from '@sora/contracts';
 
-import { Button, Card, Input, Text } from '@/components';
+import { Button, Input, Text } from '@/components';
 import { useTheme, useToast } from '@/app/providers';
 import { useUpdateAccountMutation } from '@/app/store';
 import { issueMessagesByPath, messageOf } from '@/utils';
 
-export interface AccountEditCardProps {
+export interface AccountEditFormProps {
   /** Render with `key={account.id}` so a different account starts from its own values. */
   account: AccountDetailResponse;
   onArchive: () => void;
 }
 
 /** Name, and currency while the account is empty (§9.4); type and opening balance are fixed. */
-export function AccountEditCard({ account, onArchive }: AccountEditCardProps) {
+export function AccountEditForm({ account, onArchive }: AccountEditFormProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -58,7 +58,7 @@ export function AccountEditCard({ account, onArchive }: AccountEditCardProps) {
   }
 
   return (
-    <Card style={{ gap: theme.spacing.sm }}>
+    <View style={{ gap: theme.spacing.sm }}>
       <Text variant="label" tone="muted">
         {t('accounts.editAccount')}
       </Text>
@@ -102,6 +102,6 @@ export function AccountEditCard({ account, onArchive }: AccountEditCardProps) {
         fullWidth
       />
       <Button testID="btn-archive-account" label={t('accounts.archiveAccount')} icon={Archive} variant="danger-outline" onPress={onArchive} fullWidth />
-    </Card>
+    </View>
   );
 }

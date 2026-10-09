@@ -1,10 +1,9 @@
 import { createStackNavigator } from '@react-navigation/stack';
 import { useTranslation } from 'react-i18next';
 
-import { AccountDetailScreen, AddAccountScreen } from '@/features/accounts';
+import { AddAccountScreen } from '@/features/accounts';
 import { AddBudgetModal } from '@/features/budgets';
 import { CategoryListScreen } from '@/features/categories';
-import { TransactionsScreen } from '@/features/transactions';
 
 import { ModalProvider } from '../providers/ModalProvider.tsx';
 import { MainTabNavigator } from './MainTabNavigator.tsx';
@@ -31,12 +30,10 @@ export function AppNavigator() {
       <Stack.Navigator>
       <Stack.Screen name="Main" component={MainTabNavigator} options={{ headerShown: false }} />
 
-      <Stack.Screen name="AccountDetail" component={AccountDetailScreen} options={{ title: t('accounts.detailTitle') }} />
       <Stack.Screen name="AddAccount" component={AddAccountScreen} options={transparentModalOptions} />
 
       <Stack.Screen name="CategoryList" component={CategoryListScreen} options={{ title: t('categories.title') }} />
 
-      <Stack.Screen name="Transactions" component={TransactionsScreen} options={{ title: t('transactions.title') }} />
 
 
 

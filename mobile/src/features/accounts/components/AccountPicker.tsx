@@ -1,5 +1,5 @@
-import { Banknote, Check, ChevronDown, CreditCard, Landmark, Wallet as WalletIcon } from 'lucide-react-native';
-import { useState } from 'react';
+import { Banknote, Check, ChevronDown, CreditCard, Landmark, Wallet as WalletIcon, type LucideIcon } from 'lucide-react-native';
+import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AccountResponse, AccountType } from '@sora/contracts';
@@ -44,9 +44,10 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
   const [open, setOpen] = useState(false);
   const accounts = useListAccountsQuery({ walletId, status: AccountStatus.ACTIVE });
 
-  useDefaultToFirst(accounts.data, value, (first) => onChange(first.id, first.walletId, first.currency));
+  // Not `data`: after `walletId` changes it still holds the previous wallet's accounts, and would default to one.
+  useDefaultToFirst(accounts.currentData, value, (first) => onChange(first.id, first.walletId, first.currency));
 
-  const selected = accounts.data?.find((a) => a.id === value);
+  const selected = accounts.currentData?.find((a) => a.id === value);
   const walletNameOf = (id: string): string => wallets.find((w) => w.id === id)?.name ?? '';
   const AccountTypeIcon = selected !== undefined ? ACCOUNT_ICON[selected.type] : Banknote;
   const selectedLabel = selected?.name ?? t('accounts.selectAccount', { defaultValue: 'Pick an account' });
@@ -137,8 +138,8 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
           style={{ maxHeight: theme.sizes.listMaxHeight.md }}
           contentContainerStyle={{ gap: theme.spacing.xs, paddingBottom: theme.spacing.md }}
         >
-          {(accounts.data ?? []).map((account) => (
-            <AccountItem
+          {(accounts.currentData ?? []).map((account) => (
+            <AccountOption
               key={account.id}
               account={account}
               walletName={walletId === undefined ? walletNameOf(account.walletId) : undefined}
@@ -149,7 +150,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
               }}
             />
           ))}
-          {accounts.data !== undefined && accounts.data.length === 0 ? (
+          {accounts.currentData !== undefined && accounts.currentData.length === 0 ? (
             <Text tone="faint" style={{ padding: theme.spacing.md, textAlign: 'center' }}>
               {t('accounts.noAccountsHereYet', { defaultValue: 'No accounts here yet.' })}
             </Text>
@@ -160,23 +161,55 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
   );
 }
 
-function AccountItem({
+export function AccountOption({
   account,
   walletName,
   selected,
   onPress,
+  testID = `option-account-${account.id}`,
 }: {
   account: AccountResponse;
   walletName: string | undefined;
   selected: boolean;
   onPress: () => void;
+  testID?: string;
+}) {
+  return (
+    <AccountOptionRow
+      icon={ACCOUNT_ICON[account.type]}
+      label={account.name}
+      subtitle={walletName}
+      trailing={<Money amount={account.balance} currency={account.currency} variant="label" />}
+      selected={selected}
+      onPress={onPress}
+      testID={testID}
+    />
+  );
+}
+
+/** One row of an account sheet, for an account or for a choice that stands beside them ("All accounts"). */
+export function AccountOptionRow({
+  icon: Icon,
+  label,
+  subtitle,
+  trailing,
+  selected,
+  onPress,
+  testID,
+}: {
+  icon: LucideIcon;
+  label: string;
+  subtitle?: string;
+  trailing?: ReactNode;
+  selected: boolean;
+  onPress: () => void;
+  testID: string;
 }) {
   const theme = useTheme();
-  const Icon = ACCOUNT_ICON[account.type];
 
   return (
     <Pressable
-      testID={`option-account-${account.id}`}
+      testID={testID}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected }}
@@ -194,16 +227,16 @@ function AccountItem({
       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
         <Icon size={theme.iconSize.lg} color={theme.colors.textMuted} />
         <View>
-          <Text weight={selected ? 'semibold' : 'regular'}>{account.name}</Text>
-          {walletName !== undefined ? (
+          <Text weight={selected ? 'semibold' : 'regular'}>{label}</Text>
+          {subtitle !== undefined ? (
             <Text variant="caption" tone="muted">
-              {walletName}
+              {subtitle}
             </Text>
           ) : null}
         </View>
       </View>
       <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
-        <Money amount={account.balance} currency={account.currency} variant="label" />
+        {trailing}
         {selected ? <Check size={theme.iconSize.md} color={theme.colors.primary} /> : null}
       </View>
     </Pressable>

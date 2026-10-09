@@ -8,6 +8,7 @@ import { WalletRole, type WalletResponse } from '@sora/contracts';
 import { BottomSheetModal, Button, closeOpenSwipeRow, MutationConfirmDialog, SwipeableRow, Text, type SwipeRowAction } from '@/components';
 import { useAuth, useTheme, useToast, useWallets } from '@/app/providers';
 import { useArchiveWalletMutation } from '@/app/store';
+import { AccountDetailModal } from '@/features/accounts';
 import { GUEST_WALLET_NAME } from '@/services/guest';
 import { getRoleLabel } from '@/utils';
 import type { AppStackParamList } from '@/app/navigation';
@@ -51,6 +52,7 @@ export function WalletSwitcher() {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<SheetPage>(LIST_PAGE);
   const [archivingWalletId, setArchivingWalletId] = useState<string | null>(null);
+  const [viewingAccountId, setViewingAccountId] = useState<string | null>(null);
   const [archiveWallet] = useArchiveWalletMutation();
   const { showToast } = useToast();
 
@@ -60,7 +62,7 @@ export function WalletSwitcher() {
   const displayName = currentWallet ? formatWalletName(currentWallet.name) : t('wallets.yourWallet', { defaultValue: 'Your wallet' });
 
   const close = () => setOpen(false);
-  // Account screens live in the app stack, so the sheet gets out of the way before navigating there.
+  // One sheet at a time: this one gets out of the way before another sheet or an app-stack screen opens.
   const leaveSheetFor = (go: () => void) => {
     close();
     go();
@@ -141,7 +143,7 @@ export function WalletSwitcher() {
             walletId={page.walletId}
             onOpenMembers={() => setPage({ kind: 'members', walletId: page.walletId })}
             onOpenActivity={() => setPage({ kind: 'activity', walletId: page.walletId })}
-            onOpenAccount={(accountId) => leaveSheetFor(() => navigation.navigate('AccountDetail', { accountId }))}
+            onOpenAccount={(accountId) => leaveSheetFor(() => setViewingAccountId(accountId))}
             onAddAccount={() => leaveSheetFor(() => navigation.navigate('AddAccount', { walletId: page.walletId }))}
             onOpenCategories={() => leaveSheetFor(() => navigation.navigate('CategoryList', { walletId: page.walletId }))}
             onWalletGone={() => setPage(LIST_PAGE)}
@@ -222,6 +224,14 @@ export function WalletSwitcher() {
           }}
         />
       </BottomSheetModal>
+      <AccountDetailModal
+        accountId={viewingAccountId}
+        onClose={() => setViewingAccountId(null)}
+        onViewTransactions={(account) => {
+          setViewingAccountId(null);
+          navigation.navigate('Main', { screen: 'Home', params: account });
+        }}
+      />
     </>
   );
 }
