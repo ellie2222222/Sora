@@ -1,18 +1,10 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { CalendarRange, LayoutDashboard, PieChart, Settings as SettingsIcon, Sparkles } from 'lucide-react-native';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withSequence,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AiChatScreen } from '@/features/chat';
@@ -26,34 +18,6 @@ import type { MainTabParamList } from './types.ts';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-/** The newly selected tab's icon dips, then springs back with a little lift: feedback that the tap landed. */
-function TabIconBounce({ focused, children }: { focused: boolean; children: ReactNode }) {
-  const reduceMotion = useReducedMotion();
-  const scale = useSharedValue(1);
-  const lift = useSharedValue(0);
-  const wasFocused = useRef(focused);
-
-  useEffect(() => {
-    if (focused && !wasFocused.current && !reduceMotion) {
-      scale.value = withSequence(
-        withTiming(0.86, { duration: 80, easing: Easing.out(Easing.quad) }),
-        withSpring(1, { damping: 13, stiffness: 420, mass: 0.5 }),
-      );
-      lift.value = withSequence(
-        withTiming(-4, { duration: 90, easing: Easing.out(Easing.quad) }),
-        withSpring(0, { damping: 13, stiffness: 380, mass: 0.5 }),
-      );
-    }
-    wasFocused.current = focused;
-  }, [focused, reduceMotion]);
-
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: lift.value }, { scale: scale.value }],
-  }));
-
-  return <Animated.View style={style}>{children}</Animated.View>;
-}
-
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -63,7 +27,6 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   // The position lives only on the UI thread. A React prop for it would commit a frame before the
   // animation that leaves the old tab, painting the bar once at the new tab before it slides.
   const position = useSharedValue(0);
-  const stretch = useSharedValue(1);
   const placed = useRef(false);
 
   const totalTabs = state.routes.length;
@@ -79,20 +42,15 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       return;
     }
 
-    // Decelerates onto the tab and stops dead — the same horizontal-motion
-    // treatment as `SlideSwap`, rather than springing past it and back.
+    // Eases in as well as out, unlike `SlideSwap`: the bar can cross several tabs, and leaving at full speed reads as a jump.
     position.value = withTiming(targetX, {
-      duration: 260,
-      easing: Easing.out(Easing.cubic),
+      duration: 300,
+      easing: Easing.bezier(0.2, 0, 0, 1),
     });
-    stretch.value = withSequence(
-      withTiming(1.8, { duration: 100, easing: Easing.out(Easing.quad) }),
-      withSpring(1, { damping: 13, stiffness: 320, mass: 0.5 }),
-    );
   }, [targetX, containerWidth, reduceMotion]);
 
   const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: position.value }, { scaleX: stretch.value }],
+    transform: [{ translateX: position.value }],
   }));
 
   return (
@@ -125,7 +83,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             ? options.title
             : route.name;
 
-        const color = isFocused ? theme.colors.primary : theme.colors.textFaint;
+        const color = isFocused ? theme.colors.primary : theme.colors.textMuted;
 
         const onPress = () => {
           const event = navigation.emit({
@@ -158,16 +116,13 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             className="flex-1 items-center justify-center"
             style={{ paddingVertical: theme.spacing.xs }}
           >
-            {options.tabBarIcon ? (
-              <TabIconBounce focused={isFocused}>
-                {options.tabBarIcon({ focused: isFocused, color, size: theme.iconSize.xxl })}
-              </TabIconBounce>
-            ) : null}
+            {options.tabBarIcon?.({ focused: isFocused, color, size: theme.iconSize.xxl }) ?? null}
             <Text
               variant="caption"
               // The weight prop, not a numeric fontWeight: Mulish ships one file per weight, so Android ignores the number.
               weight={isFocused ? 'bold' : 'medium'}
-              style={{ color, marginTop: theme.spacing.xxs }}
+              // A fixed column per tab: xs keeps "Einstellungen" whole, and xs text reads only at full strength.
+              style={{ color: isFocused ? theme.colors.primary : theme.colors.text, fontSize: theme.fontSize.xs, marginTop: theme.spacing.xxs }}
               numberOfLines={1}
             >
               {label}
@@ -206,7 +161,7 @@ export function MainTabNavigator() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.textFaint,
+        tabBarInactiveTintColor: theme.colors.textMuted,
       }}
     >
       <Tab.Screen
