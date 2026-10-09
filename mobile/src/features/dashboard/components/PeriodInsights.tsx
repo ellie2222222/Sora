@@ -1,19 +1,17 @@
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { changeAgainst } from '@/utils';
-import { Text } from '@/components';
+import { SectionLabel, Text } from '@/components';
 import { useTheme } from '@/app/providers';
 import type { DashboardResponse } from '@sora/contracts';
 
 export function PeriodInsights({
   data,
   previousData,
-  savingsRate,
   periodLabel,
 }: {
   data: DashboardResponse;
   previousData: DashboardResponse | undefined;
-  savingsRate: number | null;
   periodLabel: string;
 }) {
   const theme = useTheme();
@@ -21,14 +19,6 @@ export function PeriodInsights({
 
   const lines: string[] = [];
   const topCategory = data.spendingByCategory[0];
-
-  if (savingsRate !== null) {
-    lines.push(
-      savingsRate >= 0
-        ? t('dashboard.savedPercent', { rate: savingsRate })
-        : t('dashboard.spentMorePercent', { rate: Math.abs(savingsRate) }),
-    );
-  }
 
   if (topCategory !== undefined) {
     lines.push(
@@ -59,9 +49,7 @@ export function PeriodInsights({
 
   return (
     <View style={{ gap: theme.spacing.xs }}>
-      <Text variant="label" tone="muted">
-        {t('dashboard.insightsFor', { period: periodLabel })}
-      </Text>
+      <SectionLabel>{t('dashboard.insightsFor', { period: periodLabel })}</SectionLabel>
       {lines.map((line) => (
         <Text key={line}>{line}</Text>
       ))}

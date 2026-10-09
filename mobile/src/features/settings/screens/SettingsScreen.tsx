@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AnimatedScreen, Card, Text } from '@/components';
+import { AnimatedScreen, Card, SectionLabel } from '@/components';
 import { useTheme } from '@/app/providers';
 import type { MainTabScreenProps } from '@/app/navigation';
 import {
@@ -55,19 +55,9 @@ export function SettingsScreen({ navigation: _navigation }: MainTabScreenProps<'
         </Card>
 
         <View className="gap-sm">
-          <Text
-            variant="label"
-            weight="bold"
-            tone="muted"
-            style={{
-              paddingHorizontal: theme.spacing.xs,
-              textTransform: 'uppercase',
-              letterSpacing: theme.letterSpacing.caps,
-              fontSize: theme.fontSize.xs,
-            }}
-          >
-            {t('settings.title', 'Settings')}
-          </Text>
+          <View style={{ paddingHorizontal: theme.spacing.xs }}>
+            <SectionLabel>{t('settings.title', 'Settings')}</SectionLabel>
+          </View>
 
           <Card
             padded={false}

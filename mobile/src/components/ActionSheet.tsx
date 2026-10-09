@@ -1,4 +1,5 @@
 import { Pressable, View } from 'react-native';
+import { Check } from 'lucide-react-native';
 
 import { useTheme } from '@/app/providers';
 import { BottomSheetModal } from './BottomSheetModal';
@@ -9,6 +10,8 @@ export interface ActionSheetAction {
   onPress: () => void;
   destructive?: boolean;
   disabled?: boolean;
+  /** Marks the current choice when the sheet picks one of several options. */
+  selected?: boolean;
   testID?: string;
 }
 
@@ -30,8 +33,11 @@ export function ActionSheet({ visible, title, actions, onCancel }: ActionSheetPr
           <Pressable
             key={action.label}
             testID={action.testID}
+            accessibilityRole="button"
             disabled={action.disabled}
             onPress={action.onPress}
+            accessibilityState={action.selected === undefined ? undefined : { selected: action.selected }}
+            className="flex-row items-center justify-between"
             style={{
               paddingVertical: theme.spacing.md,
               borderTopWidth: index === 0 ? 0 : theme.borderWidth.thin,
@@ -39,9 +45,10 @@ export function ActionSheet({ visible, title, actions, onCancel }: ActionSheetPr
               opacity: action.disabled === true ? theme.opacity.disabled : 1,
             }}
           >
-            <Text tone={action.destructive === true ? 'danger' : 'default'} weight="medium">
+            <Text tone={action.destructive === true ? 'danger' : 'default'} weight={action.selected === true ? 'semibold' : 'medium'}>
               {action.label}
             </Text>
+            {action.selected === true ? <Check size={theme.iconSize.md} color={theme.colors.primary} /> : null}
           </Pressable>
         ))}
       </View>

@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { AnimatedScreen, closeOpenSwipeRow, PeriodBar, RefreshableScrollView, Skeleton, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { ChevronRight } from 'lucide-react-native';
-import { AccountsOverview } from '@/features/accounts';
+import { AccountDetailModal, AccountScopePicker, AccountsOverview } from '@/features/accounts';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { BudgetDetailModal } from '@/features/budgets';
 import { GoalDetailModal } from '@/features/goals';
@@ -20,7 +20,6 @@ import {
   type DashboardPeriod,
 } from '@/utils';
 import type { MainTabScreenProps } from '@/app/navigation';
-import { AccountScopePicker } from '../components/AccountScopePicker';
 import { PeriodReport } from '../components/PeriodReport';
 import { YearlyReport } from '../components/YearlyReport';
 
@@ -35,7 +34,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
   const [scope, setScope] = useState<{ walletId: string | null; accountId: string | null }>({ walletId: null, accountId: null });
   const scopeAccountId = scope.walletId === activeWalletId ? scope.accountId : null;
   const setScopeAccountId = (accountId: string | null) => setScope({ walletId: activeWalletId, accountId });
-  const openAccount = (accountId: string) => navigation.getParent()?.navigate('AccountDetail', { accountId });
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
 
   const [period, setPeriod] = useState<DashboardPeriod>('monthly');
   const [anchor, setAnchor] = useState<CalendarDay>(() => today(timeZone));
@@ -61,7 +60,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
           onScrollBeginDrag={closeOpenSwipeRow}
           // flexGrow lets an empty state centre itself in the leftover height; with
           // real content to scroll it has no effect.
-          contentContainerStyle={{ flexGrow: 1, padding: theme.spacing.md, gap: theme.spacing.lg }}
+          contentContainerStyle={{ flexGrow: 1, padding: theme.spacing.md, paddingBottom: theme.spacing.xxl, gap: theme.spacing.xl }}
           refreshing={isRefreshing}
           onRefresh={handleRefresh}
         >
@@ -75,13 +74,9 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
 
           {walletsLoading ? (
                         <View style={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.xl }}>
-              {/* AccountScopePicker + AccountsOverview Mock */}
+              {/* AccountsOverview + AccountScopePicker Mock */}
               <View style={{ gap: theme.spacing.md }}>
                 <Skeleton width={theme.sizes.skeletonWidth.xxl} height={theme.sizes.skeletonLine.heading} radius={theme.radius.sm} />
-                <View className="flex-row" style={{ gap: theme.spacing.sm }}>
-                  <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.badge.md} radius={theme.radius.pill} />
-                  <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.badge.md} radius={theme.radius.pill} />
-                </View>
                 <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
                   {Array.from({ length: 2 }).map((_, i) => (
                      <View key={i} className="flex-row items-center justify-between">
@@ -95,6 +90,10 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
                        <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
                      </View>
                   ))}
+                </View>
+                <View className="flex-row" style={{ gap: theme.spacing.sm }}>
+                  <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.badge.md} radius={theme.radius.pill} />
+                  <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.badge.md} radius={theme.radius.pill} />
                 </View>
               </View>
 
@@ -112,22 +111,28 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
             />
           ) : (
             <>
-              <AccountScopePicker
-                walletId={activeWalletId}
-                selectedAccountId={scopeAccountId}
-                onSelect={setScopeAccountId}
-              />
-
               {scopeAccountId === null ? (
                 <AccountsOverview
                   walletId={activeWalletId}
                   canWrite={permissions.canWrite}
-                  onOpenAccount={openAccount}
+                  onOpenAccount={setSelectedAccountId}
                 />
-              ) : (
+              ) : null}
+
+              {/* Above the report it narrows, not above net worth, which it does not. */}
+              <AccountScopePicker
+                walletId={activeWalletId}
+                selectedAccountId={scopeAccountId}
+                onSelect={setScopeAccountId}
+                testID="picker-dashboard-account"
+              />
+
+              {scopeAccountId !== null ? (
                 <Pressable
                   testID="btn-manage-account"
-                  onPress={() => openAccount(scopeAccountId)}
+                  accessibilityRole="button"
+                  onPress={() => setSelectedAccountId(scopeAccountId)}
+                  hitSlop={theme.sizes.hitSlop.lg}
                   className="flex-row items-center self-start"
                   style={{ gap: theme.spacing.xs }}
                 >
@@ -136,7 +141,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
                     {t('dashboard.manageAccount')}
                   </Text>
                 </Pressable>
-              )}
+              ) : null}
 
               {period === 'yearly' ? (
                 <YearlyReport
@@ -145,7 +150,6 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
                   accountId={scopeAccountId}
                   year={parseDay(anchor).year}
                   periodLabel={formatPeriodLabel(period, anchor)}
-                  navigation={navigation}
                   onOpenBudget={setSelectedBudgetId}
                   onOpenGoal={setSelectedGoalId}
                   onPreviousPeriod={() => shiftPeriod(-1)}
@@ -168,6 +172,14 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
       </WalletContextBar>
       <BudgetDetailModal budgetId={selectedBudgetId} onClose={() => setSelectedBudgetId(null)} />
       <GoalDetailModal goalId={selectedGoalId} onClose={() => setSelectedGoalId(null)} />
+      <AccountDetailModal
+        accountId={selectedAccountId}
+        onClose={() => setSelectedAccountId(null)}
+        onViewTransactions={(account) => {
+          setSelectedAccountId(null);
+          navigation.navigate('Home', account);
+        }}
+      />
     </AnimatedScreen>
   );
 }

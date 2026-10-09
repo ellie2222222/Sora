@@ -10,6 +10,7 @@
 
 import {
   add,
+  amountInCurrency,
   calculateBudgetRemaining,
   calculateBudgetUsage,
   calculateGoalProgress,
@@ -98,11 +99,6 @@ function addToTotals(totals: CurrencyTotal[], currency: string, delta: Scaled): 
   }
   totals.push({ currency, amount: formatMoney(delta) });
   totals.sort((a, b) => a.currency.localeCompare(b.currency));
-}
-
-function totalOf(totals: readonly CurrencyTotal[], currency: string): Scaled {
-  const found = totals.find((total) => total.currency === currency);
-  return found ? parseMoney(found.amount) : ZERO;
 }
 
 /** What the change does to one wallet's money: legs inside it, netted (an internal transfer is zero). */
@@ -217,7 +213,7 @@ function applyToCategorySlices(dashboard: DashboardResponse, change: LedgerChang
     });
   }
 
-  const total = totalOf(dashboard.expense, after);
+  const total = amountInCurrency(dashboard.expense, after);
   dashboard.spendingByCategory = dashboard.spendingByCategory
     .filter((candidate) => parseMoney(candidate.amount) > ZERO)
     .sort((a, b) => {
@@ -243,7 +239,7 @@ function recomputeNet(dashboard: DashboardResponse): void {
   const currencies = [...new Set([...dashboard.income, ...dashboard.expense].map((total) => total.currency))].sort();
   dashboard.net = currencies.map((currency) => ({
     currency,
-    amount: formatMoney(subtract(totalOf(dashboard.income, currency), totalOf(dashboard.expense, currency))),
+    amount: formatMoney(subtract(amountInCurrency(dashboard.income, currency), amountInCurrency(dashboard.expense, currency))),
   }));
 }
 

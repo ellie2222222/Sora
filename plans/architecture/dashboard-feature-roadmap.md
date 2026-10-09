@@ -37,7 +37,7 @@ change, but not zero backend touch either. See the phased breakdown below for wh
 
 | # | Feature | Note |
 |---|---|---|
-| 2 | Core KPI cards (balance, income, expense, net, savings, savings rate, available balance) | Already computed in `DashboardResponse`; savings rate is client-side math in `DashboardScreen` today |
+| 2 | Core KPI cards (balance, income, expense, net, savings, savings rate, available balance) | Already computed in `DashboardResponse`; savings rate is client-side math in `IncomeExpenseSummary` today |
 | 3 | Cash flow chart at day/week/quarter granularity | Today only supports monthly/yearly (`DashboardScreen`'s `Period` type) |
 | 4 | Category ranking, trends, top N, change detection | `spendingByCategory` + historical queries; "biggest expense changed by X%" already exists in `buildMonthlyInsights` |
 | 5 | Income trends, consistency (avg/median/high/low/volatility) | Pure math over existing income transactions; "income source" breakdown works via category today, a dedicated source field is Tier B |
@@ -61,7 +61,7 @@ change, but not zero backend touch either. See the phased breakdown below for wh
 | 35 | Financial calendar view | Existing `transactionDate` is enough; no screen exists yet |
 | 36 (partial) | "Duplicate transaction" quick-create | UI shortcut only; "split transaction" is Tier B/C, see below |
 | 37 | Quick actions (add expense/income/transfer, contribution, budget) | Already substantially built via `ModalProvider`/FAB; "scan receipt" is **Tier C** |
-| 38 (partial) | Filter by date/account/wallet/category/type/amount | Weaker than previously stated here: only account and (via nav param) category *pre-selection* exist (`AppStackParamList.Transactions: { accountId?; categoryId? }`); there is no filter UI for type/amount/date-range on any screen today. Building one is aggregation/UI work, no schema change — genuinely Tier A, just not "mostly done" |
+| 38 (partial) | Filter by date/account/wallet/category/type/amount | Partly built: the Home tab filters by account (chips, plus a sheet past three accounts), by type, and by a category opened from the dashboard (`MainTabParamList.Home: { walletId; accountId?; categoryId? }`); there is no amount or date-range filter yet. Building one is aggregation/UI work, no schema change — genuinely Tier A, just not "mostly done" |
 | 39 | Sync/data-quality status | **Already done, not a task.** `ConnectionSyncStatus` (offline / server connected / server unreachable + syncing/pending/failed + pending count + retry) already renders inside `WalletContextBar`, which `DashboardScreen` already wraps its content in |
 | 40 | Dashboard customization (widget picker, hide balances, default period/wallet) | Pure mobile-side preference storage, no backend |
 
@@ -190,8 +190,9 @@ field rename.
 
 ### Phase 6 (built, except §35) — Chart types on top of Phases 0-5's data (§33-34, §35)
 
-> Built: the waterfall chart (`components/WaterfallChart.tsx`, fed by `CashFlowCard`) and the
-> stacked/label-less variants of `TrendBarChart` (a `variant` prop, not a second component).
+> Built: the stacked/label-less variants of `TrendBarChart` (a `variant` prop, not a second component).
+> The waterfall chart was built and later replaced by `IncomeExpenseSummary`: income and expenses on one
+> shared scale, each with the previous period beneath, then the net they come to.
 > **Not built: the financial calendar view (§35).** It shares no data or component surface with
 > the rest of this phase — it is a whole new screen and route, and belongs in its own phase.
 

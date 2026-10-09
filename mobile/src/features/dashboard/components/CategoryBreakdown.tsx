@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, TrendingDown, TrendingUp } from 'lucide-react-native';
 import type { CategorySpendSlice, CurrencyTotal } from '@sora/contracts';
 
-import { DonutChart, Money, Text } from '@/components';
+import { DonutChart, Money, SectionLabel, Text } from '@/components';
 import { useTheme } from '@/app/providers';
 import { formatMoneyString, groupByTopLevel, rankCategories, type CategoryNode, type RankedCategory } from '@/utils';
 
@@ -46,9 +46,7 @@ export function CategoryBreakdown({
   if (slices.length === 0) {
     return (
       <View style={{ gap: theme.spacing.xs }} testID="dashboard-no-spending">
-        <Text variant="label" tone="muted">
-          {t('dashboard.topCategories')}
-        </Text>
+        <SectionLabel>{t('dashboard.topCategories')}</SectionLabel>
         <Text tone="faint">{t('dashboard.noSpendingThisPeriod')}</Text>
       </View>
     );
@@ -75,10 +73,12 @@ export function CategoryBreakdown({
             <View key={group.id}>
               <Pressable
                 testID={`dashboard-category-group-${group.id}`}
+                accessibilityRole={group.hasChildren ? 'button' : undefined}
+                accessibilityState={group.hasChildren ? { expanded: expanded === group.id } : undefined}
                 disabled={!group.hasChildren}
                 onPress={() => setExpanded((current) => (current === group.id ? null : group.id))}
                 className="flex-row items-center justify-between"
-                style={{ paddingVertical: theme.spacing.xs }}
+                style={{ paddingVertical: theme.spacing.xs, minHeight: theme.sizes.touchTarget }}
               >
                 <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
                   <View
@@ -102,9 +102,10 @@ export function CategoryBreakdown({
                     <Pressable
                       key={slice.categoryId}
                       testID={`dashboard-category-child-${slice.categoryId}`}
+                      accessibilityRole="button"
                       onPress={() => onSelectCategory?.(slice.categoryId)}
                       className="flex-row items-center justify-between"
-                      style={{ paddingVertical: theme.spacing.xxs, paddingLeft: theme.spacing.lg }}
+                      style={{ paddingVertical: theme.spacing.xxs, paddingLeft: theme.spacing.lg, minHeight: theme.sizes.touchTarget }}
                     >
                       <Text variant="caption" tone="muted">
                         {slice.categoryName}
@@ -121,9 +122,7 @@ export function CategoryBreakdown({
       </View>
 
       <View style={{ gap: theme.spacing.xs }}>
-        <Text variant="label" tone="muted">
-          {t('dashboard.topCategories')}
-        </Text>
+        <SectionLabel>{t('dashboard.topCategories')}</SectionLabel>
         {ranked.map((entry) => (
           <TopCategoryRow
             key={entry.slice.categoryId}
@@ -156,9 +155,10 @@ function TopCategoryRow({
   return (
     <Pressable
       testID={`dashboard-top-category-${slice.categoryId}`}
+      accessibilityRole="button"
       onPress={() => onPress?.(slice.categoryId)}
       className="flex-row items-center justify-between"
-      style={{ paddingVertical: theme.spacing.xs }}
+      style={{ paddingVertical: theme.spacing.xs, minHeight: theme.sizes.touchTarget }}
     >
       <View className="flex-row items-center flex-1" style={{ gap: theme.spacing.sm }}>
         <Text variant="caption" tone="faint">

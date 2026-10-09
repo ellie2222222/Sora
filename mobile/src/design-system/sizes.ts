@@ -36,8 +36,8 @@ export const sizes = {
   chipLabelMaxWidth: 120,
   /** Centred explanatory copy wraps here instead of running the full width. */
   readableWidth: 260,
-  /** `minBarHeight` keeps a zero or tiny value visible as a sliver. */
-  chart: { height: 140, largeHeight: 160, barWidth: 6, minBarHeight: 2, ringWidth: 20 },
+  /** `minBarLength` keeps a zero or tiny value visible as a sliver, along whichever axis the bar grows. */
+  chart: { height: 140, largeHeight: 160, barWidth: 6, minBarLength: 2, ringWidth: 20 },
   /** Theme palette preview in Appearance settings. */
   swatch: { width: 32, height: 24 },
   /** The light/dark switch, one entry per `ThemeToggle` size. */

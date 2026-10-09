@@ -2,9 +2,9 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { MemberSpendSlice } from '@sora/contracts';
 
-import { parseMoney, percentageOf } from '@sora/contracts';
+import { amountInCurrency, largestCurrencyTotal, maxOf, parseMoney, percentageOf, ZERO } from '@sora/contracts';
 
-import { Money, ProgressBar, Text } from '@/components';
+import { Money, ProgressBar, SectionLabel, Text } from '@/components';
 import { useTheme } from '@/app/providers';
 
 export interface MemberSplitProps {
@@ -12,12 +12,8 @@ export interface MemberSplitProps {
 }
 
 /**
- * Who spent what on a shared wallet — the headline feature's own dashboard
- * reading.
- *
- * Renders nothing for a single member: "you: 100%" is noise on a solo wallet,
- * and this is gated on the data rather than on a separate members query so it
- * costs no extra request.
+ * Who spent what on a shared wallet. Renders nothing for a single member, where "you: 100%" is noise;
+ * gated on the data rather than a members query, so it costs no extra request.
  */
 export function MemberSplit({ members }: MemberSplitProps) {
   const theme = useTheme();
@@ -25,21 +21,20 @@ export function MemberSplit({ members }: MemberSplitProps) {
 
   if (members.length < 2) return null;
 
-  // Shares are computed against the largest single member's expense rather than
-  // a cross-member sum: members can record in different currencies, and adding
-  // those together would produce a meaningless denominator (BR-07).
-  const leader = parseMoney(members[0]?.expense[0]?.amount ?? '0.0000');
+  // Bars compare members in one currency, against the biggest spender in it rather than a cross-member
+  // sum: members can record in different currencies, and no figure may mix them (BR-07).
+  const currency = largestCurrencyTotal(members.flatMap((member) => member.expense))?.currency;
+  const leader = currency === undefined ? ZERO : members.reduce((max, member) => maxOf(max, amountInCurrency(member.expense, currency)), ZERO);
 
   return (
     <View style={{ gap: theme.spacing.sm }} testID="dashboard-member-split">
-      <Text variant="label" tone="muted">
-        {t('dashboard.whoSpentWhat')}
-      </Text>
+      <SectionLabel>{t('dashboard.whoSpentWhat')}</SectionLabel>
 
       {members.map((member) => {
-        const expense = member.expense[0];
-        const income = member.income[0];
-        const relative = expense === undefined ? 0 : percentageOf(parseMoney(expense.amount), leader);
+        // A member who spent only in another currency still shows that figure, but no bar: it shares no scale.
+        const expense = member.expense.find((total) => total.currency === currency) ?? largestCurrencyTotal(member.expense);
+        const income = member.income.find((total) => total.currency === currency) ?? largestCurrencyTotal(member.income);
+        const relative = expense === undefined || expense.currency !== currency ? 0 : percentageOf(parseMoney(expense.amount), leader);
 
         return (
           <View key={member.userId} style={{ gap: theme.spacing.xxs }} testID={`dashboard-member-${member.userId}`}>

@@ -75,9 +75,9 @@ exposes nothing new: any `VIEWER` can already read every transaction's `createdB
   calls.
 - **`DashboardScreen.tsx`** — five period granularities (day/week/month/quarter/year), with two
   call patterns: `PeriodReport` fetches the selected window plus the one before it (two direct
-  hook calls) for the change-vs-previous indicators and the "insights" lines, and drives the KPI
-  row, cash-flow waterfall, category breakdown, member split and budget/goal preview from that
-  one response; `YearlyReport` instead fetches all 12 months via `MonthDataPoint`, one query
+  hook calls) for the change-vs-previous indicators and the "insights" lines, and drives
+  `IncomeExpenseSummary` (income vs expenses against the previous period, net, transfers), the
+  category breakdown, member split and budget/goal preview from that one response; `YearlyReport` instead fetches all 12 months via `MonthDataPoint`, one query
   component per month so hook-call count stays stable across a fixed-length list. Handles
   loading/error/empty per screen convention (MB-07); a month whose query errors still settles as
   a zero point in the trend rather than spinning forever. "Empty" is three distinct states

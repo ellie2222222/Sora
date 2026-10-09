@@ -21,7 +21,7 @@ export function TrendBarChart({ points, height: heightProp }: TrendBarChartProps
   // Leaves one line of label text under the bars.
   const barAreaHeight = height - theme.lineHeight.md;
   const max = Math.max(1, ...points.flatMap((point) => [point.income, point.expense]));
-  const scale = (value: number) => Math.max(theme.sizes.chart.minBarHeight, (value / max) * barAreaHeight);
+  const scale = (value: number) => Math.max(theme.sizes.chart.minBarLength, (value / max) * barAreaHeight);
 
   const bar = (kind: 'income' | 'expense', value: number) => (
     <View

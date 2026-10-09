@@ -1,18 +1,17 @@
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { parseMoney, percentageOf } from '@sora/contracts';
+import { largestCurrencyTotal } from '@sora/contracts';
 
 import { Skeleton, StateView } from '@/components';
 import { useTheme } from '@/app/providers';
 import { useGetDashboardSummaryQuery, useListCategoriesQuery } from '@/app/store';
-import { emptyReasonFor, formatPeriodLabel, isNetworkError, previousWindow, windowFor, type CalendarDay, type DashboardPeriod } from '@/utils';
+import { emptyReasonFor, formatPeriodLabel, isNetworkError, previousWindow, shiftAnchor, windowFor, type CalendarDay, type DashboardPeriod } from '@/utils';
 import type { MainTabScreenProps } from '@/app/navigation';
 
 import { DashboardEmptyForWallet } from './DashboardEmptyForWallet';
 import { BudgetGoalSummary } from './BudgetGoalSummary';
-import { DashboardKpis } from './DashboardKpis';
-import { CashFlowCard } from './CashFlowCard';
 import { CategoryBreakdown } from './CategoryBreakdown';
+import { IncomeExpenseSummary } from './IncomeExpenseSummary';
 import { MemberSplit } from './MemberSplit';
 import { PeriodInsights } from './PeriodInsights';
 
@@ -84,39 +83,20 @@ export function PeriodReport({
     );
   }
 
-  const income = data.income[0];
-  const net = data.net[0];
-  const savingsRate =
-    income !== undefined && net !== undefined
-      ? percentageOf(parseMoney(net.amount), parseMoney(income.amount), 0)
-      : null;
-
   return (
-    <View style={{ gap: theme.spacing.lg }}>
-      <DashboardKpis
-        income={data.income}
-        expense={data.expense}
-        net={data.net}
-        transferredIn={data.transferredIn}
-        transferredOut={data.transferredOut}
-        savingsRate={savingsRate}
-      />
-
-      <CashFlowCard
-        income={data.income}
-        expense={data.expense}
-        transferredIn={data.transferredIn}
-        transferredOut={data.transferredOut}
+    <View style={{ gap: theme.spacing.xxl }}>
+      <IncomeExpenseSummary
+        data={data}
+        previous={previous.currentData}
+        previousLabel={formatPeriodLabel(period, shiftAnchor(period, anchor, -1))}
       />
 
       <CategoryBreakdown
         slices={data.spendingByCategory}
         previousSlices={previous.currentData?.spendingByCategory ?? []}
-        expenseTotal={data.expense[0]}
+        expenseTotal={largestCurrencyTotal(data.expense)}
         categories={categories.currentData ?? []}
-        onSelectCategory={(categoryId) =>
-          navigation.getParent()?.navigate('Transactions', { categoryId })
-        }
+        onSelectCategory={(categoryId) => navigation.navigate('Home', { walletId, accountId: scope, categoryId })}
       />
 
       <MemberSplit members={data.spendingByMember} />
@@ -125,60 +105,48 @@ export function PeriodReport({
         budgets={data.activeBudgets}
         goals={data.activeGoals}
         onOpenBudget={onOpenBudget}
-        onOpenGoal={(goalId) => navigation.getParent()?.navigate('GoalDetail', { goalId })}
+        onOpenGoal={onOpenGoal}
       />
 
-      <PeriodInsights data={data} previousData={previous.currentData} savingsRate={savingsRate} periodLabel={formatPeriodLabel(period, anchor)} />
+      <PeriodInsights data={data} previousData={previous.currentData} periodLabel={formatPeriodLabel(period, anchor)} />
     </View>
   );
 }
 
 function PeriodReportSkeleton() {
   const theme = useTheme();
-  return (
-    <View style={{ gap: theme.spacing.lg }}>
-      {/* DashboardKpis */}
-      <View style={{ gap: theme.spacing.md }}>
-        <View className="flex-row justify-between">
-          <View>
-            <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.skeletonLine.label} radius={theme.radius.xs}  /></View>
-            <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.title} radius={theme.radius.xs} />
-          </View>
-          <View>
-            <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.skeletonLine.label} radius={theme.radius.xs}  /></View>
-            <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.title} radius={theme.radius.xs} />
-          </View>
-          <View>
-            <View style={{ marginBottom: theme.spacing.xs }}><Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.skeletonLine.label} radius={theme.radius.xs}  /></View>
-            <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.title} radius={theme.radius.xs} />
-          </View>
-        </View>
-        <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.caption} radius={theme.radius.xs} />
+  const flowRow = (
+    <View style={{ gap: theme.spacing.xs }}>
+      <View className="flex-row justify-between">
+        <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.label} radius={theme.radius.xs} />
+        <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.body} radius={theme.radius.xs} />
       </View>
+      <Skeleton width="100%" height={theme.sizes.progressBar.md} radius={theme.radius.pill} />
+    </View>
+  );
 
-      {/* CashFlowCard */}
-      <View style={{ gap: theme.spacing.sm }}>
-        <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.label} radius={theme.radius.xs} />
-        <View className="flex-row items-end justify-between" style={{ height: theme.sizes.chart.height }}>
-          <Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.chart.height * 0.7} radius={theme.radius.xs} />
-          <Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.chart.height * 0.45} radius={theme.radius.xs} />
-          <Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.chart.height * 0.15} radius={theme.radius.xs} />
-          <Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.chart.height * 0.3} radius={theme.radius.xs} />
+  return (
+    <View style={{ gap: theme.spacing.xxl }}>
+      {/* IncomeExpenseSummary */}
+      <View style={{ gap: theme.spacing.md }}>
+        <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.caption} radius={theme.radius.xs} />
+        {flowRow}
+        {flowRow}
+        <View className="flex-row justify-between">
+          <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.body} radius={theme.radius.xs} />
+          <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.title} radius={theme.radius.xs} />
         </View>
       </View>
 
       {/* CategoryBreakdown */}
-      <View style={{ gap: theme.spacing.lg }}>
-        <View className="items-center" style={{ gap: theme.spacing.md }}>
-          <Skeleton width={theme.sizes.chart.largeHeight} height={theme.sizes.chart.largeHeight} radius={theme.radius.pill} />
-          <View className="w-full" style={{ gap: theme.spacing.xs }}>
-            <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
-            <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
-            <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
-          </View>
+      <View className="items-center" style={{ gap: theme.spacing.md }}>
+        <Skeleton width={theme.sizes.chart.largeHeight} height={theme.sizes.chart.largeHeight} radius={theme.radius.pill} />
+        <View className="w-full" style={{ gap: theme.spacing.xs }}>
+          <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
+          <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
+          <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
         </View>
       </View>
     </View>
   );
 }
-

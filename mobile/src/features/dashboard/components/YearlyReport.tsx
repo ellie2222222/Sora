@@ -1,27 +1,23 @@
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { maxOf, parseMoney, percentageOf, ZERO } from '@sora/contracts';
-import type { DashboardResponse } from '@sora/contracts';
+import { add, amountInCurrency, formatMoney, largestCurrencyTotal, maxOf, parseMoney, percentageOf, ZERO } from '@sora/contracts';
+import type { DashboardResponse, Scaled } from '@sora/contracts';
 
-import { Skeleton, Text, TrendBarChart } from '@/components';
+import { SectionLabel, Skeleton, Text, TrendBarChart } from '@/components';
 import { useTheme } from '@/app/providers';
 import { emptyReasonFor, monthName, parseDay, type CalendarDay } from '@/utils';
-import type { MainTabScreenProps } from '@/app/navigation';
 
 import { monthsOfYear, yearOf } from '../utils';
 import { MonthDataPoint } from './MonthDataPoint';
 import { DashboardEmptyForWallet } from './DashboardEmptyForWallet';
 import { BudgetGoalSummary } from './BudgetGoalSummary';
 
-type DashboardNavigation = MainTabScreenProps<'Dashboard'>['navigation'];
-
 export function YearlyReport({
   walletId,
   accountId,
   year,
   periodLabel,
-  navigation,
   onOpenBudget,
   onOpenGoal,
   onPreviousPeriod,
@@ -30,7 +26,6 @@ export function YearlyReport({
   accountId: string | null;
   year: number;
   periodLabel: string;
-  navigation: DashboardNavigation;
   onOpenBudget: (budgetId: string) => void;
   onOpenGoal: (goalId: string) => void;
   onPreviousPeriod: () => void;
@@ -78,8 +73,14 @@ export function YearlyReport({
     );
   }
 
-  const monthlyIncome = months.map((month) => parseMoney(byMonth[month]?.income[0]?.amount ?? '0'));
-  const monthlyExpense = months.map((month) => parseMoney(byMonth[month]?.expense[0]?.amount ?? '0'));
+  // The chart has one scale, so every bar is in the currency the year moved most in; others are left out (BR-07).
+  const yearTotals = new Map<string, Scaled>();
+  for (const total of months.flatMap((month) => [...(byMonth[month]?.income ?? []), ...(byMonth[month]?.expense ?? [])])) {
+    yearTotals.set(total.currency, add(yearTotals.get(total.currency) ?? ZERO, parseMoney(total.amount)));
+  }
+  const currency = largestCurrencyTotal([...yearTotals].map(([code, amount]) => ({ currency: code, amount: formatMoney(amount) })))?.currency ?? '';
+  const monthlyIncome = months.map((month) => amountInCurrency(byMonth[month]?.income ?? [], currency));
+  const monthlyExpense = months.map((month) => amountInCurrency(byMonth[month]?.expense ?? [], currency));
   // TrendBarChart only needs each bar's height relative to the year's peak, so
   // that ratio is computed in bigint space (percentageOf) rather than ever
   // widening a Scaled amount into a JS number.
@@ -99,9 +100,9 @@ export function YearlyReport({
       ))}
       <View className="gap-lg">
         <View>
-          <Text variant="label" tone="muted" style={{ marginBottom: theme.spacing.sm }}>
-            {t('dashboard.incomeVsExpenses')}
-          </Text>
+          <View style={{ marginBottom: theme.spacing.sm }}>
+            <SectionLabel>{t('dashboard.incomeVsExpenses')}</SectionLabel>
+          </View>
           <TrendBarChart points={points} />
         </View>
 

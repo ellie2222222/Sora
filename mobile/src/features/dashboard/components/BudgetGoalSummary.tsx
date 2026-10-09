@@ -2,7 +2,7 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { BudgetResponse, GoalResponse } from '@sora/contracts';
 
-import { Card, Money, ProgressBar, Text } from '@/components';
+import { Card, Money, ProgressBar, SectionLabel, Text } from '@/components';
 import { useTheme } from '@/app/providers';
 
 const PREVIEW_LIMIT = 3;
@@ -31,13 +31,12 @@ export function BudgetGoalSummary({ budgets, goals, onOpenBudget, onOpenGoal }: 
     <View style={{ gap: theme.spacing.lg }}>
       {budgets.length > 0 ? (
         <View style={{ gap: theme.spacing.sm }}>
-          <Text variant="label" tone="muted">
-            {t('dashboard.activeBudgets')}
-          </Text>
+          <SectionLabel>{t('dashboard.activeBudgets')}</SectionLabel>
           {budgets.slice(0, PREVIEW_LIMIT).map((budget) => (
             <Pressable
               key={budget.id}
               testID={`dashboard-budget-${budget.id}`}
+              accessibilityRole="button"
               onPress={() => onOpenBudget(budget.id)}
             >
               <Card>
@@ -67,11 +66,9 @@ export function BudgetGoalSummary({ budgets, goals, onOpenBudget, onOpenGoal }: 
 
       {goals.length > 0 ? (
         <View style={{ gap: theme.spacing.sm }}>
-          <Text variant="label" tone="muted">
-            {t('dashboard.activeGoals')}
-          </Text>
+          <SectionLabel>{t('dashboard.activeGoals')}</SectionLabel>
           {goals.slice(0, PREVIEW_LIMIT).map((goal) => (
-            <Pressable key={goal.id} testID={`dashboard-goal-${goal.id}`} onPress={() => onOpenGoal(goal.id)}>
+            <Pressable key={goal.id} testID={`dashboard-goal-${goal.id}`} accessibilityRole="button" onPress={() => onOpenGoal(goal.id)}>
               <Card>
                 <View className="flex-row items-center justify-between" style={{ marginBottom: theme.spacing.xs }}>
                   <Text weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }}>
