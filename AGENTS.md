@@ -148,7 +148,7 @@ Codex does not auto-load [`.agents/rules/`](.agents/rules/); read the matching f
 
 ## Skills
 
-Project skills: `double-check`, `commit-messages`, `comment-audit`, `restructure`, `extract-modules`, `i18n-audit`, `scratch-probe`, `infra-audit`, `brainstorm-features`, `skill-audit`.
+Project skills: `double-check`, `commit-messages`, `comment-audit`, `restructure`, `extract-modules`, `i18n-audit`, `readability-audit`, `scratch-probe`, `infra-audit`, `brainstorm-features`, `skill-audit`.
 
 - **Codex** discovers them in [`.agents/skills/`](.agents/skills/); invoke explicitly with `$double-check`, `$commit-messages`, etc., or let a matching request trigger one.
 - **Antigravity** reads them straight from `.claude/skills/` via [`.agents/skills.json`](.agents/skills.json), including the vendored Front-End Checklist corpus (left out of the Codex copy to keep its skill catalog small).

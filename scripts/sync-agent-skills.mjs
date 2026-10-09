@@ -28,6 +28,7 @@ const SKILLS = [
   'extract-modules',
   'i18n-audit',
   'infra-audit',
+  'readability-audit',
   'restructure',
   'scratch-probe',
   'skill-audit',

@@ -102,7 +102,7 @@ Cash
 
 Don't rebuild the Dashboard on Home. Suggested Dashboard order: period/wallet context → primary
 summary → cash flow → spending analysis → budgets/goals → net worth/balance → insights → recent
-activity.
+activity. It is split across Overview, Spending and Accounts tabs, so no tab needs a long scroll.
 
 ### Charts answer a question
 
@@ -349,8 +349,8 @@ Inline styles, NativeWind classes and visual props such as an icon's `size` foll
   one hex per mode, identical in every palette. Never `primary` for info, which changes with the palette.
 - Text on a filled color uses its `on*` token (`onPrimary`, `onDanger`), never a literal.
 - `text` > `textMuted` > `textFaint` is a hierarchy of readable text; all three hold 4.5:1 on every
-  neutral surface. `textFaint` is for placeholders, captions and empty states — not a way to fake a
-  disabled look.
+  neutral surface. `textFaint` is for placeholders and empty states at `md` or larger (see "Type size
+  and tone") — not a way to fake a disabled look.
 - Every foreground/background pair a control renders is listed in `RENDERED_PAIRS`
   (`colors.test.ts`) and must hold 4.5:1 for text, 3:1 for borders and icons, in every palette and
   mode. A new pair (a new chip, a new button variant) gets added there with the change.
@@ -360,6 +360,30 @@ Inline styles, NativeWind classes and visual props such as an icon's `size` foll
 - Text on a colored background uses a darker/lighter stop of the *same* family, never plain
   black/gray. Title + subtitle on a colored chip use two different stops, not the same one twice.
 - Text contrast ≥ 4.5:1 for body, ≥ 3:1 for large text and icons conveying state — in both themes.
+
+### Type size and tone
+
+4.5:1 makes a colour legible at a normal size; it does not make 11px grey text readable. Small size
+and a quiet tone each lower legibility, and together they compound. So a tone has a size floor:
+
+| Tone | Smallest size |
+|---|---|
+| `text`, or a semantic colour (`income`, `danger`, `primary`, …) | `fontSize.xs` (11) |
+| `textMuted` | `fontSize.sm` (13) |
+| `textFaint` | `fontSize.md` (15) |
+
+- Sizes are the effective `fontSize` token, whether it comes from the `Text` variant
+  (`caption` = `xs`, `label` = `sm`, `body` = `md`) or a `style` override. A `color: textMuted` in
+  `style` counts as the muted tone.
+- `xs` is for short labels whose meaning is clear without reading them closely: chart axis ticks,
+  counts on a badge. Never the only place a date, amount, name or instruction appears.
+- De-emphasise with one tool at a time. Never put `opacity` below 1 on muted or faint text.
+  Demote by weight, position or spacing (see "Typography carries the hierarchy") before going
+  smaller *and* quieter.
+- Don't let text shrink below its floor: no `adjustsFontSizeToFit`/`minimumFontScale` on muted or
+  faint text, and no `allowFontScaling={false}` or capped `maxFontSizeMultiplier` on any text.
+- Changing a size token or the variant map moves every caller and `sizes.skeletonLine`, so it is
+  checked on the device at phone width, in the longest locale, in both themes.
 
 ### Cards
 
@@ -511,8 +535,8 @@ queue, never replace one mid-animation. One consistent position app-wide.
 
 Motion communicates state change, movement, hierarchy or feedback — never decoration or continuous
 motion. A bounce only as tap feedback on the control itself, settled within the 400ms below, never
-on content, and skipped under Reduce Motion: the newly selected bottom tab's icon dips and springs
-back, and the tab indicator stretches in flight (`MainTabNavigator.tsx`). One exception to "never
+on content, and skipped under Reduce Motion. The bottom tab bar has none: its indicator glides to
+the new tab at a fixed width and the icons stay still (`MainTabNavigator.tsx`). One exception to "never
 continuous": a long-running operation's own progress screen (the guest upload, `features/guest/`)
 keeps a circling ring, a breathing halo and a passing highlight going while the work runs, because
 that motion is what says it is still alive. It stops the moment the work stops, and Reduce Motion
@@ -551,5 +575,6 @@ Before calling any UI change done:
 - [ ] Every design value comes from a theme token (spacing, size, type, radius, border, colour, icon, opacity, shadow); `tokens-usage.test.ts` passes
 - [ ] A shape nested flush in a rounded one takes `concentricRadius(outer, border, padding)`
 - [ ] Touch targets ≥ 44pt; labels/roles/`testID`s set; checked in dark and light themes
+- [ ] No muted text below `sm` and no faint text below `md` ("Type size and tone")
 - [ ] Copy follows the microcopy rules and exists in both `en` and `vi`
 - [ ] Motion is functional, ≤ 400ms, and respects Reduce Motion

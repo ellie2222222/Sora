@@ -25,6 +25,7 @@ In `.claude/skills/`. Reach for these instead of improvising the same sweep by h
 | `restructure` | Where files live: misplaced or orphaned files, naming drift, layout that no longer matches the documented architecture |
 | `extract-modules` | Splits code out of screens into dedicated files — duplicated/oversized inline components, label maps, shared types, pure helpers, hooks — and re-points callers |
 | `i18n-audit` | Translation catalog: orphaned/missing keys, parity across every locale and untranslated copies, drifted `defaultValue`s, hardcoded UI text |
+| `readability-audit` | Text too small for its tone: muted/faint text below its size floor (`docs/DESIGN_GUIDELINES.md` "Type size and tone"), opacity on quiet text, text allowed to shrink. Run on UI before calling it done |
 | `scratch-probe` | Runs a changed server path against a disposable Postgres + freshly built API with probe data, then tears down by exact name |
 | `infra-audit` | Whether the system's design and operational posture still fit its scale — distinct from `double-check` (bugs in what exists) |
 | `brainstorm-features` | Feature suggestions grounded in this repo's actual current patterns, discovered live |
@@ -32,7 +33,7 @@ In `.claude/skills/`. Reach for these instead of improvising the same sweep by h
 
 `AGENTS.md`, `.agents/rules/` and `.codex/` (MCP config, hooks, command rules) port this file for Codex and
 Google Antigravity; amend them in the same change when a rule here changes. Codex reads skills from
-`.agents/skills/`, a copy of the ten skills above: edit them here, then `npm run agents:sync` (CI runs
+`.agents/skills/`, a copy of the eleven skills above: edit them here, then `npm run agents:sync` (CI runs
 `npm run agents:check`).
 
 `.claude/skills/` also carries the [Front-End Checklist](https://frontendchecklist.io) skill corpus
