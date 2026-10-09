@@ -1,13 +1,8 @@
 import { Pressable, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { useTheme } from '@/app/providers';
 import { addDays, monthName, parseDay, type CalendarDay } from '@/utils';
 import { Text } from './Text.tsx';
-
-const CELL_LAYOUT = LinearTransition.springify().damping(26).stiffness(220);
-const CELL_ENTERING = FadeIn.duration(200);
-const CELL_EXITING = FadeOut.duration(150);
 
 export interface DateStripProps {
   selectedDay: CalendarDay;
@@ -42,7 +37,7 @@ export function DateStrip({ selectedDay, onSelectDay, testID, today }: DateStrip
         const mutedColor = isSelected ? theme.colors.onPrimary : theme.colors.textFaint;
 
         return (
-          <Animated.View key={day} layout={CELL_LAYOUT} entering={CELL_ENTERING} exiting={CELL_EXITING}>
+          <View key={day}>
             <Pressable
               testID={testID ? `${testID}-day-${day}` : undefined}
               onPress={() => onSelectDay(day)}
@@ -86,7 +81,7 @@ export function DateStrip({ selectedDay, onSelectDay, testID, today }: DateStrip
                 </Text>
               </View>
             </Pressable>
-          </Animated.View>
+          </View>
         );
       })}
     </View>

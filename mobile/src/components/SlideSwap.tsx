@@ -1,6 +1,6 @@
 import { Fragment, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 
 export interface SlideSwapProps {
   /**
@@ -33,6 +33,23 @@ const TRAVEL_RATIO = 0.45;
  * reconciled into one instance carrying the previous pane's state.
  */
 export function SlideSwap({ swapKey, children, style, distance, testID }: SlideSwapProps) {
+  const translateX = useSwapOffset(swapKey, distance);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return (
+    <Animated.View testID={testID} style={[animatedStyle, style]}>
+      <Fragment key={swapKey}>{children}</Fragment>
+    </Animated.View>
+  );
+}
+
+/**
+ * SlideSwap's horizontal offset on its own, for content no single view can wrap — a list's rows
+ * scrolling under a header that must stay put. Each piece applies it as `translateX`.
+ */
+export function useSwapOffset(swapKey: string | number, distance?: number): SharedValue<number> {
   const { width } = useWindowDimensions();
   const travel = distance ?? Math.round(width * TRAVEL_RATIO);
   const previousKey = useRef(swapKey);
@@ -52,13 +69,5 @@ export function SlideSwap({ swapKey, children, style, distance, testID }: SlideS
     translateX.value = withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) });
   }, [swapKey, travel, translateX]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
-
-  return (
-    <Animated.View testID={testID} style={[animatedStyle, style]}>
-      <Fragment key={swapKey}>{children}</Fragment>
-    </Animated.View>
-  );
+  return translateX;
 }

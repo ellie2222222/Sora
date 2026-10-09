@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { CalendarRange, LayoutDashboard, PieChart, Settings as SettingsIcon, Sparkles } from 'lucide-react-native';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -20,6 +20,7 @@ import { PlanningScreen } from '@/features/planning';
 import { HomeScreen } from '@/features/home';
 import { DashboardScreen } from '@/features/dashboard';
 import { SettingsScreen } from '@/features/settings';
+import { Text } from '@/components';
 import { useTheme } from '@/app/providers';
 import type { MainTabParamList } from './types.ts';
 
@@ -59,39 +60,39 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const [containerWidth, setContainerWidth] = useState(0);
 
   const reduceMotion = useReducedMotion();
-  const translateX = useSharedValue(0);
+  // The position lives only on the UI thread. A React prop for it would commit a frame before the
+  // animation that leaves the old tab, painting the bar once at the new tab before it slides.
+  const position = useSharedValue(0);
   const stretch = useSharedValue(1);
-  const isInitialized = useSharedValue(false);
+  const placed = useRef(false);
 
   const totalTabs = state.routes.length;
   const indicatorWidth = theme.sizes.tabBar.indicatorWidth;
   const tabWidth = containerWidth / (totalTabs || 1);
+  const targetX = state.index * tabWidth + (tabWidth - indicatorWidth) / 2;
 
   useEffect(() => {
     if (containerWidth <= 0) return;
-
-    const targetX = state.index * tabWidth + (tabWidth - indicatorWidth) / 2;
-
-    if (!isInitialized.value || reduceMotion) {
-      translateX.value = targetX;
-      isInitialized.value = true;
-    } else {
-      // Decelerates onto the tab and stops dead — the same horizontal-motion
-      // treatment as `SlideSwap`, rather than springing past it and back. Only its
-      // width is fluid: it stretches in flight and springs back to size on arrival.
-      translateX.value = withTiming(targetX, {
-        duration: 260,
-        easing: Easing.out(Easing.cubic),
-      });
-      stretch.value = withSequence(
-        withTiming(1.8, { duration: 100, easing: Easing.out(Easing.quad) }),
-        withSpring(1, { damping: 13, stiffness: 320, mass: 0.5 }),
-      );
+    if (!placed.current || reduceMotion) {
+      placed.current = true;
+      position.value = targetX;
+      return;
     }
-  }, [state.index, containerWidth, tabWidth, reduceMotion]);
+
+    // Decelerates onto the tab and stops dead — the same horizontal-motion
+    // treatment as `SlideSwap`, rather than springing past it and back.
+    position.value = withTiming(targetX, {
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+    });
+    stretch.value = withSequence(
+      withTiming(1.8, { duration: 100, easing: Easing.out(Easing.quad) }),
+      withSpring(1, { damping: 13, stiffness: 320, mass: 0.5 }),
+    );
+  }, [targetX, containerWidth, reduceMotion]);
 
   const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }, { scaleX: stretch.value }],
+    transform: [{ translateX: position.value }, { scaleX: stretch.value }],
   }));
 
   return (
@@ -163,12 +164,10 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               </TabIconBounce>
             ) : null}
             <Text
-              className="text-xs"
-              style={{
-                color,
-                marginTop: theme.spacing.xxs,
-                fontWeight: isFocused ? theme.fontWeight.semibold : theme.fontWeight.regular,
-              }}
+              variant="caption"
+              // The weight prop, not a numeric fontWeight: Mulish ships one file per weight, so Android ignores the number.
+              weight={isFocused ? 'bold' : 'medium'}
+              style={{ color, marginTop: theme.spacing.xxs }}
               numberOfLines={1}
             >
               {label}
@@ -183,6 +182,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             styles.activeIndicator,
             {
               backgroundColor: theme.colors.primary,
+              left: 0,
               width: indicatorWidth,
               height: theme.borderWidth.thick,
               borderRadius: theme.radius.pill,
