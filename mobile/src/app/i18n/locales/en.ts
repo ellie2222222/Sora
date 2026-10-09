@@ -420,6 +420,9 @@ const en = {
     emptyPeriodTitle: 'Nothing recorded in {{period}}',
     emptyPeriodMessage: 'No income or spending landed here. Other periods may still have plenty.',
     viewPreviousPeriod: 'Look at the period before',
+    overviewTab: 'Overview',
+    spendingTab: 'Spending',
+    accountsTab: 'Accounts',
   },
   wallets: {
     title: 'Wallets',

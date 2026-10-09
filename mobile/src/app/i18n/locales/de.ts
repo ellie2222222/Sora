@@ -417,6 +417,9 @@ const de: LocaleResource = {
     emptyPeriodTitle: 'Nichts erfasst in {{period}}',
     emptyPeriodMessage: 'Hier sind weder Einnahmen noch Ausgaben angefallen. Andere Zeiträume können trotzdem einiges enthalten.',
     viewPreviousPeriod: 'Vorherigen Zeitraum ansehen',
+    overviewTab: 'Überblick',
+    spendingTab: 'Ausgaben',
+    accountsTab: 'Konten',
   },
   wallets: {
     title: 'Geldbörsen',

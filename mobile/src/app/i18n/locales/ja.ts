@@ -416,6 +416,9 @@ const ja: LocaleResource = {
     emptyPeriodTitle: '{{period}}の記録はありません',
     emptyPeriodMessage: 'この期間には収入も支出もありません。他の期間には記録があるかもしれません。',
     viewPreviousPeriod: '前の期間を見る',
+    overviewTab: '概要',
+    spendingTab: '支出',
+    accountsTab: '口座',
   },
   wallets: {
     title: 'ウォレット',

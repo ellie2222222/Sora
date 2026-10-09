@@ -418,6 +418,9 @@ const vi: LocaleResource = {
     emptyPeriodTitle: 'Không có giao dịch nào trong {{period}}',
     emptyPeriodMessage: 'Không có khoản thu hay chi nào trong khoảng thời gian này. Các kỳ khác có thể vẫn có.',
     viewPreviousPeriod: 'Xem kỳ trước đó',
+    overviewTab: 'Tóm tắt',
+    spendingTab: 'Chi tiêu',
+    accountsTab: 'Tài khoản',
   },
   wallets: {
     title: 'Ví',

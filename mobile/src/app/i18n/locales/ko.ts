@@ -416,6 +416,9 @@ const ko: LocaleResource = {
     emptyPeriodTitle: '{{period}}에 기록된 내역이 없어요',
     emptyPeriodMessage: '이 기간에는 수입이나 지출이 없어요. 다른 기간에는 내역이 있을 수 있어요.',
     viewPreviousPeriod: '이전 기간 보기',
+    overviewTab: '개요',
+    spendingTab: '지출',
+    accountsTab: '계좌',
   },
   wallets: {
     title: '지갑',

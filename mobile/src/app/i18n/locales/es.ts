@@ -419,6 +419,9 @@ const es: LocaleResource = {
     emptyPeriodTitle: 'Nada registrado en {{period}}',
     emptyPeriodMessage: 'Aquí no hubo ingresos ni gastos. Otros períodos pueden tener mucho más.',
     viewPreviousPeriod: 'Ver el período anterior',
+    overviewTab: 'Resumen',
+    spendingTab: 'Gastos',
+    accountsTab: 'Cuentas',
   },
   wallets: {
     title: 'Carteras',

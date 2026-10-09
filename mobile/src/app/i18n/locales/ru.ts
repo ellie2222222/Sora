@@ -421,6 +421,9 @@ const ru: LocaleResource = {
     emptyPeriodTitle: '{{period}}: ничего не записано',
     emptyPeriodMessage: 'Здесь не было ни доходов, ни расходов. В других периодах их может быть немало.',
     viewPreviousPeriod: 'Посмотреть предыдущий период',
+    overviewTab: 'Сводка',
+    spendingTab: 'Расходы',
+    accountsTab: 'Счета',
   },
   wallets: {
     title: 'Кошельки',

@@ -72,6 +72,8 @@ export function DashboardEmpty({
       }
       secondaryAction={reason === 'empty-period' ? addTransaction : undefined}
       testID={`dashboard-empty-${reason}`}
+      // Always shown inside a Dashboard tab pane, which already slides in.
+      entrance="none"
     />
   );
 }

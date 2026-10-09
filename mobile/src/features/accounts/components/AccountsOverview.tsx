@@ -41,27 +41,7 @@ export function AccountsOverview({
   const [archivingId, setArchivingId] = useState<string | null>(null);
 
   // `currentData` is empty while another wallet's accounts load, where `data` would still show the old wallet's.
-  if (accounts.currentData === undefined && accounts.isFetching) {
-    return (
-      <View style={{ gap: theme.spacing.xl }}>
-        <View style={{ gap: theme.spacing.xs }}>
-          <SectionLabel>{t('accounts.netWorth')}</SectionLabel>
-          <Skeleton width={theme.sizes.skeletonWidth.xxl} height={theme.sizes.skeletonLine.display} radius={theme.radius.sm} />
-          <View className="flex-row" style={{ gap: theme.spacing.xl, marginTop: theme.spacing.sm }}>
-            <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
-            <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
-          </View>
-        </View>
-
-        <View style={{ gap: theme.spacing.xs }}>
-          <SectionLabel>{t('accounts.accountsLabel')}</SectionLabel>
-          {[1, 2, 3].map((key) => (
-            <AccountItemSkeleton key={key} />
-          ))}
-        </View>
-      </View>
-    );
-  }
+  if (accounts.currentData === undefined && accounts.isFetching) return <AccountsOverviewSkeleton />;
   if (accounts.isError && !isNetworkError(accounts.error)) {
     return (
       <StateView
@@ -204,7 +184,7 @@ function PositionFigure({ label, totals, dotColor }: { label: string; totals: { 
         </Text>
       </View>
       {empty ? (
-        <Text variant="label" tone="faint">
+        <Text variant="label" tone="muted">
           —
         </Text>
       ) : (
@@ -247,6 +227,31 @@ function AccountItem({ account, onPress }: { account: AccountResponse; onPress: 
       </View>
       <Money amount={account.balance} currency={account.currency} weight="semibold" numberOfLines={1} />
     </Pressable>
+  );
+}
+
+export function AccountsOverviewSkeleton() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+
+  return (
+    <View style={{ gap: theme.spacing.xl }}>
+      <View style={{ gap: theme.spacing.xs }}>
+        <SectionLabel>{t('accounts.netWorth')}</SectionLabel>
+        <Skeleton width={theme.sizes.skeletonWidth.xxl} height={theme.sizes.skeletonLine.display} radius={theme.radius.sm} />
+        <View className="flex-row" style={{ gap: theme.spacing.xl, marginTop: theme.spacing.sm }}>
+          <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
+          <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
+        </View>
+      </View>
+
+      <View style={{ gap: theme.spacing.xs }}>
+        <SectionLabel>{t('accounts.accountsLabel')}</SectionLabel>
+        {[1, 2, 3].map((key) => (
+          <AccountItemSkeleton key={key} />
+        ))}
+      </View>
+    </View>
   );
 }
 

@@ -388,9 +388,9 @@ Real screens under `mobile/src/features/*/screens/`, grouped by feature:
 | Home | `HomeScreen` — the wallet's transactions, with account chips (`AccountScopePicker`) and type filters; an account's "View transactions" opens this tab narrowed to that account |
 | Planning | `PlanningScreen` (a segmented Budgets/Goals list; there is no separate `BudgetsScreen`/`GoalsScreen`) |
 | Chat | `AiChatScreen` (the AI tab: one conversation at a time, history and new chat in its header, proposals confirmed in place; guests see a sign-in prompt, and offline the history stays readable with sending disabled) |
-| Dashboard | `DashboardScreen` (a read-only monthly/yearly view over the dashboard's own derived figures — see the note below; not report generation/export, which stays out of scope per [SRS.md §1.6](SRS.md#16-out-of-scope)) |
+| Dashboard | `DashboardScreen` (a read-only day-to-year view over the dashboard's own derived figures — see the note below; not report generation/export, which stays out of scope per [SRS.md §1.6](SRS.md#16-out-of-scope)) |
 | Transactions | No screen of its own — the list is the Home tab (`TransactionListScreen`), which an account's "View transactions" or a dashboard category opens already filtered; add/detail are `ModalProvider` modals, not screens — see below |
-| Accounts | No screens — one account's detail is `AccountDetailModal`, a `BottomSheetModal` opened from `AccountsOverview` and from the wallet sheet's account rows. The list with net worth is `AccountsOverview`, rendered by `DashboardScreen` in its wallet view; its account chips (`AccountScopePicker`) narrow the dashboard to one account |
+| Accounts | No screens — one account's detail is `AccountDetailModal`, a `BottomSheetModal` opened from `AccountsOverview` and from the wallet sheet's account rows. The list with net worth is `AccountsOverview`, rendered by `DashboardScreen` as its Accounts tab; its account chips (`AccountScopePicker`) narrow the dashboard to one account |
 | Categories | `CategoryListScreen` |
 | Wallets | No screens — the wallet sheet (`WalletSwitcher`, opened from every screen's `WalletContextBar`) lists the wallets and pages through details, members, invitations, activity (the audit trail, `WAL-US-13`, owner-only) and wallet creation |
 | Auth | `LoginScreen`, `RegisterScreen`, `AcceptInvitationScreen` |
@@ -411,8 +411,8 @@ are listed and managed in the Dashboard tab. Wallet management and invitations l
 sheet, one bottom sheet whose pages replace each other so no second modal presents while the first
 is dismissing. None of them is on the tab bar itself.
 
-**`DashboardScreen` is a dashboard view, not a report generator.** It renders two periods (monthly,
-yearly) purely from `useGetDashboardSummaryQuery` — the same derived, computed-on-read figures
+**`DashboardScreen` is a dashboard view, not a report generator.** It renders five period
+granularities (day, week, month, quarter, year) purely from `useGetDashboardSummaryQuery` — the same derived, computed-on-read figures
 [DASH-US-01](SRS.md#dash-us-01-read-a-wallets-dashboard) describes — plus a short, fixed list of
 plain-language observations computed client-side from that same response (e.g. "biggest expense
 category changed by X%"). There is no export, no file generation, and nothing here is stored; it

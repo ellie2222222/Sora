@@ -416,6 +416,9 @@ const zh: LocaleResource = {
     emptyPeriodTitle: '{{period}}暂无记录',
     emptyPeriodMessage: '这段时间没有收入或支出。其他周期可能仍有不少记录。',
     viewPreviousPeriod: '查看上一周期',
+    overviewTab: '概览',
+    spendingTab: '支出',
+    accountsTab: '账户',
   },
   wallets: {
     title: '钱包',

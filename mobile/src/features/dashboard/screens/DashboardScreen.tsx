@@ -3,10 +3,19 @@ import { Pressable, View } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 
-import { AnimatedScreen, closeOpenSwipeRow, PeriodBar, RefreshableScrollView, Skeleton, Text } from '@/components';
+import {
+  AnimatedScreen,
+  closeOpenSwipeRow,
+  PeriodBar,
+  RefreshableScrollView,
+  SegmentedControl,
+  SegmentedControlSkeleton,
+  SlideSwap,
+  Text,
+} from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { ChevronRight } from 'lucide-react-native';
-import { AccountDetailModal, AccountScopePicker, AccountsOverview } from '@/features/accounts';
+import { AccountDetailModal, AccountScopePicker, AccountsOverview, AccountsOverviewSkeleton } from '@/features/accounts';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { BudgetDetailModal } from '@/features/budgets';
 import { GoalDetailModal } from '@/features/goals';
@@ -20,8 +29,11 @@ import {
   type DashboardPeriod,
 } from '@/utils';
 import type { MainTabScreenProps } from '@/app/navigation';
-import { PeriodReport } from '../components/PeriodReport';
+import { PeriodReport, PeriodReportSkeleton, type ReportSection } from '../components/PeriodReport';
 import { YearlyReport } from '../components/YearlyReport';
+
+type DashboardTab = ReportSection | 'accounts';
+const TABS: readonly DashboardTab[] = ['overview', 'spending', 'accounts'];
 
 export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>) {
   const theme = useTheme();
@@ -29,6 +41,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
   const dispatch = useDispatch();
   const { activeWalletId, isLoading: walletsLoading, permissions, timeZone } = useWallets();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [tab, setTab] = useState<DashboardTab>('overview');
   // Remembered with its wallet: an account belongs to one wallet, so after a switch the scope
   // reads as "all accounts" on that same render, before any query could name the old account.
   const [scope, setScope] = useState<{ walletId: string | null; accountId: string | null }>({ walletId: null, accountId: null });
@@ -52,123 +65,117 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
     }
   };
 
-  return (
-    <AnimatedScreen>
-      <WalletContextBar>
-        <RefreshableScrollView
-          testID="screen-dashboard"
-          onScrollBeginDrag={closeOpenSwipeRow}
-          // flexGrow lets an empty state centre itself in the leftover height; with
-          // real content to scroll it has no effect.
-          contentContainerStyle={{ flexGrow: 1, padding: theme.spacing.md, paddingBottom: theme.spacing.xxl, gap: theme.spacing.xl }}
-          refreshing={isRefreshing}
-          onRefresh={handleRefresh}
+  const renderReport = (walletId: string, section: ReportSection) => (
+    <>
+      <AccountScopePicker
+        walletId={walletId}
+        selectedAccountId={scopeAccountId}
+        onSelect={setScopeAccountId}
+        testID="picker-dashboard-account"
+      />
+
+      {scopeAccountId !== null ? (
+        <Pressable
+          testID="btn-manage-account"
+          accessibilityRole="button"
+          onPress={() => setSelectedAccountId(scopeAccountId)}
+          hitSlop={theme.sizes.hitSlop.lg}
+          className="flex-row items-center self-start"
+          style={{ gap: theme.spacing.xs }}
         >
-          <PeriodBar
-            period={period}
-            anchor={anchor}
-            onChangePeriod={setPeriod}
-            onShift={shiftPeriod}
-            today={today(timeZone)}
-          />
+          <ChevronRight size={theme.iconSize.md} color={theme.colors.primary} />
+          <Text weight="medium" style={{ color: theme.colors.primary }}>
+            {t('dashboard.manageAccount')}
+          </Text>
+        </Pressable>
+      ) : null}
 
-          {walletsLoading ? (
-                        <View style={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.xl }}>
-              {/* AccountsOverview + AccountScopePicker Mock */}
-              <View style={{ gap: theme.spacing.md }}>
-                <Skeleton width={theme.sizes.skeletonWidth.xxl} height={theme.sizes.skeletonLine.heading} radius={theme.radius.sm} />
-                <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
-                  {Array.from({ length: 2 }).map((_, i) => (
-                     <View key={i} className="flex-row items-center justify-between">
-                       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-                         <Skeleton width={theme.sizes.badge.lg} height={theme.sizes.badge.lg} radius={theme.radius.pill} />
-                         <View style={{ gap: theme.spacing.xs }}>
-                           <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
-                           <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
-                         </View>
-                       </View>
-                       <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
-                     </View>
-                  ))}
-                </View>
-                <View className="flex-row" style={{ gap: theme.spacing.sm }}>
-                  <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.badge.md} radius={theme.radius.pill} />
-                  <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.badge.md} radius={theme.radius.pill} />
-                </View>
-              </View>
+      {/* The year's trend needs each month on its own; its spending breakdown is one query over the whole year. */}
+      {section === 'overview' && period === 'yearly' ? (
+        <YearlyReport
+          key={`${walletId}|${scopeAccountId ?? 'all'}`}
+          walletId={walletId}
+          accountId={scopeAccountId}
+          year={parseDay(anchor).year}
+          periodLabel={formatPeriodLabel(period, anchor)}
+          onOpenBudget={setSelectedBudgetId}
+          onOpenGoal={setSelectedGoalId}
+          onPreviousPeriod={() => shiftPeriod(-1)}
+        />
+      ) : (
+        <PeriodReport
+          section={section}
+          walletId={walletId}
+          accountId={scopeAccountId}
+          period={period}
+          anchor={anchor}
+          navigation={navigation}
+          onOpenBudget={setSelectedBudgetId}
+          onOpenGoal={setSelectedGoalId}
+          onPreviousPeriod={() => shiftPeriod(-1)}
+        />
+      )}
+    </>
+  );
 
-              {/* PeriodReport Mock */}
-              <View style={{ gap: theme.spacing.md, marginTop: theme.spacing.md }}>
-                <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.title} radius={theme.radius.sm} />
-                <Skeleton width="100%" height={theme.sizes.skeletonBlock.md} radius={theme.radius.lg} />
-              </View>
-            </View>
-          ) : activeWalletId === null ? (
-            <NoWalletState
-              title={t('dashboard.noWalletYet')}
-              message={t('dashboard.createWalletToSee')}
-              testID="dashboard-empty"
-            />
-          ) : (
-            <>
-              {scopeAccountId === null ? (
-                <AccountsOverview
-                  walletId={activeWalletId}
-                  canWrite={permissions.canWrite}
-                  onOpenAccount={setSelectedAccountId}
-                />
-              ) : null}
-
-              {/* Above the report it narrows, not above net worth, which it does not. */}
-              <AccountScopePicker
-                walletId={activeWalletId}
-                selectedAccountId={scopeAccountId}
-                onSelect={setScopeAccountId}
-                testID="picker-dashboard-account"
+  return (
+    <AnimatedScreen testID="screen-dashboard">
+      <WalletContextBar>
+        {walletsLoading || activeWalletId !== null ? (
+          <View
+            style={{
+              paddingHorizontal: theme.spacing.md,
+              paddingVertical: theme.spacing.sm,
+              gap: theme.spacing.md,
+              backgroundColor: theme.colors.background,
+            }}
+          >
+            {walletsLoading ? (
+              <SegmentedControlSkeleton count={TABS.length} />
+            ) : (
+              <SegmentedControl
+                options={[
+                  { value: 'overview', label: t('dashboard.overviewTab'), testID: 'dashboard-segment-overview' },
+                  { value: 'spending', label: t('dashboard.spendingTab'), testID: 'dashboard-segment-spending' },
+                  { value: 'accounts', label: t('dashboard.accountsTab'), testID: 'dashboard-segment-accounts' },
+                ]}
+                value={tab}
+                onChange={setTab}
               />
+            )}
+            {/* Net worth and balances are as of now, whatever period is chosen. */}
+            {tab !== 'accounts' ? (
+              <PeriodBar period={period} anchor={anchor} onChangePeriod={setPeriod} onShift={shiftPeriod} today={today(timeZone)} />
+            ) : null}
+          </View>
+        ) : null}
 
-              {scopeAccountId !== null ? (
-                <Pressable
-                  testID="btn-manage-account"
-                  accessibilityRole="button"
-                  onPress={() => setSelectedAccountId(scopeAccountId)}
-                  hitSlop={theme.sizes.hitSlop.lg}
-                  className="flex-row items-center self-start"
-                  style={{ gap: theme.spacing.xs }}
-                >
-                  <ChevronRight size={theme.iconSize.md} color={theme.colors.primary} />
-                  <Text weight="medium" style={{ color: theme.colors.primary }}>
-                    {t('dashboard.manageAccount')}
-                  </Text>
-                </Pressable>
-              ) : null}
-
-              {period === 'yearly' ? (
-                <YearlyReport
-                  key={`${activeWalletId}|${scopeAccountId ?? 'all'}`}
-                  walletId={activeWalletId}
-                  accountId={scopeAccountId}
-                  year={parseDay(anchor).year}
-                  periodLabel={formatPeriodLabel(period, anchor)}
-                  onOpenBudget={setSelectedBudgetId}
-                  onOpenGoal={setSelectedGoalId}
-                  onPreviousPeriod={() => shiftPeriod(-1)}
-                />
-              ) : (
-                <PeriodReport
-                  walletId={activeWalletId}
-                  accountId={scopeAccountId}
-                  period={period}
-                  anchor={anchor}
-                  navigation={navigation}
-                  onOpenBudget={setSelectedBudgetId}
-                  onOpenGoal={setSelectedGoalId}
-                  onPreviousPeriod={() => shiftPeriod(-1)}
-                />
-              )}
-            </>
-          )}
-        </RefreshableScrollView>
+        <SlideSwap swapKey={TABS.indexOf(tab)} style={{ flex: 1 }}>
+          <RefreshableScrollView
+            testID={`dashboard-pane-${tab}`}
+            onScrollBeginDrag={closeOpenSwipeRow}
+            // flexGrow lets an empty state centre itself in the leftover height; with
+            // real content to scroll it has no effect.
+            contentContainerStyle={{ flexGrow: 1, padding: theme.spacing.md, paddingBottom: theme.spacing.xxl, gap: theme.spacing.xl }}
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+          >
+            {walletsLoading ? (
+              tab === 'accounts' ? <AccountsOverviewSkeleton /> : <PeriodReportSkeleton section={tab} />
+            ) : activeWalletId === null ? (
+              <NoWalletState
+                title={t('dashboard.noWalletYet')}
+                message={t('dashboard.createWalletToSee')}
+                testID="dashboard-empty"
+                entrance="none"
+              />
+            ) : tab === 'accounts' ? (
+              <AccountsOverview walletId={activeWalletId} canWrite={permissions.canWrite} onOpenAccount={setSelectedAccountId} />
+            ) : (
+              renderReport(activeWalletId, tab)
+            )}
+          </RefreshableScrollView>
+        </SlideSwap>
       </WalletContextBar>
       <BudgetDetailModal budgetId={selectedBudgetId} onClose={() => setSelectedBudgetId(null)} />
       <GoalDetailModal goalId={selectedGoalId} onClose={() => setSelectedGoalId(null)} />

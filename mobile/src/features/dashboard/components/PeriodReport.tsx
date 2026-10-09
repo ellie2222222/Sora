@@ -17,7 +17,10 @@ import { PeriodInsights } from './PeriodInsights';
 
 type DashboardNavigation = MainTabScreenProps<'Dashboard'>['navigation'];
 
+export type ReportSection = 'overview' | 'spending';
+
 export function PeriodReport({
+  section,
   walletId,
   accountId,
   period,
@@ -27,6 +30,7 @@ export function PeriodReport({
   onOpenGoal,
   onPreviousPeriod,
 }: {
+  section: ReportSection;
   walletId: string;
   accountId: string | null;
   period: DashboardPeriod;
@@ -42,10 +46,10 @@ export function PeriodReport({
   const scope = accountId ?? undefined;
   const current = useGetDashboardSummaryQuery({ walletId, accountId: scope, ...windowFor(period, anchor) });
   const previous = useGetDashboardSummaryQuery({ walletId, accountId: scope, ...previousWindow(period, anchor) });
-  const categories = useListCategoriesQuery({ walletId });
+  const categories = useListCategoriesQuery({ walletId }, { skip: section !== 'spending' });
 
   // `currentData` is empty while a new wallet/account/window loads, where `data` would still hold the old figures.
-  if (current.currentData === undefined && current.isFetching) return <PeriodReportSkeleton />;
+  if (current.currentData === undefined && current.isFetching) return <PeriodReportSkeleton section={section} />;
   if (current.isError && !isNetworkError(current.error)) {
     return (
       <StateView
@@ -53,16 +57,26 @@ export function PeriodReport({
         error={current.error}
         retryAction={() => void current.refetch()}
         testID="dashboard-period-error"
+        entrance="none"
       />
     );
   }
 
   const data = current.currentData;
   if (data === undefined) {
-    return <StateView variant="error" error={new Error(t('dashboard.noData', 'Nothing to show yet.'))} />;
+    return <StateView variant="error" error={new Error(t('dashboard.noData', 'Nothing to show yet.'))} entrance="none" />;
   }
 
   const emptyReason = emptyReasonFor(data);
+  const budgetGoals = (
+    <BudgetGoalSummary
+      budgets={data.activeBudgets}
+      goals={data.activeGoals}
+      onOpenBudget={onOpenBudget}
+      onOpenGoal={onOpenGoal}
+    />
+  );
+
   if (emptyReason !== null) {
     return (
       <View style={{ flex: 1, gap: theme.spacing.lg }}>
@@ -73,12 +87,23 @@ export function PeriodReport({
           onPreviousPeriod={onPreviousPeriod}
         />
         {/* An active budget or goal is worth seeing even in a window that recorded nothing against it. */}
-        <BudgetGoalSummary
-          budgets={data.activeBudgets}
-          goals={data.activeGoals}
-          onOpenBudget={onOpenBudget}
-          onOpenGoal={onOpenGoal}
+        {section === 'overview' ? budgetGoals : null}
+      </View>
+    );
+  }
+
+  if (section === 'spending') {
+    return (
+      <View style={{ gap: theme.spacing.xxl }}>
+        <CategoryBreakdown
+          slices={data.spendingByCategory}
+          previousSlices={previous.currentData?.spendingByCategory ?? []}
+          expenseTotal={largestCurrencyTotal(data.expense)}
+          categories={categories.currentData ?? []}
+          onSelectCategory={(categoryId) => navigation.navigate('Home', { walletId, accountId: scope, categoryId })}
         />
+
+        <MemberSplit members={data.spendingByMember} />
       </View>
     );
   }
@@ -91,29 +116,18 @@ export function PeriodReport({
         previousLabel={formatPeriodLabel(period, shiftAnchor(period, anchor, -1))}
       />
 
-      <CategoryBreakdown
-        slices={data.spendingByCategory}
-        previousSlices={previous.currentData?.spendingByCategory ?? []}
-        expenseTotal={largestCurrencyTotal(data.expense)}
-        categories={categories.currentData ?? []}
-        onSelectCategory={(categoryId) => navigation.navigate('Home', { walletId, accountId: scope, categoryId })}
-      />
-
-      <MemberSplit members={data.spendingByMember} />
-
-      <BudgetGoalSummary
-        budgets={data.activeBudgets}
-        goals={data.activeGoals}
-        onOpenBudget={onOpenBudget}
-        onOpenGoal={onOpenGoal}
-      />
+      {budgetGoals}
 
       <PeriodInsights data={data} previousData={previous.currentData} periodLabel={formatPeriodLabel(period, anchor)} />
     </View>
   );
 }
 
-function PeriodReportSkeleton() {
+export function PeriodReportSkeleton({ section }: { section: ReportSection }) {
+  return section === 'spending' ? <SpendingSkeleton /> : <OverviewSkeleton />;
+}
+
+function OverviewSkeleton() {
   const theme = useTheme();
   const flowRow = (
     <View style={{ gap: theme.spacing.xs }}>
@@ -126,26 +140,27 @@ function PeriodReportSkeleton() {
   );
 
   return (
-    <View style={{ gap: theme.spacing.xxl }}>
-      {/* IncomeExpenseSummary */}
-      <View style={{ gap: theme.spacing.md }}>
-        <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.caption} radius={theme.radius.xs} />
-        {flowRow}
-        {flowRow}
-        <View className="flex-row justify-between">
-          <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.body} radius={theme.radius.xs} />
-          <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.title} radius={theme.radius.xs} />
-        </View>
+    <View style={{ gap: theme.spacing.md }}>
+      <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.caption} radius={theme.radius.xs} />
+      {flowRow}
+      {flowRow}
+      <View className="flex-row justify-between">
+        <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.body} radius={theme.radius.xs} />
+        <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.title} radius={theme.radius.xs} />
       </View>
+    </View>
+  );
+}
 
-      {/* CategoryBreakdown */}
-      <View className="items-center" style={{ gap: theme.spacing.md }}>
-        <Skeleton width={theme.sizes.chart.largeHeight} height={theme.sizes.chart.largeHeight} radius={theme.radius.pill} />
-        <View className="w-full" style={{ gap: theme.spacing.xs }}>
-          <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
-          <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
-          <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
-        </View>
+function SpendingSkeleton() {
+  const theme = useTheme();
+  return (
+    <View className="items-center" style={{ gap: theme.spacing.md }}>
+      <Skeleton width={theme.sizes.chart.largeHeight} height={theme.sizes.chart.largeHeight} radius={theme.radius.pill} />
+      <View className="w-full" style={{ gap: theme.spacing.xs }}>
+        <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
+        <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
+        <Skeleton width="100%" height={theme.sizes.skeletonLine.heading} radius={theme.radius.xs} />
       </View>
     </View>
   );

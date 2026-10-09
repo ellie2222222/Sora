@@ -419,6 +419,9 @@ const fr: LocaleResource = {
     emptyPeriodTitle: 'Rien d’enregistré pour {{period}}',
     emptyPeriodMessage: 'Aucun revenu ni aucune dépense ici. D’autres périodes en ont peut-être beaucoup.',
     viewPreviousPeriod: 'Voir la période précédente',
+    overviewTab: 'Aperçu',
+    spendingTab: 'Dépenses',
+    accountsTab: 'Comptes',
   },
   wallets: {
     title: 'Portefeuilles',

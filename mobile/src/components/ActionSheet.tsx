@@ -31,7 +31,8 @@ export function ActionSheet({ visible, title, actions, onCancel }: ActionSheetPr
       <View style={{ gap: theme.spacing.xs }}>
         {actions.map((action, index) => (
           <Pressable
-            key={action.label}
+            // Labels are translated text and can coincide; the rows hold no state and never reorder while open.
+            key={index}
             testID={action.testID}
             accessibilityRole="button"
             disabled={action.disabled}

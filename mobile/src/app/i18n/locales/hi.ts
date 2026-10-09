@@ -417,6 +417,9 @@ const hi: LocaleResource = {
     emptyPeriodTitle: '{{period}} में कुछ दर्ज नहीं',
     emptyPeriodMessage: 'यहाँ कोई आय या खर्च नहीं आया। दूसरी अवधियों में अब भी काफ़ी कुछ हो सकता है।',
     viewPreviousPeriod: 'पिछली अवधि देखें',
+    overviewTab: 'सारांश',
+    spendingTab: 'खर्च',
+    accountsTab: 'खाते',
   },
   wallets: {
     title: 'वॉलेट',
