@@ -148,10 +148,25 @@ function monthStyle(locale: string): 'short' | 'long' {
   return locale.startsWith('vi') ? 'long' : 'short';
 }
 
+function clampMonth(month: number): number {
+  return Math.max(1, Math.min(12, Number(month) || 1));
+}
+
+function formatMonth(month: number, locale: string, style: 'short' | 'long' | 'numeric'): string {
+  return new Date(Date.UTC(2026, clampMonth(month) - 1, 15)).toLocaleDateString(locale, { month: style, timeZone: 'UTC' });
+}
+
 export function monthName(month: number, locale: string = i18next.language || 'en'): string {
-  const validMonth = Math.max(1, Math.min(12, Number(month) || 1));
-  const date = new Date(Date.UTC(2026, validMonth - 1, 15));
-  return date.toLocaleDateString(locale, { month: monthStyle(locale), timeZone: 'UTC' });
+  return formatMonth(month, locale, monthStyle(locale));
+}
+
+/**
+ * A month as one of twelve axis ticks sharing a phone's width: the short name without its trailing
+ * abbreviation mark ("февр." → "февр"), and Vietnamese, whose short form is still "tháng 10", as a number.
+ */
+export function monthTick(month: number, locale: string = i18next.language || 'en'): string {
+  if (locale.startsWith('vi')) return formatMonth(month, locale, 'numeric');
+  return formatMonth(month, locale, 'short').replace(/[.॰]$/u, '');
 }
 
 export function formatDay(day: CalendarDay, locale: string = i18next.language || 'en'): string {

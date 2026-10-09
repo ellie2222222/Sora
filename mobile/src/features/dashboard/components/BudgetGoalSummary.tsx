@@ -57,7 +57,7 @@ export function BudgetGoalSummary({ budgets, goals, onOpenBudget, onOpenGoal }: 
             </Pressable>
           ))}
           {budgets.length > PREVIEW_LIMIT ? (
-            <Text variant="caption" tone="faint">
+            <Text variant="caption" tone="muted">
               {t('dashboard.andMore', { count: budgets.length - PREVIEW_LIMIT })}
             </Text>
           ) : null}
@@ -87,7 +87,7 @@ export function BudgetGoalSummary({ budgets, goals, onOpenBudget, onOpenGoal }: 
             </Pressable>
           ))}
           {goals.length > PREVIEW_LIMIT ? (
-            <Text variant="caption" tone="faint">
+            <Text variant="caption" tone="muted">
               {t('dashboard.andMore', { count: goals.length - PREVIEW_LIMIT })}
             </Text>
           ) : null}

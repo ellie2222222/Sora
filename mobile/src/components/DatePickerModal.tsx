@@ -127,7 +127,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
                   backgroundColor: theme.colors.primary,
                 }}
               >
-                <Text style={{ color: theme.colors.onPrimary, fontSize: theme.fontSize.xs, fontWeight: 'bold' }}>
+                <Text variant="label" weight="bold" style={{ color: theme.colors.onPrimary }}>
                   {t('common.back', { defaultValue: 'Back' })}
                 </Text>
               </Pressable>
@@ -182,7 +182,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
                                 ? theme.colors.primary
                                 : cell.inCurrentMonth
                                   ? theme.colors.text
-                                  : theme.colors.textFaint,
+                                  : theme.colors.textMuted,
                           }}
                         >
                           {dayNum}

@@ -46,7 +46,8 @@ export function TrendBarChart({ points, height: heightProp }: TrendBarChartProps
             {bar('income', point.income)}
             {bar('expense', point.expense)}
           </View>
-          <Text variant="caption" tone="muted">
+          {/* A fixed column per point, a year's worth across a phone: an axis tick stays xs to fit, and xs text reads only at full strength. */}
+          <Text variant="caption" numberOfLines={1} style={{ fontSize: theme.fontSize.xs }}>
             {point.label}
           </Text>
         </View>

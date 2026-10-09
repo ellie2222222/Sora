@@ -34,7 +34,6 @@ export function DateStrip({ selectedDay, onSelectDay, testID, today }: DateStrip
         const isSelected = day === selectedDay;
         const isToday = day === today;
         const inCurrentMonth = month === selectedMonth;
-        const mutedColor = isSelected ? theme.colors.onPrimary : theme.colors.textFaint;
 
         return (
           <View key={day}>
@@ -51,7 +50,7 @@ export function DateStrip({ selectedDay, onSelectDay, testID, today }: DateStrip
                 backgroundColor: isSelected ? theme.colors.primary : 'transparent',
               }}
             >
-              <Text variant="caption" weight="semibold" style={{ color: inCurrentMonth && !isSelected ? theme.colors.textMuted : mutedColor }}>
+              <Text variant="caption" weight="semibold" style={{ color: isSelected ? theme.colors.onPrimary : theme.colors.textMuted }}>
                 {monthName(month)}
               </Text>
               <View

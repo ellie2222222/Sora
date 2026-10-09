@@ -20,6 +20,8 @@ import {
   formatShortDay,
   middayOf,
   monthGrid,
+  monthName,
+  monthTick,
   parseDay,
   quarterOf,
   replaceDay,
@@ -279,5 +281,21 @@ describe('formatDayHeading', () => {
 
   it('returns nothing for an empty day', () => {
     assert.equal(formatDayHeading('', REFERENCE, 'en'), '');
+  });
+});
+
+describe('monthTick', () => {
+  it('is the short name without a trailing abbreviation mark', () => {
+    assert.equal(monthTick(2, 'en'), 'Feb');
+    assert.equal(monthTick(2, 'ru'), monthName(2, 'ru').replace(/\.$/, ''));
+    assert.ok(!monthTick(2, 'ru').endsWith('.'));
+    assert.ok(!monthTick(2, 'fr').endsWith('.'));
+    assert.ok(!monthTick(10, 'hi').endsWith('॰'));
+  });
+
+  it('keeps a name that has no mark, and the month number in Vietnamese', () => {
+    assert.equal(monthTick(3, 'ru'), monthName(3, 'ru'));
+    assert.equal(monthTick(10, 'vi'), '10');
+    assert.equal(monthTick(10, 'ja'), '10月');
   });
 });

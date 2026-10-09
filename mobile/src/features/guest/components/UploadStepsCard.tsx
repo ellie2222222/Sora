@@ -295,7 +295,7 @@ function UploadStepRow({
         variant="label"
         numeric
         testID={`guest-upload-step-count-${phase}`}
-        tone={state === 'active' ? 'default' : state === 'queued' ? 'faint' : 'muted'}
+        tone={state === 'active' ? 'default' : 'muted'}
       >
         {count}
       </Text>

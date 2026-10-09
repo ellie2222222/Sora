@@ -78,12 +78,12 @@ export function ActionProposalCard({
             />
           </View>
         ) : (
-          <Text variant="caption" tone="faint">
+          <Text variant="caption" tone="muted">
             {blockedReason}
           </Text>
         )
       ) : (
-        <Text variant="caption" weight="semibold" tone={action.status === AiActionStatus.CONFIRMED ? 'success' : 'faint'}>
+        <Text variant="caption" weight="semibold" tone={action.status === AiActionStatus.CONFIRMED ? 'success' : 'muted'}>
           {action.status === AiActionStatus.CONFIRMED ? t('ai.proposal.recorded') : t('ai.proposal.dismissed')}
         </Text>
       )}

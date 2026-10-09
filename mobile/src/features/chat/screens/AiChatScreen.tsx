@@ -279,7 +279,7 @@ function PendingExchange({ text }: { text: string | null }) {
       <View style={{ alignSelf: 'flex-end', maxWidth: '85%', padding: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderRadius: theme.radius.lg, backgroundColor: theme.colors.primary }}>
         <Text tone="onPrimary">{text}</Text>
       </View>
-      <Text variant="caption" tone="faint" testID="ai-thinking">
+      <Text variant="caption" tone="muted" testID="ai-thinking">
         {t('ai.thinking')}
       </Text>
     </View>

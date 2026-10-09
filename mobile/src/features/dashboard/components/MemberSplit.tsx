@@ -45,7 +45,7 @@ export function MemberSplit({ members }: MemberSplitProps) {
               {expense !== undefined ? (
                 <Money amount={expense.amount} currency={expense.currency} variant="caption" weight="semibold" />
               ) : (
-                <Text variant="caption" tone="faint">
+                <Text variant="caption" tone="muted">
                   —
                 </Text>
               )}

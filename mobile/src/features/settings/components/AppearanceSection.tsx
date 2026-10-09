@@ -91,7 +91,7 @@ export function AppearanceSection({
       <SettingsDivider />
 
       <View className="gap-xs">
-        <Text variant="label" weight="semibold" tone="muted" style={{ fontSize: theme.fontSize.xs, marginBottom: theme.spacing.xxs }}>
+        <Text variant="label" weight="semibold" tone="muted" style={{ marginBottom: theme.spacing.xxs }}>
           {t('settings.colorPalette', 'Color Palette')}
         </Text>
         <View className="gap-xxs">
@@ -134,7 +134,7 @@ export function AppearanceSection({
       <SettingsDivider />
 
       <View className="gap-xs py-xs">
-        <Text variant="label" weight="semibold" tone="muted" style={{ fontSize: theme.fontSize.xs }}>
+        <Text variant="label" weight="semibold" tone="muted">
           {t('settings.preview', { defaultValue: 'Theme preview' })}
         </Text>
         <Text variant="heading" weight="bold" style={{ fontSize: theme.fontSize.xl }}>

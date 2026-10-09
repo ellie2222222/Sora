@@ -140,7 +140,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
             <>
               <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
                 <View className="flex-1" style={{ height: theme.borderWidth.thin, backgroundColor: theme.colors.border }} />
-                <Text variant="caption" tone="faint">
+                <Text variant="caption" tone="muted">
                   {t('auth.orDivider')}
                 </Text>
                 <View className="flex-1" style={{ height: theme.borderWidth.thin, backgroundColor: theme.colors.border }} />

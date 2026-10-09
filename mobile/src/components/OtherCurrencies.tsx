@@ -34,7 +34,7 @@ export function OtherCurrencies({ rows, testID }: { rows: readonly OtherCurrency
 
   return (
     <View style={{ gap: theme.spacing.xxs }} testID={testID}>
-      <Text variant="caption" tone="faint">
+      <Text variant="caption" tone="muted">
         {t('common.otherCurrencies')}
       </Text>
       {shown.map((row) => (

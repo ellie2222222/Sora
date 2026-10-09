@@ -6,7 +6,7 @@ import type { DashboardResponse, Scaled } from '@sora/contracts';
 
 import { SectionLabel, Skeleton, Text, TrendBarChart } from '@/components';
 import { useTheme } from '@/app/providers';
-import { emptyReasonFor, monthName, parseDay, type CalendarDay } from '@/utils';
+import { emptyReasonFor, monthTick, parseDay, type CalendarDay } from '@/utils';
 
 import { monthsOfYear, yearOf } from '../utils';
 import { MonthDataPoint } from './MonthDataPoint';
@@ -86,7 +86,7 @@ export function YearlyReport({
   // widening a Scaled amount into a JS number.
   const yearMax = [...monthlyIncome, ...monthlyExpense].reduce((max, amount) => maxOf(max, amount), ZERO);
   const points = months.map((month, index) => ({
-    label: monthName(parseDay(month).month),
+    label: monthTick(parseDay(month).month),
     income: percentageOf(monthlyIncome[index] ?? ZERO, yearMax),
     expense: percentageOf(monthlyExpense[index] ?? ZERO, yearMax),
   }));

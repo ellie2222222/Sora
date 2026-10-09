@@ -126,7 +126,7 @@ export function ConfirmDialog({
 
         {isMatchRequired ? (
           <View style={{ gap: theme.spacing.xs }}>
-            <Text variant="caption" tone="muted" style={{ fontSize: theme.fontSize.sm, letterSpacing: theme.letterSpacing.wide }}>
+            <Text variant="caption" tone="muted" style={{ letterSpacing: theme.letterSpacing.wide }}>
               {matchTextLabel ?? t('common.matchConfirmPrompt', { word: matchText })}
             </Text>
             <Input

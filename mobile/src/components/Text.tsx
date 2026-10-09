@@ -25,7 +25,8 @@ export interface TextComponentProps extends RNTextProps {
 const VARIANT_SIZE: Record<TextVariant, SizeKey> = {
   body: 'md',
   label: 'sm',
-  caption: 'xs',
+  // Not xs: captions are mostly muted, and muted text needs sm or larger to stay readable (DESIGN_GUIDELINES "Type size and tone").
+  caption: 'sm',
   title: 'xl',
   heading: 'xxl',
 };

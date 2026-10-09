@@ -47,7 +47,7 @@ export const sizes = {
     lg: { trackWidth: 70, trackHeight: 36, thumb: 30 },
   },
   /** Placeholder line heights, named after the `Text` variant each stands in for. */
-  skeletonLine: { caption: 12, label: 14, body: 16, title: 20, heading: 24, display: 32 },
+  skeletonLine: { caption: 14, label: 14, body: 16, title: 20, heading: 24, display: 32 },
   /** Placeholder widths, from a short word to a long label. */
   skeletonWidth: { xxs: 20, xs: 40, sm: 60, md: 80, lg: 100, xl: 120, xxl: 140 },
   /** Placeholder heights for a whole card or panel rather than one line. */

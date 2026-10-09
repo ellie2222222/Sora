@@ -71,7 +71,7 @@ export function IncomeExpenseSummary({
           previous !== undefined ? (
             <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
               <View style={{ width: theme.spacing.md, height: theme.borderWidth.thick, borderRadius: theme.radius.pill, backgroundColor: theme.colors.borderStrong }} />
-              <Text variant="caption" tone="faint" numberOfLines={1}>
+              <Text variant="caption" tone="muted" numberOfLines={1}>
                 {t('dashboard.versusPeriod', { period: previousLabel })}
               </Text>
             </View>
@@ -195,7 +195,7 @@ function TransferFigure({ icon: Icon, label, totals }: { icon: LucideIcon; label
       {totals.length > 0 ? (
         totals.map((total) => <Money key={total.currency} amount={total.amount} currency={total.currency} variant="caption" weight="semibold" />)
       ) : (
-        <Text variant="caption" tone="faint">
+        <Text variant="caption" tone="muted">
           —
         </Text>
       )}

@@ -205,7 +205,7 @@ const RENDERED_PAIRS: { label: string; fg: keyof ColorTokens; bg: keyof ColorTok
       min: 4.5,
     })),
   ),
-  // textFaint is real text (placeholders, empty states, captions, inactive tab labels), not decoration.
+  // textFaint is real text (placeholders, empty states), not decoration.
   ...(['text', 'textMuted', 'textFaint'] as const).flatMap((fg) =>
     (['background', 'surface', 'surfaceElevated', 'surfaceMuted', 'surfaceInset'] as const).map((bg) => ({
       label: `${fg} on ${bg}`,

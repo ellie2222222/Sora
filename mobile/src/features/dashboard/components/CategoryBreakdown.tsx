@@ -161,7 +161,7 @@ function TopCategoryRow({
       style={{ paddingVertical: theme.spacing.xs, minHeight: theme.sizes.touchTarget }}
     >
       <View className="flex-row items-center flex-1" style={{ gap: theme.spacing.sm }}>
-        <Text variant="caption" tone="faint">
+        <Text variant="caption" tone="muted">
           {rank}
         </Text>
         <View
@@ -186,7 +186,7 @@ function TopCategoryRow({
             </Text>
           </View>
         ) : isNew ? (
-          <Text variant="caption" tone="faint">
+          <Text variant="caption" tone="muted">
             {t('dashboard.newThisPeriod')}
           </Text>
         ) : null}

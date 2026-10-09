@@ -65,7 +65,7 @@ export function ConversationHistorySheet({
                     <Text weight={active ? 'semibold' : 'regular'} numberOfLines={1}>
                       {conversation.title}
                     </Text>
-                    <Text variant="caption" tone="faint">
+                    <Text variant="caption" tone="muted">
                       {formatDay(dayOfDate(new Date(conversation.updatedAt)))}
                     </Text>
                   </Pressable>

@@ -126,7 +126,7 @@ export function UploadProgressPanel({ status, error, walletName, view, onBackgro
           <>
             <Button testID="btn-resume-guest-upload" label={t('guest.upload.resume')} onPress={onResume} fullWidth />
             <Button testID="btn-later-guest-upload" label={t('guest.upload.later')} variant="outline" onPress={onLater} fullWidth />
-            <Text variant="caption" tone="faint" style={{ textAlign: 'center' }}>
+            <Text variant="caption" tone="muted" style={{ textAlign: 'center' }}>
               {t('guest.upload.laterHint')}
             </Text>
           </>
