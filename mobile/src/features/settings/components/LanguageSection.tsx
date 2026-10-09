@@ -6,6 +6,7 @@ import { Text } from '@/components';
 import { useLocaleControl, useTheme } from '@/app/providers';
 import { SUPPORTED_LOCALES } from '@/app/i18n';
 import { CollapsibleSection, SettingsDivider } from './CollapsibleSection';
+import { LanguageFlag } from './LanguageFlag';
 
 export function LanguageSection({
   isOpen,
@@ -54,10 +55,7 @@ export function LanguageSection({
                   backgroundColor: pressedCode === code ? theme.colors.surfaceMuted : 'transparent',
                 }}
               >
-                <Globe
-                  size={theme.iconSize.lg}
-                  color={isSelected ? theme.colors.primary : theme.colors.textMuted}
-                />
+                <LanguageFlag locale={code} />
                 <Text
                   weight={isSelected ? 'bold' : 'regular'}
                   style={{ flex: 1, fontSize: theme.fontSize.sm }}
