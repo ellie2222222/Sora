@@ -4,6 +4,7 @@
 **Method:** ad hoc (comment-audit skill, run after the double-check skill)
 **Verdict:** PASS
 **Scope:** comments in the files named for this pass:
+
 - the readability call sites;
 - `Text.tsx`, `sizes.ts`, `ConfirmDialog.tsx`, `TrendBarChart.tsx`, `MainTabNavigator.tsx`, `DateStrip.tsx`, `DatePickerModal.tsx`, `AppearanceSection.tsx`;
 - `utils/date.ts`, `utils/date.test.ts`, `YearlyReport.tsx`;

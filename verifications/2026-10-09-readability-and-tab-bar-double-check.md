@@ -4,6 +4,7 @@
 **Method:** double-check skill
 **Verdict:** PASS
 **Scope:** everything changed after `2026-10-09-dashboard-tabs-double-check.md`:
+
 - the readability-audit call sites and the `caption` → `sm` default;
 - `readable-text.test.ts`;
 - `monthTick` and `YearlyReport`;
@@ -55,6 +56,6 @@ Comment wording only, in `TrendBarChart.tsx:49` and `MainTabNavigator.tsx:45,124
 
 ## Follow-ups
 
-- Date picker Back badge still not seen on a device; the scan test covers its size and tone.
+- **Date picker Back badge:** checked after this report on the emulator (Home → Pick a date → year view, dark theme, English). "Back" renders at `label` size in bold `onPrimary` on the primary badge, whole and readable.
 - Native-speaker check of the chart ticks ("февр", "févr", numeric Vietnamese), carried from `2026-10-09-readability-audit.md`.
 - Nothing committed.

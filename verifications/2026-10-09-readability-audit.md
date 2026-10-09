@@ -96,5 +96,5 @@
 ## Follow-ups
 
 - **Native-speaker check:** chart ticks without the period ("февр", "févr") and numeric Vietnamese months.
-- **Not checked on the device:** the date picker's Back badge, a size change in place covered by the scan test.
+- **Date picker Back badge:** checked later on the emulator (Home → Pick a date → year view, dark, English). It renders at `label` size in bold, whole and readable. See `2026-10-09-readability-and-tab-bar-double-check.md`.
 - **Guest upload card:** checked through the dev-only "Preview the upload screen" (`UploadPreview.tsx`, a local simulation that imports no API code). The queued step counts render muted and readable.

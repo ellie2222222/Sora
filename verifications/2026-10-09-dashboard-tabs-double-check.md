@@ -53,7 +53,7 @@
    PASS.
 8. **Typecheck:** `tsc --noEmit` exits 0.
 9. **Mobile tests:** 689/689 pass, 0 fail.
-10. **Formatting of the earlier report.** Line 1 of `2026-10-09-dashboard-tabs.md` was changed on disk outside this session and is now indented by about 87 spaces. Markdown renders an indented line as a code block, not a heading. Reported to the user and left as found.
+10. **Formatting of the earlier report.** Line 1 of `2026-10-09-dashboard-tabs.md` was reported as indented by about 87 spaces. Rechecked with `head -c 200 | cat -A`: as committed in `5a72fb6` it starts `# Dashboard split…` at column 0, so it renders as a heading. Nothing to fix.
 
 11. **Tab-label widths in German, Russian and Vietnamese, checked on the device without writing to the database.**
     - **Why offline:** `setLocale` (`LocaleProvider.tsx:57-66`) sends `authApi.updatePreferences` once, ignores failures and never retries. So the language was switched in airplane mode (`adb shell cmd connectivity airplane-mode enable`; `ping 10.0.2.2` unreachable).
