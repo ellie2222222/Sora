@@ -23,13 +23,16 @@ export interface MoneyProps extends Omit<TextComponentProps, 'tone' | 'numeric'>
 export function Money({ amount, currency, type, showSign = true, formatOptions, style, ...props }: MoneyProps) {
   const theme = useTheme();
 
+  const value = parseMoney(amount);
   const direction = type !== undefined ? directionOf(type) : undefined;
+  // Nothing moved, so a zero is neither earned nor spent.
+  const colorDirection = value === 0n && direction !== undefined ? 'neutral' : direction;
   const color =
-    direction === undefined
+    colorDirection === undefined
       ? undefined
-      : { in: theme.colors.income, out: theme.colors.expense, neutral: theme.colors.text }[direction];
+      : { in: theme.colors.income, out: theme.colors.expense, neutral: theme.colors.text }[colorDirection];
 
-  const signed = direction === 'out' ? negate(parseMoney(amount)) : parseMoney(amount);
+  const signed = direction === 'out' ? negate(value) : value;
 
   const actualFormatOptions: MoneyFormatOptions = {
     ...formatOptions,

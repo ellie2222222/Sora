@@ -25,6 +25,7 @@ import {
   formatMoney,
   isOverBudget,
   isWithinPeriod,
+  largestCurrencyTotal,
   maxOf,
   parseMoney,
   percentageOf,
@@ -245,12 +246,8 @@ export class DashboardService {
     expense: CurrencyLedger;
     expenseByCategory: Map<string, Map<string, Scaled>>;
   }): Promise<CategorySpendSlice[]> {
-    const currencies = activity.expense.currencies();
-    if (currencies.length === 0) return [];
-
-    const dominant = currencies.reduce((best, currency) =>
-      activity.expense.get(currency) > activity.expense.get(best) ? currency : best,
-    );
+    const dominant = largestCurrencyTotal(activity.expense.toArray())?.currency;
+    if (dominant === undefined) return [];
     const totalExpense = activity.expense.get(dominant);
 
     const slices: { categoryId: string; amount: Scaled }[] = [];

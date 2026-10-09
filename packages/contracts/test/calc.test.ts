@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import {
+  amountInCurrency,
   type BalanceRelevantTransaction,
   type SpendRelevantTransaction,
   calculateAccountBalance,
@@ -15,6 +16,7 @@ import {
   isBudgetTarget,
   countsAsPeriodActivity,
   isGoalReached,
+  largestCurrencyTotal,
   isOverBudget,
   isWithinPeriod,
   transferDirection,
@@ -23,7 +25,7 @@ import {
   categorySubtreeIds,
 } from '../src/calc.ts';
 import { TransactionStatus, TransactionType } from '../src/enums.ts';
-import { formatMoneyCompact, parseMoney } from '../src/money.ts';
+import { formatMoneyCompact, parseMoney, ZERO } from '../src/money.ts';
 
 /**
  * Modelled on the fixture db/tests/001_constraints.sql seeds, without the rows its
@@ -292,6 +294,37 @@ describe('goal progress', () => {
 
   it('reports 0% for a goal with no contributions', () => {
     assert.equal(calculateGoalProgress(target, calculateGoalCurrent([])), 0);
+  });
+});
+
+describe('largestCurrencyTotal', () => {
+  it('picks the largest amount, not the first currency', () => {
+    const totals = [
+      { currency: 'JPY', amount: '12000.0000' },
+      { currency: 'VND', amount: '4500000.0000' },
+    ];
+    assert.equal(largestCurrencyTotal(totals)?.currency, 'VND');
+  });
+
+  it('keeps the earlier entry on a tie, and is undefined for no totals', () => {
+    const totals = [
+      { currency: 'AUD', amount: '10.0000' },
+      { currency: 'USD', amount: '10.0000' },
+    ];
+    assert.equal(largestCurrencyTotal(totals)?.currency, 'AUD');
+    assert.equal(largestCurrencyTotal([]), undefined);
+  });
+});
+
+describe('amountInCurrency', () => {
+  it("returns that currency's amount, and zero when the list has none in it", () => {
+    const totals = [
+      { currency: 'JPY', amount: '12000.0000' },
+      { currency: 'VND', amount: '4500000.0000' },
+    ];
+    assert.equal(amountInCurrency(totals, 'VND'), parseMoney('4500000.0000'));
+    assert.equal(amountInCurrency(totals, 'USD'), ZERO);
+    assert.equal(amountInCurrency([], 'VND'), ZERO);
   });
 });
 

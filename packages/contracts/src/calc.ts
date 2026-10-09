@@ -14,10 +14,12 @@ import {
   add,
   clampPercentage,
   maxOf,
+  parseMoney,
   percentageOf,
   subtract,
   ZERO,
 } from './money.ts';
+import type { CurrencyTotal } from './responses.ts';
 import { isRepeatingBudgetPeriod, TransactionStatus, TransactionType, type BudgetPeriodType } from './enums.ts';
 import { dayOfInstant } from './calendar.ts';
 
@@ -200,6 +202,23 @@ export function calculateGoalProgress(targetAmount: Scaled, current: Scaled): nu
 
 export function isGoalReached(targetAmount: Scaled, current: Scaled): boolean {
   return current >= targetAmount;
+}
+
+/**
+ * The entry with the largest amount, the earlier one on a tie. The dashboard's category breakdown
+ * is in this currency, so the app must pick it the same way to label those amounts.
+ */
+export function largestCurrencyTotal(totals: readonly CurrencyTotal[]): CurrencyTotal | undefined {
+  return totals.reduce<CurrencyTotal | undefined>(
+    (best, total) => (best === undefined || parseMoney(total.amount) > parseMoney(best.amount) ? total : best),
+    undefined,
+  );
+}
+
+/** One currency's amount from a per-currency list, zero when the list has nothing in that currency. */
+export function amountInCurrency(totals: readonly CurrencyTotal[], currency: string): Scaled {
+  const match = totals.find((total) => total.currency === currency);
+  return match === undefined ? ZERO : parseMoney(match.amount);
 }
 
 export interface PeriodActivityTransaction {

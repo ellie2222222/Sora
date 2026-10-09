@@ -55,6 +55,23 @@ describe('formatMoneyString — options', () => {
     assert.equal(formatMoneyString('0', 'USD', { signDisplay: 'always' }), '$0.00');
   });
 
+  it('never asks Intl to sign a figure that rounds to zero', () => {
+    const realNumberFormat = Intl.NumberFormat;
+    const requested: (string | undefined)[] = [];
+    // An Intl that ignores 'exceptZero' (Hermes on Android) prints "+₫0" unless asked for 'auto'.
+    Intl.NumberFormat = function recording(locale?: string | string[], options?: Intl.NumberFormatOptions) {
+      requested.push(options?.signDisplay);
+      return new realNumberFormat(locale, options);
+    } as unknown as typeof Intl.NumberFormat;
+    try {
+      formatMoneyString('0', 'VND', { signDisplay: 'always' });
+      formatMoneyString('-0.4', 'VND', { signDisplay: 'always' });
+    } finally {
+      Intl.NumberFormat = realNumberFormat;
+    }
+    assert.deepEqual(requested, ['auto', 'auto']);
+  });
+
   it('drops the sign entirely when signDisplay is never', () => {
     assert.equal(formatMoneyString('-10', 'USD', { signDisplay: 'never' }), '$10.00');
   });

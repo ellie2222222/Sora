@@ -98,7 +98,8 @@ export function formatScaled(
 ): string {
   const decimals = clampDecimals(currencyDecimals(currency));
   const shown = options.signDisplay === 'never' ? absScaled(value) : value;
-  const exact = formatMoneyCompact(roundToDecimals(shown, decimals), decimals);
+  const rounded = roundToDecimals(shown, decimals);
+  const exact = formatMoneyCompact(rounded, decimals);
 
   try {
     // A numeric string formats exactly (ES2023; this TS lib lacks the overload). An engine without it
@@ -110,7 +111,8 @@ export function formatScaled(
       notation: options.compact ? 'compact' : 'standard',
       minimumFractionDigits: options.compact ? 0 : decimals,
       maximumFractionDigits: options.compact ? Math.max(decimals, COMPACT_FRACTION_DIGITS) : decimals,
-      signDisplay: options.signDisplay === 'always' ? 'exceptZero' : 'auto',
+      // Not 'exceptZero': Hermes on Android still prints "+0" with it.
+      signDisplay: options.signDisplay === 'always' && rounded !== 0n ? 'always' : 'auto',
     }).format(exact as unknown as number);
   } catch {
     return fallbackFormat(shown, currency, decimals, options);

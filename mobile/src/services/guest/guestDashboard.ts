@@ -15,6 +15,7 @@ import {
   countsAsPeriodActivity,
   formatMoney,
   isWithinPeriod,
+  largestCurrencyTotal,
   parseMoney,
   percentageOf,
   subtract,
@@ -140,12 +141,8 @@ function periodActivity(
  * report a single meaningful breakdown.
  */
 function spendingByCategory(activity: PeriodActivity): CategorySpendSlice[] {
-  const currencies = [...activity.expense.keys()];
-  if (currencies.length === 0) return [];
-
-  const dominant = currencies.reduce((best, currency) =>
-    (activity.expense.get(currency) ?? ZERO) > (activity.expense.get(best) ?? ZERO) ? currency : best,
-  );
+  const dominant = largestCurrencyTotal(toCurrencyTotals(activity.expense))?.currency;
+  if (dominant === undefined) return [];
   const totalExpense = activity.expense.get(dominant) ?? ZERO;
 
   const { categories } = guestStore.current();
