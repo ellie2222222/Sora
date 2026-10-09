@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Database, LogOut, Trash2, LogIn } from 'lucide-react-native';
+import { CloudUpload, Database, LogOut, Trash2, LogIn } from 'lucide-react-native';
 import { Button, ConfirmDialog } from '@/components';
 import { env } from '@/app/config';
 import { useAuth, useToast } from '@/app/providers';
+import { UploadPreview } from '@/features/guest';
 import { invalidateEverything, useAppDispatch } from '@/app/store';
 import { guestStore, loadGuestFixture } from '@/services/guest';
 
@@ -20,6 +21,7 @@ export function SettingsBottomActions() {
   const [confirmingClearAll, setConfirmingClearAll] = useState(false);
   const [confirmingGuestClear, setConfirmingGuestClear] = useState(false);
   const [confirmingLoadDemo, setConfirmingLoadDemo] = useState(false);
+  const [previewingUpload, setPreviewingUpload] = useState(false);
 
   async function handleClearAllData() {
     await guestStore.clear();
@@ -95,6 +97,16 @@ export function SettingsBottomActions() {
             />
           </>
         )}
+        {__DEV__ ? (
+          <Button
+            testID="settings-dev-upload-preview"
+            label={t('settings.devUploadPreview')}
+            icon={CloudUpload}
+            variant="secondary"
+            onPress={() => setPreviewingUpload(true)}
+            fullWidth
+          />
+        ) : null}
       </View>
 
       <ConfirmDialog
@@ -151,6 +163,8 @@ export function SettingsBottomActions() {
           onCancel={() => setConfirmingLoadDemo(false)}
         />
       ) : null}
+
+      {__DEV__ ? <UploadPreview visible={previewingUpload} onClose={() => setPreviewingUpload(false)} /> : null}
     </>
   );
 }

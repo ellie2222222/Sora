@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text } from '@/components';
 import { useTheme, useToast } from '@/app/providers';
-import { guestUploadTask } from '@/services/guest';
+import { guestUploadTask, type GuestUploadStatus } from '@/services/guest';
 import { useGuestUploadTask, useGuestUploadView } from '../useGuestUpload.ts';
 import { UploadProgressBar } from './UploadProgressBar.tsx';
 
@@ -15,13 +15,10 @@ import { UploadProgressBar } from './UploadProgressBar.tsx';
  * finished in the foreground too (the upload screen unmounts the moment it does).
  */
 export function GuestUploadIndicator({ visible }: { visible: boolean }) {
-  const theme = useTheme();
   const { t } = useTranslation();
   const { showToast } = useToast();
-  const insets = useSafeAreaInsets();
   const task = useGuestUploadTask();
   const view = useGuestUploadView(task.status === 'done');
-  const [pressed, setPressed] = useState(false);
 
   useEffect(() => {
     if (task.status !== 'done') return;
@@ -30,15 +27,23 @@ export function GuestUploadIndicator({ visible }: { visible: boolean }) {
   }, [task.status, showToast, t]);
 
   if (!visible) return null;
+  return <UploadPill status={task.status} fraction={view.fraction} onPress={() => guestUploadTask.setInBackground(false)} />;
+}
 
-  const running = task.status === 'running';
-  const percent = Math.floor(view.fraction * 100);
+/** The pill itself, for the real upload or a preview. */
+export function UploadPill({ status, fraction, onPress }: { status: GuestUploadStatus; fraction: number; onPress: () => void }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const [pressed, setPressed] = useState(false);
+
+  const percent = Math.floor(fraction * 100);
   const label =
-    task.status === 'running'
+    status === 'running'
       ? t('guest.upload.indicatorRunning', { percent })
-      : task.status === 'stopping'
+      : status === 'stopping'
         ? t('guest.upload.indicatorStopping')
-        : task.status === 'failed'
+        : status === 'failed'
           ? t('guest.upload.indicatorFailed')
           : t('guest.upload.indicatorPaused');
 
@@ -50,7 +55,7 @@ export function GuestUploadIndicator({ visible }: { visible: boolean }) {
           accessibilityRole="button"
           accessibilityLabel={label}
           accessibilityHint={t('guest.upload.indicatorHint')}
-          onPress={() => guestUploadTask.setInBackground(false)}
+          onPress={onPress}
           onPressIn={() => setPressed(true)}
           onPressOut={() => setPressed(false)}
           style={{
@@ -69,11 +74,11 @@ export function GuestUploadIndicator({ visible }: { visible: boolean }) {
             variant="label"
             numeric
             numberOfLines={1}
-            style={{ textAlign: 'center', color: task.status === 'failed' ? theme.colors.warning : theme.colors.text }}
+            style={{ textAlign: 'center', color: status === 'failed' ? theme.colors.warning : theme.colors.text }}
           >
             {label}
           </Text>
-          <UploadProgressBar fraction={view.fraction} active={running} thickness={theme.borderWidth.thick} />
+          <UploadProgressBar fraction={fraction} active={status === 'running'} thickness={theme.borderWidth.thick} />
         </Pressable>
       </Animated.View>
     </View>

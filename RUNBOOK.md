@@ -140,6 +140,10 @@ EXPO_PUBLIC_DEMO_FIXTURE_URL=http://10.0.2.2:3420/ npm run dev:mobile
 SEED_API_URL=… node scripts/seed/guest-upload-check.mts demo.json   # the guest → account upload, checked from Node
 ```
 
+To look at the upload screen without signing up or uploading anything, a development build's
+Settings has "Preview the upload screen": the real screen and progress pill on a simulated run,
+with Cancel, Continue in background, Resume and a simulated failure.
+
 ## Database migrations
 
 ```bash
