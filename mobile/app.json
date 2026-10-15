@@ -5,22 +5,37 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "sora",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sora.app"
+      "bundleIdentifier": "com.sora.app",
+      "icon": "./assets/icon.png"
     },
     "android": {
       "package": "com.sora.app",
-      "allowBackup": false
+      "allowBackup": false,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "web": {
+      "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
     "plugins": [
       "expo-web-browser",
       "expo-localization",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
       ["expo-sqlite", { "useSQLCipher": true }]
     ],
     "extra": {

@@ -17,5 +17,7 @@ const withE2ECleartext = (config) => withApplicationAttribute(config, 'android:u
 
 module.exports = ({ config }) => {
   const shipped = withGwpAsanDisabled(config);
-  return process.env.SORA_E2E_BUILD === '1' ? withE2ECleartext(shipped) : shipped;
+  const allowCleartext =
+    process.env.SORA_E2E_BUILD === '1' || process.env.EXPO_PUBLIC_ALLOW_INSECURE_API === 'true';
+  return allowCleartext ? withE2ECleartext(shipped) : shipped;
 };
