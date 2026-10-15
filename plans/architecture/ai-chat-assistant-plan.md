@@ -381,23 +381,25 @@ const [isPressed, setIsPressed] = useState(false);
 ## 10. Acceptance Criteria
 
 ### Contracts & Database
-- [ ] `npm run build -w @sora/contracts` succeeds without type errors.
+- [x] `npm run build -w @sora/contracts` succeeds without type errors.
 - [x] The schema applies cleanly to an empty database (`npm run db:test`).
-- [ ] Deleting a user cascades and deletes all associated AI conversations and messages.
-- [ ] Deleting a wallet sets `wallet_id` on associated conversations to `NULL` without deleting the chat.
+- [x] Deleting a user cascades and deletes all associated AI conversations and messages (`ON DELETE CASCADE` on `ai_conversations.user_id` and `ai_messages.conversation_id`).
+- [ ] Deleting a wallet sets `wallet_id` on associated conversations to `NULL` without deleting the chat. Not built as written: `ai_conversations.wallet_id` has no `ON DELETE` action, and wallets are archived, never deleted.
 
 ### Server API & Access Control
-- [ ] `POST /api/v1/ai/conversations/:id/messages` returns a 201 response with assistant message.
-- [ ] Non-members attempting to query an unpermitted wallet receive no unauthorized data and no `403` leakage.
-- [ ] Any monetary values in action drafts are valid numeric strings with max 4 decimal places.
-- [ ] The server works seamlessly with `MockLlmProvider` without requiring live API keys.
+- [x] `POST /api/v1/ai/conversations/:id/messages` returns a 201 response with assistant message.
+- [x] Non-members attempting to query an unpermitted wallet receive no unauthorized data and no `403` leakage.
+- [x] Any monetary values in action drafts are valid numeric strings with max 4 decimal places.
+- [x] The server works seamlessly with `MockLlmProvider` without requiring live API keys.
 
 ### Mobile UI & UX
 - [ ] Messages render properly in chronological order with distinct user and assistant styling.
 - [ ] Transaction action drafts display account, amount, category, and date with a 1-tap "Confirm" button.
 - [ ] Tapping "Confirm" initiates a transaction creation, disables button during loading, and marks the draft as confirmed on success.
-- [ ] Full English and Vietnamese translations exist for all labels, empty states, and errors.
+- [x] Full English and Vietnamese translations exist for all labels, empty states, and errors.
 - [ ] No NativeWind v4 pressable style regressions.
+
+Server items: `integration.ai.test.ts` (201 on send, 404 never 403 for a non-member, run on `MockLlmProvider` with no key); drafts are `createIncomeSchema`/`createExpenseSchema`, so amounts are money strings. Translations: `localeParity.test.ts` holds all ten locales to `en.ts`. The Mobile UI items are open until seen on a device.
 
 ---
 

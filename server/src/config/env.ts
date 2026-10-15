@@ -71,6 +71,39 @@ const envSchema = z.object({
   EXCHANGE_RATE_API_URL: z.string().url().default('https://open.er-api.com/v6/latest'),
   EXCHANGE_RATE_TIMEOUT_SECONDS: z.coerce.number().int().min(1).default(5),
   EXCHANGE_RATE_CACHE_TTL_MINUTES: z.coerce.number().int().min(1).default(720),
+
+  /**
+   * Google Gemini API key for natural language financial assistant.
+   * If unset or empty, the server uses MockLlmProvider.
+   */
+  GEMINI_API_KEY: z
+    .string()
+    .optional()
+    .transform((value) => (value && value.trim().length > 0 ? value.trim() : undefined)),
+  GEMINI_MODEL: z
+    .string()
+    .optional()
+    .transform((value) => (value && value.trim().length > 0 ? value.trim() : undefined)),
+  GEMINI_MODEL_INTENT: z
+    .string()
+    .optional()
+    .transform((value) => (value && value.trim().length > 0 ? value.trim() : 'gemini-3.1-flash-lite')),
+  GEMINI_MODEL_CHAT: z
+    .string()
+    .optional()
+    .transform((value) => (value && value.trim().length > 0 ? value.trim() : 'gemini-3.1-flash-lite')),
+  GEMINI_MODEL_ANALYSIS: z
+    .string()
+    .optional()
+    .transform((value) => (value && value.trim().length > 0 ? value.trim() : 'gemini-3.1-flash-lite')),
+  GEMINI_MODEL_COMPLEX: z
+    .string()
+    .optional()
+    .transform((value) => (value && value.trim().length > 0 ? value.trim() : 'gemini-3.1-pro-preview')),
+  GEMINI_FALLBACK_MODEL: z
+    .string()
+    .optional()
+    .transform((value) => (value && value.trim().length > 0 ? value.trim() : 'gemini-3.1-flash-lite')),
 });
 
 export type AppConfig = Readonly<z.infer<typeof envSchema>>;

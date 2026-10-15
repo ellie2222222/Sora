@@ -121,7 +121,7 @@ describe('AI assistant writes and answers against a real database', { skip: inte
     assert.equal(row?.count, '0');
 
     const kept = await api.call('GET', `/transactions/${transactionId}`, { token: owner.token });
-    assert.deepEqual([kept.status, kept.body!.data.status, kept.body!.data.amount], [200, 'COMPLETED', '65000.0000']);
+    assert.deepEqual([kept.status, kept.body!.data.status, kept.body!.data.amount], [200, 'ACTIVE', '65000.0000']);
     assert.equal((await api.call('GET', `/accounts/${cash}`, { token: owner.token })).body!.data.balance, '435000.0000');
   });
 

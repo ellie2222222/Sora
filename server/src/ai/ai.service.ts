@@ -8,7 +8,7 @@
  * write path than the form.
  */
 
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   AccountStatus,
   AiActionStatus,
@@ -51,6 +51,8 @@ type MessageRow = Selectable<AiMessagesTable>;
 
 @Injectable()
 export class AiService {
+  private readonly logger = new Logger(AiService.name);
+
   constructor(
     private readonly database: DatabaseService,
     private readonly access: WalletAccessService,
@@ -139,6 +141,10 @@ export class AiService {
       .limit(HISTORY_WINDOW)
       .execute();
 
+    this.logger.log(
+      `[AiService.sendMessage] User ${user.id} sending message in conversation ${conversationId} (wallet: ${request.walletId}, locale: ${request.locale}): "${request.message}"`,
+    );
+
     const reply = await this.provider.reply({
       locale: request.locale,
       message: request.message,
@@ -147,6 +153,10 @@ export class AiService {
       now: new Date(),
     });
     const proposal = await this.acceptedProposal(reply.proposal, walletAccess);
+
+    this.logger.log(
+      `[AiService.sendMessage] Assistant reply returned for conversation ${conversationId}: "${reply.content.slice(0, 150)}${reply.content.length > 150 ? '...' : ''}"${proposal ? ` | Proposal for ${proposal.transaction.amount} ${proposal.transaction.currency}` : ''}`,
+    );
 
     return this.database.db.transaction().execute(async (trx) => {
       const userMessage = await trx

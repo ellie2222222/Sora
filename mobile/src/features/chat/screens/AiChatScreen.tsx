@@ -17,7 +17,7 @@ import {
 import { isLocale, type AiMessageResponse } from '@sora/contracts';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { useNetworkStatus } from '@/hooks';
-import { canLoadMore, flattenPages, getServerErrorMessage, isNetworkError } from '@/utils';
+import { canLoadMore, currentView, flattenPages, getServerErrorMessage, isNetworkError } from '@/utils';
 import { chatAvailability } from '../chatAvailability.ts';
 import { ChatInputBar } from '../components/ChatInputBar.tsx';
 import { ChatMessageItem } from '../components/ChatMessageItem.tsx';
@@ -114,7 +114,9 @@ function SignedInChat() {
   const [deleteConversation] = useDeleteAiConversationMutation();
   const [confirmAction] = useConfirmAiActionMutation();
   const [dismissAction] = useDismissAiActionMutation();
-  const items = useMemo(() => flattenPages(messages.data?.pages) as AiMessageResponse[], [messages.data]);
+  // Always the current conversation's own pages: a new chat (null id) shows none of the last one's.
+  const shownMessages = currentView(messages, true);
+  const items = useMemo(() => flattenPages(shownMessages.data?.pages) as AiMessageResponse[], [shownMessages.data]);
 
   if (activeWalletId === null) return <NoWalletState testID="ai-no-wallet" />;
 
@@ -169,7 +171,7 @@ function SignedInChat() {
 
   const blockedReason = blocked === 'offline' ? t('ai.offlineHint') : blocked === 'viewOnly' ? t('ai.proposal.viewOnly') : null;
   const renderBody = () => {
-    if (conversationId !== null && messages.isLoading) {
+    if (conversationId !== null && shownMessages.loading) {
       return (
         <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, flex: 1, justifyContent: 'flex-end' }}>
           {[...Array(4)].map((_, i) => (

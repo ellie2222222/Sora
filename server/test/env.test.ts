@@ -21,4 +21,16 @@ describe('loadConfig', () => {
   it('refuses to boot on a JWT secret under 32 characters', () => {
     assert.throws(() => loadConfig({ ...REQUIRED, JWT_SECRET: 'short' }), ConfigError);
   });
+
+  it('loads optional GEMINI_API_KEY and trims whitespace', () => {
+    const unset = loadConfig(REQUIRED);
+    assert.equal(unset.GEMINI_API_KEY, undefined);
+
+    const empty = loadConfig({ ...REQUIRED, GEMINI_API_KEY: '   ' });
+    assert.equal(empty.GEMINI_API_KEY, undefined);
+
+    const configured = loadConfig({ ...REQUIRED, GEMINI_API_KEY: '  test-key  ', GEMINI_MODEL: 'gemini-1.5-pro' });
+    assert.equal(configured.GEMINI_API_KEY, 'test-key');
+    assert.equal(configured.GEMINI_MODEL, 'gemini-1.5-pro');
+  });
 });
