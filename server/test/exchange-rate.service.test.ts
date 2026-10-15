@@ -28,6 +28,11 @@ describe('ExchangeRateService', () => {
     EXCHANGE_RATE_API_URL: 'https://open.er-api.com/v6/latest',
     EXCHANGE_RATE_TIMEOUT_SECONDS: 5,
     EXCHANGE_RATE_CACHE_TTL_MINUTES: 720,
+    GEMINI_MODEL_INTENT: 'gemini-3.1-flash-lite',
+    GEMINI_MODEL_CHAT: 'gemini-3.1-flash-lite',
+    GEMINI_MODEL_ANALYSIS: 'gemini-3.1-flash-lite',
+    GEMINI_MODEL_COMPLEX: 'gemini-3.1-pro-preview',
+    GEMINI_FALLBACK_MODEL: 'gemini-3.1-flash-lite',
   };
 
   let service: ExchangeRateService;

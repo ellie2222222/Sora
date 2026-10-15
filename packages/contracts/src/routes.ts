@@ -82,8 +82,6 @@ export const ROUTES = {
     update: (goalId: string) => `/goals/${goalId}`,
     archive: (goalId: string) => `/goals/${goalId}`,
     contributions: (goalId: string) => `/goals/${goalId}/contributions`,
-    contribution: (goalId: string, contributionId: string) =>
-      `/goals/${goalId}/contributions/${contributionId}`,
   },
 
   dashboard: {

@@ -69,7 +69,7 @@ export class AccountsService {
     if (query.status) builder = builder.where('status', '=', query.status);
     if (query.type) builder = builder.where('type', '=', query.type);
 
-    const [rows, totalRow, balances] = await Promise.all([
+    const [rows, totalRow] = await Promise.all([
       builder
         .selectAll()
         .orderBy('created_at', 'asc')
@@ -79,8 +79,9 @@ export class AccountsService {
         .offset(offsetOf(query))
         .execute(),
       builder.select((eb) => eb.fn.countAll<string>().as('count')).executeTakeFirstOrThrow(),
-      this.balances.balancesForWallets(walletIds),
     ]);
+    // Only the page's own ledger: every reachable wallet's would grow with the caller's history, not the page.
+    const balances = await this.balances.balancesForAccounts(rows);
 
     return paginated(
       rows.map((row) => toAccountResponse(row, balances.get(row.id)?.balance)),
@@ -93,7 +94,7 @@ export class AccountsService {
     request: CreateAccountRequest,
     ip: string | null,
   ): Promise<AccountResponse> {
-    await this.access.requireWritable(user.id, request.walletId, 'EDITOR');
+    const { role } = await this.access.requireWritable(user.id, request.walletId, 'EDITOR');
 
     const row = await this.database.db.transaction().execute(async (trx) => {
       await lockWalletWritable(trx, request.walletId);
@@ -115,6 +116,7 @@ export class AccountsService {
           entityType: ENTITY_TYPES.ACCOUNT,
           entityId: inserted.id,
           actorId: user.id,
+          actorRole: role,
           walletId: request.walletId,
           ip,
         },
@@ -155,7 +157,7 @@ export class AccountsService {
     const access = await this.access.requireAccount(user.id, accountId, 'EDITOR');
 
     const row = await this.database.db.transaction().execute(async (trx) => {
-      if (request.status === AccountStatus.ARCHIVED) await lockForArchive(trx, access.walletId, accountId);
+      const archiving = request.status === AccountStatus.ARCHIVED && (await lockForArchive(trx, access.walletId, accountId));
       // Decided on the currency read under the lock, never on the earlier unlocked read: a change
       // committed in between would otherwise let this one skip the check.
       if (request.currency !== undefined && (await lockAccountForCurrencyChange(trx, accountId)) !== request.currency) {
@@ -178,11 +180,11 @@ export class AccountsService {
 
       await this.audit.record(
         {
-          event:
-            request.status === AccountStatus.ARCHIVED ? AUDIT_EVENTS.ACCOUNT_ARCHIVED : AUDIT_EVENTS.ACCOUNT_UPDATED,
+          event: archiving ? AUDIT_EVENTS.ACCOUNT_ARCHIVED : AUDIT_EVENTS.ACCOUNT_UPDATED,
           entityType: ENTITY_TYPES.ACCOUNT,
           entityId: accountId,
           actorId: user.id,
+          actorRole: access.role,
           walletId: access.walletId,
           ip,
         },
@@ -215,6 +217,7 @@ export class AccountsService {
           entityType: ENTITY_TYPES.ACCOUNT,
           entityId: accountId,
           actorId: user.id,
+          actorRole: access.role,
           walletId: access.walletId,
           ip,
         },

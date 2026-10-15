@@ -484,7 +484,8 @@ export class AuthService {
       });
       payload = ticket.getPayload();
     } catch (error) {
-      this.logger.warn(`Google ID token verification failed: ${(error as Error).message}`);
+      // google-auth-library puts the raw token or its decoded payload in the message (LA-01).
+      this.logger.warn(`Google ID token verification failed: ${(error as Error).name}`);
       throw new AppError('GOOGLE_TOKEN_INVALID');
     }
 

@@ -1,12 +1,7 @@
-import { z } from 'zod';
-
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, type PaginationMeta } from '@sora/contracts';
+import { pageQueryFields, type PaginationMeta } from '@sora/contracts';
 
 /** API-05's `?page&pageSize`, spread into a list endpoint's own query schema. */
-export const pageQuery = {
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
-};
+export const pageQuery = pageQueryFields;
 
 export interface PageQuery {
   page: number;

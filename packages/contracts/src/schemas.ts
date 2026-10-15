@@ -22,6 +22,7 @@ import {
   GOAL_STATUSES,
   INVITABLE_ROLES,
   LOCALES,
+  MAX_PAGE,
   MAX_PAGE_SIZE,
   THEME_NAMES,
   TRANSACTION_STATUSES,
@@ -30,10 +31,9 @@ import {
   WALLET_STATUSES,
   TransactionType,
   isRepeatingBudgetPeriod,
-  type TransactionStatus,
 } from './enums.ts';
-import { isTimeZone } from './calendar.ts';
-import { MONEY_SCALE, parseMoney, stripCurrencyInput } from './money.ts';
+import { isCalendarDay, isTimeZone } from './calendar.ts';
+import { parseMoney, stripCurrencyInput } from './money.ts';
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -44,6 +44,18 @@ export const uuidSchema = z.string().uuid();
 export const currencySchema = z
   .string()
   .regex(/^[A-Z]{3}$/, 'Currency must be a 3-letter uppercase code, e.g. VND');
+
+/**
+ * A JSON number has already been through float64, which holds 15 significant digits exactly: 11
+ * integer digits plus the 4 decimals `DECIMAL(19,4)` keeps. Past that the digits the caller typed
+ * are gone, so refuse rather than store a neighbouring amount; a string carries any amount exactly.
+ */
+const MAX_EXACT_NUMBER_AMOUNT = 1e11;
+const INEXACT_NUMBER_MESSAGE = 'Send an amount this large as a string';
+
+function isExactAmountNumber(value: string | number): boolean {
+  return typeof value === 'string' || Number.isNaN(value) || Math.abs(value) < MAX_EXACT_NUMBER_AMOUNT;
+}
 
 /**
  * A positive monetary amount as a string.
@@ -59,6 +71,10 @@ export const positiveAmountSchema = z
     // MONEY_PATTERN rejects commas, and the raw value must not survive into
     // the returned string either or a comma reaches the database as text.
     const normalized = typeof value === 'string' ? stripCurrencyInput(value) : value;
+    if (!isExactAmountNumber(normalized)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: INEXACT_NUMBER_MESSAGE });
+      return z.NEVER;
+    }
     try {
       const scaled = parseMoney(normalized);
       if (scaled <= 0n) {
@@ -80,6 +96,10 @@ export const signedAmountSchema = z
   .union([z.string(), z.number()])
   .transform((value, ctx) => {
     const normalized = typeof value === 'string' ? stripCurrencyInput(value) : value;
+    if (!isExactAmountNumber(normalized)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: INEXACT_NUMBER_MESSAGE });
+      return z.NEVER;
+    }
     try {
       parseMoney(normalized);
       return String(normalized);
@@ -94,7 +114,8 @@ export const signedAmountSchema = z
 
 export const isoDateSchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a date as YYYY-MM-DD');
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a date as YYYY-MM-DD')
+  .refine(isCalendarDay, 'Expected a date that exists on the calendar');
 
 export const isoDateTimeSchema = z.string().datetime({ offset: true });
 
@@ -104,6 +125,15 @@ export const timeZoneSchema = z
   .trim()
   .max(64)
   .refine(isTimeZone, 'Expected an IANA time zone, e.g. Asia/Ho_Chi_Minh');
+
+/** 254 is the longest address SMTP can deliver to, and it fits the `VARCHAR(255)` email columns. */
+const emailSchema = z.string().trim().toLowerCase().max(254).email();
+
+/** API-05's `?page&pageSize`, spread into every list endpoint's query schema. */
+export const pageQueryFields = {
+  page: z.coerce.number().int().min(1).max(MAX_PAGE).default(1),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+};
 
 const nameSchema = (max: number) => z.string().trim().min(1, 'Required').max(max);
 
@@ -122,7 +152,7 @@ export const passwordSchema = z
   .max(200, 'Password must be at most 200 characters');
 
 export const registerSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
+  email: emailSchema,
   password: passwordSchema,
   displayName: nameSchema(100),
   baseCurrency: currencySchema.default('VND'),
@@ -132,7 +162,7 @@ export const registerSchema = z.object({
 });
 
 export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
+  email: emailSchema,
   password: z.string().min(1, 'Required'),
 });
 
@@ -173,7 +203,7 @@ export const updateWalletSchema = z
   .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
 
 export const inviteMemberSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
+  email: emailSchema,
   role: z.enum(INVITABLE_ROLES),
   /** The inviter's own word for the invitee, e.g. "Girlfriend" or "Mom" (SRS FR-11); never a wallet name. */
   relationLabel: z.string().trim().max(50).optional(),
@@ -251,7 +281,6 @@ const transactionCommon = {
   currency: currencySchema,
   description: z.string().trim().max(500).nullish(),
   transactionDate: isoDateTimeSchema,
-  status: z.enum(TRANSACTION_STATUSES).default('COMPLETED'),
   reference: z.string().trim().max(100).nullish(),
 };
 
@@ -338,7 +367,6 @@ export interface StoredTransactionFields {
   goalId: string | null;
   description: string | null;
   transactionDate: string;
-  status: TransactionStatus;
   reference: string | null;
 }
 
@@ -366,7 +394,6 @@ export function mergeTransactionUpdate(stored: StoredTransactionFields, body: Up
     goalId: type === TransactionType.EXPENSE ? pick(body.goalId, stored.goalId) : (body.goalId ?? null),
     description: pick(body.description, stored.description),
     transactionDate: body.transactionDate ?? stored.transactionDate,
-    status: stored.status,
     reference: pick(body.reference, stored.reference),
   };
 }
@@ -386,8 +413,7 @@ export const transactionQuerySchema = z.object({
   minAmount: positiveAmountSchema.optional(),
   maxAmount: positiveAmountSchema.optional(),
   search: z.string().trim().max(200).optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  ...pageQueryFields,
   sortBy: z.string().trim().max(60).default('-transactionDate'),
 });
 
@@ -505,8 +531,7 @@ export const createAiConversationSchema = z.object({
 });
 
 export const aiConversationQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  ...pageQueryFields,
 });
 
 export const sendAiMessageSchema = z.object({
@@ -535,7 +560,6 @@ export type CreateWalletRequest = z.infer<typeof createWalletSchema>;
 export type UpdateWalletRequest = z.infer<typeof updateWalletSchema>;
 export type InviteMemberRequest = z.infer<typeof inviteMemberSchema>;
 export type AcceptInvitationRequest = z.infer<typeof acceptInvitationSchema>;
-export type PreviewInvitationRequest = z.infer<typeof previewInvitationSchema>;
 export type UpdateMemberRequest = z.infer<typeof updateMemberSchema>;
 export type CreateAccountRequest = z.infer<typeof createAccountSchema>;
 export type UpdateAccountRequest = z.infer<typeof updateAccountSchema>;
@@ -554,5 +578,3 @@ export type CreateAiConversationRequest = z.infer<typeof createAiConversationSch
 export type AiConversationQuery = z.infer<typeof aiConversationQuerySchema>;
 export type SendAiMessageRequest = z.input<typeof sendAiMessageSchema>;
 export type AiTransactionDraft = z.output<typeof aiTransactionDraftSchema>;
-
-export const MONEY_DECIMALS = MONEY_SCALE;

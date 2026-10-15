@@ -77,6 +77,8 @@ export async function requireGoalInWallet(db: Executor, walletId: string, goalId
     .select('status')
     .where('id', '=', goalId)
     .where('wallet_id', '=', walletId)
+    // Inside a caller's write, holds the status read here until it commits: a cancel waits for it.
+    .forShare()
     .executeTakeFirst();
   if (!goal) throw new AppError('GOAL_NOT_FOUND');
   return goal.status;

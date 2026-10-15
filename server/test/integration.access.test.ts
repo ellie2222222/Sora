@@ -82,6 +82,46 @@ describe('access control against a real database', { skip: integrationSkipReason
     assert.deepEqual([real.status, real.body?.error?.code], [made_up.status, made_up.body?.error?.code]);
   });
 
+  it('answers a stranger\'s edit or delete of a live, a deleted and a made-up transaction alike', async () => {
+    const deleted = await api.call('POST', '/transactions', {
+      token: owner.token,
+      body: { type: 'EXPENSE', fromAccountId: ids.account, categoryId: ids.category, amount: '1', currency: 'VND', transactionDate: nowIso() },
+    });
+    const deletedId = deleted.body!.data.id;
+    assert.equal((await api.call('POST', `/transactions/${deletedId}/delete`, { token: owner.token, body: {} })).status, 200);
+
+    for (const id of [ids.transaction, deletedId, randomUUID()]) {
+      const edit = await api.call('PATCH', `/transactions/${id}`, { token: stranger.token, body: { description: 'probe-stranger' } });
+      const remove = await api.call('POST', `/transactions/${id}/delete`, { token: stranger.token, body: {} });
+      assert.deepEqual([edit.status, edit.body?.error?.code], [404, 'TRANSACTION_NOT_FOUND'], `PATCH ${id}`);
+      assert.deepEqual([remove.status, remove.body?.error?.code], [404, 'TRANSACTION_NOT_FOUND'], `delete ${id}`);
+    }
+  });
+
+  it('records the actor\'s role on every financial audit row (LA-02)', async () => {
+    const edit = await api.call('POST', '/transactions', {
+      token: editor.token,
+      body: { type: 'EXPENSE', fromAccountId: ids.account, categoryId: ids.category, amount: '1', currency: 'VND', transactionDate: nowIso() },
+    });
+    const contribution = await api.call('POST', `/goals/${ids.goal}/contributions`, {
+      token: editor.token,
+      body: { accountId: ids.account, amount: '1', currency: 'VND', contributionDate: nowIso() },
+    });
+    assert.equal(contribution.status, 201, JSON.stringify(contribution.body));
+
+    const rows = await api.sql<{ entity_type: string; actor_role: string | null }>(
+      'SELECT entity_type, actor_role FROM audit_logs WHERE entity_id = ANY($1) ORDER BY entity_type',
+      [[ids.account, ids.transaction, ids.budget, ids.goal, edit.body!.data.id, contribution.body!.data.id]],
+    );
+    assert.deepEqual(
+      [...new Set(rows.map((row) => row.entity_type))].sort(),
+      ['ACCOUNT', 'BUDGET', 'GOAL', 'GOAL_CONTRIBUTION', 'TRANSACTION'],
+    );
+    assert.deepEqual(rows.filter((row) => row.actor_role === null), []);
+    const editorRow = await api.sql<{ actor_role: string }>('SELECT actor_role FROM audit_logs WHERE entity_id = $1', [edit.body!.data.id]);
+    assert.deepEqual(editorRow.map((row) => row.actor_role), ['EDITOR']);
+  });
+
   it('answers a malformed path id with 404 ROUTE_NOT_FOUND, not a 500 from the uuid cast', async () => {
     for (const path of ['/wallets/not-a-uuid', '/accounts/not-a-uuid', `/wallets/${ids.wallet}/members/not-a-uuid`]) {
       const response = await api.call('GET', path, { token: stranger.token });
@@ -197,7 +237,6 @@ describe('access control against a real database', { skip: integrationSkipReason
       ['PATCH', `/goals/${ids.goal}`, { name: 'probe-matrix' }, 'EDITOR'],
       ['DELETE', `/goals/${ids.goal}`, undefined, 'EDITOR'],
       ['POST', `/goals/${ids.goal}/contributions`, { accountId: ids.account, amount: '1', currency: 'VND', contributionDate: nowIso() }, 'EDITOR'],
-      ['DELETE', `/goals/${ids.goal}/contributions/${contribution.body!.data.id}`, undefined, 'EDITOR'],
       ['PATCH', `/wallets/${ids.wallet}`, { name: 'probe-matrix' }, 'OWNER'],
       ['DELETE', `/wallets/${ids.wallet}`, undefined, 'OWNER'],
       ['PATCH', `/wallets/${ids.wallet}/members/${viewerMember}`, { role: 'EDITOR' }, 'OWNER'],
@@ -226,7 +265,7 @@ describe('access control against a real database', { skip: integrationSkipReason
     const roles = await api.sql<{ id: string; role: string; status: string }>('SELECT id, role, status FROM wallet_members WHERE id = ANY($1::uuid[]) ORDER BY role', [[editorMember, viewerMember]]);
     assert.deepEqual(roles.map((row) => [row.role, row.status]), [['EDITOR', 'ACTIVE'], ['VIEWER', 'ACTIVE']]);
     const [txn] = await api.sql<{ status: string; description: string | null }>('SELECT status, description FROM transactions WHERE id = $1', [ids.transaction]);
-    assert.equal(txn?.status, 'COMPLETED');
+    assert.equal(txn?.status, 'ACTIVE');
     assert.notEqual(txn?.description, 'probe-matrix');
   });
 

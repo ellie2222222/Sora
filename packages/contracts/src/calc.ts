@@ -33,16 +33,15 @@ export interface BalanceRelevantTransaction {
 }
 
 /**
- * Only COMPLETED transactions move a balance. A PENDING transaction is a record
- * of an intention and a DELETED one is a record of a mistake; counting either
- * would make the app's balance disagree with the bank's.
+ * Only ACTIVE transactions move a balance. A DELETED one is a record of a mistake;
+ * counting it would make the app's balance disagree with the bank's.
  */
 export function affectsBalance(transaction: { status: TransactionStatus }): boolean {
-  return transaction.status === TransactionStatus.COMPLETED;
+  return transaction.status === TransactionStatus.ACTIVE;
 }
 
 /**
- * initial_balance + money in - money out, over completed transactions only.
+ * initial_balance + money in - money out, over active transactions only.
  *
  * Direction is read from which side of the transaction names this account, not
  * from the type, so a TRANSFER correctly debits one account and credits the
@@ -155,7 +154,7 @@ export function calculateBudgetSpent(
 
   for (const transaction of transactions) {
     if (transaction.type !== TransactionType.EXPENSE) continue;
-    if (transaction.status !== TransactionStatus.COMPLETED) continue;
+    if (transaction.status !== TransactionStatus.ACTIVE) continue;
     if (!isBudgetTarget(budget, transaction)) continue;
     // BR-07: a category can hold expenses in several currencies, and summing them is meaningless.
     if (transaction.currency !== budget.currency) continue;
@@ -241,7 +240,7 @@ export function countsAsPeriodActivity(
   dateTo: string,
   timeZone: string,
 ): boolean {
-  if (transaction.status !== TransactionStatus.COMPLETED) return false;
+  if (transaction.status !== TransactionStatus.ACTIVE) return false;
   if (transaction.type !== TransactionType.INCOME && transaction.type !== TransactionType.EXPENSE) {
     return false;
   }
@@ -259,7 +258,7 @@ export interface TransferDirectionTransaction {
 export type TransferDirection = 'IN' | 'OUT' | null;
 
 /**
- * Which way a completed TRANSFER moved money across one wallet's boundary.
+ * Which way an active TRANSFER moved money across one wallet's boundary.
  *
  * A transfer whose two legs are both inside `accountIds` is **internal** and
  * returns `null`: the wallet moved money to itself, so counting it as both in
@@ -272,7 +271,7 @@ export function transferDirection(
   accountIds: ReadonlySet<string>,
 ): TransferDirection {
   if (transaction.type !== TransactionType.TRANSFER) return null;
-  if (transaction.status !== TransactionStatus.COMPLETED) return null;
+  if (transaction.status !== TransactionStatus.ACTIVE) return null;
 
   const isIncoming = transaction.toAccountId !== null && accountIds.has(transaction.toAccountId);
   const isOutgoing = transaction.fromAccountId !== null && accountIds.has(transaction.fromAccountId);

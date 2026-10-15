@@ -35,7 +35,7 @@ export interface BudgetSpendTarget {
 /**
  * Every EXPENSE matching any budget's target: its category, its goal tag, or — for a
  * wallet-wide budget — the paying account's wallet, within the span the budgets' windows cover.
- * Currency and each budget's own window are left to `calculateBudgetSpent`; only COMPLETED rows
+ * Currency and each budget's own window are left to `calculateBudgetSpent`; only ACTIVE rows
  * are read, matching its own rule, so the partial `idx_transactions_budget_scan` index can serve it.
  */
 export async function spendableExpenses(
@@ -58,7 +58,7 @@ export async function spendableExpenses(
     .innerJoin('accounts as a', 'a.id', 't.from_account_id')
     .select(['t.type', 't.status', 't.amount', 't.currency', 't.category_id', 't.goal_id', 't.transaction_date', 'a.wallet_id'])
     .where('t.type', '=', TransactionType.EXPENSE)
-    .where('t.status', '=', TransactionStatus.COMPLETED)
+    .where('t.status', '=', TransactionStatus.ACTIVE)
     .where('t.transaction_date', '>=', new Date(spanStart))
     .where('t.transaction_date', '<', new Date(spanEnd))
     .where((eb) =>

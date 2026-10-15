@@ -55,17 +55,16 @@ describe('the ledger against a real database', { skip: integrationSkipReason() }
     await api?.close();
   });
 
-  it('derives balances from completed transactions only: pending and deleted ones move nothing', async () => {
+  it('derives balances from active transactions only: a deleted one moves nothing', async () => {
     const account = await createAccount(api, owner, walletA, { initialBalance: '1000' });
     await transact({ type: 'EXPENSE', fromAccountId: account, categoryId: food, amount: '100.5' });
-    await transact({ type: 'EXPENSE', fromAccountId: account, categoryId: food, amount: '300', status: 'PENDING' });
     const deleted = await transact({ type: 'EXPENSE', fromAccountId: account, categoryId: food, amount: '200' });
     await api.call('POST', `/transactions/${deleted.body!.data.id}/delete`, { token: owner.token, body: {} });
 
     assert.equal(await balanceOf(account), '899.5000');
     const detail = (await api.call('GET', `/accounts/${account}`, { token: owner.token })).body!.data;
     assert.equal(detail.totalExpense, '100.5000');
-    assert.equal(detail.transactionCount, 3, 'every row counts, deleted included (§16.3)');
+    assert.equal(detail.transactionCount, 2, 'every row counts, deleted included (§16.3)');
   });
 
   it('keeps every digit of the largest amount DECIMAL(19,4) allows (rule 1)', async () => {
@@ -126,7 +125,7 @@ describe('the ledger against a real database', { skip: integrationSkipReason() }
     const refused = await api.call('POST', `/transactions/${id}/delete`, { token: helper.token, body: {} });
     assert.deepEqual([refused.status, refused.body?.error?.code], [403, 'FORBIDDEN']);
     const [row] = await api.sql<{ status: string }>('SELECT status FROM transactions WHERE id = $1', [id]);
-    assert.equal(row?.status, 'COMPLETED', 'nothing changes on either wallet');
+    assert.equal(row?.status, 'ACTIVE', 'nothing changes on either wallet');
   });
 
   it('TXN-US-01/04: refuses entries on an archived account or into an archived wallet, and leaves no row', async () => {

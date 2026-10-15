@@ -5,7 +5,7 @@
  * `calculateAccountBalance` / `calculateWalletBalance` in @sora/contracts —
  * the same functions the mobile app uses for optimistic values — rather than by
  * a SQL `SUM`. A SQL aggregate would be a second implementation of the rule
- * "only COMPLETED transactions move a balance, and direction comes from which
+ * "only ACTIVE transactions move a balance, and direction comes from which
  * side names the account", and the two would eventually classify a transfer
  * differently. The cost is that the rows are read rather than folded in the
  * database; at a personal-finance row count that is the right trade.
@@ -96,7 +96,7 @@ export class BalanceService {
     );
   }
 
-  private async balancesForAccounts(
+  async balancesForAccounts(
     accounts: readonly { id: string; wallet_id: string; currency: string; initial_balance: string }[],
     executor?: Executor,
   ): Promise<Map<string, AccountBalance>> {
@@ -192,7 +192,7 @@ export class BalanceService {
     let transferredOut = ZERO;
 
     for (const row of rows) {
-      if (row.status !== TransactionStatus.COMPLETED) continue;
+      if (row.status !== TransactionStatus.ACTIVE) continue;
       const amount = parseMoney(row.amount);
 
       if (row.type === TransactionType.INCOME && row.to_account_id === accountId) {

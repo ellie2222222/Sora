@@ -10,6 +10,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import { sql } from 'kysely';
 
 import {
   ZERO,
@@ -18,6 +19,7 @@ import {
   calculateBudgetSpent,
   calculateBudgetUsage,
   calculateGoalCurrent,
+  dashboardPeriod,
   calculateGoalProgress,
   calculateGoalRemaining,
   countsAsPeriodActivity,
@@ -126,7 +128,7 @@ export class DashboardService {
   }
 
   /**
-   * One pass over the period's completed transactions, producing every figure
+   * One pass over the period's active transactions, producing every figure
    * derived from them: income/expense (and their per-category and per-member
    * splits) and the wallet's transfer flow.
    *
@@ -181,7 +183,7 @@ export class DashboardService {
         'u.id as created_by_user_id',
         'u.display_name as display_name',
       ])
-      .where('t.status', '=', TransactionStatus.COMPLETED)
+      .where('t.status', '=', TransactionStatus.ACTIVE)
       .where('t.transaction_date', '>=', bounds.start)
       .where('t.transaction_date', '<', bounds.end)
       .where((eb) =>
@@ -322,6 +324,7 @@ export class DashboardService {
         'c.color as category_color',
         'u.id as user_id',
         'u.display_name as user_display_name',
+        sql<boolean>`EXISTS (SELECT 1 FROM goal_contributions WHERE goal_contributions.transaction_id = t.id)`.as('backs_contribution'),
       ])
       .where((eb) =>
         eb.or([
@@ -364,6 +367,7 @@ export class DashboardService {
         currency: row.currency,
         description: row.description,
         goalId: row.goal_id,
+        backsContribution: row.backs_contribution,
         transactionDate: row.transaction_date.toISOString(),
         reference: row.reference,
         fromAccount,
@@ -546,24 +550,13 @@ function memberSlices(byMember: ReadonlyMap<string, MemberActivity>): MemberSpen
     }));
 }
 
-/** `dateFrom`/`dateTo` each default independently to a bound of the month containing `today`, the wallet's. */
+/** `dateFrom`/`dateTo` default to the bounds of `today`'s month, the wallet's. */
 function resolvePeriod(query: DashboardQuery, today: string): { dateFrom: string; dateTo: string } {
-  const [year, month] = today.split('-').map(Number) as [number, number];
-  const monthEnd = new Date(Date.UTC(year, month, 0));
-
-  const period = {
-    dateFrom: query.dateFrom ?? `${today.slice(0, 7)}-01`,
-    dateTo: query.dateTo ?? toCalendarDate(monthEnd),
-  };
-  // The schema refuses an inverted pair; a lone bound can still invert against the default other end.
-  if (period.dateFrom > period.dateTo) {
+  const period = dashboardPeriod(today, query.dateFrom, query.dateTo);
+  if (!period) {
     throw new AppError('VALIDATION_FAILED', 'dateFrom must not be after dateTo', { dateTo: ['dateFrom must not be after dateTo'] });
   }
   return period;
-}
-
-function toCalendarDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }
 
 /** The day budgets are judged on: today when the period covers it, else the period's nearest edge, so a past month shows its own budgets. */

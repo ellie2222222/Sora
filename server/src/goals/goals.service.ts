@@ -72,7 +72,7 @@ export class GoalsService {
     request: CreateGoalRequest,
     ip: string | null,
   ): Promise<GoalResponse> {
-    await this.access.requireWritable(user.id, request.walletId, 'EDITOR');
+    const { role } = await this.access.requireWritable(user.id, request.walletId, 'EDITOR');
 
     const row = await this.database.db.transaction().execute(async (trx) => {
       await lockWalletWritable(trx, request.walletId);
@@ -95,6 +95,7 @@ export class GoalsService {
           entityType: ENTITY_TYPES.GOAL,
           entityId: inserted.id,
           actorId: user.id,
+          actorRole: role,
           walletId: request.walletId,
           ip,
         },
@@ -120,7 +121,7 @@ export class GoalsService {
     request: UpdateGoalRequest,
     ip: string | null,
   ): Promise<GoalResponse> {
-    const { goal } = await requireGoalAccess(this.database.db, user.id, goalId, 'EDITOR');
+    const { goal, role } = await requireGoalAccess(this.database.db, user.id, goalId, 'EDITOR');
 
     const row = await this.database.db.transaction().execute(async (trx) => {
       const updated = await trx
@@ -144,6 +145,7 @@ export class GoalsService {
           entityType: ENTITY_TYPES.GOAL,
           entityId: goalId,
           actorId: user.id,
+          actorRole: role,
           walletId: goal.wallet_id,
           ip,
         },
@@ -158,7 +160,7 @@ export class GoalsService {
 
   /** Sets status = CANCELLED. Contributions are retained (§13.5) — they record money that really was set aside. */
   async archive(user: AuthenticatedUser, goalId: string, ip: string | null): Promise<void> {
-    const { goal } = await requireGoalAccess(this.database.db, user.id, goalId, 'EDITOR');
+    const { goal, role } = await requireGoalAccess(this.database.db, user.id, goalId, 'EDITOR');
     if (goal.status === GoalStatus.CANCELLED) return;
 
     await this.database.db.transaction().execute(async (trx) => {
@@ -178,6 +180,7 @@ export class GoalsService {
           entityType: ENTITY_TYPES.GOAL,
           entityId: goalId,
           actorId: user.id,
+          actorRole: role,
           walletId: goal.wallet_id,
           ip,
         },

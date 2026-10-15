@@ -234,7 +234,7 @@ describe('accounts against a real database', { skip: integrationSkipReason() }, 
         async (trx) => {
           await sql`SELECT id FROM accounts WHERE id = ${account} FOR SHARE`.execute(trx);
           await sql`INSERT INTO transactions (created_by_user_id, to_account_id, category_id, type, amount, currency, transaction_date, status)
-                    VALUES (${user.id}, ${account}, ${salary}, 'INCOME', 1, 'VND', ${WHEN}, 'COMPLETED')`.execute(trx);
+                    VALUES (${user.id}, ${account}, ${salary}, 'INCOME', 1, 'VND', ${WHEN}, 'ACTIVE')`.execute(trx);
         },
         () => api.call('PATCH', `/accounts/${account}`, { token: user.token, body: { currency: 'USD' } }),
       );

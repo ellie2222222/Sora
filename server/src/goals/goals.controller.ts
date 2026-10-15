@@ -109,15 +109,4 @@ export class GoalsController {
   ): Promise<ContributionResponse> {
     return this.contributions.create(user, goalId, body, ip);
   }
-
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @Delete(ROUTES.goals.contribution(':id', ':contributionId'))
-  removeContribution(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') goalId: string,
-    @Param('contributionId') contributionId: string,
-    @ClientIp() ip: string | null,
-  ): Promise<void> {
-    return this.contributions.remove(user, goalId, contributionId, ip);
-  }
 }

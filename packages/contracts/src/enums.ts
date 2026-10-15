@@ -72,11 +72,11 @@ export const TransactionType = {
   TRANSFER: 'TRANSFER',
 } as const;
 
-export const TRANSACTION_STATUSES = ['PENDING', 'COMPLETED', 'DELETED'] as const;
+/** A transaction is live or deleted; create never sets it, and only the delete action moves it. */
+export const TRANSACTION_STATUSES = ['ACTIVE', 'DELETED'] as const;
 export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
 export const TransactionStatus = {
-  PENDING: 'PENDING',
-  COMPLETED: 'COMPLETED',
+  ACTIVE: 'ACTIVE',
   DELETED: 'DELETED',
 } as const;
 
@@ -114,6 +114,10 @@ export const ValuationStatus = {
   STALE: 'STALE',
   UNAVAILABLE: 'UNAVAILABLE',
 } as const;
+
+/** How an audited action ended: done, refused by a role check, or failed after it was allowed. */
+export const AUDIT_RESULTS = ['SUCCESS', 'DENIED', 'FAILURE'] as const;
+export type AuditResult = (typeof AUDIT_RESULTS)[number];
 
 /** Who wrote an AI chat message. The system prompt is built per request and never stored. */
 export const AI_MESSAGE_ROLES = ['USER', 'ASSISTANT'] as const;
@@ -181,3 +185,5 @@ export const REQUIRED_ROLE = {
 
 export const DEFAULT_PAGE_SIZE = 25;
 export const MAX_PAGE_SIZE = 200;
+/** Far past any real list, and small enough that the offset it makes stays an exact integer Postgres accepts. */
+export const MAX_PAGE = 1_000_000;

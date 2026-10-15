@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert';
 import { afterEach, describe, it } from 'node:test';
 
 import {
+  dashboardPeriod,
   dayOfInstant,
   dayRange,
   isTimeZone,
@@ -136,7 +137,7 @@ describe('wallet-zone budgets and periods (API spec §12.2)', () => {
   const november = { walletId: 'w1', categoryId: null, categoryIds: [], goalId: null, currency: 'VND', startDate: '2026-11-01', endDate: '2026-11-30', timeZone: VN };
   const expense = (transactionDate: string): SpendRelevantTransaction => ({
     type: TransactionType.EXPENSE,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('1000'),
     currency: 'VND',
     categoryId: 'food',
@@ -159,7 +160,7 @@ describe('wallet-zone budgets and periods (API spec §12.2)', () => {
   });
 
   it('files dashboard period activity by the wallet zone too', () => {
-    const row = { type: TransactionType.EXPENSE, status: TransactionStatus.COMPLETED, transactionDate: '2026-10-31T23:30:00Z' };
+    const row = { type: TransactionType.EXPENSE, status: TransactionStatus.ACTIVE, transactionDate: '2026-10-31T23:30:00Z' };
     assert.equal(countsAsPeriodActivity(row, '2026-11-01', '2026-11-30', VN), true);
     assert.equal(countsAsPeriodActivity(row, '2026-10-01', '2026-10-31', VN), false);
   });
@@ -184,5 +185,18 @@ describe('shared wallet: members whose devices sit in different zones', () => {
     assert.deepEqual(results[1], results[0]);
     assert.deepEqual(results[2], results[0]);
     assert.deepEqual(results[0], ['2026-11-01', '2026-10-31T17:00:00.000Z', false]);
+  });
+});
+
+describe('dashboardPeriod', () => {
+  it("defaults each missing bound to that end of today's month", () => {
+    assert.deepEqual(dashboardPeriod('2026-02-14'), { dateFrom: '2026-02-01', dateTo: '2026-02-28' });
+    assert.deepEqual(dashboardPeriod('2028-02-14', '2028-02-10'), { dateFrom: '2028-02-10', dateTo: '2028-02-29' });
+    assert.deepEqual(dashboardPeriod('2026-12-31', undefined, '2026-12-05'), { dateFrom: '2026-12-01', dateTo: '2026-12-05' });
+  });
+
+  it('refuses a lone bound that crosses the default other end', () => {
+    assert.equal(dashboardPeriod('2026-10-12', '2026-11-03'), null);
+    assert.equal(dashboardPeriod('2026-10-12', undefined, '2026-09-30'), null);
   });
 });

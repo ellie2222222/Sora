@@ -41,7 +41,7 @@ describe('createTransactionSchema — per-type shape', () => {
       transactionDate: baseDate,
     });
     assert.equal(result.success, true, JSON.stringify(issuePaths(result)));
-    assert.equal(result.data?.status, 'COMPLETED', 'status should default to COMPLETED');
+    assert.equal('status' in (result.data ?? {}), false, 'create never takes a status');
     assert.equal(result.data?.amount, '150000', 'amount stays a string');
   });
 
@@ -238,6 +238,16 @@ describe('registerSchema', () => {
     assert.equal(result.success, false);
     assert.ok(issuePaths(result).includes('password'));
   });
+
+  it('caps the email at 254 characters, inside the VARCHAR(255) column', () => {
+    const local = 'a'.repeat(64);
+    const emailOf = (length: number) => `${local}@${'b'.repeat(length - local.length - 1 - '.example'.length)}.example`;
+    const registration = (email: string) => ({ email, password: 'correct-horse-battery', displayName: 'A', timeZone: 'Asia/Ho_Chi_Minh' });
+    assert.equal(emailOf(254).length, 254);
+    assert.equal(registerSchema.safeParse(registration(emailOf(254))).success, true);
+    assert.deepEqual(issuePaths(registerSchema.safeParse(registration(emailOf(256)))), ['email']);
+    assert.deepEqual(issuePaths(inviteMemberSchema.safeParse({ email: emailOf(256), role: 'EDITOR' })), ['email']);
+  });
 });
 
 describe('inviteMemberSchema', () => {
@@ -389,9 +399,20 @@ describe('transactionQuerySchema', () => {
 
   it('accepts pageSize up to the maximum and rejects zero, fractions and a page below 1', () => {
     assert.equal(transactionQuerySchema.safeParse({ pageSize: '200' }).success, true);
-    for (const query of [{ pageSize: '201' }, { pageSize: '0' }, { pageSize: '2.5' }, { page: '0' }]) {
+    // A page past MAX_PAGE would make an offset Postgres can't read (`?page=1e20` was a 500).
+    for (const query of [{ pageSize: '201' }, { pageSize: '0' }, { pageSize: '2.5' }, { page: '0' }, { page: '1000001' }, { page: '1e20' }]) {
       assert.equal(transactionQuerySchema.safeParse(query).success, false, JSON.stringify(query));
     }
+  });
+
+  it('rejects a date that does not exist, which Postgres would answer with a 500 and Date would roll over', () => {
+    for (const dateTo of ['2026-02-30', '2025-02-29', '2026-13-01', '2026-00-10', '2026-04-31', '0000-01-01']) {
+      assert.deepEqual(issuePaths(transactionQuerySchema.safeParse({ dateTo })), ['dateTo'], dateTo);
+    }
+    for (const dateTo of ['2024-02-29', '2000-02-29', '2026-12-31']) {
+      assert.equal(transactionQuerySchema.safeParse({ dateTo }).success, true, dateTo);
+    }
+    assert.equal(transactionQuerySchema.safeParse({ dateTo: '1900-02-29' }).success, false, 'not a leap year');
   });
 
   it('rejects a zero amount filter, since amounts are always positive', () => {
@@ -419,6 +440,16 @@ describe('positiveAmountSchema and signedAmountSchema', () => {
       assert.equal(positiveAmountSchema.safeParse(bad).success, false, `positive ${bad}`);
       assert.equal(signedAmountSchema.safeParse(bad).success, false, `signed ${bad}`);
     }
+  });
+
+  it('refuses a JSON number past 15 significant digits, whose typed digits float64 has already lost', () => {
+    // JSON.parse turns 100000000000000.01 into ...0.0156, which would be stored as ...0.02.
+    for (const lost of [JSON.parse('100000000000000.01'), JSON.parse('1234567890123.4567'), 1e11]) {
+      assert.equal(positiveAmountSchema.safeParse(lost).success, false, `positive ${lost}`);
+      assert.equal(signedAmountSchema.safeParse(-lost).success, false, `signed ${-lost}`);
+    }
+    assert.equal(positiveAmountSchema.parse('100000000000000.01'), '100000000000000.01');
+    assert.equal(positiveAmountSchema.parse(99999999999.9999), '99999999999.9999');
   });
 
   it('strips thousands separators from the returned string, so a comma never reaches the database', () => {
@@ -459,7 +490,6 @@ describe('update schemas', () => {
       goalId: GOAL,
       description: 'Lunch',
       transactionDate: baseDate,
-      status: 'COMPLETED' as const,
       reference: null,
     };
     assert.equal(movesMoney({ description: 'x' }), false);

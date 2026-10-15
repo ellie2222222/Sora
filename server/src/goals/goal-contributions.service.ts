@@ -1,5 +1,5 @@
 /**
- * Goal contributions (§13.6-13.8 of the API specification).
+ * Goal contributions (§13.6-13.7 of the API specification). A contribution is never removed.
  *
  * A contribution recorded with `recordAsTransaction: true` creates its backing
  * EXPENSE transaction and the contribution row in one DB transaction, so the
@@ -13,6 +13,7 @@ import { Injectable } from '@nestjs/common';
 
 import {
   AccountStatus,
+  CategoryStatus,
   CategoryType,
   GoalStatus,
   TransactionStatus,
@@ -29,7 +30,7 @@ import { AppError } from '../common/app-error.ts';
 import type { AuthenticatedUser } from '../common/decorators.ts';
 import { Enveloped, paginated } from '../common/envelope.ts';
 import { DatabaseService } from '../database/database.service.ts';
-import { lockWalletWritable, WalletAccessService } from '../wallets/wallet-access.service.ts';
+import { WalletAccessService } from '../wallets/wallet-access.service.ts';
 import { requireGoalAccess } from './goal-access.ts';
 
 export interface ContributionListQuery {
@@ -145,7 +146,7 @@ export class GoalContributionsService {
             currency: request.currency,
             description: `Contribution to ${goal.name}`,
             transaction_date: request.contributionDate,
-            status: TransactionStatus.COMPLETED,
+            status: TransactionStatus.ACTIVE,
           })
           .returning(['id'])
           .executeTakeFirstOrThrow();
@@ -172,6 +173,7 @@ export class GoalContributionsService {
           entityType: ENTITY_TYPES.GOAL_CONTRIBUTION,
           entityId: contributionRow.id,
           actorId: user.id,
+          actorRole: role,
           walletId: goal.wallet_id,
           ip,
         },
@@ -183,56 +185,6 @@ export class GoalContributionsService {
 
     const [response] = await this.toResponses([row], account.accountName);
     return response!;
-  }
-
-  /** Removes the contribution row outright; a transaction-backed one only flips its backing
-   * transaction's status to deleted — the transaction row itself is never removed (§13.8). */
-  async remove(
-    user: AuthenticatedUser,
-    goalId: string,
-    contributionId: string,
-    ip: string | null,
-  ): Promise<void> {
-    const { goal } = await requireGoalAccess(this.database.db, user.id, goalId, 'EDITOR');
-
-    const contribution = await this.database.db
-      .selectFrom('goal_contributions')
-      .selectAll()
-      .where('id', '=', contributionId)
-      .where('goal_id', '=', goalId)
-      .executeTakeFirst();
-    if (!contribution) throw new AppError('CONTRIBUTION_NOT_FOUND');
-
-    await this.database.db.transaction().execute(async (trx) => {
-      // The backing transaction's row is taken before the contribution's, the order
-      // TransactionsService#delete uses, so the two paths can never deadlock on the pair.
-      if (contribution.transaction_id) {
-        // Deleting the backing transaction is a ledger write, which an archived wallet refuses (§6.5).
-        await lockWalletWritable(trx, goal.wallet_id);
-        await trx
-          .updateTable('transactions')
-          .set({ status: TransactionStatus.DELETED, updated_at: new Date() })
-          .where('id', '=', contribution.transaction_id)
-          .execute();
-      }
-
-      // Conditional on the row still existing: of two concurrent removals, or a removal racing the
-      // backing transaction's delete (which removes this row too), exactly one is applied and audited.
-      const removed = await trx.deleteFrom('goal_contributions').where('id', '=', contributionId).returning('id').executeTakeFirst();
-      if (!removed) throw new AppError('CONTRIBUTION_NOT_FOUND');
-
-      await this.audit.record(
-        {
-          event: AUDIT_EVENTS.GOAL_CONTRIBUTION_REMOVED,
-          entityType: ENTITY_TYPES.GOAL_CONTRIBUTION,
-          entityId: contributionId,
-          actorId: user.id,
-          walletId: goal.wallet_id,
-          ip,
-        },
-        trx,
-      );
-    });
   }
 
   private async toResponses(
@@ -273,7 +225,7 @@ export class GoalContributionsService {
   private async assertExpenseCategory(walletId: string, categoryId: string): Promise<void> {
     const category = await this.database.db
       .selectFrom('categories')
-      .select(['id', 'wallet_id', 'type'])
+      .select(['id', 'wallet_id', 'type', 'status'])
       .where('id', '=', categoryId)
       .executeTakeFirst();
 
@@ -282,5 +234,7 @@ export class GoalContributionsService {
         categoryId: ['Must be an EXPENSE category belonging to this wallet'],
       });
     }
+    // The payment is a new transaction, held to the same rule as one recorded directly (VL-03).
+    if (category.status === CategoryStatus.ARCHIVED) throw new AppError('CATEGORY_ARCHIVED');
   }
 }

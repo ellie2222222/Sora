@@ -104,16 +104,14 @@ describe('budgets and goals against a real database', { skip: integrationSkipRea
     assert.ok(transactionId);
 
     const [backing] = await api.sql<{ type: string; status: string; amount: string }>('SELECT type, status, amount::text FROM transactions WHERE id = $1', [transactionId]);
-    assert.deepEqual(backing, { type: 'EXPENSE', status: 'COMPLETED', amount: '250.0000' });
+    assert.deepEqual(backing, { type: 'EXPENSE', status: 'ACTIVE', amount: '250.0000' });
     assert.equal((await api.call('GET', `/accounts/${account}`, { token: user.token })).body!.data.balance, '4750.0000');
     const advanced = (await api.call('GET', `/goals/${goalId}`, { token: user.token })).body!.data;
     assert.deepEqual([advanced.currentAmount, advanced.progressPercentage, advanced.contributionCount], ['250.0000', 25, 1]);
 
     const removed = await api.call('DELETE', `/goals/${goalId}/contributions/${contribution.body!.data.id}`, { token: user.token });
-    assert.equal(removed.status, 204, 'remove answers 204 No Content (API spec)');
-    const [afterRemove] = await api.sql<{ status: string }>('SELECT status FROM transactions WHERE id = $1', [transactionId]);
-    assert.equal(afterRemove?.status, 'DELETED', 'the backing transaction is marked, never removed');
-    assert.equal((await api.call('GET', `/accounts/${account}`, { token: user.token })).body!.data.balance, '5000.0000');
+    assert.deepEqual([removed.status, removed.body?.error?.code], [404, 'ROUTE_NOT_FOUND'], 'a contribution is never removed');
+    assert.equal((await api.call('GET', `/goals/${goalId}`, { token: user.token })).body!.data.contributionCount, 1);
   });
 
   it('refuses to record a contribution against an archived account', async () => {

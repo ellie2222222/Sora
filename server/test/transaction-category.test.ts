@@ -36,24 +36,31 @@ describe('assertCategoryFits', () => {
 
   for (const [transactionType, categoryType, expected] of cases) {
     it(`${transactionType} with a ${categoryType} category → ${expected ?? 'accepted'}`, () => {
-      const code = codeOf(() => assertCategoryFits({ type: categoryType, wallet_id: WALLET, visibleToCaller: true }, transactionType, WALLET));
+      const code = codeOf(() => assertCategoryFits({ type: categoryType, status: 'ACTIVE', wallet_id: WALLET, visibleToCaller: true }, transactionType, WALLET));
       assert.equal(code, expected);
     });
   }
 
   it("rejects a matching category from another wallet — the leak AC-03's per-wallet check exists to stop", () => {
-    const code = codeOf(() => assertCategoryFits({ type: 'TRANSFER', wallet_id: OTHER_WALLET, visibleToCaller: true }, 'TRANSFER', WALLET));
+    const code = codeOf(() => assertCategoryFits({ type: 'TRANSFER', status: 'ACTIVE', wallet_id: OTHER_WALLET, visibleToCaller: true }, 'TRANSFER', WALLET));
     assert.equal(code, 'CATEGORY_WRONG_WALLET');
   });
 
   it('answers a category in a wallet the caller cannot see as not found, before its type or wallet (AC-01)', () => {
-    const hidden = { type: 'INCOME' as const, wallet_id: OTHER_WALLET, visibleToCaller: false };
+    const hidden = { type: 'INCOME' as const, status: 'ARCHIVED' as const, wallet_id: OTHER_WALLET, visibleToCaller: false };
     assert.equal(codeOf(() => assertCategoryFits(hidden, 'EXPENSE', WALLET)), 'CATEGORY_NOT_FOUND');
     assert.equal(codeOf(() => assertCategoryFits({ ...hidden, type: 'EXPENSE' }, 'EXPENSE', WALLET)), 'CATEGORY_NOT_FOUND');
   });
 
   it('reports a missing category as not found before judging its type', () => {
     assert.equal(codeOf(() => assertCategoryFits(undefined, 'TRANSFER', WALLET)), 'CATEGORY_NOT_FOUND');
+  });
+
+  it('refuses an archived category the request sets, but lets an edit keep the one already stored (VL-03)', () => {
+    const archived = { type: 'EXPENSE' as const, status: 'ARCHIVED' as const, wallet_id: WALLET, visibleToCaller: true };
+    assert.equal(codeOf(() => assertCategoryFits(archived, 'EXPENSE', WALLET)), 'CATEGORY_ARCHIVED');
+    assert.equal(codeOf(() => assertCategoryFits(archived, 'EXPENSE', WALLET, { keepsStored: true })), null);
+    assert.equal(codeOf(() => assertCategoryFits({ ...archived, type: 'INCOME' }, 'EXPENSE', WALLET)), 'CATEGORY_WRONG_TYPE');
   });
 });
 

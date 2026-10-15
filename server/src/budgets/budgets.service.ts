@@ -119,7 +119,7 @@ export class BudgetsService {
     request: CreateBudgetRequest,
     ip: string | null,
   ): Promise<BudgetResponse> {
-    const { timeZone } = await this.access.requireWritable(user.id, request.walletId, 'EDITOR');
+    const { role, timeZone } = await this.access.requireWritable(user.id, request.walletId, 'EDITOR');
     if (request.categoryId != null) {
       await this.assertBudgetableCategory(user.id, request.walletId, request.categoryId);
     }
@@ -155,6 +155,7 @@ export class BudgetsService {
           entityType: ENTITY_TYPES.BUDGET,
           entityId: inserted.id,
           actorId: user.id,
+          actorRole: role,
           walletId: request.walletId,
           ip,
         },
@@ -185,7 +186,7 @@ export class BudgetsService {
     request: UpdateBudgetRequest,
     ip: string | null,
   ): Promise<BudgetResponse> {
-    const { walletId, timeZone } = await this.requireBudgetAccess(user.id, budgetId, 'EDITOR');
+    const { walletId, role, timeZone } = await this.requireBudgetAccess(user.id, budgetId, 'EDITOR');
 
     const row = await this.database.db.transaction().execute(async (trx) => {
       const updated = await translatingPgErrors(() =>
@@ -208,6 +209,7 @@ export class BudgetsService {
           entityType: ENTITY_TYPES.BUDGET,
           entityId: budgetId,
           actorId: user.id,
+          actorRole: role,
           walletId,
           ip,
         },
@@ -222,7 +224,7 @@ export class BudgetsService {
 
   /** Removes the row: a budget only plans, so no balance or other figure is derived from it (§12.5). */
   async delete(user: AuthenticatedUser, budgetId: string, ip: string | null): Promise<void> {
-    const { walletId } = await this.requireBudgetAccess(user.id, budgetId, 'EDITOR');
+    const { walletId, role } = await this.requireBudgetAccess(user.id, budgetId, 'EDITOR');
 
     await this.database.db.transaction().execute(async (trx) => {
       // Of two concurrent deletes only the one that removed the row is audited; the other answers 404.
@@ -235,6 +237,7 @@ export class BudgetsService {
           entityType: ENTITY_TYPES.BUDGET,
           entityId: budgetId,
           actorId: user.id,
+          actorRole: role,
           walletId,
           ip,
         },

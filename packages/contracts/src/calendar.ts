@@ -50,6 +50,22 @@ export function isTimeZone(value: string): boolean {
   }
 }
 
+const CALENDAR_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * A `YYYY-MM-DD` day that exists: Postgres rejects `2026-02-30` or year 0 on a DATE column, and
+ * `Date` silently rolls them into another day, so either way an unchecked one is a wrong answer.
+ */
+export function isCalendarDay(value: string): boolean {
+  const match = CALENDAR_DAY.exec(value);
+  if (!match) return false;
+  const [year, month, day] = match.slice(1).map(Number) as [number, number, number];
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]!;
+  return day <= daysInMonth;
+}
+
 interface WallClock {
   year: number;
   month: number;
@@ -138,6 +154,23 @@ export function nextDay(day: CalendarDay): CalendarDay {
   const date = new Date(`${day}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + 1);
   return date.toISOString().slice(0, 10);
+}
+
+/**
+ * A dashboard read's window: a bound the request leaves out is that end of the month containing
+ * `today`, each independently. Null when the resolved bounds cross, which only a lone bound can do.
+ */
+export function dashboardPeriod(
+  today: CalendarDay,
+  dateFrom?: CalendarDay,
+  dateTo?: CalendarDay,
+): { dateFrom: CalendarDay; dateTo: CalendarDay } | null {
+  const [year, month] = today.split('-').map(Number) as [number, number];
+  const period = {
+    dateFrom: dateFrom ?? `${today.slice(0, 7)}-01`,
+    dateTo: dateTo ?? new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10),
+  };
+  return period.dateFrom > period.dateTo ? null : period;
 }
 
 /**

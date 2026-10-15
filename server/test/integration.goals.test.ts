@@ -207,48 +207,16 @@ describe('goals and contributions against a real database', { skip: integrationS
     assert.equal(stored?.currency, 'VND');
   });
 
-  it('SAV-US-05: answers an unknown contribution with 404 and audits a removal as GOAL_CONTRIBUTION_REMOVED', async () => {
-    const user = await registerProbeUser(api, 'goals-remove');
+  it("never removes a contribution: no route deletes one, and the database refuses the row's delete", async () => {
+    const user = await registerProbeUser(api, 'goals-kept');
     const account = await createAccount(api, user, user.walletId, { initialBalance: '5000' });
     const goalId = await goalOf(user);
-
-    const unknown = await api.call('DELETE', `/goals/${goalId}/contributions/${randomUUID()}`, { token: user.token });
-    assert.deepEqual([unknown.status, unknown.body?.error?.code], [404, 'CONTRIBUTION_NOT_FOUND']);
-
-    const otherGoal = await goalOf(user);
-    const elsewhere = await contribute(user, otherGoal, { accountId: account });
-    const crossGoal = await api.call('DELETE', `/goals/${goalId}/contributions/${elsewhere.body!.data.id}`, { token: user.token });
-    assert.deepEqual([crossGoal.status, crossGoal.body?.error?.code], [404, 'CONTRIBUTION_NOT_FOUND'], 'a contribution is addressed through its own goal');
-
     const contribution = await contribute(user, goalId, { accountId: account });
     const contributionId = contribution.body!.data.id as string;
-    assert.equal((await api.call('DELETE', `/goals/${goalId}/contributions/${contributionId}`, { token: user.token })).status, 204);
-    const rows = await api.sql<{ event: string; result: string; actor_id: string; wallet_id: string }>(
-      'SELECT event, result, actor_id, wallet_id FROM audit_logs WHERE entity_id = $1 ORDER BY id',
-      [contributionId],
-    );
-    assert.deepEqual(
-      rows.map((row) => row.event),
-      ['GOAL_CONTRIBUTION_ADDED', 'GOAL_CONTRIBUTION_REMOVED'],
-    );
-    assert.deepEqual(rows.at(-1), { event: 'GOAL_CONTRIBUTION_REMOVED', result: 'SUCCESS', actor_id: user.id, wallet_id: user.walletId });
-  });
 
-  it('§6.5: in an archived wallet an earmark can still be removed, a transaction-backed contribution cannot', async () => {
-    const user = await registerProbeUser(api, 'goals-archived-wallet');
-    const account = await createAccount(api, user, user.walletId, { initialBalance: '1000' });
-    const food = await categoryOf(api, user, user.walletId, 'EXPENSE');
-    const goalId = await goalOf(user);
-    const backed = await contribute(user, goalId, { accountId: account, recordAsTransaction: true, categoryId: food });
-    const earmark = await contribute(user, goalId, { accountId: account });
-    assert.deepEqual([backed.status, earmark.status], [201, 201]);
-    assert.equal((await api.call('DELETE', `/wallets/${user.walletId}`, { token: user.token })).status, 204);
-
-    const refused = await api.call('DELETE', `/goals/${goalId}/contributions/${backed.body!.data.id}`, { token: user.token });
-    assert.deepEqual([refused.status, refused.body?.error?.code], [409, 'WALLET_ARCHIVED']);
-    assert.deepEqual(await api.sql('SELECT status FROM transactions WHERE id = $1', [backed.body!.data.transactionId]), [{ status: 'COMPLETED' }]);
-
-    const removed = await api.call('DELETE', `/goals/${goalId}/contributions/${earmark.body!.data.id}`, { token: user.token });
-    assert.equal(removed.status, 204);
+    const removed = await api.call('DELETE', `/goals/${goalId}/contributions/${contributionId}`, { token: user.token });
+    assert.deepEqual([removed.status, removed.body?.error?.code], [404, 'ROUTE_NOT_FOUND']);
+    await assert.rejects(api.sql('DELETE FROM goal_contributions WHERE id = $1', [contributionId]), /never removed/);
+    assert.equal((await api.sql('SELECT id FROM goal_contributions WHERE id = $1', [contributionId])).length, 1);
   });
 });

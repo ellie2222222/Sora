@@ -18,7 +18,9 @@ import {
   TransactionStatus,
   TransactionType,
   AccountStatus,
+  CategoryStatus,
   CategoryType,
+  GoalStatus,
   createTransactionSchema,
   mergeTransactionUpdate,
   movesMoney,
@@ -31,6 +33,7 @@ import {
   type TransactionResponse,
   type StoredTransactionFields,
   type UpdateTransactionRequest,
+  type WalletRole,
 } from '@sora/contracts';
 
 import { lockAccountsForWrite } from '../accounts/account-write-lock.ts';
@@ -86,6 +89,7 @@ interface CategoryRow {
   id: string;
   wallet_id: string;
   type: CategoryType;
+  status: CategoryStatus;
 }
 
 interface TransactionJoinRow {
@@ -117,6 +121,7 @@ interface TransactionJoinRow {
   category_icon: string | null;
   category_color: string | null;
   goal_id: string | null;
+  backs_contribution: boolean;
 }
 
 const TRANSACTION_COLUMNS = [
@@ -148,6 +153,11 @@ const TRANSACTION_COLUMNS = [
   'txn_category.icon as category_icon',
   'txn_category.color as category_color',
 ] as const;
+
+// A contribution is never removed, so the payment recording it can't be deleted (§11.5).
+const BACKS_CONTRIBUTION = sql<boolean>`EXISTS (SELECT 1 FROM goal_contributions WHERE goal_contributions.transaction_id = transactions.id)`.as(
+  'backs_contribution',
+);
 
 @Injectable()
 export class TransactionsService {
@@ -183,6 +193,7 @@ export class TransactionsService {
     return this.joinedQuery(executor)
       .select(TRANSACTION_COLUMNS)
       .select(localizedCategoryName('txn_category').as('category_name'))
+      .select(BACKS_CONTRIBUTION)
       .where('transactions.id', '=', transactionId)
       .executeTakeFirst();
   }
@@ -203,11 +214,23 @@ export class TransactionsService {
     return row;
   }
 
+  /**
+   * The row, locked until the edit commits. A concurrent edit waits here and then reads what this one
+   * saved, so neither rebuilds the row from a copy the other has already changed.
+   */
+  private async lockedRow(trx: Transaction<DB>, transactionId: string): Promise<TransactionRow> {
+    const row = await trx.selectFrom('transactions').selectAll().where('id', '=', transactionId).forUpdate().executeTakeFirst();
+    if (!row) throw new AppError('TRANSACTION_NOT_FOUND');
+    return row;
+  }
+
   private async categoryRow(categoryId: string, executor?: Executor): Promise<CategoryRow | undefined> {
     return this.executor(executor)
       .selectFrom('categories')
-      .select(['id', 'wallet_id', 'type'])
+      .select(['id', 'wallet_id', 'type', 'status'])
       .where('id', '=', categoryId)
+      // Inside the write, holds the status checked here until it commits: an archive waits for it.
+      .forShare()
       .executeTakeFirst();
   }
 
@@ -217,8 +240,8 @@ export class TransactionsService {
     return { ...row, visibleToCaller: (await this.access.roleOn(userId, row.wallet_id, executor)) !== null };
   }
 
-  private walletIdsTouched(accessMap: Map<string, AccountAccess>): string[] {
-    return [...new Set([...accessMap.values()].map((access) => access.walletId))];
+  private walletRolesTouched(accessMap: Map<string, AccountAccess>): Map<string, WalletRole> {
+    return new Map([...accessMap.values()].map((access) => [access.walletId, access.role]));
   }
 
   /**
@@ -230,17 +253,18 @@ export class TransactionsService {
     event: (typeof AUDIT_EVENTS)[keyof typeof AUDIT_EVENTS],
     entityId: string,
     actorId: string,
-    walletIds: readonly string[],
+    walletRoles: ReadonlyMap<string, WalletRole>,
     ip: string | null,
     note?: string | null,
   ): Promise<void> {
-    for (const walletId of walletIds) {
+    for (const [walletId, actorRole] of walletRoles) {
       await this.audit.record(
         {
           event,
           entityType: ENTITY_TYPES.TRANSACTION,
           entityId,
           actorId,
+          actorRole,
           walletId,
           ip,
           note: note ?? null,
@@ -308,7 +332,10 @@ export class TransactionsService {
       direction: 'desc',
     });
 
-    let listQuery = builder.select(TRANSACTION_COLUMNS).select(localizedCategoryName('txn_category').as('category_name'));
+    let listQuery = builder
+      .select(TRANSACTION_COLUMNS)
+      .select(localizedCategoryName('txn_category').as('category_name'))
+      .select(BACKS_CONTRIBUTION);
     for (const key of sortKeys) {
       listQuery = listQuery.orderBy(this.database.db.dynamic.ref(key.column), key.direction);
     }
@@ -324,8 +351,16 @@ export class TransactionsService {
     return paginated(rows.map(toTransactionResponse), paginationMeta(filters.page, filters.pageSize, total));
   }
 
-  /** Everything a create checks before writing; an edit that moves money runs it on the merged row. */
-  private async checkWrite(user: AuthenticatedUser, request: CreateTransactionRequest, executor?: Executor): Promise<CheckedWrite> {
+  /**
+   * Everything a create checks before writing; an edit that moves money runs it on the merged row, passing
+   * the stored category and goal it keeps, which may since have been archived or closed.
+   */
+  private async checkWrite(
+    user: AuthenticatedUser,
+    request: CreateTransactionRequest,
+    executor?: Executor,
+    stored: { categoryId: string | null; goalId: string | null } = { categoryId: null, goalId: null },
+  ): Promise<CheckedWrite> {
     if (request.type === TransactionType.TRANSFER && request.fromAccountId === request.toAccountId) {
       throw new AppError('TRANSFER_SAME_ACCOUNT');
     }
@@ -355,11 +390,15 @@ export class TransactionsService {
         'fromAccountId' in request ? request.fromAccountId : null,
         'toAccountId' in request ? request.toAccountId : null,
       );
-      assertCategoryFits(await this.categoryFacts(categoryId, user.id, executor), request.type, accessMap.get(namedAccountId)!.walletId);
+      assertCategoryFits(await this.categoryFacts(categoryId, user.id, executor), request.type, accessMap.get(namedAccountId)!.walletId, {
+        keepsStored: categoryId === stored.categoryId,
+      });
     }
 
     const goalId = request.goalId ?? null;
-    if (goalId !== null) await this.assertGoalTag(request.type, goalId, fromAccess?.walletId ?? null, executor);
+    if (goalId !== null) {
+      await this.assertGoalTag(request.type, goalId, fromAccess?.walletId ?? null, executor, { keepsStored: goalId === stored.goalId });
+    }
 
     return { accountIds, accessMap, categoryId, goalId };
   }
@@ -370,9 +409,9 @@ export class TransactionsService {
     ip: string | null,
     trx?: Transaction<DB>,
   ): Promise<TransactionResponse> {
-    const { accountIds, accessMap, categoryId, goalId } = await this.checkWrite(user, request, trx);
-
+    // Checked inside the write, so the category and goal it share-locks can't be archived or closed before it commits.
     const withTrx = async (t: Transaction<DB>) => {
+      const { accountIds, accessMap, categoryId, goalId } = await this.checkWrite(user, request, t);
       await lockAccountsForWrite(t, accountIds, request.currency);
       const inserted = await t
         .insertInto('transactions')
@@ -387,7 +426,6 @@ export class TransactionsService {
           currency: request.currency,
           description: request.description ?? null,
           transaction_date: request.transactionDate,
-          status: request.status,
           reference: request.reference ?? null,
         })
         .returningAll()
@@ -398,7 +436,7 @@ export class TransactionsService {
         AUDIT_EVENTS.TRANSACTION_CREATED,
         inserted.id,
         user.id,
-        this.walletIdsTouched(accessMap),
+        this.walletRolesTouched(accessMap),
         ip,
       );
       return inserted;
@@ -409,17 +447,22 @@ export class TransactionsService {
     return this.toResponse(row.id, trx);
   }
 
-  /** Only an expense is spending toward a goal, and only toward one of its paying wallet's goals (§11.2). */
+  /**
+   * Only an expense is spending toward a goal, only toward one of its paying wallet's goals, and only an
+   * active one when the request sets the tag; an edit keeping a closed goal's tag still goes through (§11.2).
+   */
   private async assertGoalTag(
     type: TransactionType,
     goalId: string,
     payingWalletId: string | null,
-    executor?: Executor,
+    executor: Executor | undefined,
+    { keepsStored }: { keepsStored: boolean },
   ): Promise<void> {
     if (type !== TransactionType.EXPENSE || payingWalletId === null) {
       throw new AppError('VALIDATION_FAILED', undefined, { goalId: ['Only an expense can be tagged with a goal'] });
     }
-    await requireGoalInWallet(this.executor(executor), payingWalletId, goalId);
+    const status = await requireGoalInWallet(this.executor(executor), payingWalletId, goalId);
+    if (!keepsStored && status !== GoalStatus.ACTIVE) throw new AppError('GOAL_NOT_ACTIVE');
   }
 
   /**
@@ -444,36 +487,55 @@ export class TransactionsService {
     if (roles.every((role) => role === null)) throw new AppError('TRANSACTION_NOT_FOUND');
   }
 
+  /**
+   * The stored row for a write, answered as missing to a caller with no role on either side, as `detail`
+   * does — before its deleted state or its accounts can tell a stranger the id is real (AC-01).
+   */
+  private async visibleRow(user: AuthenticatedUser, transactionId: string): Promise<TransactionRow> {
+    const row = await this.plainRow(transactionId);
+    const accounts = await this.database.db
+      .selectFrom('accounts')
+      .select(['id', 'wallet_id'])
+      .where('id', 'in', accountIdsOfRow(row))
+      .execute();
+    const walletOf = (accountId: string | null) => accounts.find((account) => account.id === accountId)?.wallet_id ?? null;
+    await this.assertVisible(user, { from_wallet_id: walletOf(row.from_account_id), to_wallet_id: walletOf(row.to_account_id) });
+    return row;
+  }
+
   async update(
     user: AuthenticatedUser,
     transactionId: string,
     body: UpdateTransactionRequest,
     ip: string | null,
   ): Promise<TransactionResponse> {
-    const row = await this.plainRow(transactionId);
-    if (row.status === TransactionStatus.DELETED) throw new AppError('TRANSACTION_ALREADY_DELETED');
-
-    const accessMap = await this.access.requireAccountsWritable(user.id, accountIdsOfRow(row));
-
-    if (movesMoney(body)) {
-      return this.updateMovement(user, row, body, accessMap, ip);
-    }
-
-    if (body.categoryId === null) {
-      assertCategoryRemovable(row.type);
-    } else if (body.categoryId !== undefined) {
-      const namedAccountId = categorisedAccountId(row.type, row.from_account_id, row.to_account_id);
-      assertCategoryFits(await this.categoryFacts(body.categoryId, user.id), row.type, accessMap.get(namedAccountId)!.walletId);
-    }
-    if (body.goalId != null) {
-      const payingWalletId = row.from_account_id === null ? null : accessMap.get(row.from_account_id)!.walletId;
-      await this.assertGoalTag(row.type, body.goalId, payingWalletId);
-    }
-
-    const changedFields = Object.keys(body);
+    await this.visibleRow(user, transactionId);
 
     await this.database.db.transaction().execute(async (trx) => {
-      const updated = await trx
+      const row = await this.lockedRow(trx, transactionId);
+      if (row.status === TransactionStatus.DELETED) throw new AppError('TRANSACTION_ALREADY_DELETED');
+
+      const accessMap = await this.access.requireAccountsWritable(user.id, accountIdsOfRow(row), trx);
+
+      if (movesMoney(body)) {
+        await this.updateMovement(trx, user, row, body, accessMap, ip);
+        return;
+      }
+
+      if (body.categoryId === null) {
+        assertCategoryRemovable(row.type);
+      } else if (body.categoryId !== undefined) {
+        const namedAccountId = categorisedAccountId(row.type, row.from_account_id, row.to_account_id);
+        assertCategoryFits(await this.categoryFacts(body.categoryId, user.id, trx), row.type, accessMap.get(namedAccountId)!.walletId, {
+          keepsStored: body.categoryId === row.category_id,
+        });
+      }
+      if (body.goalId != null) {
+        const payingWalletId = row.from_account_id === null ? null : accessMap.get(row.from_account_id)!.walletId;
+        await this.assertGoalTag(row.type, body.goalId, payingWalletId, trx, { keepsStored: body.goalId === row.goal_id });
+      }
+
+      await trx
         .updateTable('transactions')
         .set({
           ...(body.description !== undefined ? { description: body.description } : {}),
@@ -484,19 +546,16 @@ export class TransactionsService {
           updated_at: new Date(),
         })
         .where('id', '=', transactionId)
-        // A delete can commit between the status check above and this write.
-        .where('status', '!=', TransactionStatus.DELETED)
-        .executeTakeFirst();
-      if (updated.numUpdatedRows === 0n) throw new AppError('TRANSACTION_ALREADY_DELETED');
+        .execute();
 
       await this.auditTransaction(
         trx,
         AUDIT_EVENTS.TRANSACTION_UPDATED,
         transactionId,
         user.id,
-        this.walletIdsTouched(accessMap),
+        this.walletRolesTouched(accessMap),
         ip,
-        changedFields.join(', '),
+        Object.keys(body).join(', '),
       );
     });
 
@@ -508,16 +567,20 @@ export class TransactionsService {
    * contribution this payment backs follows it, so the goal's progress keeps matching the ledger.
    */
   private async updateMovement(
+    trx: Transaction<DB>,
     user: AuthenticatedUser,
     row: TransactionRow,
     body: UpdateTransactionRequest,
     currentAccess: Map<string, AccountAccess>,
     ip: string | null,
-  ): Promise<TransactionResponse> {
+  ): Promise<void> {
     const request = createTransactionSchema.parse(mergeTransactionUpdate(storedFields(row), body));
-    const { accountIds, accessMap, categoryId, goalId } = await this.checkWrite(user, request);
+    const { accountIds, accessMap, categoryId, goalId } = await this.checkWrite(user, request, trx, {
+      categoryId: row.category_id,
+      goalId: row.goal_id,
+    });
 
-    const backing = await this.database.db
+    const backing = await trx
       .selectFrom('goal_contributions')
       .innerJoin('goals', 'goals.id', 'goal_contributions.goal_id')
       .select(['goal_contributions.id as id', 'goals.wallet_id as wallet_id', 'goals.currency as currency'])
@@ -533,43 +596,36 @@ export class TransactionsService {
       });
     }
 
-    await this.database.db.transaction().execute(async (trx) => {
-      await lockAccountsForWrite(trx, accountIds, request.currency);
-      const updated = await trx
-        .updateTable('transactions')
-        .set({
-          type: request.type,
-          amount: request.amount,
-          currency: request.currency,
-          from_account_id: request.type === TransactionType.INCOME ? null : request.fromAccountId,
-          to_account_id: request.type === TransactionType.EXPENSE ? null : request.toAccountId,
-          category_id: categoryId,
-          goal_id: goalId,
-          description: request.description ?? null,
-          transaction_date: request.transactionDate,
-          reference: request.reference ?? null,
-          updated_at: new Date(),
-        })
-        .where('id', '=', row.id)
-        // A delete can commit between the status check and this write.
-        .where('status', '!=', TransactionStatus.DELETED)
-        .executeTakeFirst();
-      if (updated.numUpdatedRows === 0n) throw new AppError('TRANSACTION_ALREADY_DELETED');
+    await lockAccountsForWrite(trx, accountIds, request.currency);
+    await trx
+      .updateTable('transactions')
+      .set({
+        type: request.type,
+        amount: request.amount,
+        currency: request.currency,
+        from_account_id: request.type === TransactionType.INCOME ? null : request.fromAccountId,
+        to_account_id: request.type === TransactionType.EXPENSE ? null : request.toAccountId,
+        category_id: categoryId,
+        goal_id: goalId,
+        description: request.description ?? null,
+        transaction_date: request.transactionDate,
+        reference: request.reference ?? null,
+        updated_at: new Date(),
+      })
+      .where('id', '=', row.id)
+      .execute();
 
-      if (backing && payingAccountId !== null) {
-        await trx
-          .updateTable('goal_contributions')
-          .set({ amount: request.amount, account_id: payingAccountId, currency: request.currency })
-          .where('id', '=', backing.id)
-          .execute();
-      }
+    if (backing && payingAccountId !== null) {
+      await trx
+        .updateTable('goal_contributions')
+        .set({ amount: request.amount, account_id: payingAccountId, currency: request.currency })
+        .where('id', '=', backing.id)
+        .execute();
+    }
 
-      // Both the wallets it left and the ones it now touches had money move.
-      const walletIds = this.walletIdsTouched(new Map([...currentAccess, ...accessMap]));
-      await this.auditTransaction(trx, AUDIT_EVENTS.TRANSACTION_UPDATED, row.id, user.id, walletIds, ip, Object.keys(body).join(', '));
-    });
-
-    return this.toResponse(row.id);
+    // Both the wallets it left and the ones it now touches had money move.
+    const walletRoles = this.walletRolesTouched(new Map([...currentAccess, ...accessMap]));
+    await this.auditTransaction(trx, AUDIT_EVENTS.TRANSACTION_UPDATED, row.id, user.id, walletRoles, ip, Object.keys(body).join(', '));
   }
 
   async delete(
@@ -578,14 +634,15 @@ export class TransactionsService {
     body: DeleteTransactionRequest,
     ip: string | null,
   ): Promise<TransactionResponse> {
-    const row = await this.plainRow(transactionId);
+    const row = await this.visibleRow(user, transactionId);
     if (row.status === TransactionStatus.DELETED) throw new AppError('TRANSACTION_ALREADY_DELETED');
 
     const accessMap = await this.access.requireAccountsWritable(user.id, accountIdsOfRow(row));
 
     await this.database.db.transaction().execute(async (trx) => {
-      // The transaction row is locked before the contribution row, the same order
-      // GoalContributionsService#remove takes them in, so the two can never deadlock.
+      const backing = await trx.selectFrom('goal_contributions').select('id').where('transaction_id', '=', transactionId).executeTakeFirst();
+      if (backing) throw new AppError('TRANSACTION_BACKS_CONTRIBUTION');
+
       const deleted = await trx
         .updateTable('transactions')
         .set({ status: TransactionStatus.DELETED, updated_at: new Date() })
@@ -595,15 +652,12 @@ export class TransactionsService {
         .executeTakeFirst();
       if (!deleted) throw new AppError('TRANSACTION_ALREADY_DELETED');
 
-      // A deleted payment must stop crediting whatever goal it was backing (§11.5).
-      await trx.deleteFrom('goal_contributions').where('transaction_id', '=', transactionId).execute();
-
       await this.auditTransaction(
         trx,
         AUDIT_EVENTS.TRANSACTION_DELETED,
         transactionId,
         user.id,
-        this.walletIdsTouched(accessMap),
+        this.walletRolesTouched(accessMap),
         ip,
         body.reason ?? null,
       );
@@ -631,7 +685,6 @@ function storedFields(row: TransactionRow): StoredTransactionFields {
     goalId: row.goal_id,
     description: row.description,
     transactionDate: row.transaction_date.toISOString(),
-    status: row.status,
     reference: row.reference,
   };
 }
@@ -691,6 +744,7 @@ function toTransactionResponse(row: TransactionJoinRow): TransactionResponse {
     currency: row.currency,
     description: row.description,
     goalId: row.goal_id,
+    backsContribution: row.backs_contribution,
     transactionDate: row.transaction_date.toISOString(),
     reference: row.reference,
     fromAccount,

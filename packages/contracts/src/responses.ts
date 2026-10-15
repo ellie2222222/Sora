@@ -10,6 +10,7 @@ import type {
   AiActionStatus,
   AiActionType,
   AiMessageRole,
+  AuditResult,
   AccountType,
   BudgetPeriodType,
   CategoryStatus,
@@ -95,14 +96,15 @@ export const ERROR_CODES = [
   'CATEGORY_ARCHIVED',
   'TRANSACTION_NOT_FOUND',
   'TRANSACTION_ALREADY_DELETED',
+  'TRANSACTION_BACKS_CONTRIBUTION',
   'TRANSFER_SAME_ACCOUNT',
   'TRANSFER_CURRENCY_MISMATCH',
   'BUDGET_NOT_FOUND',
   'BUDGET_PERIOD_OVERLAP',
   'GOAL_NOT_FOUND',
   'GOAL_NOT_ACTIVE',
-  'CONTRIBUTION_NOT_FOUND',
   'RATE_LIMITED',
+  'IDEMPOTENCY_KEY_IN_USE',
   'ROUTE_NOT_FOUND',
   'INTERNAL_ERROR',
   'GOOGLE_TOKEN_INVALID',
@@ -181,14 +183,15 @@ export const ERROR_STATUS: Record<ErrorCode, HttpStatusCode> = {
   CATEGORY_ARCHIVED: HTTP_STATUS.CONFLICT,
   TRANSACTION_NOT_FOUND: HTTP_STATUS.NOT_FOUND,
   TRANSACTION_ALREADY_DELETED: HTTP_STATUS.CONFLICT,
+  TRANSACTION_BACKS_CONTRIBUTION: HTTP_STATUS.CONFLICT,
   TRANSFER_SAME_ACCOUNT: HTTP_STATUS.UNPROCESSABLE_ENTITY,
   TRANSFER_CURRENCY_MISMATCH: HTTP_STATUS.UNPROCESSABLE_ENTITY,
   BUDGET_NOT_FOUND: HTTP_STATUS.NOT_FOUND,
   BUDGET_PERIOD_OVERLAP: HTTP_STATUS.CONFLICT,
   GOAL_NOT_FOUND: HTTP_STATUS.NOT_FOUND,
   GOAL_NOT_ACTIVE: HTTP_STATUS.CONFLICT,
-  CONTRIBUTION_NOT_FOUND: HTTP_STATUS.NOT_FOUND,
   RATE_LIMITED: HTTP_STATUS.TOO_MANY_REQUESTS,
+  IDEMPOTENCY_KEY_IN_USE: HTTP_STATUS.CONFLICT,
   ROUTE_NOT_FOUND: HTTP_STATUS.NOT_FOUND,
   INTERNAL_ERROR: HTTP_STATUS.INTERNAL_SERVER_ERROR,
   GOOGLE_TOKEN_INVALID: HTTP_STATUS.UNAUTHORIZED,
@@ -301,7 +304,7 @@ export interface AccountResponse {
   type: AccountType;
   currency: string;
   initialBalance: MoneyString;
-  /** Derived from completed transactions, never stored. */
+  /** Derived from active transactions, never stored. */
   balance: MoneyString;
   status: AccountStatus;
   createdAt: string;
@@ -358,6 +361,8 @@ export interface TransactionResponse {
   toAccount: TransactionAccountRef | null;
   category: Pick<CategoryResponse, 'id' | 'name' | 'type' | 'icon' | 'color'> | null;
   goalId: string | null;
+  /** Records a goal contribution, which is never removed, so this transaction can't be deleted. */
+  backsContribution: boolean;
   createdBy: Pick<UserResponse, 'id' | 'displayName'>;
   /** True when the two accounts sit in different wallets. */
   isCrossWallet: boolean;
@@ -494,7 +499,7 @@ export interface AuditLogResponse {
   event: string;
   entityType: string;
   entityId: string | null;
-  result: 'SUCCESS' | 'DENIED' | 'FAILURE';
+  result: AuditResult;
   actorId: string | null;
   actorRole: WalletRole | null;
   note: string | null;

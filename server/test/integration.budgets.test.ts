@@ -85,7 +85,7 @@ describe('budgets against a real database', { skip: integrationSkipReason() }, (
     );
   });
 
-  it('BUD-US-02: leaves transfers, income, other categories, deleted and pending rows and other months out of a category budget', async () => {
+  it('BUD-US-02: leaves transfers, income, other categories, deleted rows and other months out of a category budget', async () => {
     const { user, account, category } = await owner('spent-exclusions');
     const cash = await createAccount(api, user, user.walletId);
     const income = await categoryOf(api, user, user.walletId, 'INCOME');
@@ -98,19 +98,18 @@ describe('budgets against a real database', { skip: integrationSkipReason() }, (
     // The API refuses an EXPENSE category on a transfer, but another writer can store one; spent must still skip it (BR-06).
     await api.sql(
       `INSERT INTO transactions (created_by_user_id, from_account_id, to_account_id, category_id, type, amount, currency, transaction_date, status)
-       VALUES ($1, $2, $3, $4, 'TRANSFER', '3000', 'VND', $5, 'COMPLETED')`,
+       VALUES ($1, $2, $3, $4, 'TRANSFER', '3000', 'VND', $5, 'ACTIVE')`,
       [user.id, account, cash, category, IN_NOVEMBER],
     );
     assert.equal((await post(user, { type: 'INCOME', toAccountId: account, categoryId: income, amount: '700' })).status, 201);
     assert.equal((await post(user, { type: 'EXPENSE', fromAccountId: account, categoryId: otherCategory, amount: '11' })).status, 201);
-    assert.equal((await post(user, { type: 'EXPENSE', fromAccountId: account, categoryId: category, amount: '13', status: 'PENDING' })).status, 201);
     assert.equal((await post(user, { type: 'EXPENSE', fromAccountId: account, categoryId: category, amount: '17', transactionDate: '2026-10-31T09:00:00.000Z' })).status, 201);
     const deleted = await post(user, { type: 'EXPENSE', fromAccountId: account, categoryId: category, amount: '19' });
     assert.equal((await api.call('POST', `/transactions/${deleted.body!.data.id}/delete`, { token: user.token, body: {} })).status, 200);
 
     const created = await createBudget(user, { categoryId: category });
     assert.equal(created.status, 201);
-    assert.equal(created.body!.data.spent, '100.0000', 'only the one completed in-window expense of this category counts');
+    assert.equal(created.body!.data.spent, '100.0000', 'only the one active in-window expense of this category counts');
     assert.equal((await api.call('GET', `/budgets/${created.body!.data.id}`, { token: user.token })).body!.data.spent, '100.0000');
   });
 
@@ -198,7 +197,7 @@ describe('budgets against a real database', { skip: integrationSkipReason() }, (
     const again = await api.call('DELETE', `/budgets/${budgetId}`, { token: user.token });
     assert.deepEqual([again.status, again.body?.error?.code], [404, 'BUDGET_NOT_FOUND']);
     const [kept] = await api.sql<{ status: string }>('SELECT status FROM transactions WHERE id = $1', [spent.body!.data.id]);
-    assert.equal(kept?.status, 'COMPLETED', 'deleting a plan touches no transaction');
+    assert.equal(kept?.status, 'ACTIVE', 'deleting a plan touches no transaction');
 
     const replacement = await createBudget(user, { categoryId: category });
     assert.equal(replacement.status, 201, 'a deleted budget no longer occupies the window');

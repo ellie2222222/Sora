@@ -54,6 +54,16 @@ describe('transactions against a real database', { skip: integrationSkipReason()
     assert.deepEqual(audit, [{ actor_id: editor.id, wallet_id: owner.walletId }]);
   });
 
+  it('TXN-US-02: a create never sets a status: every new transaction is ACTIVE, and none is born DELETED', async () => {
+    const user = await registerProbeUser(api, 'txn-status');
+    const account = await createAccount(api, user, user.walletId, { initialBalance: '100' });
+    const food = await categoryOf(api, user, user.walletId, 'EXPENSE');
+    for (const status of [undefined, 'DELETED', 'PENDING', 'COMPLETED']) {
+      const created = await transact(user, { type: 'EXPENSE', fromAccountId: account, categoryId: food, amount: '1', transactionDate: IN_PERIOD, ...(status ? { status } : {}) });
+      assert.deepEqual([created.status, created.body?.data.status, created.body?.data.backsContribution], [201, 'ACTIVE', false], String(status));
+    }
+  });
+
   it('TXN-US-03: refuses a transfer between accounts of different currencies with TRANSFER_CURRENCY_MISMATCH', async () => {
     const user = await registerProbeUser(api, 'txn-fx');
     const vnd = await createAccount(api, user, user.walletId, { initialBalance: '100' });
@@ -144,7 +154,7 @@ describe('transactions against a real database', { skip: integrationSkipReason()
       await post('lunch', { type: 'EXPENSE', fromAccountId: bank, categoryId: food, amount: '40', transactionDate: '2026-05-05T12:00:00.000Z', description: `${tag} lunch` });
       await post('move', { type: 'TRANSFER', fromAccountId: bank, toAccountId: cash, amount: '200', transactionDate: '2026-05-12T10:00:00.000Z' });
       await post('snack', { type: 'EXPENSE', fromAccountId: cash, categoryId: food, amount: '15', transactionDate: '2026-05-20T15:00:00.000Z' });
-      await post('later', { type: 'EXPENSE', fromAccountId: bank, categoryId: food, amount: '700', transactionDate: '2026-06-02T09:00:00.000Z', status: 'PENDING' });
+      await post('later', { type: 'EXPENSE', fromAccountId: bank, categoryId: food, amount: '700', transactionDate: '2026-06-02T09:00:00.000Z' });
       await post('gone', { type: 'EXPENSE', fromAccountId: bank, categoryId: food, amount: '900', transactionDate: '2026-05-25T09:00:00.000Z' });
       await api.call('POST', `/transactions/${ids.gone}/delete`, { token: user.token, body: {} });
     });
@@ -179,7 +189,7 @@ describe('transactions against a real database', { skip: integrationSkipReason()
         [`accountId=${cash}`, [ids.snack, ids.move]],
         [`categoryId=${salary}`, [ids.salary]],
         ['type=TRANSFER', [ids.move]],
-        ['status=PENDING', [ids.later]],
+        ['status=ACTIVE', [ids.later, ids.snack, ids.move, ids.lunch, ids.salary]],
         ['status=DELETED', [ids.gone]],
         ['dateFrom=2026-05-05&dateTo=2026-05-20', [ids.snack, ids.move, ids.lunch]],
         ['minAmount=40&maxAmount=700', [ids.later, ids.move, ids.lunch]],
@@ -199,8 +209,8 @@ describe('transactions against a real database', { skip: integrationSkipReason()
       assert.equal(gone?.status, 'DELETED');
 
       const detail = (await api.call('GET', `/accounts/${bank}`, { token: user.token })).body!.data;
-      assert.equal(detail.totalExpense, '40.0000', 'neither the deleted nor the pending expense counts');
-      assert.equal(detail.balance, '14760.0000');
+      assert.equal(detail.totalExpense, '740.0000', 'the deleted expense does not count');
+      assert.equal(detail.balance, '14060.0000');
       const dash = (await api.call('GET', `/dashboard?walletId=${user.walletId}&dateFrom=${PERIOD.dateFrom}&dateTo=${PERIOD.dateTo}`, { token: user.token })).body!.data;
       assert.deepEqual(dash.expense, [{ currency: 'VND', amount: '55.0000' }]);
     });
@@ -249,6 +259,32 @@ describe('transactions against a real database', { skip: integrationSkipReason()
     assert.deepEqual([cleared.status, cleared.body?.data.category], [200, null]);
   });
 
+  it('VL-03: refuses an archived category or a closed goal a request sets, and lets an edit keep one already stored', async () => {
+    const user = await registerProbeUser(api, 'txn-archived-refs');
+    const account = await createAccount(api, user, user.walletId, { initialBalance: '1000' });
+    const food = await categoryOf(api, user, user.walletId, 'EXPENSE');
+    const retired = (await api.call('POST', '/categories', { token: user.token, body: { walletId: user.walletId, name: `probe-${randomUUID()}`, type: 'EXPENSE' } })).body!.data.id;
+    const goal = (await api.call('POST', '/goals', { token: user.token, body: { walletId: user.walletId, name: `probe-${randomUUID()}`, targetAmount: '500', currency: 'VND' } })).body!.data.id;
+    const filed = await transact(user, { type: 'EXPENSE', fromAccountId: account, categoryId: retired, goalId: goal, amount: '10' });
+    const other = await transact(user, { type: 'EXPENSE', fromAccountId: account, categoryId: food, amount: '10' });
+    assert.deepEqual([filed.status, other.status], [201, 201]);
+
+    assert.equal((await api.call('DELETE', `/categories/${retired}`, { token: user.token })).status, 204);
+    assert.equal((await api.call('DELETE', `/goals/${goal}`, { token: user.token })).status, 204);
+
+    const onArchived = await transact(user, { type: 'EXPENSE', fromAccountId: account, categoryId: retired, amount: '1' });
+    const onClosedGoal = await transact(user, { type: 'EXPENSE', fromAccountId: account, categoryId: food, goalId: goal, amount: '1' });
+    const movedOnto = await api.call('PATCH', `/transactions/${other.body!.data.id}`, { token: user.token, body: { categoryId: retired } });
+    assert.deepEqual([onArchived.status, onArchived.body?.error?.code], [409, 'CATEGORY_ARCHIVED']);
+    assert.deepEqual([onClosedGoal.status, onClosedGoal.body?.error?.code], [409, 'GOAL_NOT_ACTIVE']);
+    assert.deepEqual([movedOnto.status, movedOnto.body?.error?.code], [409, 'CATEGORY_ARCHIVED']);
+
+    // History filed under them stays correctable, money-moving edits included.
+    const corrected = await api.call('PATCH', `/transactions/${filed.body!.data.id}`, { token: user.token, body: { amount: '12', description: 'fixed' } });
+    assert.equal(corrected.status, 200, JSON.stringify(corrected.body));
+    assert.deepEqual([corrected.body!.data.amount, corrected.body!.data.category?.id, corrected.body!.data.goalId], ['12.0000', retired, goal]);
+  });
+
   it('TXN-US-07: audits a correction as TRANSACTION_UPDATED naming the changed fields', async () => {
     const user = await registerProbeUser(api, 'txn-audit');
     const account = await createAccount(api, user, user.walletId, { initialBalance: '100' });
@@ -266,7 +302,7 @@ describe('transactions against a real database', { skip: integrationSkipReason()
     assert.deepEqual(audit[0]!.note.split(/,\s*/).sort(), ['description', 'reference']);
   });
 
-  it('TXN-US-08: deleting the transaction backing a goal contribution removes the contribution and lowers goal progress', async () => {
+  it('TXN-US-08: refuses to delete the transaction backing a goal contribution, which is never removed', async () => {
     const user = await registerProbeUser(api, 'txn-goal');
     const account = await createAccount(api, user, user.walletId, { initialBalance: '5000' });
     const food = await categoryOf(api, user, user.walletId, 'EXPENSE');
@@ -280,14 +316,16 @@ describe('transactions against a real database', { skip: integrationSkipReason()
     const transactionId = contribution.body!.data.transactionId as string;
     assert.equal((await api.call('GET', `/goals/${goalId}`, { token: user.token })).body!.data.currentAmount, '250.0000');
 
-    const deleted = await api.call('POST', `/transactions/${transactionId}/delete`, { token: user.token, body: {} });
-    assert.deepEqual([deleted.status, deleted.body?.data.status], [200, 'DELETED']);
+    const read = await api.call('GET', `/transactions/${transactionId}`, { token: user.token });
+    assert.equal(read.body?.data.backsContribution, true, 'the app reads this to offer no delete');
 
-    assert.deepEqual(await api.sql('SELECT id FROM goal_contributions WHERE id = $1', [contribution.body!.data.id]), []);
-    const listed = await api.call('GET', `/goals/${goalId}/contributions`, { token: user.token });
-    assert.deepEqual(listed.body!.data, []);
-    const fallen = (await api.call('GET', `/goals/${goalId}`, { token: user.token })).body!.data;
-    assert.deepEqual([fallen.currentAmount, fallen.progressPercentage, fallen.contributionCount], ['0.0000', 0, 0]);
-    assert.equal((await api.call('GET', `/accounts/${account}`, { token: user.token })).body!.data.balance, '5000.0000');
+    const refused = await api.call('POST', `/transactions/${transactionId}/delete`, { token: user.token, body: {} });
+    assert.deepEqual([refused.status, refused.body?.error?.code], [409, 'TRANSACTION_BACKS_CONTRIBUTION']);
+
+    const [kept] = await api.sql<{ status: string }>('SELECT status FROM transactions WHERE id = $1', [transactionId]);
+    assert.equal(kept?.status, 'ACTIVE');
+    const held = (await api.call('GET', `/goals/${goalId}`, { token: user.token })).body!.data;
+    assert.deepEqual([held.currentAmount, held.contributionCount], ['250.0000', 1]);
+    assert.equal((await api.call('GET', `/accounts/${account}`, { token: user.token })).body!.data.balance, '4750.0000');
   });
 });

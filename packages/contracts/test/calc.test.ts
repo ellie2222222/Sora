@@ -44,28 +44,28 @@ const LINH_WALLET = 'bbbbbbbb';
 const ledger: BalanceRelevantTransaction[] = [
   {
     type: TransactionType.INCOME,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('15000000'),
     fromAccountId: null,
     toAccountId: VIETCOMBANK,
   },
   {
     type: TransactionType.EXPENSE,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('150000'),
     fromAccountId: VIETCOMBANK,
     toAccountId: null,
   },
   {
     type: TransactionType.EXPENSE,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('1000000'),
     fromAccountId: VIETCOMBANK,
     toAccountId: null,
   },
   {
     type: TransactionType.TRANSFER,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('500000'),
     fromAccountId: VIETCOMBANK,
     toAccountId: TECHCOMBANK,
@@ -92,7 +92,7 @@ describe('calculateAccountBalance', () => {
     const transfer: BalanceRelevantTransaction[] = [
       {
         type: TransactionType.TRANSFER,
-        status: TransactionStatus.COMPLETED,
+        status: TransactionStatus.ACTIVE,
         amount: parseMoney('2000000'),
         fromAccountId: VIETCOMBANK,
         toAccountId: CASH,
@@ -108,15 +108,8 @@ describe('calculateAccountBalance', () => {
     );
   });
 
-  it('ignores PENDING and DELETED rows', () => {
+  it('ignores DELETED rows', () => {
     const noise: BalanceRelevantTransaction[] = [
-      {
-        type: TransactionType.INCOME,
-        status: TransactionStatus.PENDING,
-        amount: parseMoney('9999'),
-        fromAccountId: null,
-        toAccountId: VIETCOMBANK,
-      },
       {
         type: TransactionType.EXPENSE,
         status: TransactionStatus.DELETED,
@@ -156,7 +149,7 @@ describe('calculateWalletBalance', () => {
 const spending: SpendRelevantTransaction[] = [
   {
     type: TransactionType.EXPENSE,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('150000'),
     currency: 'VND',
     categoryId: FOOD,
@@ -166,7 +159,7 @@ const spending: SpendRelevantTransaction[] = [
   },
   {
     type: TransactionType.EXPENSE,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('1000000'),
     currency: 'VND',
     categoryId: FOOD,
@@ -176,7 +169,7 @@ const spending: SpendRelevantTransaction[] = [
   },
   {
     type: TransactionType.TRANSFER,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('2000000'),
     currency: 'VND',
     categoryId: null,
@@ -196,7 +189,7 @@ const spending: SpendRelevantTransaction[] = [
   },
   {
     type: TransactionType.EXPENSE,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('300000'),
     currency: 'VND',
     categoryId: FOOD,
@@ -206,7 +199,7 @@ const spending: SpendRelevantTransaction[] = [
   },
   {
     type: TransactionType.INCOME,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('15000000'),
     currency: 'VND',
     categoryId: SALARY,
@@ -239,7 +232,7 @@ describe('calculateBudgetSpent', () => {
     const lastMoment: SpendRelevantTransaction[] = [
       {
         type: 'EXPENSE',
-        status: 'COMPLETED',
+        status: 'ACTIVE',
         amount: parseMoney('1000'),
         currency: 'VND',
         categoryId: FOOD,
@@ -339,7 +332,7 @@ describe('isWithinPeriod', () => {
 
 describe('countsAsPeriodActivity', () => {
   const august = ['2026-08-01', '2026-08-31', 'UTC'] as const;
-  const base = { status: TransactionStatus.COMPLETED, transactionDate: '2026-08-15T10:00:00Z' };
+  const base = { status: TransactionStatus.ACTIVE, transactionDate: '2026-08-15T10:00:00Z' };
 
   it('admits completed income and expense inside the window', () => {
     assert.equal(countsAsPeriodActivity({ ...base, type: TransactionType.INCOME }, ...august), true);
@@ -350,10 +343,8 @@ describe('countsAsPeriodActivity', () => {
     assert.equal(countsAsPeriodActivity({ ...base, type: TransactionType.TRANSFER }, ...august), false);
   });
 
-  it('excludes pending and deleted rows', () => {
-    const pending = { ...base, type: TransactionType.EXPENSE, status: TransactionStatus.PENDING };
+  it('excludes deleted rows', () => {
     const deleted = { ...base, type: TransactionType.EXPENSE, status: TransactionStatus.DELETED };
-    assert.equal(countsAsPeriodActivity(pending, ...august), false);
     assert.equal(countsAsPeriodActivity(deleted, ...august), false);
   });
 
@@ -367,41 +358,39 @@ describe('transferDirection', () => {
   // VIETCOMBANK/CASH belong to the wallet being reported on; TECHCOMBANK is
   // another person's wallet, the same split the fixture above uses.
   const ownAccounts = new Set([VIETCOMBANK, CASH]);
-  const completedTransfer = { type: TransactionType.TRANSFER, status: TransactionStatus.COMPLETED };
+  const activeTransfer = { type: TransactionType.TRANSFER, status: TransactionStatus.ACTIVE };
 
   it('reports a cross-wallet transfer arriving as IN', () => {
-    const received = { ...completedTransfer, fromAccountId: TECHCOMBANK, toAccountId: VIETCOMBANK };
+    const received = { ...activeTransfer, fromAccountId: TECHCOMBANK, toAccountId: VIETCOMBANK };
     assert.equal(transferDirection(received, ownAccounts), 'IN');
   });
 
   it('reports a cross-wallet transfer leaving as OUT', () => {
-    const sent = { ...completedTransfer, fromAccountId: VIETCOMBANK, toAccountId: TECHCOMBANK };
+    const sent = { ...activeTransfer, fromAccountId: VIETCOMBANK, toAccountId: TECHCOMBANK };
     assert.equal(transferDirection(sent, ownAccounts), 'OUT');
   });
 
   it('reports an internal transfer as neither, rather than as both', () => {
     // Bank → cash inside one wallet: counting it in *and* out would inflate
     // both figures by the same amount for money that never left the wallet.
-    const internal = { ...completedTransfer, fromAccountId: VIETCOMBANK, toAccountId: CASH };
+    const internal = { ...activeTransfer, fromAccountId: VIETCOMBANK, toAccountId: CASH };
     assert.equal(transferDirection(internal, ownAccounts), null);
   });
 
   it('ignores a transfer that touches neither side of this wallet', () => {
-    const elsewhere = { ...completedTransfer, fromAccountId: TECHCOMBANK, toAccountId: 'b0000002' };
+    const elsewhere = { ...activeTransfer, fromAccountId: TECHCOMBANK, toAccountId: 'b0000002' };
     assert.equal(transferDirection(elsewhere, ownAccounts), null);
   });
 
   it('ignores income and expense — those are not transfers', () => {
-    const income = { type: TransactionType.INCOME, status: TransactionStatus.COMPLETED, fromAccountId: null, toAccountId: VIETCOMBANK };
-    const expense = { type: TransactionType.EXPENSE, status: TransactionStatus.COMPLETED, fromAccountId: VIETCOMBANK, toAccountId: null };
+    const income = { type: TransactionType.INCOME, status: TransactionStatus.ACTIVE, fromAccountId: null, toAccountId: VIETCOMBANK };
+    const expense = { type: TransactionType.EXPENSE, status: TransactionStatus.ACTIVE, fromAccountId: VIETCOMBANK, toAccountId: null };
     assert.equal(transferDirection(income, ownAccounts), null);
     assert.equal(transferDirection(expense, ownAccounts), null);
   });
 
-  it('ignores a pending or deleted transfer', () => {
-    const pending = { type: TransactionType.TRANSFER, status: TransactionStatus.PENDING, fromAccountId: VIETCOMBANK, toAccountId: TECHCOMBANK };
+  it('ignores a deleted transfer', () => {
     const deleted = { type: TransactionType.TRANSFER, status: TransactionStatus.DELETED, fromAccountId: VIETCOMBANK, toAccountId: TECHCOMBANK };
-    assert.equal(transferDirection(pending, ownAccounts), null);
     assert.equal(transferDirection(deleted, ownAccounts), null);
   });
 });
@@ -409,7 +398,7 @@ describe('transferDirection', () => {
 describe('budget and goal edges a mutation run found untested', () => {
   const inAugust = (type: TransactionType, categoryId: string): SpendRelevantTransaction => ({
     type,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('2000000'),
     currency: 'VND',
     categoryId,
@@ -444,7 +433,7 @@ describe('budget kinds (API spec §12.2)', () => {
   const laptop = { ...window, walletId: TAM_WALLET, categoryId: null, categoryIds: [], goalId: GOAL };
   const expense = (overrides: Partial<SpendRelevantTransaction>): SpendRelevantTransaction => ({
     type: TransactionType.EXPENSE,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('100'),
     currency: 'VND',
     categoryId: FOOD,
@@ -495,7 +484,7 @@ describe('parent-category budgets', () => {
   ];
   const inCategory = (categoryId: string): SpendRelevantTransaction => ({
     type: TransactionType.EXPENSE,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: parseMoney('100'),
     currency: 'VND',
     categoryId,

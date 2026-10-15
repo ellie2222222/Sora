@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Asserts the contract agrees with the schema (enum tuples vs CHECK constraints, both
- * ways), the API specification (every route documented) and itself (every error code
- * has a status). An enum drift surfaces as a 500 from Postgres, not a validation error.
+ * ways; string lengths vs column sizes), the API specification (its endpoint index and
+ * ROUTES name the same paths) and itself (every error code has a status). An enum drift surfaces as a 500 from Postgres, not a validation error.
  *
  * Reads the migration SQL as text, so it runs in CI with no database.
  *
@@ -11,7 +11,7 @@
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -84,6 +84,7 @@ const ENUM_TO_CONSTRAINT = [
   ['AI_MESSAGE_ROLES', 'chk_ai_message_role'],
   ['AI_ACTION_TYPES', 'chk_ai_message_action_type'],
   ['AI_ACTION_STATUSES', 'chk_ai_message_action_status'],
+  ['AUDIT_RESULTS', 'chk_audit_result'],
 ];
 
 for (const [enumName, constraintName] of ENUM_TO_CONSTRAINT) {
@@ -117,12 +118,19 @@ const routePaths = [...ROUTES_TS.matchAll(/=>\s*[`'"]([/][^`'"\s]*)[`'"]/g)]
 
 const uniqueRoutes = [...new Set(routePaths)];
 
+// The spec's §3 index names each path parameter for what it is ({memberId}, {invId}); compare on shape.
+const shapeOf = (path) => path.replace(/\{[^}]+\}/g, '{}');
+const indexStart = API_SPEC.indexOf('## 3. Endpoint index');
+const indexText = API_SPEC.slice(indexStart, API_SPEC.indexOf('\n---', indexStart));
+const indexedPaths = new Set([...indexText.matchAll(/^\| \d+ \| [A-Z]+ \| `([^`]+)`/gm)].map((m) => shapeOf(m[1])));
+const routeShapes = new Set(uniqueRoutes.map(shapeOf));
+
+check('API_SPECIFICATION.md has an endpoint index', indexedPaths.size > 0);
 for (const route of uniqueRoutes) {
-  // The spec writes path parameters as {id}, {memberId}, {invId} and so on, so
-  // compare on the static segments only.
-  const segments = route.split('/').filter((s) => s.length > 0 && !s.startsWith('{'));
-  const documented = segments.every((segment) => API_SPEC.includes(segment));
-  check(`route ${route} appears in API_SPECIFICATION.md`, documented);
+  check(`route ${route} is in the API specification's endpoint index`, indexedPaths.has(shapeOf(route)));
+}
+for (const path of indexedPaths) {
+  check(`indexed path ${path} is a route in ROUTES`, routeShapes.has(path));
 }
 
 // ---------------------------------------------------------------------------
@@ -223,6 +231,64 @@ if (schemaTranslations !== null) {
     locales.filter((locale) => !contractTranslations.some((row) => row.startsWith(`${key}|${locale}|`))).map((locale) => `${key}/${locale}`),
   );
   check('every starter category is named in every locale', untranslated.length === 0, untranslated.join(', '));
+}
+
+// ---------------------------------------------------------------------------
+// 6. A string the contract admits fits the column that stores it
+// ---------------------------------------------------------------------------
+
+/** Declared length of `table.column`: a number for VARCHAR(n)/CHAR(n), Infinity for TEXT, null if not found. */
+function columnLength(table, column) {
+  const body = SCHEMA_SQL.match(new RegExp(`CREATE TABLE ${table} \\(([\\s\\S]*?)\\n\\);`))?.[1];
+  const type = body?.match(new RegExp(`^\\s*${column}\\s+([A-Z]+)(?:\\((\\d+)\\))?`, 'm'));
+  if (!type) return null;
+  return type[1] === 'TEXT' ? Infinity : Number(type[2]);
+}
+
+function maxLengthOf(schema, field) {
+  const unwrap = (type) => {
+    while (type?._def?.innerType || type?._def?.schema) type = type._def.innerType ?? type._def.schema;
+    return type;
+  };
+  const shape = unwrap(schema)?._def?.shape?.();
+  return unwrap(shape?.[field])?._def?.checks?.find((c) => c.kind === 'max')?.value ?? null;
+}
+
+const schemas = await import(pathToFileURL(join(ROOT, 'packages/contracts/src/schemas.ts')).href);
+
+const STORED_STRINGS = [
+  [['registerSchema', 'loginSchema'], 'email', 'users', 'email'],
+  [['registerSchema'], 'displayName', 'users', 'display_name'],
+  [['createWalletSchema', 'updateWalletSchema'], 'name', 'wallets', 'name'],
+  [['createWalletSchema', 'updateWalletSchema', 'registerSchema', 'googleAuthSchema'], 'timeZone', 'wallets', 'time_zone'],
+  [['inviteMemberSchema'], 'email', 'wallet_invitations', 'invited_email'],
+  [['inviteMemberSchema'], 'relationLabel', 'wallet_invitations', 'relation_label'],
+  [['inviteMemberSchema'], 'relationLabel', 'wallet_members', 'relation_label'],
+  [['createAccountSchema', 'updateAccountSchema'], 'name', 'accounts', 'name'],
+  [['createCategorySchema', 'updateCategorySchema'], 'name', 'categories', 'name'],
+  [['createCategorySchema', 'updateCategorySchema'], 'icon', 'categories', 'icon'],
+  [['createCategorySchema', 'updateCategorySchema'], 'color', 'categories', 'color'],
+  [['createExpenseSchema', 'createIncomeSchema', 'createTransferSchema', 'updateTransactionSchema'], 'description', 'transactions', 'description'],
+  [['createExpenseSchema', 'createIncomeSchema', 'createTransferSchema', 'updateTransactionSchema'], 'reference', 'transactions', 'reference'],
+  [['deleteTransactionSchema'], 'reason', 'audit_logs', 'note'],
+  [['createBudgetSchema', 'updateBudgetSchema'], 'name', 'budgets', 'name'],
+  [['createGoalSchema', 'updateGoalSchema'], 'name', 'goals', 'name'],
+  [['createGoalSchema', 'updateGoalSchema'], 'description', 'goals', 'description'],
+  [['createContributionSchema'], 'note', 'goal_contributions', 'note'],
+  [['createAiConversationSchema'], 'title', 'ai_conversations', 'title'],
+];
+
+for (const [schemaNames, field, table, column] of STORED_STRINGS) {
+  const length = columnLength(table, column);
+  for (const schemaName of schemaNames) {
+    const max = maxLengthOf(schemas[schemaName], field);
+    const label = `${schemaName}.${field} fits ${table}.${column}`;
+    if (max === null || length === null) {
+      check(label, false, `${max === null ? 'no .max() on the field' : 'column not found'}`);
+      continue;
+    }
+    check(label, max <= length, `.max(${max}) but the column holds ${length}`);
+  }
 }
 
 // ---------------------------------------------------------------------------

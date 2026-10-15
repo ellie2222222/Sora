@@ -9,10 +9,8 @@ import {
   categoryOf,
   createAccount,
   integrationSkipReason,
-  openTransaction,
   registerProbeUser,
   startTestApi,
-  stillWaiting,
   whileHeld,
   type TestApi,
 } from './support/integration.ts';
@@ -152,6 +150,32 @@ describe('concurrent writes against a real database', { skip: integrationSkipRea
     assert.deepEqual(await api.sql('SELECT id FROM transactions WHERE from_account_id = $1', [account]), []);
   });
 
+  it('BR-03: an edit waiting on another edit of the same transaction keeps both changes', async () => {
+    const user = await registerProbeUser(api, 'race-edit');
+    const first = await createAccount(api, user, user.walletId, { initialBalance: '1000' });
+    const second = await createAccount(api, user, user.walletId, { initialBalance: '1000' });
+    const food = await categoryOf(api, user, user.walletId, 'EXPENSE');
+    const created = await api.call('POST', '/transactions', {
+      token: user.token,
+      body: { type: 'EXPENSE', fromAccountId: first, categoryId: food, amount: '10', currency: 'VND', transactionDate: WHEN },
+    });
+    const id = created.body!.data.id as string;
+
+    // Another member's amount change, mid-flight: written, not yet committed.
+    const { waited, result } = await whileHeld(
+      api,
+      async (trx) => {
+        await sql`UPDATE transactions SET amount = 25 WHERE id = ${id}`.execute(trx);
+      },
+      () => api.call('PATCH', `/transactions/${id}`, { token: user.token, body: { fromAccountId: second } }),
+    );
+
+    assert.equal(waited, true, 'the edit must wait on the transaction row');
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    const [row] = await api.sql<{ amount: string; from_account_id: string }>('SELECT amount, from_account_id FROM transactions WHERE id = $1', [id]);
+    assert.deepEqual([row!.amount, row!.from_account_id], ['25.0000', second], 'neither edit may undo the other');
+  });
+
   it('a contribution waiting on a goal that is cancelled meanwhile is refused', async () => {
     const user = await registerProbeUser(api, 'race-goal');
     const account = await createAccount(api, user, user.walletId);
@@ -259,47 +283,6 @@ describe('concurrent writes against a real database', { skip: integrationSkipRea
     assert.equal(waited, true, 'the delete must wait on the transaction row');
     assert.deepEqual([result.status, result.body?.error?.code], [409, 'TRANSACTION_ALREADY_DELETED']);
     assert.deepEqual(await api.sql("SELECT id FROM audit_logs WHERE entity_id = $1 AND event = 'TRANSACTION_DELETED'", [id]), []);
-  });
-
-  it('removing a contribution while its backing transaction is being deleted waits instead of deadlocking', async () => {
-    const user = await registerProbeUser(api, 'race-contribution');
-    const account = await createAccount(api, user, user.walletId, { initialBalance: '100' });
-    const food = await categoryOf(api, user, user.walletId, 'EXPENSE');
-    const goalId = (await newGoal(user.token, user.walletId)).body!.data.id as string;
-    const contribution = await api.call('POST', `/goals/${goalId}/contributions`, {
-      token: user.token,
-      body: { accountId: account, amount: '5', currency: 'VND', contributionDate: WHEN, recordAsTransaction: true, categoryId: food },
-    });
-    assert.equal(contribution.status, 201, JSON.stringify(contribution.body));
-    const [backing] = await api.sql<{ transaction_id: string }>('SELECT transaction_id FROM goal_contributions WHERE id = $1', [contribution.body!.data.id]);
-
-    // The transaction delete's order: the transaction row now, its contribution row once the
-    // removal is already waiting. Taken in the opposite order, the two would deadlock.
-    let takeContribution!: () => void;
-    const contributionTurn = new Promise<void>((resolve) => (takeContribution = resolve));
-    let contributionTaken!: Promise<unknown>;
-    const commit = await openTransaction(api, async (trx) => {
-      await sql`UPDATE transactions SET status = 'DELETED' WHERE id = ${backing!.transaction_id}`.execute(trx);
-      contributionTaken = contributionTurn.then(() =>
-        sql`DELETE FROM goal_contributions WHERE transaction_id = ${backing!.transaction_id}`.execute(trx),
-      );
-    });
-
-    let removal: ReturnType<typeof api.call> | undefined;
-    let waited = false;
-    try {
-      removal = api.call('DELETE', `/goals/${goalId}/contributions/${contribution.body!.data.id}`, { token: user.token });
-      waited = await stillWaiting(removal);
-      takeContribution();
-      await contributionTaken;
-    } finally {
-      takeContribution();
-      await commit();
-    }
-
-    assert.equal(waited, true, 'the removal must wait on the transaction row, holding nothing the delete needs');
-    const answered = await removal!;
-    assert.deepEqual([answered.status, answered.body?.error?.code], [404, 'CONTRIBUTION_NOT_FOUND'], 'the delete already took it');
   });
 
   it('§10.4: a permanent delete of a category a budget still names is a 409, not a 500, and goes through once the budget is deleted', async () => {

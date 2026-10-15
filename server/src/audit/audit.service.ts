@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { sql, type Kysely, type Transaction } from 'kysely';
 
-import { nextDay, startOfDay, type AuditLogResponse, type WalletRole } from '@sora/contracts';
+import { nextDay, startOfDay, type AuditLogResponse, type AuditResult, type WalletRole } from '@sora/contracts';
 
 import { DatabaseService } from '../database/database.service.ts';
-import type { AuditResult, DB } from '../database/types.ts';
+import type { DB } from '../database/types.ts';
 import type { AuditEvent, EntityType } from './audit-events.ts';
 
 export interface AuditRecord {
