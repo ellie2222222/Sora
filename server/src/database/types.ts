@@ -17,6 +17,7 @@ import type {
   AiActionStatus,
   AiActionType,
   AiMessageRole,
+  AuditResult,
   AiTransactionDraft,
   BudgetPeriodType,
   CategoryStatus,
@@ -195,7 +196,6 @@ export interface GoalContributionsTable {
   created_at: Timestamp;
 }
 
-export type AuditResult = 'SUCCESS' | 'DENIED' | 'FAILURE';
 
 export interface AuditLogsTable {
   /** BIGSERIAL, read as a string so a 2^53 overflow cannot silently truncate. */
@@ -250,6 +250,18 @@ export interface AiActionPayload {
   categoryName: string;
 }
 
+export interface IdempotencyKeysTable {
+  id: Generated<string>;
+  user_id: string;
+  idempotency_key: string;
+  fingerprint: string;
+  /** Written as a JSON string, so a response that is an array stays one document rather than a Postgres array. */
+  response: ColumnType<unknown, string | null, string | null>;
+  completed_at: Timestamp | null;
+  claimed_at: Timestamp;
+  created_at: Timestamp;
+}
+
 export interface DB {
   users: UsersTable;
   refresh_tokens: RefreshTokensTable;
@@ -267,6 +279,7 @@ export interface DB {
   exchange_rate_snapshots: ExchangeRateSnapshotsTable;
   ai_conversations: AiConversationsTable;
   ai_messages: AiMessagesTable;
+  idempotency_keys: IdempotencyKeysTable;
 }
 
 /** Either the pool or an open transaction, for a helper that runs inside a caller's transaction when given one. */

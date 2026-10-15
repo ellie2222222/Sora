@@ -26,6 +26,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+if (!process.env.DATABASE_URL) {
+  try {
+    process.loadEnvFile(join(ROOT, '.env'));
+  } catch {
+    // .env not present or unreadable, rely on environment
+  }
+}
 const MIGRATIONS_DIR = join(ROOT, 'db/migrations');
 const TESTS_DIR = join(ROOT, 'db/tests');
 

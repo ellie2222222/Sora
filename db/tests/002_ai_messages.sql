@@ -13,16 +13,27 @@ SET client_min_messages = NOTICE;
 
 BEGIN;
 
-CREATE OR REPLACE FUNCTION expect_reject(stmt TEXT, label TEXT) RETURNS void AS $$
+-- Passes only when the named constraint rejects the row: any other error would let a probe pass
+-- while the rule it names enforces nothing. A NOT NULL has no name, so it is 'not null <column>'.
+CREATE OR REPLACE FUNCTION expect_violation(stmt TEXT, expected TEXT, label TEXT) RETURNS void AS $$
+DECLARE
+    violated_constraint TEXT;
+    violated_column TEXT;
+    violated TEXT;
 BEGIN
     BEGIN
         EXECUTE stmt;
     EXCEPTION
-        WHEN others THEN
-            RAISE NOTICE 'PASS  reject  %', label;
-            RETURN;
+        WHEN integrity_constraint_violation THEN
+            GET STACKED DIAGNOSTICS violated_constraint = CONSTRAINT_NAME, violated_column = COLUMN_NAME;
+            violated := COALESCE(NULLIF(violated_constraint, ''), 'not null ' || violated_column);
+            IF violated = expected THEN
+                RAISE NOTICE 'PASS  reject  % (%)', label, violated;
+                RETURN;
+            END IF;
+            RAISE EXCEPTION 'FAIL  % was rejected by % but must be by %', label, violated, expected;
     END;
-    RAISE EXCEPTION 'FAIL  % was ACCEPTED but must be rejected', label;
+    RAISE EXCEPTION 'FAIL  % was ACCEPTED but must be rejected by %', label, expected;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -42,25 +53,25 @@ INSERT INTO users (id, email, password_hash, display_name, base_currency) VALUES
 INSERT INTO ai_conversations (id, user_id, title) VALUES
     ('7c000001-0000-0000-0000-000000000001', '71111111-1111-1111-1111-111111111111', 'Probe chat');
 
-SELECT expect_reject($$
+SELECT expect_violation($$
     INSERT INTO ai_conversations (user_id, title)
     VALUES ('71111111-1111-1111-1111-111111111111', '   ')
-$$, 'ai_conversations: blank title');
+$$, 'chk_ai_conversation_title', 'ai_conversations: blank title');
 
 SELECT expect_accept($$
     INSERT INTO ai_messages (conversation_id, role, content)
     VALUES ('7c000001-0000-0000-0000-000000000001', 'USER', 'Spent 50k on lunch')
 $$, 'ai_messages: plain user message');
 
-SELECT expect_reject($$
+SELECT expect_violation($$
     INSERT INTO ai_messages (conversation_id, role, content)
     VALUES ('7c000001-0000-0000-0000-000000000001', 'SYSTEM', 'x')
-$$, 'ai_messages: unknown role');
+$$, 'chk_ai_message_role', 'ai_messages: unknown role');
 
-SELECT expect_reject($$
+SELECT expect_violation($$
     INSERT INTO ai_messages (conversation_id, role, content)
     VALUES ('7c000001-0000-0000-0000-000000000001', 'USER', '')
-$$, 'ai_messages: empty content');
+$$, 'chk_ai_message_content', 'ai_messages: empty content');
 
 SELECT expect_accept($$
     INSERT INTO ai_messages (conversation_id, role, content, action_type, action_payload, action_status)
@@ -68,28 +79,34 @@ SELECT expect_accept($$
             'CREATE_TRANSACTION', '{}'::jsonb, 'PENDING')
 $$, 'ai_messages: assistant proposes a pending action');
 
-SELECT expect_reject($$
+SELECT expect_violation($$
     INSERT INTO ai_messages (conversation_id, role, content, action_type, action_payload, action_status)
     VALUES ('7c000001-0000-0000-0000-000000000001', 'USER', 'x',
             'CREATE_TRANSACTION', '{}'::jsonb, 'PENDING')
-$$, 'ai_messages: a user message cannot carry an action');
+$$, 'chk_ai_message_action_shape', 'ai_messages: a user message cannot carry an action');
 
-SELECT expect_reject($$
+SELECT expect_violation($$
     INSERT INTO ai_messages (conversation_id, role, content, action_type, action_status)
     VALUES ('7c000001-0000-0000-0000-000000000001', 'ASSISTANT', 'x', 'CREATE_TRANSACTION', 'PENDING')
-$$, 'ai_messages: an action without its payload');
+$$, 'chk_ai_message_action_shape', 'ai_messages: an action without its payload');
 
-SELECT expect_reject($$
+SELECT expect_violation($$
     INSERT INTO ai_messages (conversation_id, role, content, action_type, action_payload, action_status)
     VALUES ('7c000001-0000-0000-0000-000000000001', 'ASSISTANT', 'x',
             'CREATE_TRANSACTION', '{}'::jsonb, 'CONFIRMED')
-$$, 'ai_messages: a confirmed action must name its transaction');
+$$, 'chk_ai_message_action_shape', 'ai_messages: a confirmed action must name its transaction');
 
-SELECT expect_reject($$
+SELECT expect_violation($$
     INSERT INTO ai_messages (conversation_id, role, content, action_type, action_payload, action_status)
     VALUES ('7c000001-0000-0000-0000-000000000001', 'ASSISTANT', 'x',
             'DELETE_EVERYTHING', '{}'::jsonb, 'PENDING')
-$$, 'ai_messages: unknown action type');
+$$, 'chk_ai_message_action_type', 'ai_messages: unknown action type');
+
+SELECT expect_violation($$
+    INSERT INTO ai_messages (conversation_id, role, content, action_type, action_payload, action_status)
+    VALUES ('7c000001-0000-0000-0000-000000000001', 'ASSISTANT', 'x',
+            'CREATE_TRANSACTION', '{}'::jsonb, 'EXPIRED')
+$$, 'chk_ai_message_action_status', 'ai_messages: an action status outside PENDING/CONFIRMED/DISMISSED');
 
 DELETE FROM ai_conversations WHERE id = '7c000001-0000-0000-0000-000000000001';
 DO $$

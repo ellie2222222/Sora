@@ -812,7 +812,9 @@ transactions are marked `DELETED` (the row stays — only the status changes), m
 Two rows that nothing derived reads may be deleted: a category with no transactions and no budget
 on it or any descendant (`DELETE /categories/{id}?mode=permanent`, spec §10.4), and a budget,
 which only plans (`DELETE /budgets/{id}`, spec §12.5). Don't add a path that removes a ledger row
-(transaction, account, contribution) outright.
+(transaction, account, contribution) outright. A transaction is `ACTIVE` or `DELETED`, never created
+deleted. A goal contribution is never removed, edited or cancelled, so the transaction recording one
+refuses a delete (spec §11.5, §13.8); `trg_goal_contribution_kept` refuses its row's `DELETE` in the database.
 
 ### Security Requirements
 

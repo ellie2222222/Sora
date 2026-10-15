@@ -129,7 +129,7 @@ VIEWER  read-only
 
 Rules:
 - `(wallet_id, user_id)` is unique — one role per user per wallet.
-- Exactly one `ACTIVE` `OWNER` row per wallet (the wallet's `owner_user_id` and that row's `user_id` must agree). Enforced with a partial unique index (§14).
+- Exactly one `ACTIVE` `OWNER` row per wallet (the wallet's `owner_user_id` and that row's `user_id` must agree). Enforced with the partial unique index `uq_wallet_single_owner` (§14).
 - A `WalletMember` row is visible to every member of the wallet — you can see who else can see your money — and manageable only by the OWNER, plus by the member themself to leave.
 - Removal sets `status = REVOKED` and keeps the row, so `transactions.created_by_user_id` still resolves to a name. A removed member's past entries must not become anonymous.
 
@@ -281,7 +281,7 @@ TRANSFER
 | currency | CHAR(3) | Yes | Transaction currency |
 | description | VARCHAR(500) | No | User note |
 | transaction_date | TIMESTAMPTZ | Yes | Occurrence time |
-| status | VARCHAR(20) | Yes | PENDING, COMPLETED, CANCELLED |
+| status | VARCHAR(20) | Yes | ACTIVE, DELETED (migration 004); only ACTIVE counts |
 | reference | VARCHAR(100) | No | External/reference ID |
 | created_at | TIMESTAMPTZ | Yes | Creation time |
 | updated_at | TIMESTAMPTZ | Yes | Update time |
@@ -613,320 +613,32 @@ erDiagram
 
 # 14. PostgreSQL Schema
 
-Reproduced from [`db/migrations/001_schema.sql`](../../db/migrations/001_schema.sql), which is the authority. Column defaults (`gen_random_uuid()`, `NOW()`) and the `pgcrypto`/`btree_gist` extension setup are in the migration and omitted here for readability.
+The schema lives only in the migrations; a copy here drifted from them once already. Each table, and
+its constraints and indexes, is declared where this table points.
 
-## Users
+| Table | Declared in |
+|---|---|
+| `users`, `refresh_tokens` | [`001_schema.sql:26`](../../db/migrations/001_schema.sql#L26), [`:58`](../../db/migrations/001_schema.sql#L58) |
+| `wallets`, `wallet_members` (`uq_wallet_single_owner`, `uq_wallet_member`) | [`001_schema.sql:82`](../../db/migrations/001_schema.sql#L82), [`:106`](../../db/migrations/001_schema.sql#L106) |
+| `wallet_invitations` | [`001_schema.sql:140`](../../db/migrations/001_schema.sql#L140) |
+| `accounts` | [`001_schema.sql:172`](../../db/migrations/001_schema.sql#L172) |
+| `categories`, `category_translations` | [`001_schema.sql:202`](../../db/migrations/001_schema.sql#L202), [`:238`](../../db/migrations/001_schema.sql#L238) |
+| `goals` | [`001_schema.sql:331`](../../db/migrations/001_schema.sql#L331) |
+| `transactions` | [`001_schema.sql:364`](../../db/migrations/001_schema.sql#L364) |
+| `budgets` (`excl_budget_*_overlap`) | [`001_schema.sql:439`](../../db/migrations/001_schema.sql#L439) |
+| `goal_contributions` | [`001_schema.sql:500`](../../db/migrations/001_schema.sql#L500) |
+| `audit_logs` | [`001_schema.sql:530`](../../db/migrations/001_schema.sql#L530) |
+| `exchange_rate_snapshots` | [`001_schema.sql:556`](../../db/migrations/001_schema.sql#L556) |
+| `ai_conversations`, `ai_messages` | [`001_schema.sql:580`](../../db/migrations/001_schema.sql#L580), [`:594`](../../db/migrations/001_schema.sql#L594) |
+| `idempotency_keys` | [`003_idempotency_keys.sql:10`](../../db/migrations/003_idempotency_keys.sql#L10) |
 
-```sql
-CREATE TABLE users (
-    id UUID PRIMARY KEY,
-    email VARCHAR(255) NOT NULL,
-    password_hash TEXT NOT NULL,
-    display_name VARCHAR(100) NOT NULL,
-    base_currency CHAR(3) NOT NULL,
-    email_verified_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT chk_user_currency CHECK (base_currency ~ '^[A-Z]{3}$')
-);
-
--- Case-insensitive, so signing up as Foo@x.com collides with foo@x.com. A plain
--- UNIQUE on the column would let both exist and leave login ambiguous.
-CREATE UNIQUE INDEX uq_users_email ON users (LOWER(email));
-```
-
-## Refresh Tokens
-
-```sql
-CREATE TABLE refresh_tokens (
-    id UUID PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token_hash TEXT NOT NULL UNIQUE,
-    expires_at TIMESTAMPTZ NOT NULL,
-    revoked_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
-
-Only the hash is stored, so a database read cannot mint a session.
-
-## Wallets
-
-```sql
-CREATE TABLE wallets (
-    id UUID PRIMARY KEY,
-    owner_user_id UUID NOT NULL REFERENCES users(id),
-    name VARCHAR(100) NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-    time_zone VARCHAR(64) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT chk_wallet_status
-        CHECK (status IN ('ACTIVE', 'ARCHIVED')),
-    CONSTRAINT chk_wallet_time_zone
-        CHECK (is_iana_time_zone(time_zone))
-);
-```
-
-`time_zone` is the IANA zone the wallet's calendar is read in: which day and month each `TIMESTAMPTZ` instant belongs to, and what "today" is, for every member alike (API spec §2.12). Instants are never rewritten and no local date is stored, so changing the zone only re-reads them. `is_iana_time_zone()` checks the name against `pg_timezone_names`.
-
-## Wallet Members
-
-```sql
-CREATE TABLE wallet_members (
-    id UUID PRIMARY KEY,
-    wallet_id UUID NOT NULL REFERENCES wallets(id),
-    user_id UUID NOT NULL REFERENCES users(id),
-
-    role VARCHAR(20) NOT NULL,
-    relation_label VARCHAR(50),
-    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-
-    invited_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    accepted_at TIMESTAMPTZ,
-
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT uq_wallet_member UNIQUE (wallet_id, user_id),
-    CONSTRAINT chk_wallet_member_role
-        CHECK (role IN ('OWNER', 'EDITOR', 'VIEWER')),
-    CONSTRAINT chk_wallet_member_status
-        CHECK (status IN ('PENDING', 'ACCEPTED', 'REVOKED'))
-);
-
--- Exactly one accepted OWNER per wallet.
-CREATE UNIQUE INDEX uq_wallet_single_owner
-    ON wallet_members(wallet_id)
-    WHERE role = 'OWNER' AND status = 'ACCEPTED';
-```
-
-## Accounts
-
-```sql
-CREATE TABLE accounts (
-    id UUID PRIMARY KEY,
-    wallet_id UUID NOT NULL REFERENCES wallets(id),
-    name VARCHAR(100) NOT NULL,
-    type VARCHAR(30) NOT NULL,
-    currency CHAR(3) NOT NULL,
-    initial_balance DECIMAL(19,4) NOT NULL DEFAULT 0,
-    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT chk_account_balance
-        CHECK (initial_balance >= 0),
-
-    CONSTRAINT chk_account_status
-        CHECK (status IN ('ACTIVE', 'ARCHIVED'))
-);
-```
-
-## Categories
-
-```sql
-CREATE TABLE categories (
-    id UUID PRIMARY KEY,
-    wallet_id UUID NOT NULL REFERENCES wallets(id),
-    parent_id UUID REFERENCES categories(id),
-    name VARCHAR(100) NOT NULL,
-    type VARCHAR(20) NOT NULL,
-    icon VARCHAR(50),
-    color VARCHAR(20),
-    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT chk_category_type
-        CHECK (type IN ('INCOME', 'EXPENSE')),
-
-    CONSTRAINT chk_category_status
-        CHECK (status IN ('ACTIVE', 'ARCHIVED'))
-);
-```
-
-## Transactions
-
-```sql
-CREATE TABLE transactions (
-    id UUID PRIMARY KEY,
-    created_by_user_id UUID NOT NULL REFERENCES users(id),
-
-    from_account_id UUID REFERENCES accounts(id),
-    to_account_id UUID REFERENCES accounts(id),
-    category_id UUID REFERENCES categories(id),
-
-    type VARCHAR(20) NOT NULL,
-    amount DECIMAL(19,4) NOT NULL,
-    currency CHAR(3) NOT NULL,
-
-    description VARCHAR(500),
-    transaction_date TIMESTAMPTZ NOT NULL,
-
-    status VARCHAR(20) NOT NULL DEFAULT 'COMPLETED',
-    reference VARCHAR(100),
-
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT chk_transaction_type
-        CHECK (type IN ('INCOME', 'EXPENSE', 'TRANSFER')),
-
-    CONSTRAINT chk_transaction_amount
-        CHECK (amount > 0),
-
-    CONSTRAINT chk_transaction_status
-        CHECK (status IN ('PENDING', 'COMPLETED', 'CANCELLED')),
-
-    CONSTRAINT chk_transaction_accounts
-        CHECK (
-            (type = 'INCOME'
-                AND from_account_id IS NULL
-                AND to_account_id IS NOT NULL)
-            OR
-            (type = 'EXPENSE'
-                AND from_account_id IS NOT NULL
-                AND to_account_id IS NULL)
-            OR
-            (type = 'TRANSFER'
-                AND from_account_id IS NOT NULL
-                AND to_account_id IS NOT NULL
-                AND from_account_id <> to_account_id)
-        )
-);
-```
-
-`category_id` must belong to the same wallet as the transaction's account(s) — this can't be expressed as a single-table `CHECK`, so the service layer must verify it before insert/update.
-
-## Budgets
-
-```sql
--- Abridged from db/migrations/001_schema.sql, which is authoritative.
-CREATE TABLE budgets (
-    id UUID PRIMARY KEY,
-    wallet_id UUID NOT NULL REFERENCES wallets(id),
-    category_id UUID REFERENCES categories(id),
-    goal_id UUID REFERENCES goals(id),
-
-    name VARCHAR(100) NOT NULL,
-    amount DECIMAL(19,4) NOT NULL,
-    currency CHAR(3) NOT NULL,
-
-    period_type VARCHAR(20) NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE,
-
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT chk_budget_amount CHECK (amount > 0),
-    CONSTRAINT chk_budget_period
-        CHECK (period_type IN ('DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY', 'CUSTOM', 'GOAL')),
-    CONSTRAINT chk_budget_dates
-        CHECK (end_date >= start_date),
-    CONSTRAINT chk_budget_end
-        CHECK ((period_type IN ('DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY')) = (end_date IS NULL))
-);
--- Plus chk_budget_kind and the excl_budget_{category,goal,overall}_overlap GIST exclusions.
-```
-
-## Goals
-
-```sql
-CREATE TABLE goals (
-    id UUID PRIMARY KEY,
-    wallet_id UUID NOT NULL REFERENCES wallets(id),
-
-    name VARCHAR(150) NOT NULL,
-    description VARCHAR(500),
-
-    target_amount DECIMAL(19,4) NOT NULL,
-    currency CHAR(3) NOT NULL,
-    target_date DATE,
-
-    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT chk_goal_target CHECK (target_amount > 0),
-    CONSTRAINT chk_goal_status
-        CHECK (status IN ('ACTIVE', 'COMPLETED', 'CANCELLED'))
-);
-```
-
-## Goal Contributions
-
-```sql
-CREATE TABLE goal_contributions (
-    id UUID PRIMARY KEY,
-
-    goal_id UUID NOT NULL REFERENCES goals(id),
-    account_id UUID NOT NULL REFERENCES accounts(id),
-    transaction_id UUID UNIQUE REFERENCES transactions(id),
-
-    amount DECIMAL(19,4) NOT NULL,
-    currency CHAR(3) NOT NULL,
-
-    contribution_date TIMESTAMPTZ NOT NULL,
-    note VARCHAR(500),
-
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT chk_goal_contribution_amount
-        CHECK (amount > 0)
-);
-```
+Later migrations in [`db/migrations/`](../../db/migrations/) amend these; [`db/tests/`](../../db/tests/) probes each constraint.
 
 ---
 
 # 15. Indexes
 
-```sql
-CREATE INDEX idx_wallets_owner
-    ON wallets(owner_user_id);
-
-CREATE INDEX idx_wallet_members_wallet
-    ON wallet_members(wallet_id);
-
-CREATE INDEX idx_wallet_members_user
-    ON wallet_members(user_id);
-
-CREATE INDEX idx_accounts_wallet
-    ON accounts(wallet_id);
-
-CREATE INDEX idx_categories_wallet
-    ON categories(wallet_id);
-
-CREATE INDEX idx_categories_parent
-    ON categories(parent_id);
-
-CREATE INDEX idx_transactions_creator_date
-    ON transactions(created_by_user_id, transaction_date DESC);
-
-CREATE INDEX idx_transactions_from_account
-    ON transactions(from_account_id);
-
-CREATE INDEX idx_transactions_to_account
-    ON transactions(to_account_id);
-
-CREATE INDEX idx_transactions_category_date
-    ON transactions(category_id, transaction_date DESC);
-
-CREATE INDEX idx_budgets_wallet_period
-    ON budgets(wallet_id, start_date, end_date);
-
-CREATE INDEX idx_goals_wallet_status
-    ON goals(wallet_id, status);
-
-CREATE INDEX idx_goal_contributions_goal_date
-    ON goal_contributions(goal_id, contribution_date DESC);
-```
-
-(`uq_wallet_single_owner` and `uq_wallet_member` are declared alongside `wallet_members` in §14.)
+Declared beside their tables in the migrations (§14). `scripts/check-contract-parity.mjs` checks each enum's `chk_` constraint there against `@sora/contracts`.
 
 ---
 

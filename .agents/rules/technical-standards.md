@@ -88,7 +88,37 @@
 - **Immutability**: Applied migrations are immutable. Never edit historical migrations; create a new migration for schema changes.
 - **Data Safety**:
   - Never drop databases, truncate tables, or run unconstrained `DELETE`/`UPDATE` operations.
-  - Financial records are never hard-deleted: wallets, accounts and categories are archived, transactions are marked `DELETED` (the row stays), members are `REVOKED`. The hard deletes are a category with no transactions and no budget on it or any descendant (`DELETE /categories/{id}?mode=permanent`, API spec §10.4) and a budget, which only plans (`DELETE /budgets/{id}`, §12.5).
+  - Financial records are never hard-deleted: wallets, accounts and categories are archived, transactions are marked `DELETED` (the row stays), members are `REVOKED`. The hard deletes are a category with no transactions and no budget on it or any descendant (`DELETE /categories/{id}?mode=permanent`, API spec §10.4) and a budget, which only plans (`DELETE /budgets/{id}`, §12.5). A transaction is `ACTIVE` or `DELETED`, never created deleted. A goal contribution is never removed, edited or cancelled, so the transaction recording one refuses a delete (§11.5, §13.8); `trg_goal_contribution_kept` refuses its row's `DELETE` in the database.
+
+---
+
+## Validation
+
+- **VL-01**: The API is the source of truth. The app validates for feedback only, with the same `@sora/contracts` schema.
+- **VL-02**: Uniqueness is enforced by a `uq_*` index, checked in the service for a clean `409`, and surfaced in the UI.
+- **VL-03**: A referenced entity is verified to exist and be usable: `404` when missing or not visible, `409` when archived, cancelled or deleted.
+- **VL-04**: Amounts are positive, non-zero `DECIMAL(19,4)` strings, compared as scaled `bigint`. Direction comes from `type` and the account side, never a sign. `initialBalance` is the one signed amount.
+
+## Logging & Audit
+
+- **LA-01**: Never logged: passwords, password hashes, access/refresh tokens, invitation tokens. User ids and emails may appear at `INFO`.
+- **LA-02**: Financial mutations and every membership/role change write an `audit_logs` row (`event`, `entity_type`, `entity_id`, `result`, `actor_id`, `actor_role`, `note`, `ip`). A cross-wallet transfer is audited once against each wallet.
+- **LA-03**: `401` and `403` at `WARN` with actor, role and target (AC-05).
+- **LA-04**: `/health` is never logged.
+
+## Configuration
+
+- `server/src/config/env.ts` validates the whole environment at boot and refuses to start on a missing or unusable value. It is what is read; `.env.example` mirrors its names, and a variable exists only once `env.ts` declares it.
+
+## Security
+
+- No secrets in source; `.env` is gitignored and `.env.example` carries names only.
+- Argon2id passwords, length-only policy (12–200), no composition rules.
+- Access tokens 15 min; refresh tokens 7 days, single-use, rotated, hash-only storage. A replayed refresh token revokes the user's whole token family.
+- Identical `401 CREDENTIALS_INVALID` for an unknown email and a wrong password.
+- Rate limits on `/auth/login`, `/auth/register`, `/auth/refresh`, plus per-email lockout.
+- Parameterized SQL only; a hand-built `sql` template must parameterize too.
+- An invitation preview masks `invitedEmail`.
 
 ---
 
