@@ -166,14 +166,15 @@ export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
   CATEGORY_ARCHIVED: 'errors.categoryArchived',
   TRANSACTION_NOT_FOUND: 'errors.transactionNotFound',
   TRANSACTION_ALREADY_DELETED: 'errors.transactionAlreadyDeleted',
+  TRANSACTION_BACKS_CONTRIBUTION: 'errors.transactionBacksContribution',
   TRANSFER_SAME_ACCOUNT: 'errors.transferSameAccount',
   TRANSFER_CURRENCY_MISMATCH: 'errors.transferCurrencyMismatch',
   BUDGET_NOT_FOUND: 'errors.budgetNotFound',
   BUDGET_PERIOD_OVERLAP: 'errors.budgetPeriodOverlap',
   GOAL_NOT_FOUND: 'errors.goalNotFound',
   GOAL_NOT_ACTIVE: 'errors.goalNotActive',
-  CONTRIBUTION_NOT_FOUND: 'errors.contributionNotFound',
   RATE_LIMITED: 'errors.rateLimited',
+  IDEMPOTENCY_KEY_IN_USE: 'errors.idempotencyKeyInUse',
   ROUTE_NOT_FOUND: 'errors.routeNotFound',
   INTERNAL_ERROR: 'errors.internalError',
   GOOGLE_TOKEN_INVALID: 'errors.googleTokenInvalid',
@@ -184,17 +185,17 @@ export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
   AI_ACTION_NOT_PENDING: 'errors.aiActionNotPending',
 };
 
+/** A stored error code's message, e.g. a queued write's last refusal; generic when there is none. */
+export function messageForCode(code: ErrorCode | null, t: TranslationFunction, params?: Record<string, unknown>): string {
+  const key = code === null ? undefined : ERROR_CODE_TO_I18N_KEY[code];
+  return key ? t(key, params) : t('errors.somethingWentWrong');
+}
+
 export function getServerErrorMessage(error: unknown, t: TranslationFunction): string {
   if (isNetworkError(error)) {
     return t('errors.offlineTitle');
   }
-  if (isApiError(error)) {
-    const key = ERROR_CODE_TO_I18N_KEY[error.code];
-    if (key) {
-      return t(key, error.params);
-    }
-  }
-  return t('errors.somethingWentWrong');
+  return messageForCode(isApiError(error) ? error.code : null, t, isApiError(error) ? error.params : undefined);
 }
 
 export function messageOf(

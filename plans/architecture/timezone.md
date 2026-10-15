@@ -1064,32 +1064,34 @@ Do NOT:
 
 The implementation is complete only when all of the following are true:
 
-- [ ] Wallet has an IANA `time_zone`.
-- [ ] Wallet creation defaults timezone from the creator's device.
-- [ ] User can confirm/change the timezone according to existing wallet permissions/UX.
-- [ ] Server validates timezone values.
-- [ ] API exposes wallet timezone.
-- [ ] Shared date calculations accept/use the relevant timezone.
-- [ ] No wallet calendar calculation silently assumes UTC.
-- [ ] Transaction timestamps remain `TIMESTAMPTZ`.
-- [ ] Calendar dates remain `DATE`.
-- [ ] No derived local-date database column is introduced.
-- [ ] Transaction list filtering uses wallet timezone.
-- [ ] Dashboard calculations use wallet timezone.
-- [ ] Budget calculations use wallet timezone.
-- [ ] "Today" uses wallet timezone.
-- [ ] Monthly boundaries use wallet timezone.
-- [ ] Transaction grouping uses wallet timezone.
-- [ ] Date picker semantics are correct for wallet timezone.
-- [ ] Shared wallets produce consistent calendar calculations for all members.
-- [ ] Midnight regression test passes.
-- [ ] Month-boundary regression test passes.
-- [ ] Negative-offset timezone test passes.
-- [ ] DST test passes if supported by the application's test environment.
-- [ ] Existing tests continue to pass.
-- [ ] New tests cover the critical timezone boundaries.
-- [ ] API/spec documentation no longer defines wallet "today" as UTC.
-- [ ] No unnecessary timezone/date refactoring remains.
+- [x] Wallet has an IANA `time_zone`.
+- [x] Wallet creation defaults timezone from the creator's device.
+- [x] User can confirm/change the timezone according to existing wallet permissions/UX.
+- [x] Server validates timezone values.
+- [x] API exposes wallet timezone.
+- [x] Shared date calculations accept/use the relevant timezone.
+- [x] No wallet calendar calculation silently assumes UTC.
+- [x] Transaction timestamps remain `TIMESTAMPTZ`.
+- [x] Calendar dates remain `DATE`.
+- [x] No derived local-date database column is introduced.
+- [x] Transaction list filtering uses wallet timezone.
+- [x] Dashboard calculations use wallet timezone.
+- [x] Budget calculations use wallet timezone.
+- [x] "Today" uses wallet timezone.
+- [x] Monthly boundaries use wallet timezone.
+- [x] Transaction grouping uses wallet timezone.
+- [x] Date picker semantics are correct for wallet timezone.
+- [x] Shared wallets produce consistent calendar calculations for all members.
+- [x] Midnight regression test passes.
+- [x] Month-boundary regression test passes.
+- [x] Negative-offset timezone test passes.
+- [x] DST test passes if supported by the application's test environment.
+- [x] Existing tests continue to pass.
+- [x] New tests cover the critical timezone boundaries.
+- [x] API/spec documentation no longer defines wallet "today" as UTC.
+- [x] No unnecessary timezone/date refactoring remains.
+
+Checked against [`2026-10-06-wallet-time-zone.md`](../../verifications/2026-10-06-wallet-time-zone.md) (calendar, server, database and app suites; the time-zone picker and its copy were not seen on a device) and [`2026-10-12-audit-decisions-remediation.md`](../../verifications/2026-10-12-audit-decisions-remediation.md) (the transaction list and dashboard now follow the wallet's today after mount).
 
 ---
 

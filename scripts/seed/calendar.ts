@@ -83,7 +83,7 @@ export class AnchorError extends Error {}
 
 export interface StoryDates {
   anchor: string;
-  /** History runs H0 … A − 1; nothing COMPLETED is dated on A. */
+  /** History runs H0 … A − 1; nothing is dated on A. */
   historyStart: string;
   historyEnd: string;
   /** The first Monday on or after H0: weekly budgets start here. */
@@ -100,9 +100,9 @@ export interface StoryDates {
   dalatFriday: string;
   hospital: string;
   motorbikeService: string;
-  japan: { transfer: string; flights: string; jrPass: string; exchange: string; departs: string; returns: string; hotelHold: string };
+  japan: { transfer: string; flights: string; jrPass: string; exchange: string; departs: string; returns: string };
   courses: [string, string];
-  motorbike: { firstPayment: string; removedPayment: string; finalPayment: string };
+  motorbike: { firstPayment: string; finalPayment: string };
   guitarCancelled: string;
   birthdayGift: string;
   /** The month whose Rent is booked at 00:10 on the 1st, 17:10Z the day before. */
@@ -178,12 +178,10 @@ export function storyDates(anchor: string): StoryDates {
       exchange: addDays(anchor, -7),
       departs,
       returns: addDays(anchor, 3),
-      hotelHold: addDays(anchor, -2),
     },
     courses: [addMonths(anchor, -7), addMonths(anchor, -3)],
     motorbike: {
       firstPayment: addMonths(anchor, -6),
-      removedPayment: addMonths(anchor, -5),
       finalPayment: addDays(addMonths(anchor, -4), -7),
     },
     guitarCancelled: addMonths(anchor, -3),

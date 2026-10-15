@@ -10,6 +10,8 @@
 import { strict as assert } from 'node:assert';
 import { beforeEach, describe, it } from 'node:test';
 
+import type { TransactionResponse } from '@sora/contracts';
+
 import { ApiError } from '../../utils/errors.ts';
 import { guestStore } from './guestStorage.ts';
 import { GuestUploadCancelledError, UPLOAD_PHASES, uploadGuestData, uploadStatusOf, type UploadApis } from './guestUpload.ts';
@@ -123,7 +125,7 @@ function recordingApis(options: {
         return {
           id: serverId('transaction'),
           type: body.type,
-          status: body.status,
+          status: 'ACTIVE' as const,
           amount: body.amount,
           currency: body.currency,
           description: body.description ?? null,
@@ -133,11 +135,16 @@ function recordingApis(options: {
           toAccount: null,
           category: null,
           goalId: body.goalId ?? null,
+          backsContribution: false,
           createdBy: { id: 'server-user', displayName: 'Real User' },
           isCrossWallet: false,
           createdAt: NOW,
           updatedAt: NOW,
         };
+      },
+      async delete(transactionId) {
+        record('transactions.delete', [transactionId]);
+        return { id: transactionId, status: 'DELETED' } as TransactionResponse;
       },
     },
     budgets: {
@@ -244,7 +251,7 @@ async function seedFullLedger(): Promise<void> {
       {
         id: '3f1a7c62-0000-4000-8000-0000000000t1'.replace('t1', '011'),
         type: 'EXPENSE' as const,
-        status: 'COMPLETED' as const,
+        status: 'ACTIVE' as const,
         amount: '150000',
         currency: 'VND',
         description: 'Lunch',
@@ -374,15 +381,33 @@ describe('uploadGuestData — id remapping', () => {
     assert.equal(Object.keys(progress.contributionMap).length, 1);
   });
 
-  it('preserves the client-supplied date and status rather than re-dating', async () => {
+  it('preserves the client-supplied date rather than re-dating, and sends no status', async () => {
     await seedFullLedger();
     const fake = recordingApis();
 
     await uploadGuestData(TARGET_WALLET, fake.apis);
 
-    const body = fake.of('transactions.create')[0]!.args[0] as { transactionDate: string; status: string };
+    const body = fake.of('transactions.create')[0]!.args[0] as { transactionDate: string };
     assert.equal(body.transactionDate, NOW);
-    assert.equal(body.status, 'COMPLETED');
+    assert.equal('status' in body, false);
+    assert.equal(fake.of('transactions.delete').length, 0, 'nothing in this ledger was deleted');
+  });
+
+  it('creates a deleted guest transaction, then deletes it through the delete action', async () => {
+    await seedFullLedger();
+    await guestStore.mutate((data) => ({
+      ...data,
+      transactions: data.transactions.map((transaction) => ({ ...transaction, status: 'DELETED' as const })),
+    }));
+    const fake = recordingApis();
+
+    await uploadGuestData(TARGET_WALLET, fake.apis);
+
+    const created = fake.of('transactions.create').length;
+    assert.ok(created > 0);
+    assert.equal(fake.of('transactions.delete').length, created);
+    const order = fake.calls.map((call) => call.method);
+    assert.ok(order.indexOf('transactions.create') < order.indexOf('transactions.delete'));
   });
 });
 
@@ -566,7 +591,7 @@ describe('uploadGuestData — contribution-backed transactions', () => {
         {
           id: backingId,
           type: 'EXPENSE' as const,
-          status: 'COMPLETED' as const,
+          status: 'ACTIVE' as const,
           amount: '900000',
           currency: 'VND',
           description: 'Contribution to Laptop',

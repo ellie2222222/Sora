@@ -10,6 +10,7 @@ import {
   withYear,
   addQuarters,
   addWeeks,
+  chosenDay,
   dayOfInstant,
   endOfMonth,
   endOfQuarter,
@@ -297,5 +298,12 @@ describe('monthTick', () => {
     assert.equal(monthTick(3, 'ru'), monthName(3, 'ru'));
     assert.equal(monthTick(10, 'vi'), '10');
     assert.equal(monthTick(10, 'ja'), '10月');
+  });
+});
+
+describe('chosenDay', () => {
+  it("follows the wallet's today unless another day was picked", () => {
+    assert.equal(chosenDay('2026-10-12', '2026-10-12'), null);
+    assert.equal(chosenDay('2026-09-30', '2026-10-12'), '2026-09-30');
   });
 });

@@ -39,7 +39,6 @@ function expense(overrides: Partial<CreateTransactionRequest> = {}): CreateTrans
     amount: '150000',
     currency: 'VND',
     transactionDate: '2026-09-06T10:00:00.000Z',
-    status: 'COMPLETED',
     ...overrides,
   } as CreateTransactionRequest;
 }
@@ -52,7 +51,6 @@ function income(overrides: Partial<CreateTransactionRequest> = {}): CreateTransa
     amount: '500000',
     currency: 'VND',
     transactionDate: '2026-09-05T10:00:00.000Z',
-    status: 'COMPLETED',
     ...overrides,
   } as CreateTransactionRequest;
 }
@@ -104,9 +102,9 @@ describe('guestDashboardApi.summary — period totals', () => {
     assert.deepEqual(summary.expense, [{ currency: 'VND', amount: '3000.0000' }]);
   });
 
-  it('leaves pending and deleted rows out of every period figure', async () => {
-    await guestTransactionsApi.create(expense({ status: 'PENDING' }));
-    await guestTransactionsApi.create(expense({ status: 'DELETED' }));
+  it('leaves deleted rows out of every period figure', async () => {
+    const deleted = await guestTransactionsApi.create(expense());
+    await guestTransactionsApi.delete(deleted.id);
 
     const summary = await guestDashboardApi.summary(SEPTEMBER);
 
@@ -136,6 +134,13 @@ describe('guestDashboardApi.summary — period totals', () => {
     await withFreshStore();
     await assert.rejects(guestDashboardApi.summary(SEPTEMBER), (error) => isApiError(error) && error.code === 'WALLET_NOT_FOUND');
   });
+
+  it('refuses a lone dateFrom after the default end of this month, as the server does', async () => {
+    await assert.rejects(
+      guestDashboardApi.summary({ walletId: WALLET_ID, dateFrom: '2999-01-01' }),
+      (error) => isApiError(error) && error.code === 'VALIDATION_FAILED',
+    );
+  });
 });
 
 describe('guestDashboardApi.summary — transfers (BR-06)', () => {
@@ -147,7 +152,6 @@ describe('guestDashboardApi.summary — transfers (BR-06)', () => {
       amount: '400000',
       currency: 'VND',
       transactionDate: '2026-09-10T10:00:00.000Z',
-      status: 'COMPLETED',
     });
 
     const summary = await guestDashboardApi.summary(SEPTEMBER);
@@ -166,7 +170,6 @@ describe('guestDashboardApi.summary — transfers (BR-06)', () => {
       amount: '400000',
       currency: 'VND',
       transactionDate: '2026-09-10T10:00:00.000Z',
-      status: 'COMPLETED',
     });
 
     const summary = await guestDashboardApi.summary(SEPTEMBER);

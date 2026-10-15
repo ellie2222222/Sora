@@ -22,6 +22,8 @@ import {
   TransactionType,
   TransactionStatus,
   AccountStatus,
+  CategoryStatus,
+  GoalStatus,
   type BalanceRelevantTransaction,
   type CreateTransactionRequest,
   type PaginationMeta,
@@ -72,13 +74,24 @@ export function toSpendRelevant(transaction: GuestTransaction, walletId: string)
   };
 }
 
-/** API spec §11.2: only an expense carries a goal, and only one of the wallet's own goals. */
-function assertGoalTag(type: TransactionType, goalId: string, walletId: string): void {
+/**
+ * API spec §11.2: only an expense carries a goal, only one of the wallet's own goals, and only an active
+ * one when the request sets the tag; an edit keeping a closed goal's tag still goes through.
+ */
+function assertGoalTag(type: TransactionType, goalId: string, walletId: string, keepsStored: boolean): void {
   if (type !== TransactionType.EXPENSE) {
     throw guestError('VALIDATION_FAILED', { goalId: ['Only an expense can be tagged with a goal'] });
   }
   const goal = guestStore.current().goals.find((candidate) => candidate.id === goalId);
   if (!goal || goal.walletId !== walletId) throw guestError('GOAL_NOT_FOUND');
+  if (!keepsStored && goal.status !== GoalStatus.ACTIVE) throw guestError('GOAL_NOT_ACTIVE');
+}
+
+/** Mirrors `assertCategoryFits` on the server: an archived category is refused only when the request sets it. */
+function assertCategoryFits(category: GuestCategory, type: TransactionType, walletId: string, keepsStored: boolean): void {
+  if (category.type !== type) throw guestError('CATEGORY_WRONG_TYPE');
+  if (category.walletId !== walletId) throw guestError('CATEGORY_WRONG_WALLET');
+  if (!keepsStored && category.status === CategoryStatus.ARCHIVED) throw guestError('CATEGORY_ARCHIVED');
 }
 
 function requireWallet(): GuestWallet {
@@ -126,6 +139,11 @@ function categoryRef(category: GuestCategory) {
   };
 }
 
+/** A contribution is never removed, so the payment recording it can't be deleted (§11.5). */
+function backsContribution(transactionId: string): boolean {
+  return guestStore.current().contributions.some((contribution) => contribution.transactionId === transactionId);
+}
+
 export function toTransactionResponse(
   transaction: GuestTransaction,
   accounts: readonly GuestAccount[],
@@ -149,6 +167,7 @@ export function toTransactionResponse(
       : null,
     category: transaction.categoryId ? categoryRef(findCategory(categories, transaction.categoryId)) : null,
     goalId: transaction.goalId,
+    backsContribution: backsContribution(transaction.id),
     createdBy: GUEST_USER,
     // Guest mode is single-wallet by scope decision — a transaction here can
     // never name two different wallets the way a real transfer can (BR-02).
@@ -211,7 +230,11 @@ function applySort(transactions: readonly GuestTransaction[], sortBy: string): G
 }
 
 /** Mirrors `transactions.service.ts`'s `checkWrite`: everything a create checks, which a money edit reruns. */
-function checkWrite(request: CreateTransactionRequest, wallet: GuestWallet): { categoryId: string | null; goalId: string | null } {
+function checkWrite(
+  request: CreateTransactionRequest,
+  wallet: GuestWallet,
+  stored: { categoryId: string | null; goalId: string | null } = { categoryId: null, goalId: null },
+): { categoryId: string | null; goalId: string | null } {
   if (request.type === TransactionType.TRANSFER && request.fromAccountId === request.toAccountId) {
     throw guestError('TRANSFER_SAME_ACCOUNT');
   }
@@ -236,12 +259,10 @@ function checkWrite(request: CreateTransactionRequest, wallet: GuestWallet): { c
 
   const categoryId = request.categoryId ?? null;
   if (categoryId !== null) {
-    const category = findCategory(categories, categoryId);
-    if (category.type !== request.type) throw guestError('CATEGORY_WRONG_TYPE');
-    if (category.walletId !== wallet.id) throw guestError('CATEGORY_WRONG_WALLET');
+    assertCategoryFits(findCategory(categories, categoryId), request.type, wallet.id, categoryId === stored.categoryId);
   }
   const goalId = request.goalId ?? null;
-  if (goalId !== null) assertGoalTag(request.type, goalId, wallet.id);
+  if (goalId !== null) assertGoalTag(request.type, goalId, wallet.id, goalId === stored.goalId);
 
   return { categoryId, goalId };
 }
@@ -255,7 +276,7 @@ function parseCreate(body: unknown): CreateTransactionRequest {
 /** Mirrors `transactions.service.ts`'s `updateMovement`: the merged transaction is checked as a create. */
 async function updateMovement(existing: GuestTransaction, patch: UpdateTransactionRequest, wallet: GuestWallet): Promise<TransactionResponse> {
   const request = parseCreate(mergeTransactionUpdate(existing, patch));
-  const { categoryId, goalId } = checkWrite(request, wallet);
+  const { categoryId, goalId } = checkWrite(request, wallet, { categoryId: existing.categoryId, goalId: existing.goalId });
 
   const { contributions, goals } = guestStore.current();
   const backing = contributions.find((contribution) => contribution.transactionId === existing.id);
@@ -333,7 +354,7 @@ export const guestTransactionsApi = {
     const transaction: GuestTransaction = {
       id: newLocalId(),
       type: request.type,
-      status: request.status,
+      status: TransactionStatus.ACTIVE,
       amount: request.amount,
       currency: request.currency,
       description: request.description ?? null,
@@ -371,11 +392,9 @@ export const guestTransactionsApi = {
     if (patch.categoryId === null) {
       if (existing.type !== TransactionType.TRANSFER) throw guestError('CATEGORY_WRONG_TYPE');
     } else if (patch.categoryId !== undefined) {
-      const category = findCategory(categories, patch.categoryId);
-      if (category.type !== existing.type) throw guestError('CATEGORY_WRONG_TYPE');
-      if (category.walletId !== wallet.id) throw guestError('CATEGORY_WRONG_WALLET');
+      assertCategoryFits(findCategory(categories, patch.categoryId), existing.type, wallet.id, patch.categoryId === existing.categoryId);
     }
-    if (patch.goalId != null) assertGoalTag(existing.type, patch.goalId, wallet.id);
+    if (patch.goalId != null) assertGoalTag(existing.type, patch.goalId, wallet.id, patch.goalId === existing.goalId);
 
     const updated: GuestTransaction = {
       ...existing,
@@ -403,6 +422,7 @@ export const guestTransactionsApi = {
     const existing = transactions.find((candidate) => candidate.id === transactionId);
     if (!existing) throw guestError('TRANSACTION_NOT_FOUND');
     if (existing.status === TransactionStatus.DELETED) throw guestError('TRANSACTION_ALREADY_DELETED');
+    if (backsContribution(transactionId)) throw guestError('TRANSACTION_BACKS_CONTRIBUTION');
 
     const deleted: GuestTransaction = { ...existing, status: TransactionStatus.DELETED, updatedAt: new Date().toISOString() };
 
@@ -411,10 +431,6 @@ export const guestTransactionsApi = {
       transactions: current.transactions.map((candidate) =>
         candidate.id === transactionId ? deleted : candidate,
       ),
-      // A deleted payment stops crediting whatever goal it was backing
-      // (§11.5) — mirrors transactions.service.ts's `delete()` deleting the
-      // linked `goal_contributions` row.
-      contributions: current.contributions.filter((contribution) => contribution.transactionId !== transactionId),
     }));
 
     return toTransactionResponse(deleted, data.accounts, data.categories, wallet);

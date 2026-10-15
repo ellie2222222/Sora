@@ -178,7 +178,6 @@ describe('guestCategoriesApi.deletePermanently', () => {
       amount: '150000',
       currency: 'VND',
       transactionDate: '2026-09-05T10:00:00.000Z',
-      status: 'COMPLETED',
     });
 
     assert.equal(await codeOf(() => guestCategoriesApi.deletePermanently(EXPENSE_CATEGORY_ID)), 'CATEGORY_HAS_TRANSACTIONS');
@@ -194,7 +193,6 @@ describe('guestCategoriesApi.deletePermanently', () => {
       amount: '1000',
       currency: 'VND',
       transactionDate: '2026-09-05T10:00:00.000Z',
-      status: 'COMPLETED',
     });
 
     assert.equal(await codeOf(() => guestCategoriesApi.deletePermanently(EXPENSE_CATEGORY_ID)), 'CATEGORY_HAS_TRANSACTIONS');

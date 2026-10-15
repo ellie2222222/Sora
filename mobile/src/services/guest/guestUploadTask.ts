@@ -91,6 +91,4 @@ export function createGuestUploadTask() {
   };
 }
 
-export type GuestUploadTask = ReturnType<typeof createGuestUploadTask>;
-
 export const guestUploadTask = createGuestUploadTask();

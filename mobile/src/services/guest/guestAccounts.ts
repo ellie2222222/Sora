@@ -105,7 +105,7 @@ export const guestAccountsApi = {
     let transferredOut = ZERO;
 
     for (const transaction of touching) {
-      if (transaction.status !== TransactionStatus.COMPLETED) continue;
+      if (transaction.status !== TransactionStatus.ACTIVE) continue;
       const amount = parseMoney(transaction.amount);
       if (transaction.type === TransactionType.INCOME && transaction.toAccountId === accountId) {
         totalIncome = add(totalIncome, amount);

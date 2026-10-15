@@ -38,7 +38,7 @@ export async function seedAiConversation(api: SeedApi, seeder: Seeder, ledger: L
     seq: Number.MAX_SAFE_INTEGER,
     by: 'an',
     type: 'EXPENSE',
-    status: 'COMPLETED',
+    status: 'ACTIVE',
     from: 'momo',
     to: null,
     amount: parseMoney(transaction.amount),

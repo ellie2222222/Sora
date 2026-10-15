@@ -80,8 +80,8 @@ export class Verifier {
     for (const row of ledger.rows) {
       if (row.contribution) continue;
       const mistake = row.mistake;
-      const status = mistake?.kind === 'duplicate' ? 'COMPLETED' : row.status;
-      if (status !== 'COMPLETED') continue;
+      const status = mistake?.kind === 'duplicate' ? 'ACTIVE' : row.status;
+      if (status !== 'ACTIVE') continue;
       applyRow(balances, { type: mistake?.type ?? row.type, from: row.from, to: mistake && 'to' in mistake ? mistake.to! : row.to, amount: mistake?.amount ?? row.amount });
     }
     return balances;
@@ -119,7 +119,7 @@ export class Verifier {
     for (const wallet of Object.keys(WALLETS) as WalletKey[]) {
       const rows = rowsOfWallet(this.ledger, wallet);
       for (const type of ['INCOME', 'EXPENSE', 'TRANSFER'] as const) {
-        for (const status of ['COMPLETED', 'PENDING', 'DELETED'] as const) {
+        for (const status of ['ACTIVE', 'DELETED'] as const) {
           const expected = rows.filter((row) => row.type === type && row.status === status).length;
           const response = await this.api.raw('GET', `/transactions?walletId=${ids.wallets[wallet]}&type=${type}&status=${status}&pageSize=1`, { session: this.reader(wallet) });
           this.expect(`${wallet} ${type} ${status} count`, response.body?.meta?.pagination?.total, expected);
@@ -217,6 +217,6 @@ export function ledgerDigest(ledger: Ledger): string {
   const canonical = (row: Row) => [row.type, row.status, row.from, row.to, formatMoney(row.amount), row.category, row.goal, row.instant, row.description, row.reference, row.mistake ? JSON.stringify(row.mistake, (_, value) => (typeof value === 'bigint' ? formatMoney(value) : value)) : ''].join('|');
   const hash = createHash('sha256');
   for (const row of ledger.rows) hash.update(`${canonical(row)}\n`);
-  for (const entry of ledger.contributions) hash.update(`${entry.goal}|${entry.account}|${formatMoney(entry.amount)}|${entry.instant}|${entry.removed ?? false}\n`);
+  for (const entry of ledger.contributions) hash.update(`${entry.goal}|${entry.account}|${formatMoney(entry.amount)}|${entry.instant}\n`);
   return hash.digest('hex').slice(0, 16);
 }

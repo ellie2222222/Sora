@@ -22,6 +22,7 @@ import {
   CategoryStatus,
   AccountStatus,
   GoalStatus,
+  TransactionStatus,
   TransactionType,
   type CategoryResponse,
   type CategoryType,
@@ -60,7 +61,7 @@ type KeyField = 'categoryKeys' | 'accountKeys' | 'transactionKeys' | 'budgetKeys
 export interface UploadApis {
   categories: Pick<typeof categoriesApi, 'list' | 'create' | 'archive'>;
   accounts: Pick<typeof accountsApi, 'create' | 'archive'>;
-  transactions: Pick<typeof transactionsApi, 'create'>;
+  transactions: Pick<typeof transactionsApi, 'create' | 'delete'>;
   budgets: Pick<typeof budgetsApi, 'create'>;
   goals: Pick<typeof goalsApi, 'create' | 'addContribution' | 'cancel' | 'update'>;
 }
@@ -224,7 +225,6 @@ function buildTransactionRequest(
     currency: transaction.currency,
     description: transaction.description ?? undefined,
     transactionDate: transaction.transactionDate,
-    status: transaction.status,
     reference: transaction.reference ?? undefined,
   };
 
@@ -264,13 +264,32 @@ async function uploadTransactions(apis: UploadApis): Promise<void> {
 
   for (const transaction of transactions) {
     if (contributionBackedIds.has(transaction.id)) continue;
-    if (transaction.id in progressOf(guestStore.current()).transactionMap) continue;
 
-    const progress = progressOf(guestStore.current());
-    const key = await ensureKey('transactionKeys', transaction.id);
-    const response = await apis.transactions.create(buildTransactionRequest(transaction, progress), key);
-    await recordMap('transactionMap', transaction.id, response.id);
+    if (!(transaction.id in progressOf(guestStore.current()).transactionMap)) {
+      const progress = progressOf(guestStore.current());
+      const key = await ensureKey('transactionKeys', transaction.id);
+      const response = await apis.transactions.create(buildTransactionRequest(transaction, progress), key);
+      await recordMap('transactionMap', transaction.id, response.id);
+    }
+    if (transaction.status === TransactionStatus.DELETED) await deleteUploaded(transaction.id, apis);
   }
+}
+
+/** A create never makes a deleted row, so a guest's deleted entry is deleted after it, like any other. */
+async function deleteUploaded(localId: string, apis: UploadApis): Promise<void> {
+  const progress = progressOf(guestStore.current());
+  if (progress.deletedTransactions?.[localId]) return;
+  try {
+    await apis.transactions.delete(progress.transactionMap[localId]!);
+  } catch (error) {
+    // A resumed upload whose delete landed before the app stopped.
+    if (!isApiError(error) || error.code !== 'TRANSACTION_ALREADY_DELETED') throw error;
+  }
+  await guestStore.mutate((current) => {
+    if (!current.uploadProgress) return current;
+    const deleted = { ...current.uploadProgress.deletedTransactions, [localId]: true as const };
+    return { ...current, uploadProgress: { ...current.uploadProgress, deletedTransactions: deleted } };
+  });
 }
 
 async function uploadBudgets(walletId: string, apis: UploadApis): Promise<void> {

@@ -48,11 +48,11 @@ describe('guestBudgetsApi — a repeating budget', () => {
   it('counts each month on its own, from its start onward, as the server does', async () => {
     await guestTransactionsApi.create({
       type: 'EXPENSE', fromAccountId: ACCOUNT_ID, categoryId: EXPENSE_CATEGORY_ID, amount: '100', currency: 'VND',
-      transactionDate: '2026-09-10T09:00:00.000Z', status: 'COMPLETED',
+      transactionDate: '2026-09-10T09:00:00.000Z',
     });
     await guestTransactionsApi.create({
       type: 'EXPENSE', fromAccountId: ACCOUNT_ID, categoryId: EXPENSE_CATEGORY_ID, amount: '30', currency: 'VND',
-      transactionDate: '2027-01-05T09:00:00.000Z', status: 'COMPLETED',
+      transactionDate: '2027-01-05T09:00:00.000Z',
     });
     const created = await guestBudgetsApi.create(MONTHLY);
     assert.equal(created.endDate, null);

@@ -230,7 +230,7 @@ export const guestGoalsApi = {
       transaction = {
         id: newLocalId(),
         type: TransactionType.EXPENSE,
-        status: TransactionStatus.COMPLETED,
+        status: TransactionStatus.ACTIVE,
         amount: request.amount,
         currency: request.currency,
         description: `Contribution to ${goal.name}`,
@@ -264,30 +264,5 @@ export const guestGoalsApi = {
     }));
 
     return toContributionResponse(contribution, account.name);
-  },
-
-  /** Removes the contribution row outright; a transaction-backed one only flips its backing
-   * transaction's status to deleted — the transaction row itself is never removed (§13.8). */
-  async removeContribution(goalId: string, contributionId: string): Promise<void> {
-    requireWallet();
-    const { goals, contributions } = guestStore.current();
-    findGoal(goals, goalId);
-
-    const contribution = contributions.find(
-      (candidate) => candidate.id === contributionId && candidate.goalId === goalId,
-    );
-    if (!contribution) throw guestError('CONTRIBUTION_NOT_FOUND');
-
-    await guestStore.mutate((current) => ({
-      ...current,
-      contributions: current.contributions.filter((candidate) => candidate.id !== contributionId),
-      transactions: contribution.transactionId
-        ? current.transactions.map((candidate) =>
-            candidate.id === contribution.transactionId
-              ? { ...candidate, status: TransactionStatus.DELETED, updatedAt: new Date().toISOString() }
-              : candidate,
-          )
-        : current.transactions,
-    }));
   },
 };

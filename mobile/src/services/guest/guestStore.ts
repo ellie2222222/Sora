@@ -20,16 +20,16 @@
  * The AsyncStorage-backed singleton lives in `guestStorage.ts`.
  */
 
-import type {
-  AccountStatus,
-  AccountType,
-  BudgetPeriodType,
-  CategoryStatus,
-  CategoryType,
-  GoalStatus,
-  MoneyString,
+import {
   TransactionStatus,
-  TransactionType,
+  type AccountStatus,
+  type AccountType,
+  type BudgetPeriodType,
+  type CategoryStatus,
+  type CategoryType,
+  type GoalStatus,
+  type MoneyString,
+  type TransactionType,
 } from '@sora/contracts';
 
 export interface GuestWallet {
@@ -147,6 +147,8 @@ export interface GuestUploadProgress {
   budgetKeys: Record<string, string>;
   goalKeys: Record<string, string>;
   contributionKeys: Record<string, string>;
+  /** Deleted guest transactions already deleted on the server, after their create. */
+  deletedTransactions?: Record<string, true>;
 }
 
 export interface GuestData {
@@ -181,7 +183,12 @@ function withStoredDefaults(stored: Partial<GuestData>): GuestData {
   const data = { ...emptyData(), ...stored };
   return {
     ...data,
-    transactions: data.transactions.map((transaction) => ({ ...transaction, goalId: transaction.goalId ?? null })),
+    transactions: data.transactions.map((transaction) => ({
+      ...transaction,
+      // Saved before PENDING and COMPLETED became ACTIVE: every row not deleted is live.
+      status: transaction.status === TransactionStatus.DELETED ? TransactionStatus.DELETED : TransactionStatus.ACTIVE,
+      goalId: transaction.goalId ?? null,
+    })),
     budgets: data.budgets.map((budget) => ({ ...budget, goalId: budget.goalId ?? null })),
   };
 }

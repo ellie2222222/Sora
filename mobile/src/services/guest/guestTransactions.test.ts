@@ -28,7 +28,6 @@ function expense(overrides: Partial<CreateTransactionRequest> = {}): CreateTrans
     amount: '150000',
     currency: 'VND',
     transactionDate: DATE,
-    status: 'COMPLETED',
     ...overrides,
   } as CreateTransactionRequest;
 }
@@ -61,7 +60,6 @@ describe('guestTransactionsApi.create', () => {
         amount: '50000',
         currency: 'VND',
         transactionDate: DATE,
-        status: 'COMPLETED',
       }),
     );
 
@@ -78,7 +76,6 @@ describe('guestTransactionsApi.create', () => {
         amount: '1',
         currency: 'VND',
         transactionDate: DATE,
-        status: 'COMPLETED',
       }),
     );
     assert.equal(code, 'TRANSFER_CURRENCY_MISMATCH');
@@ -98,7 +95,6 @@ describe('guestTransactionsApi.create', () => {
         amount: '900000',
         currency: 'VND',
         transactionDate: DATE,
-        status: 'COMPLETED',
       }),
     );
 
@@ -140,7 +136,6 @@ describe('guestTransactionsApi.create', () => {
         amount: '50000',
         currency: 'VND',
         transactionDate: DATE,
-        status: 'COMPLETED',
       }),
     );
 
@@ -172,9 +167,24 @@ describe('guestTransactionsApi.create', () => {
     assert.equal(code, 'VALIDATION_FAILED');
   });
 
-  it('preserves a client-supplied DELETED status, as the server does', async () => {
-    const created = await guestTransactionsApi.create(expense({ status: 'DELETED' }));
-    assert.equal(created.status, 'DELETED');
+  it('records every create as ACTIVE, ignoring a client-supplied status, as the server does', async () => {
+    const created = await guestTransactionsApi.create({ ...expense(), status: 'DELETED' } as unknown as CreateTransactionRequest);
+    assert.equal(created.status, 'ACTIVE');
+  });
+});
+
+describe('guestTransactionsApi archived references — VL-03', () => {
+  it('refuses an archived category a request sets, and lets an edit keep the one already stored', async () => {
+    const filed = await guestTransactionsApi.create(expense());
+    await guestStore.mutate((current) => ({
+      ...current,
+      categories: current.categories.map((category) => (category.id === EXPENSE_CATEGORY_ID ? { ...category, status: 'ARCHIVED' } : category)),
+    }));
+
+    assert.equal(await codeOf(() => guestTransactionsApi.create(expense())), 'CATEGORY_ARCHIVED');
+    const corrected = await guestTransactionsApi.update(filed.id, { amount: '200000', description: 'fixed' });
+    assert.equal(parseMoney(corrected.amount), parseMoney('200000'));
+    assert.equal(corrected.category?.id, EXPENSE_CATEGORY_ID);
   });
 });
 
@@ -246,7 +256,6 @@ describe('guestTransactionsApi.update — BR-03', () => {
       amount: '50000',
       currency: 'VND',
       transactionDate: DATE,
-      status: 'COMPLETED',
     });
 
     const updated = await guestTransactionsApi.update(created.id, { categoryId: null });
@@ -288,7 +297,7 @@ describe('guestTransactionsApi.delete', () => {
     assert.equal(code, 'TRANSACTION_ALREADY_DELETED');
   });
 
-  it('drops any contribution the deleted payment was backing (§11.5)', async () => {
+  it('refuses to delete a payment backing a contribution, which is never removed (§11.5)', async () => {
     const created = await guestTransactionsApi.create(expense());
     await guestStore.mutate((data) => ({
       ...data,
@@ -307,8 +316,9 @@ describe('guestTransactionsApi.delete', () => {
       ],
     }));
 
-    await guestTransactionsApi.delete(created.id);
-    assert.deepEqual(guestStore.current().contributions, []);
+    assert.equal(await codeOf(() => guestTransactionsApi.delete(created.id)), 'TRANSACTION_BACKS_CONTRIBUTION');
+    assert.equal(guestStore.current().contributions.length, 1);
+    assert.equal((await guestTransactionsApi.detail(created.id)).status, 'ACTIVE');
   });
 });
 
@@ -323,7 +333,6 @@ describe('guestTransactionsApi.list', () => {
       amount: '200000',
       currency: 'VND',
       transactionDate: '2026-09-02T10:00:00.000Z',
-      status: 'COMPLETED',
     });
   });
 
@@ -398,7 +407,6 @@ describe('calc.ts converters', () => {
       amount: '400000',
       currency: 'VND',
       transactionDate: DATE,
-      status: 'COMPLETED',
     });
     const [row] = guestStore.current().transactions;
 

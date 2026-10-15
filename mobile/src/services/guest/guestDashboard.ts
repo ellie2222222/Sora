@@ -13,6 +13,7 @@
 import {
   add,
   countsAsPeriodActivity,
+  dashboardPeriod,
   formatMoney,
   isWithinPeriod,
   largestCurrencyTotal,
@@ -52,15 +53,11 @@ function requireWallet(): GuestWallet {
   return wallet;
 }
 
-/** `dateFrom`/`dateTo` each default independently to a bound of the month containing `today`, the wallet's. */
+/** `dateFrom`/`dateTo` default to the bounds of `today`'s month, the wallet's; refused as the server refuses it. */
 function resolvePeriod(query: DashboardQuery, today: string): { dateFrom: string; dateTo: string } {
-  const [year, month] = today.split('-').map(Number) as [number, number];
-  const monthEnd = new Date(Date.UTC(year, month, 0));
-
-  return {
-    dateFrom: query.dateFrom ?? `${today.slice(0, 7)}-01`,
-    dateTo: query.dateTo ?? monthEnd.toISOString().slice(0, 10),
-  };
+  const period = dashboardPeriod(today, query.dateFrom, query.dateTo);
+  if (!period) throw guestError('VALIDATION_FAILED', { dateTo: ['dateFrom must not be after dateTo'] });
+  return period;
 }
 
 function toCurrencyTotals(byCurrency: ReadonlyMap<string, Scaled>): CurrencyTotal[] {

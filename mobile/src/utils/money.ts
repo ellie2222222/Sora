@@ -161,14 +161,14 @@ export function sumScaledByKey<T>(
  * Per-currency total of one transaction type across `transactions`, formatted for
  * display. Shared by every "totals" summary row (a day's heading, a month's header)
  * so none hand-rolls its own filter+sum. Each type is summed on its own, so a
- * transfer never lands in income or expense (BR-06); only COMPLETED rows count.
+ * transfer never lands in income or expense (BR-06); only ACTIVE rows count.
  */
 export function sumByTransactionType(
   transactions: readonly TransactionResponse[],
   type: 'INCOME' | 'EXPENSE' | 'TRANSFER',
 ): CurrencyTotal[] {
   const byCurrency = sumScaledByKey(
-    transactions.filter((transaction) => transaction.type === type && transaction.status === TransactionStatus.COMPLETED),
+    transactions.filter((transaction) => transaction.type === type && transaction.status === TransactionStatus.ACTIVE),
     (transaction) => transaction.currency,
     (transaction) => transaction.amount,
   );
@@ -186,7 +186,7 @@ export interface NetCurrencyTotal extends CurrencyTotal {
 export function netSumByCurrency(transactions: readonly TransactionResponse[]): NetCurrencyTotal[] {
   const totals = new Map<string, Scaled>();
   for (const t of transactions) {
-    if (t.status !== TransactionStatus.COMPLETED) continue;
+    if (t.status !== TransactionStatus.ACTIVE) continue;
     if (t.type === TransactionType.TRANSFER) continue;
     
     const amount = parseMoney(t.amount);

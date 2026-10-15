@@ -48,7 +48,6 @@ function tx(overrides: Partial<CreateTransactionRequest> = {}): CreateTransactio
     amount: '150000',
     currency: 'VND',
     transactionDate: '2026-09-05T10:00:00.000Z',
-    status: 'COMPLETED',
     ...overrides,
   } as CreateTransactionRequest;
 }
@@ -75,14 +74,12 @@ describe('guestAccountsApi — balance', () => {
     assert.equal(account!.balance, formatMoney(expected));
   });
 
-  it('ignores PENDING and DELETED rows, as only COMPLETED moves money', async () => {
-    const pending = await guestTransactionsApi.create(tx({ amount: '999999', status: 'PENDING' }));
+  it('ignores DELETED rows, as only ACTIVE moves money', async () => {
     const doomed = await guestTransactionsApi.create(tx({ amount: '888888' }));
     await guestTransactionsApi.delete(doomed.id);
 
     const [account] = await guestAccountsApi.list();
     assert.equal(account!.balance, formatMoney(parseMoney('1000000.0000')));
-    assert.equal(pending.status, 'PENDING');
   });
 
   it('lets an account go overdrawn rather than clamping at zero (BR-04-style)', async () => {
@@ -100,7 +97,6 @@ describe('guestAccountsApi — balance', () => {
       amount: '400000',
       currency: 'VND',
       transactionDate: '2026-09-05T10:00:00.000Z',
-      status: 'COMPLETED',
     });
 
     const accounts = await guestAccountsApi.list();
@@ -125,7 +121,6 @@ describe('guestAccountsApi — detail activity (BR-06)', () => {
       amount: '200000',
       currency: 'VND',
       transactionDate: '2026-09-05T10:00:00.000Z',
-      status: 'COMPLETED',
     });
   });
 
@@ -202,7 +197,6 @@ describe('guestBudgetsApi — spend (BR-06)', () => {
       amount: '2000000',
       currency: 'VND',
       transactionDate: '2026-09-10T10:00:00.000Z',
-      status: 'COMPLETED',
     });
 
     const created = await guestBudgetsApi.create(budget);
@@ -465,7 +459,7 @@ describe('guestGoalsApi — progress', () => {
     assert.equal((await guestGoalsApi.contributions(created.id)).length, 1);
   });
 
-  it('deletes the backing transaction when a linked contribution is removed (§13.8)', async () => {
+  it('never removes a contribution: the transaction recording it refuses a delete (§11.5)', async () => {
     const created = await guestGoalsApi.create(goal);
     const contribution = await guestGoalsApi.addContribution(created.id, {
       accountId: ACCOUNT_ID,
@@ -476,13 +470,14 @@ describe('guestGoalsApi — progress', () => {
       categoryId: EXPENSE_CATEGORY_ID,
     });
 
-    await guestGoalsApi.removeContribution(created.id, contribution.id);
+    const backing = await guestTransactionsApi.detail(contribution.transactionId!);
+    assert.equal(backing.backsContribution, true);
+    await assert.rejects(guestTransactionsApi.delete(backing.id), (error: { code?: string }) => error.code === 'TRANSACTION_BACKS_CONTRIBUTION');
 
-    const [transaction] = guestStore.current().transactions;
-    assert.equal(transaction!.status, 'DELETED');
-    // Deleted, so the money is back in the account rather than lost.
+    assert.equal(guestStore.current().contributions.length, 1);
+    assert.equal(guestStore.current().transactions[0]!.status, 'ACTIVE');
     const [account] = await guestAccountsApi.list();
-    assert.equal(account!.balance, formatMoney(parseMoney('1000000.0000')));
+    assert.equal(account!.balance, formatMoney(parseMoney('100000.0000')));
   });
 });
 

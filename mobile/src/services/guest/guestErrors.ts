@@ -33,16 +33,16 @@ const GUEST_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   CATEGORY_HAS_TRANSACTIONS:
     'This category has transactions — rename or archive it instead of deleting it permanently',
   CATEGORY_PARENT_ARCHIVED: 'Its parent category is archived — restore the parent first',
-  CATEGORY_ARCHIVED: 'This category is archived — restore it to plan a budget for it',
+  CATEGORY_ARCHIVED: 'This category is archived — restore it to use it again',
   TRANSACTION_NOT_FOUND: 'Transaction not found',
   TRANSACTION_ALREADY_DELETED: 'This transaction is already deleted',
+  TRANSACTION_BACKS_CONTRIBUTION: 'This transaction records a goal contribution and cannot be deleted',
   TRANSFER_SAME_ACCOUNT: 'A transfer needs two different accounts',
   TRANSFER_CURRENCY_MISMATCH: 'Both sides of a transfer must share one currency',
   BUDGET_NOT_FOUND: 'Budget not found',
   BUDGET_PERIOD_OVERLAP: 'An active budget for this category already covers part of that period',
   GOAL_NOT_FOUND: 'Goal not found',
   GOAL_NOT_ACTIVE: 'This goal is not active',
-  CONTRIBUTION_NOT_FOUND: 'Contribution not found',
   WALLET_NOT_FOUND: 'Wallet not found',
 };
 

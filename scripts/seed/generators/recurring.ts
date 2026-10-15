@@ -1,7 +1,7 @@
 // Fixed-schedule rows (plan §5.2 for An, §5.5 for the other wallets): salary, rent, bills, subscriptions,
 // allowances, card payoffs, savings, pensions, kitty contributions.
 
-import { addDays, addMonths, firstOfMonth, isLastDayOfMonth, monthOf, previousWorkday, weekday } from '../calendar.ts';
+import { addDays, isLastDayOfMonth, monthOf, previousWorkday, weekday } from '../calendar.ts';
 import { cents, money } from '../ledger.ts';
 import { bankReference, historyMonth, monthNumber, type GeneratorContext } from './context.ts';
 
@@ -100,8 +100,4 @@ export function recurring(ctx: GeneratorContext): void {
   }
 
   b.add({ by: 'an', type: 'INCOME', to: 'vcb', amount: money(28_000_000), category: 'bonus', day: dates.tetBonus, time: '10:00', description: 'Thưởng Tết', reference: bankReference(ctx, dates.tetBonus), tag: 'tetBonus' });
-
-  // Future: next month's rent, the hotel hold and the ryokan balance, all PENDING.
-  const nextRent = addMonths(firstOfMonth(dates.anchor), 1);
-  b.add({ by: 'an', type: 'EXPENSE', status: 'PENDING', from: 'vcb', amount: money(6_500_000), category: 'rent', day: nextRent, time: '08:00', description: `Tiền nhà tháng ${monthNumber(nextRent)}`, tag: 'rentPending' });
 }

@@ -68,6 +68,17 @@ describe('GuestStore.hydrate', () => {
     assert.equal(data.budgets[0]?.goalId, null);
     assert.equal(data.transactions[0]?.goalId, null);
   });
+
+  it('reads a transaction saved as PENDING or COMPLETED as ACTIVE, and keeps DELETED', async () => {
+    const transactions = [
+      { id: 't1', status: 'PENDING' },
+      { id: 't2', status: 'COMPLETED' },
+      { id: 't3', status: 'DELETED' },
+    ];
+    const data = await new GuestStore(memoryPersistence(JSON.stringify({ wallet: walletOf('Old'), transactions }))).hydrate();
+
+    assert.deepEqual(data.transactions.map((transaction) => transaction.status), ['ACTIVE', 'ACTIVE', 'DELETED']);
+  });
 });
 
 describe('GuestStore.mutate', () => {

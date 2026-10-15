@@ -25,7 +25,6 @@ describe('guestAccountsApi.update — ACC-US-04', () => {
       amount: '1',
       currency: 'VND',
       transactionDate: DATE,
-      status: 'COMPLETED',
     });
     const goal = await guestGoalsApi.create({ walletId: WALLET_ID, name: 'Trip', targetAmount: '100', currency: 'VND' });
     await guestGoalsApi.addContribution(goal.id, { accountId: OTHER_ACCOUNT_ID, amount: '5', currency: 'VND', contributionDate: DATE, recordAsTransaction: false });

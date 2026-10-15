@@ -12,7 +12,7 @@ export function corrections(ctx: GeneratorContext): void {
   const { builder: b, rng, dates } = ctx;
   const used = new Set<string>();
   const pool = (filter: (row: Row) => boolean) =>
-    b.rows.filter((row) => !used.has(row.id) && row.status === 'COMPLETED' && row.day > dates.historyStart && filter(row));
+    b.rows.filter((row) => !used.has(row.id) && row.status === 'ACTIVE' && row.day > dates.historyStart && filter(row));
   const take = (candidates: Row[], count: number): Row[] => {
     const picked: Row[] = [];
     while (picked.length < count && candidates.length > 0) {

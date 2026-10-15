@@ -15,6 +15,9 @@ export interface NetworkStatusContextValue {
   checkServer: () => Promise<void>;
   isSyncing: boolean;
   retrySync: () => Promise<void>;
+  /** Try one stuck queued write again, or drop it and what depends on it (`syncEngineRuntime.ts`). */
+  retryQueued: (queueId: string) => Promise<void>;
+  discardQueued: (queueId: string) => Promise<void>;
 }
 
 const NetworkStatusContext = createContext<NetworkStatusContextValue>({
@@ -23,14 +26,18 @@ const NetworkStatusContext = createContext<NetworkStatusContextValue>({
   checkServer: async () => {},
   isSyncing: false,
   retrySync: async () => {},
+  retryQueued: async () => {},
+  discardQueued: async () => {},
 });
 
 export interface NetworkStatusProviderProps {
   children: ReactNode;
   onRetrySync?: () => Promise<void>;
+  onRetryQueued?: (queueId: string) => Promise<void>;
+  onDiscardQueued?: (queueId: string) => Promise<void>;
 }
 
-export function NetworkStatusProvider({ children, onRetrySync }: NetworkStatusProviderProps) {
+export function NetworkStatusProvider({ children, onRetrySync, onRetryQueued, onDiscardQueued }: NetworkStatusProviderProps) {
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [serverStatus, setServerStatus] = useState<ServerStatus>('checking');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -73,7 +80,17 @@ export function NetworkStatusProvider({ children, onRetrySync }: NetworkStatusPr
   }, [isSyncing, onRetrySync, checkServer]);
 
   return (
-    <NetworkStatusContext.Provider value={{ isOnline, serverStatus, checkServer, isSyncing, retrySync }}>
+    <NetworkStatusContext.Provider
+      value={{
+        isOnline,
+        serverStatus,
+        checkServer,
+        isSyncing,
+        retrySync,
+        retryQueued: async (queueId) => onRetryQueued?.(queueId),
+        discardQueued: async (queueId) => onDiscardQueued?.(queueId),
+      }}
+    >
       {children}
     </NetworkStatusContext.Provider>
   );

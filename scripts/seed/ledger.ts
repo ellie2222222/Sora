@@ -40,7 +40,7 @@ export interface Row {
   seq: number;
   by: PersonaKey;
   type: TransactionType;
-  /** The final status. A duplicate is created COMPLETED and deleted; a removed contribution's backing row ends DELETED. */
+  /** The final status. Every row is created ACTIVE; a duplicate is then deleted. */
   status: TransactionStatus;
   from: AccountKey | null;
   to: AccountKey | null;
@@ -71,8 +71,6 @@ export interface Contribution {
   by: PersonaKey;
   /** The transaction-backed contribution's own row; absent on an earmark. */
   row?: string;
-  /** Removed after creation (DELETE …/contributions/{id}); its row ends DELETED. */
-  removed?: boolean;
   instant: string;
 }
 
@@ -100,7 +98,7 @@ export class LedgerBuilder {
 
   add(draft: RowDraft): Row {
     const row: Row = {
-      status: 'COMPLETED',
+      status: 'ACTIVE',
       from: null,
       to: null,
       description: null,
@@ -137,7 +135,7 @@ export interface Ledger {
 
 export class LedgerError extends Error {}
 
-/** Balances move only for COMPLETED rows (BR-05; a PENDING or DELETED row moves nothing). */
+/** Balances move only for ACTIVE rows (BR-05; a DELETED row moves nothing). */
 export function applyRow(balances: Record<AccountKey, bigint>, row: Pick<Row, 'type' | 'from' | 'to' | 'amount'>, sign = 1n): void {
   if (row.type !== 'INCOME') balances[row.from!] -= sign * row.amount;
   if (row.type !== 'EXPENSE') balances[row.to!] += sign * row.amount;
@@ -172,7 +170,7 @@ export function settle(builder: LedgerBuilder, refillBy: (account: AccountKey) =
 
   for (const row of ordered) {
     rows.push(row);
-    if (row.status !== 'COMPLETED') continue;
+    if (row.status !== 'ACTIVE') continue;
     if (row.dynamic === 'payoff') row.amount = balances.visa < 0n ? -balances.visa : 0n;
     if (row.dynamic === 'close') row.amount = balances[row.from!];
     if (row.amount === 0n) {
@@ -189,7 +187,7 @@ export function settle(builder: LedgerBuilder, refillBy: (account: AccountKey) =
         seq: row.seq,
         by: refillBy(debited),
         type: 'TRANSFER',
-        status: 'COMPLETED',
+        status: 'ACTIVE',
         from: rule.source,
         to: debited,
         amount,

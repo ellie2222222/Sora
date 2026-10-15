@@ -67,7 +67,7 @@ console.log(`uploaded ${fixture.transactions.length} transactions as ${email} in
 // What the fixture itself says each account holds and each goal has saved.
 const expected = new Map<string, bigint>(fixture.accounts.map((account: { id: string; initialBalance: string }) => [account.id, parseMoney(account.initialBalance)]));
 for (const row of fixture.transactions) {
-  if (row.status !== 'COMPLETED') continue;
+  if (row.status !== 'ACTIVE') continue;
   if (row.fromAccountId) expected.set(row.fromAccountId, expected.get(row.fromAccountId)! - parseMoney(row.amount));
   if (row.toAccountId) expected.set(row.toAccountId, expected.get(row.toAccountId)! + parseMoney(row.amount));
 }

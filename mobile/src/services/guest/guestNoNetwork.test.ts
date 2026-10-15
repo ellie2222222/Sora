@@ -66,7 +66,6 @@ describe('guest mode makes no network request (GST-US-01)', () => {
 
     const expense = await guestTransactionsApi.create({
       type: 'EXPENSE',
-      status: 'COMPLETED',
       fromAccountId: cash.id,
       categoryId: category.id,
       amount: '45000',
@@ -75,7 +74,6 @@ describe('guest mode makes no network request (GST-US-01)', () => {
     } as CreateTransactionRequest);
     await guestTransactionsApi.create({
       type: 'TRANSFER',
-      status: 'COMPLETED',
       fromAccountId: cash.id,
       toAccountId: bank.id,
       amount: '200000',
@@ -101,7 +99,7 @@ describe('guest mode makes no network request (GST-US-01)', () => {
     await guestBudgetsApi.detail(budget.id);
 
     const goal = await guestGoalsApi.create({ walletId, name: 'Laptop', targetAmount: '30000000', currency: 'VND' });
-    const contribution = await guestGoalsApi.addContribution(goal.id, {
+    await guestGoalsApi.addContribution(goal.id, {
       accountId: bank.id,
       amount: '100000',
       currency: 'VND',
@@ -115,7 +113,6 @@ describe('guest mode makes no network request (GST-US-01)', () => {
 
     await guestDashboardApi.summary({ walletId, dateFrom: '2026-09-01', dateTo: '2026-09-30' });
 
-    await guestGoalsApi.removeContribution(goal.id, contribution.id);
     await guestGoalsApi.cancel(goal.id);
     await guestBudgetsApi.delete(budget.id);
     await guestTransactionsApi.delete(expense.id);

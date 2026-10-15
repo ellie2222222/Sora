@@ -35,6 +35,11 @@ export function today(timeZone: string): CalendarDay {
   return todayIn(timeZone);
 }
 
+/** A followed day is stored as null, so it stays the wallet's today across a zone change or midnight. */
+export function chosenDay(picked: CalendarDay, walletToday: CalendarDay): CalendarDay | null {
+  return picked === walletToday ? null : picked;
+}
+
 export function nowInstant(): Instant {
   return new Date().toISOString();
 }

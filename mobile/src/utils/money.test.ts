@@ -155,7 +155,7 @@ describe('directionOf', () => {
 });
 
 function tx(overrides: Partial<TransactionResponse>): TransactionResponse {
-  return { type: 'EXPENSE', currency: 'VND', amount: '0.0000', status: 'COMPLETED', ...overrides } as TransactionResponse;
+  return { type: 'EXPENSE', currency: 'VND', amount: '0.0000', status: 'ACTIVE', ...overrides } as TransactionResponse;
 }
 
 describe('sumByTransactionType', () => {
@@ -193,11 +193,10 @@ describe('sumByTransactionType', () => {
     assert.deepEqual(sumByTransactionType(rows, 'EXPENSE'), []);
   });
 
-  it('counts only COMPLETED rows, as balances do (affectsBalance)', () => {
+  it('counts only ACTIVE rows, as balances do (affectsBalance)', () => {
     const totals = sumByTransactionType(
       [
         tx({ amount: '100.0000' }),
-        tx({ amount: '20.0000', status: 'PENDING' }),
         tx({ amount: '3.0000', status: 'DELETED' }),
       ],
       'EXPENSE',

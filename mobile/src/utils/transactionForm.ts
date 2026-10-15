@@ -35,7 +35,6 @@ export interface TransactionDraft {
   description: string;
   reference: string;
   transactionDate: string;
-  status: TransactionStatus;
 }
 
 export interface DraftFieldVisibility {
@@ -63,7 +62,6 @@ export function emptyDraft(options: EmptyDraftOptions): TransactionDraft {
     description: '',
     reference: '',
     transactionDate: options.transactionDate,
-    status: TransactionStatus.COMPLETED,
   };
 }
 
@@ -79,7 +77,6 @@ export function draftFromTransaction(transaction: TransactionResponse): Transact
     description: transaction.description ?? '',
     reference: transaction.reference ?? '',
     transactionDate: transaction.transactionDate,
-    status: transaction.status,
   };
 }
 
@@ -199,7 +196,6 @@ export function buildCreatePayload(draft: TransactionDraft): unknown {
     currency: draft.currency,
     description: textOrNull(draft.description),
     transactionDate: draft.transactionDate,
-    status: draft.status,
     reference: textOrNull(draft.reference),
   };
 

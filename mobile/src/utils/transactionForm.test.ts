@@ -307,7 +307,7 @@ describe('isCrossWalletDraft', () => {
 const recorded: TransactionResponse = {
   id: '44444444-4444-4444-8444-444444444444',
   type: 'EXPENSE',
-  status: 'COMPLETED',
+  status: 'ACTIVE',
   amount: '150000.0000',
   currency: 'VND',
   description: 'Lunch',
@@ -317,6 +317,7 @@ const recorded: TransactionResponse = {
   toAccount: null,
   category: { id: CATEGORY, name: 'Food', type: 'EXPENSE', icon: null, color: null },
   goalId: null,
+  backsContribution: false,
   createdBy: { id: 'u', displayName: 'U' },
   isCrossWallet: false,
   createdAt: WHEN,

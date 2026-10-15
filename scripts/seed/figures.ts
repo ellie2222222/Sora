@@ -38,14 +38,14 @@ export function budgetSchedule(budget: BudgetDef, dates: StoryDates) {
   return { periodType: budget.periodType, startDate: budget.start(dates), endDate: budget.end(dates) };
 }
 
-/** `spent` on `day`: COMPLETED expenses in the budget's wallet and currency, in its target, inside the window. */
+/** `spent` on `day`: ACTIVE expenses in the budget's wallet and currency, in its target, inside the window. */
 export function readBudget(ledger: Ledger, budget: BudgetDef, dates: StoryDates, day: string): BudgetReading {
   const window = budgetWindow(budgetSchedule(budget, dates), day);
   const zone = WALLETS[budget.wallet].timeZone;
   const subtree = budget.category ? categorySubtree(budget.wallet, budget.category) : null;
   let spent = 0n;
   for (const row of ledger.rows) {
-    if (row.status !== 'COMPLETED' || row.type !== 'EXPENSE') continue;
+    if (row.status !== 'ACTIVE' || row.type !== 'EXPENSE') continue;
     const account = ACCOUNTS[row.from!];
     if (account.wallet !== budget.wallet || account.currency !== budget.currency) continue;
     if (budget.goal ? row.goal !== budget.goal : subtree ? !subtree.has(row.category!) : false) continue;
@@ -56,7 +56,7 @@ export function readBudget(ledger: Ledger, budget: BudgetDef, dates: StoryDates,
 }
 
 export function goalCurrent(ledger: Ledger, goal: GoalKey): bigint {
-  return ledger.contributions.filter((entry) => entry.goal === goal && !entry.removed).reduce((sum, entry) => sum + entry.amount, 0n);
+  return ledger.contributions.filter((entry) => entry.goal === goal).reduce((sum, entry) => sum + entry.amount, 0n);
 }
 
 export interface PeriodFigures {
@@ -71,7 +71,7 @@ export function periodFigures(ledger: Ledger, wallet: WalletKey, from: string, t
   const zone = WALLETS[wallet].timeZone;
   const figures: PeriodFigures = { income: new Map(), expense: new Map(), transferredIn: new Map(), transferredOut: new Map() };
   for (const row of ledger.rows) {
-    if (row.status !== 'COMPLETED') continue;
+    if (row.status !== 'ACTIVE') continue;
     const day = dayOfInstant(row.instant, zone);
     if (day < from || day > to) continue;
     const fromWallet = row.from ? ACCOUNTS[row.from].wallet : null;
@@ -183,7 +183,7 @@ export function storyChecks(ledger: Ledger, dates: StoryDates): Check[] {
   const eventMonths = new Set([tetMonth, monthOf(dates.motorbike.firstPayment), monthOf(dates.motorbike.finalPayment), monthOf(dates.japan.flights), monthOf(dates.japan.jrPass), monthOf(dates.japan.exchange)]);
   add('Monthly Cap over in event months', capMonths.filter((month) => eventMonths.has(month.month)).every((month) => month.usage > 100), capMonths.filter((month) => eventMonths.has(month.month)).map((month) => `${month.month} ${pct(month.usage)}`).join(' '));
   add('Monthly Cap at most 100% in other months (11.11 month aside)', capMonths.filter((month) => !eventMonths.has(month.month) && month.month !== monthOf(dates.sale.start)).every((month) => month.usage <= 100), capMonths.filter((month) => !eventMonths.has(month.month)).map((month) => `${month.month} ${pct(month.usage)}`).join(' '));
-  const tetSpend = ledger.rows.filter((row) => row.tag === 'tet' && row.status === 'COMPLETED').reduce((sum, row) => sum + row.amount, 0n);
+  const tetSpend = ledger.rows.filter((row) => row.tag === 'tet' && row.status === 'ACTIVE').reduce((sum, row) => sum + row.amount, 0n);
   add('Tet cluster at least 12,000,000', tetSpend >= money(12_000_000), formatAmount(tetSpend, 'VND'));
   const linhGroceries = monthly('linhGroceries');
   add('Linh Groceries at most 100% every month', linhGroceries.every((month) => month.usage <= 100), linhGroceries.map((month) => pct(month.usage)).join(' '));

@@ -18,7 +18,6 @@ const spend = (transactionDate: string, amount: string): CreateTransactionReques
     amount,
     currency: 'VND',
     transactionDate,
-    status: 'COMPLETED',
   }) as CreateTransactionRequest;
 
 describe('guest wallet calendar zone', () => {

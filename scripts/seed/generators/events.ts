@@ -92,8 +92,6 @@ export function events(ctx: GeneratorContext): void {
       b.add({ by: 'an', type: 'EXPENSE', from: 'jpy', amount: money(amount), category, day, time: `${String(8 + i * 3).padStart(2, '0')}:${String(rng.int(0, 59)).padStart(2, '0')}`, description, tag: 'japanTrip' });
     }
   }
-  b.add({ by: 'an', type: 'EXPENSE', status: 'PENDING', from: 'visa', amount: money(3_000_000), category: 'travel', day: japan.hotelHold, time: '15:00', description: 'Tạm giữ khách sạn Kyoto', tag: 'hotelHold' });
-  b.add({ by: 'an', type: 'EXPENSE', status: 'PENDING', from: 'jpy', amount: money(35_000), category: 'travel', day: japan.returns, time: '10:00', description: 'Ryokan, trả khi trả phòng', tag: 'ryokan' });
 
   // USD: two courses, freelance 2–4 times a quarter (one quarter's last one is a Side Project).
   b.add({ by: 'an', type: 'EXPENSE', from: 'wise', amount: money('49.00'), category: 'education', day: dates.courses[0], time: '21:00', description: 'Udemy course', tag: 'course' });
@@ -126,12 +124,11 @@ export function goalFunding(ctx: GeneratorContext): void {
   for (let k = 3; k >= 1; k--) earmark('macbook', 'wise', money('200.00'), addMonths(anchor, -k));
   for (let k = 8; k >= 1; k--) earmark('anniversary', 'bidv', money(1_000_000), addMonths(anchor, -k), k % 2 ? 'linh' : 'an');
 
-  const backed = (goal: GoalKey, from: 'tcb' | 'mcash', amount: bigint, day: string, category: string, description: string, removed = false) => {
-    const row = b.add({ by: 'an', type: 'EXPENSE', status: removed ? 'DELETED' : 'COMPLETED', from, amount, category, goal, day, time: '10:00', description, tag: removed ? 'contributionRemoved' : 'contributionBacked', contribution: goal });
-    b.contribute({ goal, account: from, amount, day, time: '10:00', by: 'an', row: row.id, removed });
+  const backed = (goal: GoalKey, from: 'tcb' | 'mcash', amount: bigint, day: string, category: string, description: string) => {
+    const row = b.add({ by: 'an', type: 'EXPENSE', from, amount, category, goal, day, time: '10:00', description, tag: 'contributionBacked', contribution: goal });
+    b.contribute({ goal, account: from, amount, day, time: '10:00', by: 'an', row: row.id });
   };
   backed('motorbike', 'tcb', money(6_000_000), motorbike.firstPayment, 'transportation', 'Đặt cọc xe máy');
-  backed('motorbike', 'tcb', money(2_000_000), motorbike.removedPayment, 'transportation', 'Phụ kiện xe (nhập nhầm)', true);
   backed('motorbike', 'tcb', money(9_700_000), motorbike.finalPayment, 'transportation', 'Thanh toán xe máy');
   for (let k = 4; k >= 1; k--) backed('health', 'mcash', money(975_000), addMonths(anchor, -k), 'medicine', 'Gói khám sức khỏe');
 }

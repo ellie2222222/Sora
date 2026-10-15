@@ -1,6 +1,7 @@
 export * from './budgetPeriod.ts';
 export * from './calculatorEngine.ts';
 export * from './categoryIcons.ts';
+export * from './currentView.ts';
 export * from './dashboardAnalytics.ts';
 export * from './dashboardPeriod.ts';
 export * from './date.ts';

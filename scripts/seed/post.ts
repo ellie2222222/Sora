@@ -191,7 +191,6 @@ export class Seeder {
       amount: formatMoney(mistake?.amount ?? row.amount),
       currency: ACCOUNTS[categorisedAccount(shape)].currency,
       transactionDate: instantOf(day, row.time, zoneOfRow(shape)),
-      status: mistake?.kind === 'duplicate' ? 'COMPLETED' : row.status,
       description: row.description,
       reference: row.reference,
       categoryId: category === null ? null : this.categoryId(walletOfRow(shape), category),
@@ -211,7 +210,7 @@ export class Seeder {
     return rows.length;
   }
 
-  // ---- Phase 5: contributions (earmarks and transaction-backed), the Motorbike removal, budgets
+  // ---- Phase 5: contributions (earmarks and transaction-backed), budgets
   async postContributions(): Promise<void> {
     const rowsById = new Map(this.ledger.rows.map((row) => [row.id, row]));
     const ordered = [...this.ledger.contributions].sort((a, b) => (a.instant < b.instant ? -1 : a.instant > b.instant ? 1 : 0));
@@ -233,9 +232,6 @@ export class Seeder {
       this.ids.contributions[entry.id] = created.id;
       if (row) this.ids.transactions[row.id] = created.transactionId!;
     });
-    for (const entry of this.ledger.contributions.filter((contribution) => contribution.removed)) {
-      await this.api.call('DELETE', `/goals/${this.ids.goals[entry.goal]}/contributions/${this.ids.contributions[entry.id]}`, { session: this.session(entry.by), expect: [200, 204] });
-    }
   }
 
   async postBudgets(): Promise<void> {

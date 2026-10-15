@@ -70,7 +70,7 @@ export function writeGuestFixture(file: string, ledger: Ledger, dates: StoryDate
       currency: goal.currency, targetDate: goal.targetDate(dates), status: goal.end, ...stamp,
     })),
     contributions: ledger.contributions
-      .filter((entry) => !entry.removed && walletOfAccount(entry.account).key === 'an')
+      .filter((entry) => walletOfAccount(entry.account).key === 'an')
       .map((entry) => ({
         id: id(`contribution:${entry.id}`), goalId: id(`goal:${entry.goal}`), accountId: id(`account:${entry.account}`),
         transactionId: entry.row ? id(`transaction:${entry.row}`) : null, amount: formatMoney(entry.amount),

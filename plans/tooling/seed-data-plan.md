@@ -104,7 +104,7 @@ The seed writes in creation order, not story order. Every state change that bloc
 |---|---|---|
 | Archive ACB (old) | `ACCOUNT_ARCHIVED` on any new transaction naming it, or an edit that moves money (`TRANSACTION_MOVEMENT_FIELDS`) | its closing transfer and the corrections pass |
 | Revoke Khoa on Shared House | he can no longer write there | his Shared House entries. Membership changes aren't blocked by an archived wallet (`members.service.ts`), but it runs before the archive to keep the story in order |
-| Archive Shared House | `WALLET_ARCHIVED` on transaction writes and on creating accounts, categories, budgets or goals there; removing a transaction-backed contribution is refused too | everything else in that wallet |
+| Archive Shared House | `WALLET_ARCHIVED` on transaction writes and on creating accounts, categories, budgets or goals there | everything else in that wallet |
 | Archive Gym Membership | transactions don't check category status, but budgets do (`CATEGORY_ARCHIVED`). Archiving is refused while any budget names it or a descendant (`CATEGORY_IN_USE`), so no §6.2 budget may target it | its transactions; kept late so the story stays realistic |
 | Complete Motorbike, cancel Learn Guitar | contributions need `ACTIVE` (`GOAL_NOT_ACTIVE`) | their contributions |
 
@@ -125,12 +125,11 @@ Auth routes are rate-limited at `AUTH_RATE_LIMIT_PER_MINUTE` (10) per IP per rou
 
 - **Anchor A** = `todayIn('Asia/Ho_Chi_Minh')` at run time, not the UTC date: between 17:00Z and
   midnight UTC the two differ. `SEED_ANCHOR=YYYY-MM-DD` overrides it.
-- **History** = the 12 full months before A's month, plus A's month up to **A − 1**. No `COMPLETED`
-  row is dated on A itself: a balance has no date filter, so a row later in the day would count
+- **History** = the 12 full months before A's month, plus A's month up to **A − 1**. No row
+  is dated on A itself: a balance has no date filter, so a row later in the day would count
   before it happened, and cutting at the run instant would make the data depend on the time of day.
   With A = 2026-10-06 that is 2025-10-01 → 2026-10-05, which covers 11.11 and Black Friday 2025,
   Tet 2026 (17 Feb), the Apr–Jun hot season and a summer trip.
-- **Future** = a few `PENDING` items up to 30 days ahead (upcoming rent, the ryokan balance).
 - **Every date is a rule from A**, so any anchor tells the same story. The tables in §5–§6 quote the
   dates and figures for the reference anchor A = 2026-10-06:
 
@@ -319,7 +318,7 @@ exercised on every list.
 | INCOME, income subcategory | Side Project |
 | EXPENSE, top-level category | Groceries at Co.opmart |
 | EXPENSE, subcategory | Grab, Coffee, Rent |
-| EXPENSE, each account type | bank (rent), cash (phở), e-wallet (Grab), credit card (Netflix), USD (online course), JPY (ramen and trains in Tokyo, `COMPLETED`, during the trip under way at the anchor, §5.4) |
+| EXPENSE, each account type | bank (rent), cash (phở), e-wallet (Grab), credit card (Netflix), USD (online course), JPY (ramen and trains in Tokyo, during the trip under way at the anchor, §5.4) |
 | EXPENSE tagged with a goal | Japan flights, JR pass → feeds the goal budget |
 | TRANSFER **cross-wallet into a shared wallet** | House Share: An's Vietcombank → House Kitty, monthly in history months 1–6 |
 | EXPENSE in an archived category | Gym, dated before the archive |
@@ -328,7 +327,6 @@ exercised on every list.
 | TRANSFER **cross-wallet, same owner** | Allowance to Mom: An's Vietcombank → Mom's Cash, 3,000,000 on the 5th |
 | TRANSFER **cross-wallet, across people** | Settle Up: An's Vietcombank → Linh's BIDV after shared trips |
 | TRANSFER closing an account | ACB (old) → Vietcombank for the full balance, then archive ACB |
-| Status `PENDING` | Next month's rent (future-dated); the Japan hotel hold (§5.4); the ryokan balance |
 | Status `DELETED` | Duplicates "entered twice", deleted via `POST /transactions/{id}/delete` |
 | Edited (`PATCH`) | Amount typo corrected; EXPENSE → TRANSFER (a "payment" that was really a card payoff); category changed; date moved |
 | Created by a non-owner | An's entries in Linh's Wallet; Khoa's in Shared House |
@@ -345,7 +343,7 @@ scope for v1, BR-07), and a goal tag on income or transfers (`chk_transaction_go
 |---|---|---|---|
 | Salary | 25th, weekend → previous Friday | 28,000,000 | → Vietcombank / Salary |
 | Tet bonus | 10 days before Tet, weekend → previous Friday (2026-02-06) | 28,000,000 | → Vietcombank / Bonus |
-| Rent | 1st | 6,500,000 | Vietcombank / Rent (+ a `PENDING` one for next month) |
+| Rent | 1st | 6,500,000 | Vietcombank / Rent |
 | Electricity | 8th–12th | 650k–1.1M; 1,450,000–1,600,000 in Apr–Jun (hot season), so Bills is over in all three | Vietcombank / Utilities |
 | Water | 10th–14th | 90k–160k | Vietcombank / Utilities |
 | Internet | 15th | 220,000 | Vietcombank / Phone & Internet |
@@ -397,7 +395,7 @@ for A = 2026-10-06.
 | Da Lat trip with Linh | the most recent June inside the window (Jun 2026) | An pays the coach tickets and his own meals (An's Wallet / Travel ≈ 4M); Linh pays the homestay from BIDV. Settle Up, An → Linh, covers An's half of the homestay |
 | Motorbike service | A − 2 months (Aug 2026) | Repairs & Maintenance 1,350,000 |
 | Japan trip prep | A − 9 weeks → A − 5 days | Techcombank → Vietcombank 30,000,000 (Savings) at A − 9 weeks. Flights 12,800,000 (A − 8 weeks) and a JR pass 8,700,000 (A − 6 weeks), both VND on VIB Visa / Travel, tagged with the Japan goal. The yen bought is an untagged VND Travel expense "Currency exchange" of 13,900,000 for ¥80,000 at A − 7 days, plus Japan Cash's opening balance — no cross-currency transfer exists (BR-07) |
-| Japan trip, **under way at the anchor** | departs A − 4 days, returns A + 3 days | An's HCMC habits (§5.3) pause on A − 4…A − 1. In their place, `COMPLETED` JPY expenses from Japan Cash: ¥6,000–11,000 a day in 3–5 rows, which leaves the ryokan's ¥35,000 covered (ramen, trains, temples, convenience stores). A 3,000,000 VND hotel hold on VIB Visa / Travel at A − 2 days, `PENDING` and never settled. The ryokan's ¥35,000 balance is `PENDING` on A + 3, payable at checkout. Rows are stamped in An's wallet zone, although he's in Tokyo: a member travelling away from his wallet's zone, the same open question as Bao's |
+| Japan trip, **under way at the anchor** | departs A − 4 days, returns A + 3 days | An's HCMC habits (§5.3) pause on A − 4…A − 1. In their place, JPY expenses from Japan Cash: ¥6,000–11,000 a day in 3–5 rows, which leaves the ryokan's ¥35,000 covered (ramen, trains, temples, convenience stores). The ryokan's ¥35,000 balance is paid at checkout, after the anchor, so the ledger holds no row for it. Rows are stamped in An's wallet zone, although he's in Tokyo: a member travelling away from his wallet's zone, the same open question as Bao's |
 
 ### 5.5 Other wallets
 
@@ -478,7 +476,7 @@ Contributions need the goal `ACTIVE` (`GOAL_NOT_ACTIVE`), so a goal that ends `C
 
 A transaction-backed contribution must name an EXPENSE category in the goal's wallet
 (`goal-contributions.service.ts`: "Required when recording as a transaction"). It creates a
-`COMPLETED`, goal-tagged EXPENSE, which moves the account balance and counts in dashboard `expense`
+`ACTIVE`, goal-tagged EXPENSE, which moves the account balance and counts in dashboard `expense`
 and in wallet-wide budgets (Monthly Cap, Mom's Daily Spending).
 
 An earmark moves no money, and the server doesn't check it against a balance (only role, wallet
@@ -496,14 +494,11 @@ the withdrawal on, the Japan earmarks exceed the balance by up to ≈ 15M, which
 "Overdue" has no API field: it's `status = ACTIVE` with `targetDate` before the anchor, computed by
 `verify.ts`. The API reports no pace either, so "close to its date" is narrative only.
 
-Also: one transaction-backed contribution on Motorbike is **removed** (`DELETE /goals/{id}/contributions/{contributionId}`).
-That deletes the contribution row outright and flips its backing transaction to `DELETED`. The
-`DELETED` transaction (still goal-tagged) and the `GOAL_CONTRIBUTION_REMOVED` audit entry remain;
-`GET /goals/{id}/contributions` no longer lists it.
+No contribution is ever removed (API spec §13.8), so the seed records none it would take back.
 
 ### 6.2 Budgets — every kind, every period, every state
 
-`spent` counts only `COMPLETED` `EXPENSE` transactions in the budget's currency (§12.2), and only one
+`spent` counts only `ACTIVE` `EXPENSE` transactions in the budget's currency (§12.2), and only one
 budget per target over overlapping days (the `excl_budget_*_overlap` constraints). Monthly and daily
 budgets start at H0, except Bills (the last day of H0's month, to exercise a 31st start). Weekly ones
 start on M0. Yearly ones start on Y0 (§1.5). Dates and figures below are for A = 2026-10-06.
@@ -541,8 +536,7 @@ asserted only on the fixed-window ones, 11.11 Sale and Japan Trip.
 A category budget counts its subcategories at any depth (API spec §12.2). So Weekend Dining (Dining
 Out) also counts Coffee. Food has no subcategory in this plan, so the Food budget counts only Food.
 Verify item 4 needs one parent budget whose `spent` comes only through a subcategory. That's the
-Housing row: its only transactions are Rent (6,500,000 / 7,000,000 ≈ 93%; next month's `PENDING`
-rent doesn't count). Transportation doesn't qualify, because the Motorbike goal's final payment is
+Housing row: its only transactions are Rent (6,500,000 / 7,000,000 ≈ 93%). Transportation doesn't qualify, because the Motorbike goal's final payment is
 booked straight to it (§6.1).
 
 ---
@@ -556,12 +550,12 @@ token: An for An's, Mom's, Linh's and Shared House; Khoa and Bao for their own. 
 1. **Balances** — for every account, `GET /accounts/{id}` balance equals the generator's running
    `bigint` balance (opening balance + completed inflows − completed outflows). A mismatch is either a
    generator bug or a BR-05 regression. The generator's ledger includes the expenses created by
-   transaction-backed contributions (§6.1), and drops the removed Motorbike one.
+   transaction-backed contributions (§6.1).
 2. **BR-06** — for An's wallet and each month, dashboard `income`/`expense` equal the generator's
    income/expense sums excluding transfers, contribution-backed expenses included.
    `transferredIn`/`transferredOut` equal the **cross-wallet** transfer sums only: a transfer between
    two of the wallet's own accounts appears in neither (`transferDirection`, `responses.ts`). For An
-   that leaves Allowance to Mom, Settle Up and House Share, all `transferredOut`. Every figure counts `COMPLETED` rows only.
+   that leaves Allowance to Mom, Settle Up and House Share, all `transferredOut`. Every figure counts `ACTIVE` rows only.
    Months are wallet-zone months, and the response's `period.timeZone` must read `Asia/Ho_Chi_Minh`.
    The 00:10-on-the-1st entry (§1.5) must count in its local month, not the previous one.
 3. **Per-currency totals** (BR-07) — never summed across currencies, per field: `totalBalance` has
@@ -644,7 +638,7 @@ Guest mode, AI conversations and exchange rates are covered by phases 7–9 (§1
 
 | # | Question | How to check |
 |---|---|---|
-| 1 | ~~Does the server accept a future `transactionDate` for `PENDING` rows?~~ **Resolved:** `createTransactionSchema` takes `status` (default `COMPLETED`), `transactionDate` is only `isoDateTimeSchema`, and nothing rejects a future date | Phase 1's first run confirms it |
+| 1 | ~~Does the server accept a future `transactionDate` for `PENDING` rows?~~ **Moot:** transactions have no `PENDING` state since migration 004, and the seed dates nothing after A | — |
 | 2 | ~~Does `POST /budgets` accept a future `startDate`?~~ **Resolved:** the only date rule is `endDate >= startDate` | Same |
 | 3 | Does the mobile category picker render nested subcategories well (one level)? Deeper nesting is allowed server-side but not planned here | Open the picker on seeded data |
 | 4 | Should the seed run in CI (determinism check, item 8 of §7)? | A run takes ≈ 25 s (≈ 85 s with phase 8's cache wait), plus database setup; open |
