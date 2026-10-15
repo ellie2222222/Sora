@@ -233,7 +233,7 @@ erDiagram
         string type "INCOME | EXPENSE | TRANSFER"
         decimal amount "always positive"
         string currency
-        string status "PENDING | COMPLETED | CANCELLED"
+        string status "ACTIVE | DELETED"
     }
     BUDGET {
         uuid id PK
@@ -502,8 +502,8 @@ TransactionsController.create:
   3. TransactionsService.create:
      a. loads the account, refuses if ARCHIVED or its wallet is ARCHIVED
      b. loads the category, refuses unless it is EXPENSE-typed and in the account's wallet
-     c. inserts the transaction row (status COMPLETED) — no balance write anywhere; balance is
-        derived on every read from initial_balance + completed transactions (BR-06)
+     c. inserts the transaction row (status ACTIVE) — no balance write anywhere; balance is
+        derived on every read from initial_balance + active transactions (BR-06)
      d. writes an audit_logs row
   4. Returns the TransactionResponse DTO inside the envelope
 
@@ -511,7 +511,7 @@ TransactionsController.create:
 {
   "success": true,
   "data": {
-    "id": "...", "type": "EXPENSE", "status": "COMPLETED",
+    "id": "...", "type": "EXPENSE", "status": "ACTIVE",
     "amount": "150000.0000", "currency": "VND",
     "fromAccount": {"id": "...", "name": "Cash", "walletId": "...", "walletName": "..."},
     "toAccount": null,
@@ -759,8 +759,8 @@ of this feature's routes. See [§8](#8-feature-implementation-mapping).
 
 ### 6.1 API Index
 
-The actually-implemented endpoints (verified against every `@Controller` in `server/src`, 2026-09-16)
-— 52 routes.
+The actually-implemented endpoints — 58 routes, the same set as `ROUTES` in `@sora/contracts` (the server's
+route test asserts every one is mounted) and the API specification's §3 index.
 
 | Method | Path | Min role | Controller |
 | --- | --- | --- | --- |
@@ -801,7 +801,7 @@ The actually-implemented endpoints (verified against every `@Controller` in `ser
 | POST | `/transactions` | EDITOR | `TransactionsController` |
 | GET | `/transactions/{id}` | VIEWER | `TransactionsController` |
 | PATCH | `/transactions/{id}` | EDITOR | `TransactionsController` |
-| POST | `/transactions/{id}/cancel` | EDITOR | `TransactionsController` |
+| POST | `/transactions/{id}/delete` | EDITOR | `TransactionsController` |
 | GET | `/budgets` | VIEWER | `BudgetsController` |
 | POST | `/budgets` | EDITOR | `BudgetsController` |
 | GET | `/budgets/{id}` | VIEWER | `BudgetsController` |
@@ -814,8 +814,14 @@ The actually-implemented endpoints (verified against every `@Controller` in `ser
 | DELETE | `/goals/{id}` | EDITOR | `GoalsController` |
 | GET | `/goals/{id}/contributions` | VIEWER | `GoalsController` |
 | POST | `/goals/{id}/contributions` | EDITOR | `GoalsController` |
-| DELETE | `/goals/{id}/contributions/{contributionId}` | EDITOR | `GoalsController` |
 | GET | `/dashboard` | VIEWER | `DashboardController` |
+| GET | `/ai/conversations` | authed | `AiController` |
+| POST | `/ai/conversations` | authed | `AiController` |
+| POST | `/ai/conversations/{id}/delete` | authed | `AiController` |
+| GET | `/ai/conversations/{id}/messages` | authed | `AiController` |
+| POST | `/ai/conversations/{id}/messages` | VIEWER | `AiController` |
+| POST | `/ai/conversations/{id}/messages/{messageId}/confirm` | EDITOR | `AiController` |
+| POST | `/ai/conversations/{id}/messages/{messageId}/dismiss` | authed | `AiController` |
 
 ### 6.2 Error Response Catalog
 
@@ -833,7 +839,7 @@ grouped here for readability only.
 | `CREDENTIALS_INVALID` | 401 | Login — identical for unknown email and wrong password |
 | `EMAIL_ALREADY_REGISTERED` | 409 | Registration |
 | `FORBIDDEN` | 403 | Member, but role too low (never "no membership" — see `WALLET_NOT_FOUND`) |
-| `WALLET_NOT_FOUND` | 404 | No such wallet, or no membership on it (BR-05) |
+| `WALLET_NOT_FOUND` | 404 | No such wallet, or no membership on it (AC-01) |
 | `WALLET_ARCHIVED` | 409 | Write attempted on an archived wallet |
 | `WALLET_LAST_OWNER` | 409 | Demote/revoke/leave attempted on the sole owner |
 | `MEMBER_NOT_FOUND` | 404 | No such member |
@@ -855,21 +861,26 @@ grouped here for readability only.
 | `CATEGORY_IN_USE` | 409 | Archive refused — a budget still plans for it |
 | `CATEGORY_HAS_TRANSACTIONS` | 409 | Permanent delete refused — the category or a child has transactions |
 | `CATEGORY_PARENT_ARCHIVED` | 409 | Restore refused — the parent is still archived; or a child created under an archived parent |
-| `CATEGORY_ARCHIVED` | 409 | A budget created on an archived category |
+| `CATEGORY_ARCHIVED` | 409 | An archived category named by a budget, a contribution, or a transaction create or edit that changes its category |
 | `TRANSACTION_NOT_FOUND` | 404 | No such transaction |
-| `TRANSACTION_ALREADY_CANCELLED` | 409 | Cancel attempted twice |
+| `TRANSACTION_ALREADY_DELETED` | 409 | Delete attempted twice, or an edit of a deleted transaction |
+| `TRANSACTION_BACKS_CONTRIBUTION` | 409 | Delete of a transaction a goal contribution points at; a contribution is never removed |
 | `TRANSFER_SAME_ACCOUNT` | 422 | Service backstop for a same-account transfer; over HTTP `createTransactionSchema` answers `VALIDATION_FAILED` first |
 | `TRANSFER_CURRENCY_MISMATCH` | 422 | The two accounts don't share a currency |
 | `BUDGET_NOT_FOUND` | 404 | No such budget |
 | `BUDGET_PERIOD_OVERLAP` | 409 | Overlaps another active budget for the same category |
 | `GOAL_NOT_FOUND` | 404 | No such goal |
-| `GOAL_NOT_ACTIVE` | 409 | Contribution attempted on a completed/cancelled goal |
-| `CONTRIBUTION_NOT_FOUND` | 404 | No such contribution |
+| `GOAL_NOT_ACTIVE` | 409 | A completed/cancelled goal named by a contribution, a budget, or a transaction's goal tag |
 | `RATE_LIMITED` | 429 | Auth rate limit or per-email lockout |
+| `IDEMPOTENCY_KEY_IN_USE` | 409 | A replayed `Idempotency-Key`'s first attempt is still running after the wait limit (API spec §2.10) |
+| `ROUTE_NOT_FOUND` | 404 | No route matches the path, or an id segment is not a UUID |
 | `INTERNAL_ERROR` | 500 | Unexpected |
 | `GOOGLE_TOKEN_INVALID` | 401 | Google ID token failed verification |
 | `GOOGLE_ACCOUNT_MISMATCH` | 409 | Google sign-in whose verified email belongs to an account already linked to a different Google account |
 | `VALUATION_UNAVAILABLE` | 503 | Reserved for the dashboard's converted-total feature ([§4.5](#45-exchange-rate--dashboard-valuation)) — defined and status-mapped, but not currently thrown by any code path; an unavailable conversion is reported in-band today (`valuation.status === 'UNAVAILABLE'` in a normal `200`), not as this error |
+| `AI_CONVERSATION_NOT_FOUND` | 404 | No such conversation, or another user's |
+| `AI_MESSAGE_NOT_FOUND` | 404 | No such message, or it carries no proposal |
+| `AI_ACTION_NOT_PENDING` | 409 | A proposal already confirmed or dismissed |
 
 ---
 
@@ -909,15 +920,15 @@ not referenced by `check-contract-parity.mjs`, since it backs a computed respons
 | `chk_user_has_credential` | `users` | A row with neither a password nor a Google identity — unable to authenticate through any path |
 | `uq_exchange_rate_snapshot_date_currency` | `exchange_rate_snapshots` | Two snapshot rows for the same date and base currency — the invariant the daily-upsert relies on |
 
-**No `deleted_at` column exists anywhere.** Archival is a `status` value; the one true row-level
-deletion in the schema is `goal_contributions`, where `SAV-US-05` removes the row outright
-(and cancels its backing transaction, if any, rather than deleting that).
+**No `deleted_at` column exists anywhere.** Archival is a `status` value. A goal contribution is never
+removed (`SAV-US-05`): no route deletes one, and `trg_goal_contribution_kept` (migration 005) refuses the
+row's `DELETE` from any writer.
 
 ---
 
 ## 8. Feature Implementation Mapping
 
-Full traceability, all 49 stories from [SRS.md §9](SRS.md#9-features--user-stories). "Controller"
+Full traceability, all 53 stories from [SRS.md §9](SRS.md#9-features--user-stories). "Controller"
 names the file whose HTTP surface realizes the story; this table is checked against the real
 `@Controller`/`@Get`/`@Post`/etc. decorators listed in [§6.1](#61-api-index), not against prose —
 regenerate it from the controllers, not from memory, the next time either drifts.
@@ -974,7 +985,7 @@ ahead of an SRS update for them.
 | TXN-US-05 | Browse and filter history | `GET /transactions` |
 | TXN-US-06 | Read one transaction | `GET /transactions/{id}` |
 | TXN-US-07 | Correct a transaction's description | `PATCH /transactions/{id}` |
-| TXN-US-08 | Cancel a transaction | `POST /transactions/{id}/cancel` |
+| TXN-US-08 | Cancel a transaction | `POST /transactions/{id}/delete` (status `DELETED`, the row stays) |
 
 ### CAT-US — Categories
 
@@ -1002,7 +1013,7 @@ ahead of an SRS update for them.
 | SAV-US-02 | Contribute to a goal | `POST /goals/{id}/contributions` |
 | SAV-US-03 | Watch progress | `GET /goals` / `GET /goals/{id}` |
 | SAV-US-04 | Adjust a goal | `PATCH /goals/{id}` |
-| SAV-US-05 | Remove a contribution | `DELETE /goals/{id}/contributions/{contributionId}` |
+| SAV-US-05 | A contribution is kept for good | No removal route; `POST /transactions/{id}/delete` answers `409 TRANSACTION_BACKS_CONTRIBUTION` for its payment; `trg_goal_contribution_kept` |
 | SAV-US-06 | Complete or cancel a goal | `PATCH /goals/{id}` (`status`) |
 
 ### DASH-US — Dashboard
@@ -1012,6 +1023,7 @@ ahead of an SRS update for them.
 | DASH-US-01 | Read a wallet's dashboard | `GET /dashboard` |
 | DASH-US-02 | Compare the wallets I follow | `GET /wallets` (per-wallet balances) + client-side composition — there is no dedicated multi-wallet-comparison endpoint |
 | DASH-US-03 | See an approximate total in one currency | `GET /dashboard?displayCurrency=XXX` — `DashboardController`, `ExchangeRateService` ([§4.5](#45-exchange-rate--dashboard-valuation)); mobile UI not yet built (API/contract-complete only) |
+| DASH-US-04 | Read one account's dashboard | `GET /dashboard?accountId=` — the same figures scoped to one account; a sibling-account transfer is its in/out, never income or expense |
 
 ### GST-US — Guest Mode
 
@@ -1020,7 +1032,15 @@ ahead of an SRS update for them.
 | GST-US-01 | Try the app without an account | Client-only — `AuthProvider.enterGuestMode()`, `services/guest/*` ([§4.3](#43-guest--anonymous-mode)); no server route |
 | GST-US-02 | Bring my guest data into a real wallet | Client-only — `GuestUploadScreen`, `services/guest/guestUpload.ts` ([§4.3](#43-guest--anonymous-mode)), sequenced through the ordinary create endpoints for each resource |
 
-**Total: 49 stories, all realized** — DASH-US-03's mobile UI is the one open item, tracked in
+### AI-US — Assistant
+
+| Story | Title | Realized by |
+| --- | --- | --- |
+| AI-US-01 | Ask about a wallet in plain words | `POST /ai/conversations/{id}/messages` — `AiController`, read-only tools over one wallet (API spec §17) |
+| AI-US-02 | Record a spend by describing it | The same send returns a proposal; `POST …/messages/{messageId}/confirm` creates it exactly as `POST /transactions` would, `…/dismiss` drops it |
+| AI-US-03 | Keep and remove conversations | `GET`/`POST /ai/conversations`, `GET …/{id}/messages`, `POST …/{id}/delete` |
+
+**Total: 53 stories, all realized** — DASH-US-03's mobile UI is the one open item, tracked in
 [§4.5](#45-exchange-rate--dashboard-valuation)'s "Mobile UI" note.
 
 ---

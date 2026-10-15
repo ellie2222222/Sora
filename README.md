@@ -187,7 +187,7 @@ node scripts/check-contract-parity.mjs
 the migration as text — no database, no services, CI-safe — and asserts three things that would
 otherwise drift silently and surface as a `500` from Postgres rather than a validation error:
 
-- every enum tuple in `contracts/src/enums.ts` matches the `CHECK` constraint that admits it, in
+- every enum tuple in `packages/contracts/src/enums.ts` matches the `CHECK` constraint that admits it, in
   both directions (a value the app can send that the database rejects, *and* a legal database
   state the app can never produce);
 - every path in `routes.ts` is documented in `docs/API_SPECIFICATION.md`;

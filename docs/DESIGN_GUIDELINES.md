@@ -373,7 +373,7 @@ and a quiet tone each lower legibility, and together they compound. So a tone ha
 | `textFaint` | `fontSize.md` (15) |
 
 - Sizes are the effective `fontSize` token, whether it comes from the `Text` variant
-  (`caption` = `xs`, `label` = `sm`, `body` = `md`) or a `style` override. A `color: textMuted` in
+  (`caption` = `sm`, `label` = `sm`, `body` = `md`) or a `style` override. A `color: textMuted` in
   `style` counts as the muted tone.
 - `xs` is for short labels whose meaning is clear without reading them closely: chart axis ticks,
   counts on a badge. Never the only place a date, amount, name or instruction appears.

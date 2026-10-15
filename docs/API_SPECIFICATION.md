@@ -58,6 +58,8 @@ Every response — success or failure — is wrapped. Type: `ApiEnvelope<T>`.
 
 **All monetary values are JSON strings, never numbers** — `"150000.0000"`, not `150000`. The columns are `DECIMAL(19,4)`, whose range exceeds the 2^53 boundary where float64 stops representing integers exactly, and float arithmetic cannot represent `0.1 + 0.2` either. Clients must parse with `parseMoney()` from `@sora/contracts` and never with `Number()`.
 
+A request amount sent as a JSON number is accepted only below `100000000000` (11 integer digits), the range where float64 still holds every digit of a `DECIMAL(19,4)` value; a larger one is `422 VALIDATION_FAILED`, since `JSON.parse` has already rounded it before the server sees it. A string carries any amount exactly.
+
 Amounts are always **positive**; direction comes from the transaction `type` and from which account side is populated.
 
 ### 2.3 Dates
@@ -66,6 +68,8 @@ Amounts are always **positive**; direction comes from the transaction `type` and
 |---|---|---|
 | Calendar date | `YYYY-MM-DD` | `2026-08-22` |
 | Instant | ISO-8601 with offset | `2026-08-22T10:30:00Z` |
+
+A calendar date must exist (`2026-02-30` and `2025-02-29` are `422 VALIDATION_FAILED`), in a body or a query string alike.
 
 Every calendar date a wallet is judged on is a day in the **wallet's time zone** (§2.12), never UTC and never the caller's. Budget windows are **inclusive on both ends** and compared by that day, so in an `Asia/Ho_Chi_Minh` wallet an expense at `2026-08-31T16:30:00Z` (23:30 local) falls inside an August budget, and one at `2026-08-31T17:30:00Z` (00:30 on September 1 local) does not.
 
@@ -104,13 +108,13 @@ Ranks compare (`roleSatisfies()`): OWNER ⊇ EDITOR ⊇ VIEWER. Everything under
 | 200 | Successful read / update / action |
 | 201 | Created |
 | 204 | Success, no body (archive, logout) |
-| 400 | Malformed request (unparseable body, bad query type) |
+| 400 | Unparseable JSON body, refused before validation; code `VALIDATION_FAILED` |
 | 401 | Unauthenticated, or token expired/invalid |
 | 403 | Authenticated and a member, but role insufficient |
 | 404 | Not found, or not visible to this user |
 | 409 | Business conflict (duplicate, immutable, overlap) |
 | 410 | Gone (expired invitation) |
-| 422 | Validation failed |
+| 422 | Validation failed, in a body or a query string (a wrong-typed or out-of-range query value included) |
 | 429 | Rate limited |
 | 500 | Unexpected server error |
 
@@ -120,7 +124,7 @@ Ranks compare (`roleSatisfies()`): OWNER ⊇ EDITOR ⊇ VIEWER. Everything under
 
 ### 2.8 Pagination, filtering, sorting
 
-- `?page=1&pageSize=25` — default 25, max 200.
+- `?page=1&pageSize=25` — default 25, max 200; `page` is 1 to 1,000,000, and anything outside either range is `422 VALIDATION_FAILED`.
 - `?sortBy=-transactionDate,amount` — leading `-` is descending; multiple keys comma-separated.
 - Filters are documented per endpoint.
 
@@ -132,10 +136,11 @@ Ranks compare (`roleSatisfies()`): OWNER ⊇ EDITOR ⊇ VIEWER. Everything under
 
 Mutating endpoints accept an optional `Idempotency-Key` header. A replay with the same key and same body returns the original response instead of creating a duplicate — the case this exists for is a mobile client retrying a transaction create over a flaky connection, where a duplicate is a real financial error.
 
-- A replay that arrives **while the first attempt is still running** waits for it and receives the same response; the write happens once.
-- The same key with a **different** body is refused with `422 VALIDATION_FAILED`.
+- A replay that arrives **while the first attempt is still running** waits for it (up to 30 seconds) and receives the same response; the write happens once. Still running after that, the replay is refused with `409 IDEMPOTENCY_KEY_IN_USE` and can be retried.
+- The same key with a **different** body (or method or path) is refused with `422 VALIDATION_FAILED`, as is a key longer than 255 characters.
 - A first attempt that **failed** is not remembered, so its retry runs normally.
-- Keys are scoped per user and kept for 24 hours, in memory per API process.
+- Keys are scoped per user and kept for 24 hours in `idempotency_keys`, so a replay is recognised after an API restart and by any API process. Expired rows are purged; nothing derived reads them. A public route (register, login) ignores the header: there is no user to scope a key to.
+- A claim whose first attempt never completed (the process died mid-write) is taken over by a replay after 2 minutes and run again. This is the one case a write could happen twice: only if the first attempt committed its write and then died before recording its response.
 
 ### 2.11 Locale
 
@@ -172,57 +177,58 @@ The app proposes the device's zone when a wallet is created (§5.1, §6.2), and 
 | 4 | POST | `/auth/refresh` | public | [5.3](#53-post-authrefresh) |
 | 5 | POST | `/auth/logout` | authed | [5.4](#54-post-authlogout) |
 | 6 | GET | `/auth/me` | authed | [5.5](#55-get-authme) |
-| 7 | GET | `/wallets` | authed | [6.1](#61-get-wallets) |
-| 8 | POST | `/wallets` | authed | [6.2](#62-post-wallets) |
-| 9 | GET | `/wallets/{id}` | VIEWER | [6.3](#63-get-walletsid) |
-| 10 | PATCH | `/wallets/{id}` | OWNER | [6.4](#64-patch-walletsid) |
-| 11 | DELETE | `/wallets/{id}` | OWNER | [6.5](#65-delete-walletsid) |
-| 12 | GET | `/wallets/{id}/members` | VIEWER | [7.1](#71-get-walletsidmembers) |
-| 13 | PATCH | `/wallets/{id}/members/{memberId}` | OWNER | [7.2](#72-patch-walletsidmembersmemberid) |
-| 14 | DELETE | `/wallets/{id}/members/{memberId}` | OWNER | [7.3](#73-delete-walletsidmembersmemberid) |
-| 15 | POST | `/wallets/{id}/transfer-ownership` | OWNER | [7.4](#74-post-walletsidtransfer-ownership) |
-| 16 | POST | `/wallets/{id}/leave` | VIEWER | [7.5](#75-post-walletsidleave) |
-| 17 | GET | `/wallets/{id}/invitations` | OWNER | [8.1](#81-get-walletsidinvitations) |
-| 18 | POST | `/wallets/{id}/invitations` | OWNER | [8.2](#82-post-walletsidinvitations) |
-| 19 | DELETE | `/wallets/{id}/invitations/{invId}` | OWNER | [8.3](#83-delete-walletsidinvitationsinvid) |
-| 20 | POST | `/invitations/preview` | public | [8.4](#84-post-invitationspreview) |
-| 21 | POST | `/invitations/accept` | authed | [8.5](#85-post-invitationsaccept) |
-| 22 | GET | `/accounts` | VIEWER | [9.1](#91-get-accounts) |
-| 23 | POST | `/accounts` | EDITOR | [9.2](#92-post-accounts) |
-| 24 | GET | `/accounts/{id}` | VIEWER | [9.3](#93-get-accountsid) |
-| 25 | PATCH | `/accounts/{id}` | EDITOR | [9.4](#94-patch-accountsid) |
-| 26 | DELETE | `/accounts/{id}` | EDITOR | [9.5](#95-delete-accountsid) |
-| 27 | GET | `/categories` | VIEWER | [10.1](#101-get-categories) |
-| 28 | POST | `/categories` | EDITOR | [10.2](#102-post-categories) |
-| 29 | PATCH | `/categories/{id}` | EDITOR | [10.3](#103-patch-categoriesid) |
-| 30 | DELETE | `/categories/{id}` | EDITOR | [10.4](#104-delete-categoriesid) |
-| 31 | GET | `/transactions` | VIEWER | [11.1](#111-get-transactions) |
-| 32 | POST | `/transactions` | EDITOR | [11.2](#112-post-transactions) |
-| 33 | GET | `/transactions/{id}` | VIEWER | [11.3](#113-get-transactionsid) |
-| 34 | PATCH | `/transactions/{id}` | EDITOR | [11.4](#114-patch-transactionsid) |
-| 35 | POST | `/transactions/{id}/delete` | EDITOR | [11.5](#115-post-transactionsiddelete) |
-| 36 | GET | `/budgets` | VIEWER | [12.1](#121-get-budgets) |
-| 37 | POST | `/budgets` | EDITOR | [12.2](#122-post-budgets) |
-| 38 | GET | `/budgets/{id}` | VIEWER | [12.3](#123-get-budgetsid) |
-| 39 | PATCH | `/budgets/{id}` | EDITOR | [12.4](#124-patch-budgetsid) |
-| 40 | DELETE | `/budgets/{id}` | EDITOR | [12.5](#125-delete-budgetsid) |
-| 41 | GET | `/goals` | VIEWER | [13.1](#131-get-goals) |
-| 42 | POST | `/goals` | EDITOR | [13.2](#132-post-goals) |
-| 43 | GET | `/goals/{id}` | VIEWER | [13.3](#133-get-goalsid) |
-| 44 | PATCH | `/goals/{id}` | EDITOR | [13.4](#134-patch-goalsid) |
-| 45 | DELETE | `/goals/{id}` | EDITOR | [13.5](#135-delete-goalsid) |
-| 46 | GET | `/goals/{id}/contributions` | VIEWER | [13.6](#136-get-goalsidcontributions) |
-| 47 | POST | `/goals/{id}/contributions` | EDITOR | [13.7](#137-post-goalsidcontributions) |
-| 48 | DELETE | `/goals/{id}/contributions/{cId}` | EDITOR | [13.8](#138-delete-goalsidcontributionscid) |
-| 49 | GET | `/dashboard` | VIEWER | [14.1](#141-get-dashboard) |
-| 50 | GET | `/wallets/{id}/audit-logs` | OWNER | [15.1](#151-get-walletsidaudit-logs) |
-| 51 | GET | `/ai/conversations` | authed | [17.1](#171-get-aiconversations) |
-| 52 | POST | `/ai/conversations` | authed | [17.2](#172-post-aiconversations) |
-| 53 | POST | `/ai/conversations/{id}/delete` | authed | [17.3](#173-post-aiconversationsiddelete) |
-| 54 | GET | `/ai/conversations/{id}/messages` | authed | [17.4](#174-get-aiconversationsidmessages) |
-| 55 | POST | `/ai/conversations/{id}/messages` | VIEWER | [17.5](#175-post-aiconversationsidmessages) |
-| 56 | POST | `/ai/conversations/{id}/messages/{messageId}/confirm` | EDITOR | [17.6](#176-post-aiconversationsidmessagesmessageidconfirm) |
-| 57 | POST | `/ai/conversations/{id}/messages/{messageId}/dismiss` | authed | [17.7](#177-post-aiconversationsidmessagesmessageiddismiss) |
+| 7 | POST | `/auth/google` | public | [5.6](#56-post-authgoogle) |
+| 8 | PATCH | `/auth/me/preferences` | authed | [5.7](#57-patch-authmepreferences) |
+| 9 | GET | `/wallets` | authed | [6.1](#61-get-wallets) |
+| 10 | POST | `/wallets` | authed | [6.2](#62-post-wallets) |
+| 11 | GET | `/wallets/{id}` | VIEWER | [6.3](#63-get-walletsid) |
+| 12 | PATCH | `/wallets/{id}` | OWNER | [6.4](#64-patch-walletsid) |
+| 13 | DELETE | `/wallets/{id}` | OWNER | [6.5](#65-delete-walletsid) |
+| 14 | GET | `/wallets/{id}/members` | VIEWER | [7.1](#71-get-walletsidmembers) |
+| 15 | PATCH | `/wallets/{id}/members/{memberId}` | OWNER | [7.2](#72-patch-walletsidmembersmemberid) |
+| 16 | DELETE | `/wallets/{id}/members/{memberId}` | OWNER | [7.3](#73-delete-walletsidmembersmemberid) |
+| 17 | POST | `/wallets/{id}/transfer-ownership` | OWNER | [7.4](#74-post-walletsidtransfer-ownership) |
+| 18 | POST | `/wallets/{id}/leave` | VIEWER | [7.5](#75-post-walletsidleave) |
+| 19 | GET | `/wallets/{id}/invitations` | OWNER | [8.1](#81-get-walletsidinvitations) |
+| 20 | POST | `/wallets/{id}/invitations` | OWNER | [8.2](#82-post-walletsidinvitations) |
+| 21 | DELETE | `/wallets/{id}/invitations/{invId}` | OWNER | [8.3](#83-delete-walletsidinvitationsinvid) |
+| 22 | POST | `/invitations/preview` | public | [8.4](#84-post-invitationspreview) |
+| 23 | POST | `/invitations/accept` | authed | [8.5](#85-post-invitationsaccept) |
+| 24 | GET | `/accounts` | VIEWER | [9.1](#91-get-accounts) |
+| 25 | POST | `/accounts` | EDITOR | [9.2](#92-post-accounts) |
+| 26 | GET | `/accounts/{id}` | VIEWER | [9.3](#93-get-accountsid) |
+| 27 | PATCH | `/accounts/{id}` | EDITOR | [9.4](#94-patch-accountsid) |
+| 28 | DELETE | `/accounts/{id}` | EDITOR | [9.5](#95-delete-accountsid) |
+| 29 | GET | `/categories` | VIEWER | [10.1](#101-get-categories) |
+| 30 | POST | `/categories` | EDITOR | [10.2](#102-post-categories) |
+| 31 | PATCH | `/categories/{id}` | EDITOR | [10.3](#103-patch-categoriesid) |
+| 32 | DELETE | `/categories/{id}` | EDITOR | [10.4](#104-delete-categoriesid) |
+| 33 | GET | `/transactions` | VIEWER | [11.1](#111-get-transactions) |
+| 34 | POST | `/transactions` | EDITOR | [11.2](#112-post-transactions) |
+| 35 | GET | `/transactions/{id}` | VIEWER | [11.3](#113-get-transactionsid) |
+| 36 | PATCH | `/transactions/{id}` | EDITOR | [11.4](#114-patch-transactionsid) |
+| 37 | POST | `/transactions/{id}/delete` | EDITOR | [11.5](#115-post-transactionsiddelete) |
+| 38 | GET | `/budgets` | VIEWER | [12.1](#121-get-budgets) |
+| 39 | POST | `/budgets` | EDITOR | [12.2](#122-post-budgets) |
+| 40 | GET | `/budgets/{id}` | VIEWER | [12.3](#123-get-budgetsid) |
+| 41 | PATCH | `/budgets/{id}` | EDITOR | [12.4](#124-patch-budgetsid) |
+| 42 | DELETE | `/budgets/{id}` | EDITOR | [12.5](#125-delete-budgetsid) |
+| 43 | GET | `/goals` | VIEWER | [13.1](#131-get-goals) |
+| 44 | POST | `/goals` | EDITOR | [13.2](#132-post-goals) |
+| 45 | GET | `/goals/{id}` | VIEWER | [13.3](#133-get-goalsid) |
+| 46 | PATCH | `/goals/{id}` | EDITOR | [13.4](#134-patch-goalsid) |
+| 47 | DELETE | `/goals/{id}` | EDITOR | [13.5](#135-delete-goalsid) |
+| 48 | GET | `/goals/{id}/contributions` | VIEWER | [13.6](#136-get-goalsidcontributions) |
+| 49 | POST | `/goals/{id}/contributions` | EDITOR | [13.7](#137-post-goalsidcontributions) |
+| 50 | GET | `/dashboard` | VIEWER | [14.1](#141-get-dashboard) |
+| 51 | GET | `/wallets/{id}/audit-logs` | OWNER | [15.1](#151-get-walletsidaudit-logs) |
+| 52 | GET | `/ai/conversations` | authed | [17.1](#171-get-aiconversations) |
+| 53 | POST | `/ai/conversations` | authed | [17.2](#172-post-aiconversations) |
+| 54 | POST | `/ai/conversations/{id}/delete` | authed | [17.3](#173-post-aiconversationsiddelete) |
+| 55 | GET | `/ai/conversations/{id}/messages` | authed | [17.4](#174-get-aiconversationsidmessages) |
+| 56 | POST | `/ai/conversations/{id}/messages` | VIEWER | [17.5](#175-post-aiconversationsidmessages) |
+| 57 | POST | `/ai/conversations/{id}/messages/{messageId}/confirm` | EDITOR | [17.6](#176-post-aiconversationsidmessagesmessageidconfirm) |
+| 58 | POST | `/ai/conversations/{id}/messages/{messageId}/dismiss` | authed | [17.7](#177-post-aiconversationsidmessagesmessageiddismiss) |
 
 ---
 
@@ -276,7 +282,7 @@ The app proposes the device's zone when a wallet is created (§5.1, §6.2), and 
 
 | Field | Rule |
 |---|---|
-| `email` | valid email; trimmed and lowercased; unique case-insensitively |
+| `email` | valid email of at most 254 characters; trimmed and lowercased; unique case-insensitively |
 | `password` | 12–200 characters. Length only — no composition rules, which measurably push users toward predictable substitutions (NIST SP 800-63B) |
 | `displayName` | 1–100 characters after trim |
 | `baseCurrency` | `^[A-Z]{3}$`, defaults to `VND` |
@@ -582,7 +588,7 @@ Invitations are addressed to an **email**, not a user id, so you can invite some
 
 | Field | Rule |
 |---|---|
-| `email` | valid, trimmed, lowercased |
+| `email` | valid, at most 254 characters, trimmed, lowercased |
 | `role` | `EDITOR` or `VIEWER` only — `INVITABLE_ROLES`. Inviting straight to `OWNER` is rejected by both the schema and the `chk_invitation_role` constraint |
 | `relationLabel` | ≤ 50 characters, optional. The inviter's word for the invitee (SRS FR-11) |
 
@@ -714,9 +720,9 @@ Lets an invitee see what they are being offered *before* signing up.
 
 **Response `200`** — `AccountResponse`.
 
-**Errors** — `403 FORBIDDEN` · `404 ACCOUNT_NOT_FOUND` · `422 ACCOUNT_CURRENCY_MISMATCH` · `422 VALIDATION_FAILED`
+**Errors** — `403 FORBIDDEN` · `404 ACCOUNT_NOT_FOUND` · `409 ACCOUNT_LAST_ACTIVE` (archiving the wallet's last active account, as §9.5) · `422 ACCOUNT_CURRENCY_MISMATCH` · `422 VALIDATION_FAILED`
 
-**Side effects** — audit `ACCOUNT_UPDATED`.
+**Side effects** — audit `ACCOUNT_ARCHIVED` when the request archives an active account, otherwise `ACCOUNT_UPDATED`.
 
 ### 9.5 DELETE /accounts/{id}
 
@@ -826,13 +832,13 @@ Enforced three times, deliberately: by the `createTransactionSchema` discriminat
 |---|---|
 | **Auth** | Bearer · **Min role** `VIEWER` |
 
-**Query** — `transactionQuerySchema`: `walletId`, `accountId`, `categoryId`, `type`, `status`, `dateFrom`, `dateTo`, `minAmount`, `maxAmount`, `search`, `page`, `pageSize`, `sortBy` (default `-transactionDate`)
+**Query** — `transactionQuerySchema`: `walletId`, `accountId`, `categoryId`, `type`, `status` (`ACTIVE` | `DELETED`), `dateFrom`, `dateTo`, `minAmount`, `maxAmount`, `search`, `page`, `pageSize`, `sortBy` (default `-transactionDate`)
 
 `dateFrom`/`dateTo` are calendar days in the wallet's zone (§2.12). With `walletId`, that wallet's zone; without it, each transaction is read in its paying wallet's zone (the receiving one for income).
 
 Results are restricted to transactions touching an account in a wallet the caller can read. A cross-wallet transfer is visible to members of **either** side — each of them genuinely had money move.
 
-**Response `200`** — `TransactionResponse[]` plus `meta.pagination`. Each item carries `isCrossWallet` and both accounts' wallet names, so the list can show *whose* account a transfer touched.
+**Response `200`** — `TransactionResponse[]` plus `meta.pagination`. Each item carries `isCrossWallet` and both accounts' wallet names, so the list can show *whose* account a transfer touched, and `backsContribution`, true when the transaction records a goal contribution and so can't be deleted (§11.5).
 
 **Errors** — `404 WALLET_NOT_FOUND` · `422 VALIDATION_FAILED`
 
@@ -855,8 +861,7 @@ Results are restricted to transactions touching an account in a wallet the calle
   "amount": "150000",
   "currency": "VND",
   "description": "Dinner",
-  "transactionDate": "2026-08-22T12:30:00Z",
-  "status": "COMPLETED"
+  "transactionDate": "2026-08-22T12:30:00Z"
 }
 ```
 
@@ -872,12 +877,16 @@ Results are restricted to transactions touching an account in a wallet the calle
 | Category type matches transaction type | `422 CATEGORY_WRONG_TYPE` |
 | Category exists and the caller can see its wallet | `404 CATEGORY_NOT_FOUND` — checked first, so a hidden category is indistinguishable from a made-up id (AC-01) |
 | Category belongs to the account's wallet (a transfer's: the `fromAccountId` wallet) | `403 CATEGORY_WRONG_WALLET` |
+| Category is not `ARCHIVED` | `409 CATEGORY_ARCHIVED` |
 | No account is `ARCHIVED` | `409 ACCOUNT_ARCHIVED` |
 | `goalId`, when given, is on an `EXPENSE` only | `422 VALIDATION_FAILED` (`chk_transaction_goal`) |
 | `goalId` names a goal in the paying account's wallet | `404 GOAL_NOT_FOUND` |
+| That goal is `ACTIVE` | `409 GOAL_NOT_ACTIVE` |
 | `EDITOR` on **both** wallets for a cross-wallet transfer | `403 FORBIDDEN` |
 
-**Response `201`** — `TransactionResponse`.
+**Response `201`** — `TransactionResponse`, always `status: "ACTIVE"`.
+
+A transaction is `ACTIVE` or `DELETED`; there is no pending or completed state. A create never sets the status: a `status` in the body is ignored, so no transaction is born deleted, and the only way to `DELETED` is §11.5.
 
 `goalId` tags an expense with one of the wallet's saving goals, so that goal's budget counts it (§12.2). It moves nothing toward the goal itself: progress comes only from contributions (§13.7).
 
@@ -903,7 +912,7 @@ A `TRANSFER` category only labels the movement; the transfer still never counts 
 
 **Request** — `updateTransactionSchema`: `{ "type"?, "amount"?, "currency"?, "fromAccountId"? (uuid or null), "toAccountId"? (uuid or null), "description"?, "transactionDate"?, "categoryId"? (uuid or null), "goalId"? (uuid or null), "reference"? }`
 
-**Validation** — every field a create sets can be edited. When `type`, `amount`, `currency` or an account is sent, the body is laid over the stored row and the result is checked exactly as §11.2 checks a create: the per-type shape (a type change must send the account side and category the new type needs; the side it no longer uses is cleared), `EDITOR` on every wallet named before and after, account and wallet not archived, currency matching every account, the category's type and wallet, and the goal tag. A goal tag lapses when the transaction stops being an expense. A transaction that backs a goal contribution (§13.6) carries its new amount and account into that contribution, and must stay an `EXPENSE` from the goal's wallet in the goal's currency (`422 VALIDATION_FAILED`). A `DELETED` transaction cannot be edited at all.
+**Validation** — every field a create sets can be edited. When `type`, `amount`, `currency` or an account is sent, the body is laid over the stored row and the result is checked exactly as §11.2 checks a create: the per-type shape (a type change must send the account side and category the new type needs; the side it no longer uses is cleared), `EDITOR` on every wallet named before and after, account and wallet not archived, currency matching every account, the category's type and wallet, and the goal tag. A goal tag lapses when the transaction stops being an expense. A transaction that backs a goal contribution (§13.6) carries its new amount and account into that contribution, and must stay an `EXPENSE` from the goal's wallet in the goal's currency (`422 VALIDATION_FAILED`). A `DELETED` transaction cannot be edited at all. The archived-category and closed-goal rules apply only to a category or goal the request sets: an edit that keeps the one already stored goes through, so archiving a category or closing a goal never freezes the history filed under it. An edit holds a lock on the transaction row from its first read to its commit, so a second edit of the same row waits, then is checked and applied against what the first saved; neither can undo the other.
 
 A changed `categoryId` must keep the same `type` and wallet. `"categoryId": null` removes a transfer's category; on an income or expense it is refused with `422 CATEGORY_WRONG_TYPE`, since those always carry one.
 
@@ -911,7 +920,9 @@ A changed `goalId` follows the §11.2 rules: an `EXPENSE` only (`422 VALIDATION_
 
 **Response `200`** — `TransactionResponse`.
 
-**Errors** — `409 TRANSACTION_ALREADY_DELETED` · `422 VALIDATION_FAILED` · `422 CATEGORY_WRONG_TYPE` · `422 CATEGORY_WRONG_WALLET` · `422 ACCOUNT_CURRENCY_MISMATCH` · `422 TRANSFER_CURRENCY_MISMATCH` · `409 ACCOUNT_ARCHIVED` · `409 WALLET_ARCHIVED` · `404 TRANSACTION_NOT_FOUND` · `404 ACCOUNT_NOT_FOUND` · `403 FORBIDDEN`
+**Errors** — `409 TRANSACTION_ALREADY_DELETED` · `422 VALIDATION_FAILED` · `422 CATEGORY_WRONG_TYPE` · `403 CATEGORY_WRONG_WALLET` · `409 CATEGORY_ARCHIVED` · `409 GOAL_NOT_ACTIVE` · `422 ACCOUNT_CURRENCY_MISMATCH` · `422 TRANSFER_CURRENCY_MISMATCH` · `409 ACCOUNT_ARCHIVED` · `409 WALLET_ARCHIVED` · `404 TRANSACTION_NOT_FOUND` · `404 ACCOUNT_NOT_FOUND` · `403 FORBIDDEN`
+
+A caller with no role on either side of the transaction gets `404 TRANSACTION_NOT_FOUND` before anything else is checked, deleted or not, exactly as for an id that does not exist (AC-01).
 
 **Side effects** — audit `TRANSACTION_UPDATED` with the changed field names, once per wallet the transaction touched before or after the edit.
 
@@ -925,9 +936,9 @@ A changed `goalId` follows the §11.2 rules: an `EXPENSE` only (`422 VALIDATION_
 
 **Response `200`** — the transaction with `status: "DELETED"`.
 
-**Errors** — `409 TRANSACTION_ALREADY_DELETED` · `404 TRANSACTION_NOT_FOUND` · `403 FORBIDDEN`
+**Errors** — `409 TRANSACTION_ALREADY_DELETED` · `409 TRANSACTION_BACKS_CONTRIBUTION` when a goal contribution points at it: a contribution is never removed (§13.8), so neither is the payment recording it. The app offers no delete for such a row (`backsContribution`); this is the server's backstop · `404 TRANSACTION_NOT_FOUND` (also for a caller with no role on either side, deleted or not — AC-01) · `403 FORBIDDEN`
 
-**Side effects** — sets `status = DELETED`; the row stays — this is a soft delete, not a row removal. Because only `COMPLETED` transactions count, every derived balance, budget `spent` and dashboard total drops the amount on the next read, with the deleted row still visible as the record of what happened. Any `goal_contributions` row pointing at it is removed in the same transaction — otherwise a deleted payment would keep crediting a savings goal. Audit `TRANSACTION_DELETED`.
+**Side effects** — sets `status = DELETED`; the row stays — this is a soft delete, not a row removal. Because only `ACTIVE` transactions count, every derived balance, budget `spent` and dashboard total drops the amount on the next read, with the deleted row still visible as the record of what happened. Audit `TRANSACTION_DELETED`.
 
 ---
 
@@ -963,7 +974,7 @@ A changed `goalId` follows the §11.2 rules: an `EXPENSE` only (`422 VALIDATION_
 
 **Repeating and fixed periods.** `DAILY`, `WEEKLY`, `MONTHLY` and `YEARLY` repeat from `startDate` until the budget is deleted, so they take no `endDate`; each read reports the period containing the day asked about, stepping from `startDate` (a monthly budget begun on the 1st follows calendar months; one begun on the 31st starts on a shorter month's last day). `CUSTOM` and `GOAL` cover the fixed window `startDate`–`endDate`. Every `BudgetResponse` carries `periodStart`/`periodEnd`, the window its figures cover.
 
-A budget is exactly one kind, and its kind decides what `spent` counts. `BudgetResponse.categoryIds` lists the categories a category budget counts — its own and every descendant — and is empty for the other kinds. In every kind, `spent` counts only `COMPLETED` `EXPENSE` transactions in the budget's `currency`, dated inside the current window by calendar day in the wallet's zone (§2.12). Transfers never count (BR-06).
+A budget is exactly one kind, and its kind decides what `spent` counts. `BudgetResponse.categoryIds` lists the categories a category budget counts — its own and every descendant — and is empty for the other kinds. In every kind, `spent` counts only `ACTIVE` `EXPENSE` transactions in the budget's `currency`, dated inside the current window by calendar day in the wallet's zone (§2.12). Transfers never count (BR-06).
 
 | Kind | `categoryId` | `goalId` | `periodType` | `spent` counts expenses… |
 |---|---|---|---|---|
@@ -1079,6 +1090,7 @@ Min role `VIEWER`. Paginated. `200` — `ContributionResponse[]`.
 | Account belongs to the goal's wallet | `403 FORBIDDEN` |
 | `currency` matches both goal and account | `422 ACCOUNT_CURRENCY_MISMATCH` |
 | `categoryId` required and `EXPENSE`-typed when `recordAsTransaction` is true | `422 VALIDATION_FAILED` |
+| That category is not `ARCHIVED` | `409 CATEGORY_ARCHIVED` |
 | Wallet not archived when `recordAsTransaction` is true | `409 WALLET_ARCHIVED` |
 | Account not archived when `recordAsTransaction` is true | `409 ACCOUNT_ARCHIVED` |
 
@@ -1086,9 +1098,9 @@ Min role `VIEWER`. Paginated. `200` — `ContributionResponse[]`.
 
 **Side effects** — `recordAsTransaction: true` creates an `EXPENSE` transaction, tagged with this goal's `goalId` so the goal's budget counts it (§12.2), **and** the contribution pointing at it, in one transaction, so the money leaving the account and the goal advancing can never disagree. Left `false`, the contribution is an earmark: the goal advances without asserting money moved. `transaction_id` is `UNIQUE`, so one transaction can back at most one contribution — otherwise a single payment could be counted toward a goal twice. Audit `GOAL_CONTRIBUTION_ADDED`.
 
-### 13.8 DELETE /goals/{id}/contributions/{cId}
+### 13.8 A contribution is never removed
 
-Min role `EDITOR`. `204`. Removes the contribution row outright; when it was transaction-backed, the backing transaction only has its status flipped to `DELETED` — the transaction row itself is never removed, keeping the ledger intact. That delete is a ledger write, so in an archived wallet a transaction-backed contribution can't be removed (`409 WALLET_ARCHIVED`); an earmark still can. Audit `GOAL_CONTRIBUTION_REMOVED`. `404 CONTRIBUTION_NOT_FOUND` when it is already gone — including when a concurrent removal, or the delete of its backing transaction (§11.5), took it first.
+There is no route to delete, edit or cancel a contribution: it records money set aside, and a goal's progress is the sum of its contributions. The transaction backing one can't be deleted either (`409 TRANSACTION_BACKS_CONTRIBUTION`, §11.5), though it can be edited and the contribution follows it (§11.4). Cancelling the goal keeps its contributions (§13.5). The database refuses a contribution row's `DELETE` from any writer, a cascade from its goal included (`trg_goal_contribution_kept`, migration 005).
 
 ---
 
@@ -1156,7 +1168,7 @@ Multi-row writes run in one database transaction: wallet + owner membership, inv
 
 ### 16.3 Deletion policy
 
-Nothing financial is hard-removed. Wallets, accounts and categories are archived; a budget, which only plans, is deleted outright (§12.5); transactions are marked `DELETED` (status flip, row stays); members are revoked. The only true row removal is a goal contribution, and that marks its backing transaction `DELETED` rather than erasing it. Transactions are the source of truth for every derived figure, so a destroyed row silently changes historical answers.
+Nothing financial is hard-removed. Wallets, accounts and categories are archived; a budget, which only plans, is deleted outright (§12.5), as is a category nothing uses (§10.4); transactions are marked `DELETED` (status flip, row stays); members are revoked. A goal contribution is never removed at all (§13.8). Transactions are the source of truth for every derived figure, so a destroyed row silently changes historical answers.
 
 ### 16.4 Currency scope for v1
 
@@ -1278,7 +1290,7 @@ Conversations and their messages are chat history, not financial data, so §17.3
 | §10 Categories | `createCategorySchema`, `updateCategorySchema` | `uq_category_name_per_parent`, `chk_category_not_own_parent`, `chk_category_type` |
 | §11 Transactions | `createTransactionSchema`, `updateTransactionSchema` | `chk_transaction_shape`, `chk_transaction_amount`, `chk_transaction_status`, `chk_transaction_goal` |
 | §12 Budgets | `createBudgetSchema`, `updateBudgetSchema` | `chk_budget_dates`, `chk_budget_period`, `chk_budget_kind`, `excl_budget_category_overlap`, `excl_budget_goal_overlap`, `excl_budget_overall_overlap` |
-| §13 Goals | `createGoalSchema`, `createContributionSchema` | `chk_goal_target`, `goal_contributions.transaction_id UNIQUE` |
+| §13 Goals | `createGoalSchema`, `createContributionSchema` | `chk_goal_target`, `goal_contributions.transaction_id UNIQUE`, `trg_goal_contribution_kept` |
 | §14 Dashboard | `dashboardQuerySchema` | — |
 | §17 AI assistant | `createAiConversationSchema`, `sendAiMessageSchema`, `aiTransactionDraftSchema` | `chk_ai_message_role`, `chk_ai_message_action_type`, `chk_ai_message_action_status`, `chk_ai_message_action_shape` |
 

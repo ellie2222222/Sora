@@ -196,10 +196,10 @@ Two shapes in that diagram carry most of the model's meaning:
 | **WalletInvitation** | An offer of EDITOR or VIEWER addressed to an email address. | Created by the owner and shown its single-use credential exactly once; accepted, revoked, or left to expire after seven days. At most one live invitation per wallet and email at a time. |
 | **Account** | Where money sits, in one currency. | Created by an editor; its type and opening amount are fixed for life, and its currency once anything names it; archived when closed, keeping its history and every transfer it is a side of. |
 | **Category** | An income, expense or transfer classification, optionally nested under a parent of the same wallet and the same type. A seeded (starter) category reads in each reader's language; a category an editor creates or renames reads exactly as typed. | Seeded at registration, extended by editors; type and parent are fixed once transactions classify against it; archived, with its children, and cannot be archived while a budget still plans for it. |
-| **Transaction** | A recorded movement of money: INCOME, EXPENSE or TRANSFER, always a positive amount. | Recorded by an editor; only its description, date, category and reference are ever correctable; cancelled rather than deleted, so a mistake and its correction are both visible. |
+| **Transaction** | A recorded movement of money: INCOME, EXPENSE or TRANSFER, always a positive amount. | Recorded by an editor; every field it was recorded with can be corrected in place (BR-03); cancelled rather than deleted, so the row stays as the record of what happened. |
 | **Budget** | A planned amount for one category (including its subcategories), one goal, or the whole wallet: every day, week, month or year from its start until deleted, or over one fixed inclusive window. | Created by an editor; its category, start, window and period type are fixed, because moving them changes which history it covers and is therefore a different budget; deleted outright, which releases its slot in the no-overlap rule. |
 | **Goal** | A savings target, optionally dated. | Created by an editor; completed when reached, or cancelled — and cancelling keeps the contributions, which record money that really was set aside. |
-| **GoalContribution** | One funding event: either an earmark, or a record of money that actually left an account. | Created by an editor; at most one contribution may point at any one transaction, so a single payment cannot be counted toward a goal twice; removed, which cancels its backing transaction rather than erasing it. |
+| **GoalContribution** | One funding event: either an earmark, or a record of money that actually left an account. | Created by an editor; at most one contribution may point at any one transaction, so a single payment cannot be counted toward a goal twice; never removed, edited or cancelled, and the transaction recording one can't be deleted. |
 | **AuditLog** | Append-only record of a financial or membership event, with actor, role, target and outcome. | Written by the system, never edited or deleted, readable by the wallet's owner. |
 
 ### 2.3 Entity Relationships & Cardinality
@@ -265,7 +265,7 @@ Field-level rules. Each is a requirement on what the system accepts and refuses,
 | FR-19 | Type | One of: bank account, cash, e-wallet, credit card | Fixed set; the four places money actually sits for the product's users |
 | FR-20 | Currency | Required three-letter code, **fixed for the account's life** | Every amount on the account is denominated in it; relabelling the code alone would silently restate every stored figure |
 | FR-21 | Opening amount | Required, **may be negative** | A credit card legitimately opens in debt, so the system must not treat a negative opening amount as invalid input |
-| FR-22 | Balance | **Derived** from the opening amount plus completed transactions on either side | A stored balance is a second source of truth that can silently disagree with the history it summarises |
+| FR-22 | Balance | **Derived** from the opening amount plus active transactions on either side | A stored balance is a second source of truth that can silently disagree with the history it summarises |
 | FR-23 | Editability | Name and status only | Currency, type and opening amount are what later balances are layered on; changing one retroactively rewrites every derived figure with no trace |
 | FR-24 | Archival | Archived accounts leave the pickers, keep their history, and remain a valid side of existing transfers | Hard deletion would orphan the other side of every transfer they took part in |
 
@@ -279,7 +279,7 @@ Field-level rules. Each is a requirement on what the system accepts and refuses,
 | FR-28 | Currency | Must equal the currency of every account named | Recording an amount in a currency the account does not hold makes its balance meaningless |
 | FR-29 | Transfer currency | The two accounts must share a currency | Converting between them requires a rate, which is out of scope for v1 ([§1.6](#16-out-of-scope)) |
 | FR-30 | Category agreement | An income transaction takes an income category, an expense an expense category, a transfer (if categorised) a transfer category; the category must belong to the wallet of the account named — for a transfer, the source account | Otherwise a category tree cannot be summed, and one wallet's classification would leak into another's reports |
-| FR-31 | Status | `PENDING`, `COMPLETED` or `DELETED` (a cancelled entry; the row stays). **Only completed transactions count** toward any derived figure | Pending records an intention and cancelled records a mistake; counting either makes the app disagree with the bank |
+| FR-31 | Status | `ACTIVE` or `DELETED` (a cancelled entry; the row stays). A transaction is always recorded `ACTIVE`; only cancelling makes it `DELETED`. **Only active transactions count** toward any derived figure | A cancelled entry records a mistake; counting it makes the app disagree with the bank |
 | FR-32 | Correctable fields | Description, date, category and reference only | See [BR-08](#4-business-rules) |
 | FR-33 | Immutable fields | Amount, type, source account, destination account | A recorded movement of money is a historical fact |
 | FR-34 | Recorded by | The user who entered it, fixed for life | The audit question "who entered this" has exactly one answer forever |
@@ -308,7 +308,7 @@ Field-level rules. Each is a requirement on what the system accepts and refuses,
 | FR-47 | Recorded contribution | A contribution may optionally record that the money actually left an account, as an expense transaction the contribution then points at; the two are created together or not at all | Otherwise the account balance and the goal's progress can disagree about the same money |
 | FR-48 | Earmark contribution | A contribution that records no transaction advances the goal without asserting money moved | "I intend this to be holiday money" is a real and different statement from "I moved it" |
 | FR-49 | One backing transaction | At most one contribution may point at any one transaction | Otherwise one payment could be counted toward a goal twice |
-| FR-50 | Removal | Removing a contribution marks its backing transaction `DELETED`; the transaction row is never removed | The ledger stays complete |
+| FR-50 | Kept | A contribution is never removed, and the transaction recording one can't be cancelled | Progress is the sum of what was set aside; taking an entry back would rewrite it with no trace |
 
 ---
 
@@ -334,8 +334,8 @@ Reading, or attempting to act on, a wallet-scoped thing without a membership is 
 **BR-06: Every derived figure is derived, on every read.**
 Balances, budget spend/remaining/usage, and goal progress are computed from transaction and contribution history. None of them is stored as an independently editable value, and no operation exists to set one directly. A stored total is a second source of truth, and the two only have to disagree once for every figure downstream to become unreliable.
 
-**BR-07: Only completed transactions count.**
-Pending and cancelled transactions are visible records — of an intention and of a mistake respectively — and contribute to no derived figure. Cancelling a transaction therefore drops its amount out of every balance, budget and dashboard total on the next read, while the cancelled row remains as the record of what happened.
+**BR-07: Only active transactions count.**
+Cancelled transactions are visible records of a mistake and contribute to no derived figure. Cancelling a transaction therefore drops its amount out of every balance, budget and dashboard total on the next read, while the cancelled row remains as the record of what happened.
 
 **BR-08: Transactions are editable in place.**
 Every field a transaction was recorded with can be corrected, amount, type and accounts included. A correction that moves money is checked exactly as recording the corrected transaction would be, and is audited against every wallet it touched before and after; every derived figure follows on the next read. A goal contribution the transaction backs moves with it, and that payment must stay an expense from the goal's wallet. A cancelled transaction cannot be edited at all, and cancelling one twice is refused rather than silently repeated.
@@ -370,7 +370,7 @@ Reading a dashboard may optionally ask for its total balance converted into one 
 
 **Correctness of money** — the load-bearing quality attribute, and the reason for most of §4:
 
-- Every reported balance must equal the account's opening amount plus its completed transactions. This is checkable at any time, from data the system already keeps, and it is checkable *because* nothing is stored redundantly.
+- Every reported balance must equal the account's opening amount plus its active transactions. This is checkable at any time, from data the system already keeps, and it is checkable *because* nothing is stored redundantly.
 - A transfer must be absent from every income and expense figure the system produces, at every grain.
 - Cancelling a transaction must change every figure derived from it, in one direction, immediately on the next read.
 - Multi-part operations complete entirely or not at all: registration and its starter wallet; a wallet and its owner membership; an invitation acceptance; an ownership handover; a contribution and its backing transaction.
@@ -593,7 +593,7 @@ Ranks are cumulative: a required role is satisfied by any role of at least that 
 **Alternative flows**
 
 - The member corrects the description, date, category or reference afterwards; the amount, type and accounts are shown disabled with the reason.
-- The member cancels a transaction: it stays visible as cancelled, and every derived figure drops it. Any goal contribution backed by it is removed at the same time, so a cancelled payment cannot keep crediting a goal.
+- The member cancels a transaction: it stays visible as cancelled, and every derived figure drops it. A transaction recording a goal contribution can't be cancelled, since the contribution is kept for good.
 - The same submission arrives twice after a connection failure: the system recognises the repeat and reports the original transaction rather than creating a second.
 
 **Negative flows**
@@ -669,7 +669,7 @@ Ranks are cumulative: a required role is satisfied by any role of at least that 
 4. Earmarking creates the contribution alone: the goal advances without asserting money moved.
 5. Progress and remaining are the sum of contributions and the gap to the target; remaining floors at zero and progress caps at 100%.
 6. The member reviews the contribution list and can see which entries moved money and which were earmarks.
-7. Removing a contribution marks its backing transaction `DELETED`; the transaction row is never removed.
+7. A contribution is never removed, and the transaction recording one can't be cancelled.
 8. Completing or cancelling the goal keeps its contributions: they record money that really was set aside.
 
 **Negative flows**
@@ -1065,7 +1065,7 @@ This is the feature the product exists for. Its density reflects that.
 **Acceptance criteria**
 
 - Listing without naming a wallet returns accounts from every wallet the caller can reach; naming one restricts to it.
-- Each account reports a **derived** balance, computed from its opening amount and its completed transactions.
+- Each account reports a **derived** balance, computed from its opening amount and its active transactions.
 - Accounts can be filtered by status and type.
 - Naming a wallet the caller has no membership on reads as absent, not as refused.
 
@@ -1080,7 +1080,7 @@ This is the feature the product exists for. Its density reflects that.
 - Shows the derived balance, the opening amount, currency, type and status.
 - Shows total income and total expense, and **separately** total transferred in and total transferred out. Transfers are never folded into the income or expense figures: `total expense` must answer "what did this person spend", and money moved to their own cash account or to a partner's wallet is not spending ([BR-04](#4-business-rules)).
 - Shows how many transactions the account is a side of.
-- Balance equals opening amount plus completed transactions in, minus completed transactions out — checkable by hand from the same screen.
+- Balance equals opening amount plus active transactions in, minus active transactions out — checkable by hand from the same screen.
 
 **Error cases:** `ACCOUNT_NOT_FOUND`
 
@@ -1253,13 +1253,13 @@ The most rule-dense feature in the product, because a transaction is the only th
 
 - Cancelling sets the status to `DELETED`; **the record stays visible**. No transaction row is ever removed.
 - Every figure derived from it drops the amount on the next read: the account balance, the budget's spend, the dashboard's income/expense/net, the account's totals.
-- Any goal contribution backed by it is removed at the same time — a cancelled payment must not keep crediting a savings goal.
-- Correcting a mistake is cancel-then-record-again, which leaves **both** rows visible. That visibility is the reason editing an amount is not offered.
+- A transaction recording a goal contribution can't be cancelled, and the app doesn't offer it: the contribution is kept for good (SAV-US-05).
+- Cancelling is for an entry that should not exist at all; a wrong amount, type or account is corrected in place (TXN-US-07).
 - Cancelling an already-cancelled transaction is refused rather than repeated.
 - A cross-wallet transfer requires EDITOR or above on **both** wallets to cancel, exactly as to create.
 - An optional reason may be given, and is audited with the cancellation.
 
-**Error cases:** `TRANSACTION_ALREADY_DELETED` · `TRANSACTION_NOT_FOUND` · `FORBIDDEN`
+**Error cases:** `TRANSACTION_ALREADY_DELETED` · `TRANSACTION_BACKS_CONTRIBUTION` · `TRANSACTION_NOT_FOUND` · `FORBIDDEN`
 
 ---
 
@@ -1368,7 +1368,7 @@ The most rule-dense feature in the product, because a transaction is the only th
   - a wallet-wide budget: every expense paid from any of the wallet's accounts.
 - **Remaining goes negative once overspent, and usage reads above 100%.** "You are 400,000 over" is exactly the number a budget exists to surface; clamping either figure hides the case it was built for.
 - **Transfers never contribute**, whatever accounts they touch — including a transfer to a partner's wallet ([BR-04](#4-business-rules)).
-- Cancelled and pending transactions never contribute.
+- Cancelled transactions never contribute.
 - A repeating budget reports **the current period** (this month, this week…), and each new period starts again from zero; the period shown is named ("Oct 2026"), not a date range.
 - The window is compared by **calendar day in the wallet's time zone**, so an expense stamped late on the last day of the window is inside it, and one just after local midnight is not.
 - Budgets can be listed for a wallet, and asked for by "active on this day", which also picks the period a repeating budget reports.
@@ -1478,17 +1478,17 @@ The most rule-dense feature in the product, because a transaction is the only th
 
 ---
 
-#### SAV-US-05: Remove a contribution
+#### SAV-US-05: A contribution is kept for good
 
-**As a** member with editing rights, **I want to** undo a contribution I recorded wrongly, **so that** progress is right again.
+**As a** member of a wallet, **I want** every contribution to stay once recorded, **so that** a goal's progress is a history nobody can quietly rewrite.
 
 **Acceptance criteria**
 
-- The contribution is removed and progress falls on the next read.
-- If it was backed by a transaction, that transaction is **marked `DELETED`, never removed** — the ledger stays complete and the cancellation is visible.
-- The removal is audited.
+- No contribution can be removed, edited or cancelled, by any role; the app offers no such action.
+- The transaction recording a contribution can't be cancelled either; the app offers no cancel for it. Its details can still be corrected (TXN-US-07), and the contribution follows.
+- Cancelling or completing the goal keeps every contribution.
 
-**Error cases:** `CONTRIBUTION_NOT_FOUND` · `GOAL_NOT_FOUND` · `FORBIDDEN`
+**Error cases:** `TRANSACTION_BACKS_CONTRIBUTION`
 
 ---
 

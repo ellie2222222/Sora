@@ -30,7 +30,7 @@ match. The tab bar order is now Home | Account | Planning | **Dashboard** | Sett
 
 1. **`totalBalance`** — delegates to `BalanceService.walletBalances()` (BR-05: derived from
    transactions on every read, never cached).
-2. **`periodActivity`** — one pass over the period's `COMPLETED` rows producing income/expense,
+2. **`periodActivity`** — one pass over the period's `ACTIVE` rows producing income/expense,
    their per-category and per-member splits, and the wallet's transfer flow. Transfers stay
    **excluded from income/expense entirely** (BR-06 — the single most consequential rule this
    endpoint has to get right) and are reported as their own `transferredIn`/`transferredOut`

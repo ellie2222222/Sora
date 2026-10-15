@@ -141,7 +141,7 @@ Codex does not auto-load [`.agents/rules/`](.agents/rules/); read the matching f
 | Running shell commands | [`antigravity-rtk-rules.md`](.agents/rules/antigravity-rtk-rules.md) — `rtk` proxy usage |
 | Any git operation, destructive command, verification pass, or final response that touched files | [`workflow-and-git.md`](.agents/rules/workflow-and-git.md) — git protocol, summary format, `verifications/` reports |
 | Touching wallets, members, transactions, budgets, goals, invitations, or authorization | [`business-rules-and-access.md`](.agents/rules/business-rules-and-access.md) — BR-01…BR-08, AC-01…AC-05 |
-| Writing API, mobile, money, migration, or test code | [`technical-standards.md`](.agents/rules/technical-standards.md); mobile UI also [`docs/DESIGN_GUIDELINES.md`](docs/DESIGN_GUIDELINES.md) (tokens only, Part 4 check) |
+| Writing API, mobile, money, migration, or test code; validation, logging, configuration or security | [`technical-standards.md`](.agents/rules/technical-standards.md); mobile UI also [`docs/DESIGN_GUIDELINES.md`](docs/DESIGN_GUIDELINES.md) (tokens only, Part 4 check) |
 | Any non-trivial change | [`bug-prevention-and-gotchas.md`](.agents/rules/bug-prevention-and-gotchas.md) — the rules learned from past bugs |
 
 ---

@@ -49,16 +49,18 @@ Use the canonical domain/resource name already used by the system.
 Examples:
 
 ```text
-USER
 WALLET
+MEMBER
+INVITATION
 ACCOUNT
-TRANSACTION
 CATEGORY
+TRANSACTION
+TRANSFER
 BUDGET
 GOAL
-INVITATION
-SPACE
-MEMBER
+CONTRIBUTION
+AI_CONVERSATION
+AI_MESSAGE
 ```
 
 Use singular nouns.
@@ -81,308 +83,106 @@ The code describes the resource type, not the number of records.
 
 ## 3. Common Conditions
 
-Use a small, consistent vocabulary of conditions.
+Use a small, consistent vocabulary of conditions. Every example below is a real code in `ERROR_CODES`
+(`packages/contracts/src/responses.ts`); a pattern with no example yet has no code using it.
 
-### Not Found
+| Condition | Pattern | In use |
+|---|---|---|
+| Missing or not visible (404, AC-01) | `<RESOURCE>_NOT_FOUND` | `WALLET_NOT_FOUND`, `ACCOUNT_NOT_FOUND`, `TRANSACTION_NOT_FOUND`, `CATEGORY_NOT_FOUND`, `BUDGET_NOT_FOUND`, `GOAL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITATION_NOT_FOUND` |
+| Already present (409) | `<RESOURCE>_ALREADY_<STATE>` | `MEMBER_ALREADY_EXISTS`, `INVITATION_ALREADY_OPEN`, `INVITATION_ALREADY_USED`, `TRANSACTION_ALREADY_DELETED` |
+| Taken name (409, VL-02) | `<RESOURCE>_DUPLICATE_<FIELD>` | `CATEGORY_DUPLICATE_NAME` |
+| Blocked by a dependant (409) | `<RESOURCE>_IN_USE` / `_HAS_<DEPENDANT>` | `CATEGORY_IN_USE`, `CATEGORY_HAS_TRANSACTIONS`, `TRANSACTION_BACKS_CONTRIBUTION` |
+| Archived or closed (409, VL-03) | `<RESOURCE>_ARCHIVED` / `_NOT_ACTIVE` | `WALLET_ARCHIVED`, `ACCOUNT_ARCHIVED`, `CATEGORY_ARCHIVED`, `CATEGORY_PARENT_ARCHIVED`, `GOAL_NOT_ACTIVE` |
+| Mismatch between two things | `<RESOURCE>_<FIELD>_MISMATCH` / `_WRONG_<FIELD>` | `ACCOUNT_CURRENCY_MISMATCH`, `TRANSFER_CURRENCY_MISMATCH`, `INVITATION_EMAIL_MISMATCH`, `CATEGORY_WRONG_TYPE`, `CATEGORY_WRONG_WALLET` |
+| Would break an invariant | `<RESOURCE>_<RULE>` | `WALLET_LAST_OWNER`, `ACCOUNT_LAST_ACTIVE`, `CATEGORY_CYCLE`, `BUDGET_PERIOD_OVERLAP`, `TRANSFER_SAME_ACCOUNT` |
 
-```text
-<RESOURCE>_NOT_FOUND
-```
-
-Examples:
-
-```text
-WALLET_NOT_FOUND
-ACCOUNT_NOT_FOUND
-TRANSACTION_NOT_FOUND
-CATEGORY_NOT_FOUND
-```
-
-### Already Exists
-
-```text
-<RESOURCE>_ALREADY_EXISTS
-```
-
-Examples:
-
-```text
-WALLET_ALREADY_EXISTS
-CATEGORY_ALREADY_EXISTS
-INVITATION_ALREADY_EXISTS
-```
-
-Use this for uniqueness/conflict situations where the resource or requested entity already exists.
-
-### In Use
-
-```text
-<RESOURCE>_IN_USE
-```
-
-Examples:
-
-```text
-CATEGORY_IN_USE
-ACCOUNT_IN_USE
-WALLET_IN_USE
-```
-
-Use this when deletion or replacement is blocked because another resource depends on it.
-
-### Archived
-
-```text
-<RESOURCE>_ARCHIVED
-```
-
-Examples:
-
-```text
-ACCOUNT_ARCHIVED
-CATEGORY_ARCHIVED
-WALLET_ARCHIVED
-```
-
-### Deleted
-
-```text
-<RESOURCE>_DELETED
-```
-
-Use only when distinguishing deleted state is meaningful to the API.
-
-### Invalid
-
-Use:
-
-```text
-<RESOURCE>_INVALID
-```
-
-only when the resource itself is semantically invalid.
-
-Prefer a more specific condition when possible.
-
-For example:
-
-```text
-AMOUNT_INVALID
-```
-
-is better than:
-
-```text
-TRANSACTION_INVALID
-```
-
-when the actual problem is the amount.
+Prefer the specific condition to a generic one: `TRANSFER_SAME_ACCOUNT`, never `TRANSFER_FAILED`.
 
 ---
 
 ## 4. Action-Specific Errors
 
-When the problem is specifically related to an operation, use:
-
-```text
-<RESOURCE>_<ACTION>_<CONDITION>
-```
-
-Examples:
-
-```text
-TRANSACTION_CREATE_FAILED
-TRANSACTION_UPDATE_FAILED
-TRANSACTION_DELETE_FAILED
-
-INVITATION_ACCEPT_FAILED
-INVITATION_REVOKED
-INVITATION_EXPIRED
-
-TRANSFER_SAME_ACCOUNT
-TRANSFER_INSUFFICIENT_BALANCE
-```
-
-However, avoid generic `*_FAILED` codes when a more meaningful condition exists.
-
-Prefer:
+When the condition only exists for one operation, name the operation's subject:
 
 ```text
 TRANSFER_SAME_ACCOUNT
+TRANSFER_CURRENCY_MISMATCH
+AI_ACTION_NOT_PENDING
 ```
 
-over:
-
-```text
-TRANSFER_FAILED
-```
-
-Prefer:
-
-```text
-INSUFFICIENT_BALANCE
-```
-
-over:
-
-```text
-TRANSFER_FAILED
-```
-
-when insufficient balance is the actual reason.
+Do not add `*_FAILED` codes (`TRANSACTION_CREATE_FAILED`): an unexpected failure is `INTERNAL_ERROR`, and an
+expected one has a condition worth naming.
 
 ---
 
 ## 5. Permission Errors
 
-For authorization failures, prefer resource + action:
-
-```text
-<RESOURCE>_<ACTION>_FORBIDDEN
-```
-
-Examples:
-
-```text
-WALLET_VIEW_FORBIDDEN
-WALLET_EDIT_FORBIDDEN
-WALLET_DELETE_FORBIDDEN
-
-TRANSACTION_CREATE_FORBIDDEN
-TRANSACTION_EDIT_FORBIDDEN
-TRANSACTION_DELETE_FORBIDDEN
-```
-
-When the restriction is not resource-specific, use:
-
-```text
-PERMISSION_DENIED
-AUTH_REQUIRED
-```
-
-Do not create vague codes such as:
-
-```text
-ACCESS_ERROR
-USER_ERROR
-ACTION_NOT_ALLOWED
-```
-
-when the actual meaning can be expressed more precisely.
+There is one permission code, `FORBIDDEN` (403), for a member whose role is too low. A caller with no
+membership gets the resource's `*_NOT_FOUND` (404) instead (AC-01), so a code can never reveal that a
+wallet exists. Do not add per-action codes (`WALLET_EDIT_FORBIDDEN`): the app reads the role from the
+wallet, not from the error, and a second code per action is a second copy of the role table.
 
 ---
 
 ## 6. Authentication Errors
 
-Authentication is a system-level domain, so use explicit authentication codes:
-
 ```text
-AUTH_REQUIRED
-INVALID_CREDENTIALS
-SESSION_EXPIRED
-ACCOUNT_DISABLED
+UNAUTHENTICATED          no or unusable credentials
+TOKEN_EXPIRED            a token past its lifetime
+TOKEN_INVALID            a token that is malformed, unknown or revoked
+CREDENTIALS_INVALID      wrong email or password, identical for both
+EMAIL_ALREADY_REGISTERED
+GOOGLE_TOKEN_INVALID
+GOOGLE_ACCOUNT_MISMATCH
+RATE_LIMITED
 ```
 
-Do not use:
-
-```text
-USER_NOT_FOUND
-```
-
-as an authentication response when doing so could expose whether an account exists.
-
-Use the appropriate security-safe code instead.
+Never answer an unknown email differently from a wrong password (no `USER_NOT_FOUND` at login): that
+would let login enumerate registered addresses.
 
 ---
 
 ## 7. Validation Errors
 
-Validation errors should describe the actual invalid field or rule where practical.
-
-Prefer:
-
-```text
-AMOUNT_INVALID
-EMAIL_INVALID
-PASSWORD_TOO_WEAK
-TRANSFER_SAME_ACCOUNT
-DATE_RANGE_INVALID
-```
-
-rather than:
-
-```text
-TRANSACTION_INVALID
-REQUEST_INVALID
-DATA_INVALID
-```
-
-For reusable validation errors, use a field/rule-oriented name rather than inventing resource-specific duplicates.
+Request validation is one code, `VALIDATION_FAILED` (422), with the failing fields in the envelope's
+`error.fields` (API spec §2.1). Field-level detail belongs there, not in new codes (`AMOUNT_INVALID`, `EMAIL_INVALID`). A rule
+that needs a lookup (a currency mismatch, an overlap) gets its own code from §3.
 
 ---
 
 ## 8. Balance / Financial Rules
 
-Financial constraints should describe the actual business rule.
-
-Examples:
-
-```text
-INSUFFICIENT_BALANCE
-TRANSFER_SAME_ACCOUNT
-ACCOUNT_CURRENCY_MISMATCH
-INVALID_AMOUNT
-AMOUNT_MUST_BE_POSITIVE
-```
-
-Avoid:
-
-```text
-TRANSACTION_FAILED
-TRANSFER_FAILED
-FINANCE_ERROR
-```
-
-when the underlying reason is known.
+Name the business rule: `ACCOUNT_CURRENCY_MISMATCH`, `TRANSFER_SAME_ACCOUNT`, `BUDGET_PERIOD_OVERLAP`.
+There is deliberately no `INSUFFICIENT_BALANCE`: an account may go negative (a credit card opens
+negative, VL-04).
 
 ---
 
 ## 9. Invitation / Membership Errors
 
-Use the resource prefix consistently:
+Keep the lifecycle under its resource prefix:
 
 ```text
 INVITATION_NOT_FOUND
-INVITATION_EXPIRED
-INVITATION_REVOKED
-INVITATION_ALREADY_ACCEPTED
-INVITATION_ALREADY_EXISTS
+INVITATION_EXPIRED        410
+INVITATION_ALREADY_USED
+INVITATION_ALREADY_OPEN
+INVITATION_EMAIL_MISMATCH
 
 MEMBER_NOT_FOUND
 MEMBER_ALREADY_EXISTS
-MEMBER_ALREADY_REMOVED
+WALLET_LAST_OWNER
 ```
-
-Keep invitation lifecycle conditions under `INVITATION_*` rather than creating generic codes.
 
 ---
 
 ## 10. Sync / Network / Infrastructure Errors
 
-Not every error needs a resource prefix.
+System-wide failures carry no resource prefix: `INTERNAL_ERROR`, `RATE_LIMITED`, `ROUTE_NOT_FOUND`,
+`IDEMPOTENCY_KEY_IN_USE`, `VALUATION_UNAVAILABLE`.
 
-Use system-level codes when the failure is genuinely system-wide:
-
-```text
-INTERNAL_ERROR
-SERVICE_UNAVAILABLE
-RATE_LIMITED
-SYNC_FAILED
-NETWORK_UNAVAILABLE
-TIMEOUT
-```
-
-However, `NETWORK_UNAVAILABLE` and similar codes should normally be generated by the client when the device cannot reach the server. Do not force a client-side network condition into the server `ErrorCode` enum unless the API actually returns that condition.
+A device that cannot reach the server is the client's condition, not the API's. The app detects it
+(`isNetworkError` in `mobile/src/utils/errors.ts`) and never adds it to the server `ErrorCode` enum.
 
 ---
 
@@ -468,8 +268,8 @@ CATEGORY_IN_USE
 TRANSFER_SAME_ACCOUNT
 → errors.transferSameAccount
 
-INSUFFICIENT_BALANCE
-→ errors.insufficientBalance
+BUDGET_PERIOD_OVERLAP
+→ errors.budgetPeriodOverlap
 ```
 
 The transformation should be predictable:
@@ -571,7 +371,8 @@ Every new `ErrorCode` should follow these rules:
 * Keep codes language-neutral.
 * Never include IDs, names, or dynamic values in the code.
 * Do not encode HTTP status into the code.
-* Add the corresponding client i18n key.
+* Add it to `ERROR_CODES` with its status in `ERROR_STATUS` (`packages/contracts/src/responses.ts`), never at a call site.
+* Add the corresponding client i18n key (`mobile/src/utils/errors.ts`).
 * Add translations for all supported locales.
 * Add/update tests when the code affects important business behavior.
 
@@ -585,11 +386,11 @@ ACCOUNT_ARCHIVED
 CATEGORY_IN_USE
 TRANSACTION_NOT_FOUND
 INVITATION_EXPIRED
-INVITATION_REVOKED
+INVITATION_ALREADY_USED
 TRANSFER_SAME_ACCOUNT
-INSUFFICIENT_BALANCE
-PERMISSION_DENIED
-AUTH_REQUIRED
+BUDGET_PERIOD_OVERLAP
+FORBIDDEN
+UNAUTHENTICATED
 INTERNAL_ERROR
 ```
 
