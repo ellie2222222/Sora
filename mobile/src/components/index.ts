@@ -36,7 +36,6 @@ export * from './BottomSheetModal';
 export * from './AnimatedScreen';
 export * from './AnimatedPressable';
 export * from './AnimatedIcon';
-export * from './FadeIn';
 export * from './SlideSwap';
 export * from './SlideUp';
 export * from './ListItemEnter';

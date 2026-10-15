@@ -53,8 +53,8 @@ export const walletsApiSlice = apiSlice.injectEndpoints({
     }),
     updateWallet: builder.mutation<WalletResponse, { walletId: string; body: UpdateWalletRequest }>({
       queryFn: ({ walletId, body }) => toQueryFnResult(() => walletsHttp.update(walletId, body)),
-      // Transactions and invitations carry the wallet's name.
-      invalidatesTags: ['Wallet', 'Transaction', 'WalletInvitation'],
+      // Transactions and invitations carry the wallet's name; a new time zone re-buckets every day, month and budget period.
+      invalidatesTags: ['Wallet', 'Transaction', 'WalletInvitation', 'Budget', 'Dashboard'],
     }),
     archiveWallet: builder.mutation<void, string>({
       queryFn: (walletId) => toQueryFnResult(() => walletsHttp.archive(walletId)),

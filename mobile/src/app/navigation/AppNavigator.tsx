@@ -2,7 +2,6 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useTranslation } from 'react-i18next';
 
 import { AddAccountScreen } from '@/features/accounts';
-import { AddBudgetModal } from '@/features/budgets';
 import { CategoryListScreen } from '@/features/categories';
 
 import { ModalProvider } from '../providers/ModalProvider.tsx';

@@ -105,7 +105,8 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
   onConfirmRef.current = handleConfirm;
   const onQuickDateRef = useRef(() => {});
   onQuickDateRef.current = () => {
-    if (periodType === BudgetPeriodType.CUSTOM || periodType === BudgetPeriodType.GOAL) {
+    // A weekly budget's start picks its weekday ("Repeats every Monday"), so its chip opens the picker too.
+    if (periodType === BudgetPeriodType.CUSTOM || periodType === BudgetPeriodType.GOAL || periodType === BudgetPeriodType.WEEKLY) {
       setPickingDate('start');
     }
   };

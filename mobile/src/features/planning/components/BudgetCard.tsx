@@ -39,7 +39,7 @@ export function BudgetCard({ budget, onPress }: { budget: BudgetResponse; onPres
             <Money amount={budget.amount} currency={budget.currency} variant="caption" />
           </View>
           <Text variant="caption" tone={budget.isOverBudget ? 'danger' : 'muted'} weight="semibold">
-            {formatMoneyString(budget.remaining, budget.currency, { signDisplay: 'always' })} {t('budgets.remaining').toLowerCase()}
+            {t('budgets.amountLeft', { amount: formatMoneyString(budget.remaining, budget.currency, { signDisplay: 'always' }) })}
           </Text>
         </View>
       </Card>

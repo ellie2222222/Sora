@@ -5,7 +5,7 @@
  * signing keys (never trusting the client's own reading of the token).
  *
  * Not usable until real client ids are configured (env.googleClientId*,
- * from .env.example) — see mobile/GAPS.md.
+ * from .env.example); the OAuth round-trip has never been run against Google.
  */
 
 import * as AuthSession from 'expo-auth-session';

@@ -17,6 +17,7 @@ import {
   buildOptimisticTransaction,
   cacheKeyOf,
   enqueueOffline,
+  fitsListFilters,
   forEachCachedQueryArgs,
   isCurrentlyOnline,
   isStillQueued,
@@ -108,6 +109,7 @@ export const goalsApiSlice = apiSlice.injectEndpoints({
 
           const rootState = getState();
           forEachCachedQueryArgs(rootState, 'listGoals', (args) => {
+            if (!fitsListFilters(data, args)) return;
             dispatch(
               goalsApiSlice.util.updateQueryData('listGoals', args as GoalListQuery, (draft) => {
                 draft.unshift(data);
@@ -223,7 +225,6 @@ export const goalsApiSlice = apiSlice.injectEndpoints({
                 amount: body.amount,
                 currency: body.currency,
                 transactionDate: body.contributionDate,
-                status: TransactionStatus.COMPLETED,
               },
               data.id,
               (rootState as Record<string, unknown>)[apiSlice.reducerPath],
@@ -237,19 +238,6 @@ export const goalsApiSlice = apiSlice.injectEndpoints({
       },
       invalidatesTags: (result) => (result && isStillQueued(result.id) ? [] : CONTRIBUTION_TAGS),
     }),
-    /**
-     * Online or guest only — the offline queue doesn't carry removals. A transaction-backed one also
-     * marks its expense DELETED (§13.8), so balances and budgets move too.
-     */
-    removeContribution: builder.mutation<void, { goalId: string; contributionId: string }>({
-      queryFn: ({ goalId, contributionId }, { getState }) => {
-        if (selectIsGuest(getState() as RootState)) {
-          return toQueryFnResult(() => guestGoalsApi.removeContribution(goalId, contributionId));
-        }
-        return toQueryFnResult(() => goalsHttp.removeContribution(goalId, contributionId));
-      },
-      invalidatesTags: CONTRIBUTION_TAGS,
-    }),
   }),
   overrideExisting: __DEV__,
 });
@@ -262,5 +250,4 @@ export const {
   useUpdateGoalMutation,
   useCancelGoalMutation,
   useAddContributionMutation,
-  useRemoveContributionMutation,
 } = goalsApiSlice;

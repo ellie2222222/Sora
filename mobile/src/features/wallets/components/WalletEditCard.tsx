@@ -21,10 +21,15 @@ export function WalletEditCard({ wallet }: WalletEditCardProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
   const [updateWallet, { isLoading: isSaving }] = useUpdateWalletMutation();
-  const [name, setName] = useState(wallet.name);
+  // Null means "as saved", so the fields follow a refetch until the user edits them: a copy taken
+  // once would read as a change after another member's edit (or a zone-less cached wallet's refetch)
+  // and save the stale value over it.
+  const [editedName, setName] = useState<string | null>(null);
+  const [editedTimeZone, setTimeZone] = useState<string | null>(null);
+  const name = editedName ?? wallet.name;
   // A wallet cached before zones existed has none until it refetches.
   const savedTimeZone = wallet.timeZone ?? deviceTimeZone();
-  const [timeZone, setTimeZone] = useState(savedTimeZone);
+  const timeZone = editedTimeZone ?? savedTimeZone;
   const [confirmingZone, setConfirmingZone] = useState(false);
   const [fieldError, setFieldError] = useState<string | undefined>(undefined);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -46,6 +51,8 @@ export function WalletEditCard({ wallet }: WalletEditCardProps) {
     setFieldError(undefined);
     try {
       await updateWallet({ walletId: wallet.id, body: parsed.data }).unwrap();
+      setName(null);
+      setTimeZone(null);
       showToast(t('toast.walletUpdated'), 'success');
     } catch (error) {
       setSaveError(messageOf(error, t));

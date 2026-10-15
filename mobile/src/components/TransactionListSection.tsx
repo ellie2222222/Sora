@@ -89,7 +89,8 @@ const TransactionListItem = memo(function TransactionListItem({ transaction, onP
   if (onEdit !== undefined) {
     actions.push({ key: 'edit', label: t('common.edit'), icon: Pencil, tone: 'primary', onPress: () => onEdit(transaction), testID: 'btn-edit-transaction' });
   }
-  if (onDelete !== undefined) {
+  // A contribution is never removed, so neither is the payment recording it (§11.5).
+  if (onDelete !== undefined && !transaction.backsContribution) {
     actions.push({ key: 'delete', label: t('common.delete'), icon: Trash2, tone: 'danger', onPress: () => onDelete(transaction), testID: 'btn-delete-transaction' });
   }
 

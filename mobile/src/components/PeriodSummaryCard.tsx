@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LayoutAnimation, View } from 'react-native';
 import {
@@ -38,11 +38,15 @@ export function PeriodSummaryCard({ transactions, filterType = 'ALL', testID }: 
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   }, [filterType]);
 
-  const totals: Totals = {
-    income: sumByTransactionType(transactions, 'INCOME'),
-    expense: sumByTransactionType(transactions, 'EXPENSE'),
-    transfer: sumByTransactionType(transactions, 'TRANSFER'),
-  };
+  // Three passes over every loaded page; the list re-renders far more often than its rows change.
+  const totals: Totals = useMemo(
+    () => ({
+      income: sumByTransactionType(transactions, 'INCOME'),
+      expense: sumByTransactionType(transactions, 'EXPENSE'),
+      transfer: sumByTransactionType(transactions, 'TRANSFER'),
+    }),
+    [transactions],
+  );
 
   const shownTotals =
     filterType === 'ALL'

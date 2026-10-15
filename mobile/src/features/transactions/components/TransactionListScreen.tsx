@@ -24,6 +24,7 @@ import {
   useSwapOffset,
 } from '@/components';
 import { useAuth, useModal, useTheme, useToast, useWallets } from '@/app/providers';
+import { useWalletDay } from '@/hooks';
 import { useListTransactionsInfiniteQuery } from '@/app/store';
 import { AccountScopePicker } from '@/features/accounts';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
@@ -106,7 +107,7 @@ export function TransactionListScreen({
   const { showToast } = useToast();
 
   const [period, setPeriod] = useState<DashboardPeriod>('monthly');
-  const [selectedDay, setSelectedDay] = useState<CalendarDay>(() => today(timeZone));
+  const [selectedDay, setSelectedDay] = useWalletDay(timeZone);
   const walletToday = today(timeZone);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionResponse | null>(null);

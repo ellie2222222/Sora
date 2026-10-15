@@ -2,7 +2,7 @@ import type { BudgetResponse, CreateBudgetRequest, UpdateBudgetRequest } from '@
 
 import { budgetsApi as budgetsHttp, type BudgetListQuery } from '@/services/api';
 import { guestBudgetsApi } from '@/services/guest';
-import { buildOptimisticBudget, cacheKeyOf, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
+import { buildOptimisticBudget, cacheKeyOf, enqueueOffline, fitsListFilters, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
@@ -63,6 +63,7 @@ export const budgetsApiSlice = apiSlice.injectEndpoints({
 
           const rootState = getState();
           forEachCachedQueryArgs(rootState, 'listBudgets', (args) => {
+            if (!fitsListFilters(data, args)) return;
             dispatch(
               budgetsApiSlice.util.updateQueryData('listBudgets', args as BudgetListQuery, (draft) => {
                 draft.unshift(data);

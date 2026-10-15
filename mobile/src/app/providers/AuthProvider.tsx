@@ -233,6 +233,10 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     const refreshToken = session.current()?.refreshToken;
     try {
       await authApi.logout(refreshToken);
+      // An expired access token makes the call refresh first, which rotates the refresh token, and the
+      // replay still names the old one: revoke the new one too, or it stays live on the server for days.
+      const rotated = session.current()?.refreshToken;
+      if (rotated !== undefined && rotated !== refreshToken) await authApi.logout(rotated);
     } catch {
       // A failed logout must still sign the user out locally; the alternative
       // is a user who cannot leave a shared device because the network is down.

@@ -33,7 +33,8 @@ export function TransactionDetailModal({
   const theme = useTheme();
   const { t } = useTranslation();
   const { permissions, wallets, timeZone: activeTimeZone } = useWallets();
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Tagged with its transaction: the sheet stays mounted, and one row's failure must not show on the next.
+  const [deleteError, setDeleteError] = useState<{ transactionId: string; message: string } | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (!transaction) return null;
@@ -176,9 +177,9 @@ export function TransactionDetailModal({
           />
         </View>
 
-        {deleteError !== null ? (
+        {deleteError !== null && deleteError.transactionId === transaction.id ? (
           <Text variant="label" tone="danger" style={{ marginTop: theme.spacing.md }}>
-            {deleteError}
+            {deleteError.message}
           </Text>
         ) : null}
 
@@ -197,17 +198,19 @@ export function TransactionDetailModal({
                 fullWidth
               />
             ) : null}
-            <Button
-              testID="btn-transaction-detail-delete"
-              label={t('transactions.cancelTransaction', { defaultValue: 'Delete transaction' })}
-              icon={Trash2}
-              variant="danger-outline"
-              onPress={() => {
-                setDeleteError(null);
-                setConfirmingDelete(true);
-              }}
-              fullWidth
-            />
+            {transaction.backsContribution ? null : (
+              <Button
+                testID="btn-transaction-detail-delete"
+                label={t('transactions.cancelTransaction', { defaultValue: 'Delete transaction' })}
+                icon={Trash2}
+                variant="danger-outline"
+                onPress={() => {
+                  setDeleteError(null);
+                  setConfirmingDelete(true);
+                }}
+                fullWidth
+              />
+            )}
           </View>
         ) : null}
       </ScrollView>
@@ -221,7 +224,7 @@ export function TransactionDetailModal({
       }}
       onError={(message) => {
         setConfirmingDelete(false);
-        setDeleteError(message);
+        if (transaction !== null) setDeleteError({ transactionId: transaction.id, message });
       }}
     />
     </>

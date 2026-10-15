@@ -27,8 +27,8 @@ export interface DateFieldProps {
 }
 
 /**
- * A tap-to-open calendar field, styled like the other pickers (`AccountPicker`,
- * `CategoryPicker`) rather than a free-text `Input` — the value can only ever
+ * A tap-to-open calendar field, styled like the other pickers (`AccountPicker`)
+ * rather than a free-text `Input` — the value can only ever
  * be a real calendar day, so there's nothing left to validate.
  */
 export function DateField({ label, value, onChange, onClear, placeholder, error, testID, presetSheet, today }: DateFieldProps) {

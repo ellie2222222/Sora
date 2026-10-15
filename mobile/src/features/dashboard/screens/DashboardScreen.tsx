@@ -14,6 +14,7 @@ import {
   Text,
 } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
+import { useWalletDay } from '@/hooks';
 import { ChevronRight } from 'lucide-react-native';
 import { AccountDetailModal, AccountScopePicker, AccountsOverview, AccountsOverviewSkeleton } from '@/features/accounts';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
@@ -25,7 +26,6 @@ import {
   parseDay,
   shiftAnchor,
   today,
-  type CalendarDay,
   type DashboardPeriod,
 } from '@/utils';
 import type { MainTabScreenProps } from '@/app/navigation';
@@ -50,7 +50,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
 
   const [period, setPeriod] = useState<DashboardPeriod>('monthly');
-  const [anchor, setAnchor] = useState<CalendarDay>(() => today(timeZone));
+  const [anchor, setAnchor] = useWalletDay(timeZone);
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const shiftPeriod = (delta: number) => setAnchor((current) => shiftAnchor(period, current, delta));

@@ -24,7 +24,7 @@ import { NetworkStatusProvider } from '@/hooks';
 import { RootNavigator } from '@/app/navigation';
 import { ErrorBoundary } from '@/components';
 import { store } from '@/app/store';
-import { requestSyncNow, startSyncEngine } from '@/services/sync';
+import { discardQueuedWrite, requestSyncNow, retryQueuedWrite, startSyncEngine } from '@/services/sync';
 import { silenceWebLibraryWarnings } from '@/app/config';
 
 silenceWebLibraryWarnings(Platform.OS === 'web', __DEV__);
@@ -63,7 +63,11 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ReduxProvider store={store}>
         <SafeAreaProvider>
-          <NetworkStatusProvider onRetrySync={() => requestSyncNow(store)}>
+          <NetworkStatusProvider
+            onRetrySync={() => requestSyncNow(store)}
+            onRetryQueued={(queueId) => retryQueuedWrite(store, queueId)}
+            onDiscardQueued={(queueId) => discardQueuedWrite(store, queueId)}
+          >
             <AuthProvider>
               <ThemeProvider>
                 <LocaleProvider>

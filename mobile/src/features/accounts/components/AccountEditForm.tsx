@@ -21,8 +21,12 @@ export function AccountEditForm({ account, onArchive }: AccountEditFormProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
   const [updateAccount, { isLoading: isSaving }] = useUpdateAccountMutation();
-  const [name, setName] = useState(account.name);
-  const [currency, setCurrency] = useState(account.currency);
+  // Null means "as saved", so the fields follow a refetch until the user edits them; a copy taken once
+  // would save its stale values over another member's edit.
+  const [editedName, setName] = useState<string | null>(null);
+  const [editedCurrency, setCurrency] = useState<string | null>(null);
+  const name = editedName ?? account.name;
+  const currency = editedCurrency ?? account.currency;
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -51,6 +55,8 @@ export function AccountEditForm({ account, onArchive }: AccountEditFormProps) {
     setFieldErrors({});
     try {
       await updateAccount({ accountId: account.id, body: parsed.data }).unwrap();
+      setName(null);
+      setCurrency(null);
       showToast(t('toast.accountUpdated'), 'success');
     } catch (error) {
       setSaveError(messageOf(error, t));

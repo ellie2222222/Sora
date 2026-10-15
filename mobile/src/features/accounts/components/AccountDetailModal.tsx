@@ -7,7 +7,7 @@ import { AccountStatus, type MoneyString } from '@sora/contracts';
 import { BottomSheetModal, Money, Skeleton, StateView, Text } from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
 import { useGetAccountQuery } from '@/app/store';
-import { isNetworkError, permissionsForWallet } from '@/utils';
+import { isNetworkError, permissionsForWallet, currentView } from '@/utils';
 import { ACCOUNT_ICON, ACCOUNT_TYPE_LABEL_KEY } from './AccountPicker.tsx';
 import { AccountEditForm } from './AccountEditForm.tsx';
 import { ArchiveAccountDialog } from './ArchiveAccountDialog.tsx';
@@ -28,9 +28,10 @@ export function AccountDetailModal({ accountId, onClose, onViewTransactions }: A
   const [linkPressed, setLinkPressed] = useState(false);
 
   const account = useGetAccountQuery(accountId as string, { skip: accountId === null });
+  const shown = currentView(account, accountId !== null);
 
   const renderContent = () => {
-    if (account.isLoading) return <AccountDetailSkeleton />;
+    if (shown.loading) return <AccountDetailSkeleton />;
     if (account.isError) {
       return isNetworkError(account.error) ? (
         <StateView variant="error" title={t('errors.offlineTitle')} message={t('errors.connectionOfflineDetail')} entrance="none" />
@@ -39,7 +40,7 @@ export function AccountDetailModal({ accountId, onClose, onViewTransactions }: A
       );
     }
 
-    const data = account.data;
+    const data = shown.data;
     if (data === undefined) return null;
     if (data.status === AccountStatus.ARCHIVED) {
       return <StateView variant="empty" title={t('accounts.archivedTitle')} message={t('accounts.archivedMessage')} entrance="none" />;

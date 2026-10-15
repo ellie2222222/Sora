@@ -8,7 +8,7 @@ import {
 
 import { accountsApi as accountsHttp, type AccountListQuery } from '@/services/api';
 import { guestAccountsApi } from '@/services/guest';
-import { buildOptimisticAccount, cacheKeyOf, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
+import { buildOptimisticAccount, cacheKeyOf, enqueueOffline, fitsListFilters, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
@@ -69,6 +69,7 @@ export const accountsApiSlice = apiSlice.injectEndpoints({
 
           const rootState = getState();
           forEachCachedQueryArgs(rootState, 'listAccounts', (args) => {
+            if (!fitsListFilters(data, args)) return;
             dispatch(
               accountsApiSlice.util.updateQueryData('listAccounts', args as AccountListQuery, (draft) => {
                 draft.unshift(data);

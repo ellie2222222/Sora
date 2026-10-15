@@ -24,10 +24,16 @@ export function GoalEditCard({ goal, onCancelGoal }: GoalEditCardProps) {
   const [updateGoal, { isLoading: isSaving }] = useUpdateGoalMutation();
   const deadlineSheet = useGoalDeadlineSheet();
 
-  const [name, setName] = useState(goal.name);
-  const [description, setDescription] = useState(goal.description ?? '');
-  const [targetAmount, setTargetAmount] = useState(goal.targetAmount);
-  const [targetDate, setTargetDate] = useState<string | null>(goal.targetDate);
+  // Undefined means "as saved" (null is a real "no deadline"), so the fields follow a refetch until the
+  // user edits them; a copy taken once would save its stale values over another member's edit.
+  const [editedName, setName] = useState<string>();
+  const [editedDescription, setDescription] = useState<string>();
+  const [editedTargetAmount, setTargetAmount] = useState<string>();
+  const [editedTargetDate, setTargetDate] = useState<string | null>();
+  const name = editedName ?? goal.name;
+  const description = editedDescription ?? goal.description ?? '';
+  const targetAmount = editedTargetAmount ?? goal.targetAmount;
+  const targetDate = editedTargetDate === undefined ? goal.targetDate : editedTargetDate;
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -51,6 +57,10 @@ export function GoalEditCard({ goal, onCancelGoal }: GoalEditCardProps) {
     setFieldErrors({});
     try {
       await updateGoal({ goalId: goal.id, body: parsed.data }).unwrap();
+      setName(undefined);
+      setDescription(undefined);
+      setTargetAmount(undefined);
+      setTargetDate(undefined);
       showToast(t('toast.goalUpdated'), 'success');
     } catch (error) {
       setSaveError(messageOf(error, t));

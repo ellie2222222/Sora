@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { AccountResponse, AccountType } from '@sora/contracts';
 import { AccountStatus } from '@sora/contracts';
 
-import { BottomSheetModal, Money, Text } from '@/components';
+import { BottomSheetModal, Money, StateView, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { useListAccountsQuery } from '@/app/store';
 import { useDefaultToFirst } from '@/hooks';
@@ -150,6 +150,15 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
               }}
             />
           ))}
+          {accounts.currentData === undefined && accounts.isError ? (
+            <StateView
+              variant="error"
+              error={accounts.error}
+              retryAction={() => void accounts.refetch()}
+              testID={testID !== undefined ? `${testID}-error` : undefined}
+              entrance="none"
+            />
+          ) : null}
           {accounts.currentData !== undefined && accounts.currentData.length === 0 ? (
             <Text tone="faint" style={{ padding: theme.spacing.md, textAlign: 'center' }}>
               {t('accounts.noAccountsHereYet', { defaultValue: 'No accounts here yet.' })}

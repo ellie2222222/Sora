@@ -5,7 +5,7 @@ import type { WalletInvitationResponse } from '@sora/contracts';
 
 import { Card, Text } from '@/components';
 import { useTheme } from '@/app/providers';
-import { getRoleLabel } from '@/utils';
+import { dayOfDate, formatDay, getRoleLabel } from '@/utils';
 
 export function InvitationRow({ invitation, onRevoke }: { invitation: WalletInvitationResponse; onRevoke: () => void }) {
   const theme = useTheme();
@@ -18,7 +18,7 @@ export function InvitationRow({ invitation, onRevoke }: { invitation: WalletInvi
           <Text>{invitation.invitedEmail}</Text>
           <Text variant="caption" tone="muted">
             {invitation.relationLabel !== null ? `${invitation.relationLabel} · ` : ''}
-            {getRoleLabel(invitation.role, t)} · {t('members.expires', { date: invitation.expiresAt.slice(0, 10) })}
+            {getRoleLabel(invitation.role, t)} · {t('members.expires', { date: formatDay(dayOfDate(new Date(invitation.expiresAt))) })}
           </Text>
         </View>
         <Pressable

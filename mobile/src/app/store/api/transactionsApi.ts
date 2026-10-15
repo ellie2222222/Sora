@@ -1,19 +1,29 @@
-import { movesMoney, TransactionStatus, type CreateTransactionRequest, type TransactionQuery, type TransactionResponse, type UpdateTransactionRequest } from '@sora/contracts';
+import {
+  movesMoney,
+  TransactionStatus,
+  type CreateTransactionRequest,
+  type TransactionQuery,
+  type TransactionResponse,
+  type UpdateTransactionRequest,
+  type WalletResponse,
+} from '@sora/contracts';
 
 import { transactionsApi as transactionsHttp, type TransactionPage } from '@/services/api';
 import { guestTransactionsApi } from '@/services/guest';
 import {
   buildOptimisticEdit,
   buildOptimisticTransaction,
+  cachedItems,
   cacheKeyOf,
   enqueueOffline,
+  fitsTransactionList,
   forEachCachedQueryArgs,
   isCurrentlyOnline,
   isStillQueued,
   ledgerChangeOf,
   newLocalId,
 } from '@/services/sync';
-import { FIRST_PAGE, nextPageParam } from '@/utils';
+import { deviceTimeZone, FIRST_PAGE, nextPageParam } from '@/utils';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
@@ -27,8 +37,8 @@ export type TransactionListArgs = Omit<Partial<TransactionQuery>, 'page' | 'page
 
 const TRANSACTIONS_PAGE_SIZE = 50;
 
-/** A transaction moves money and, when it is a transfer, sometimes across a wallet — all six can change. */
-const TRANSACTION_TAGS = ['Transaction', 'Account', 'Dashboard', 'Budget', 'Wallet', 'Goal'] as const;
+/** A transaction moves money, sometimes across a wallet, and may back a goal contribution — all seven can change. */
+const TRANSACTION_TAGS = ['Transaction', 'Account', 'Dashboard', 'Budget', 'Wallet', 'Goal', 'GoalContribution'] as const;
 
 function findInPages(pages: TransactionPage[], transactionId: string): TransactionResponse | undefined {
   for (const page of pages) {
@@ -92,7 +102,10 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
           if (!isStillQueued(data.id)) return; // Online/guest path — invalidatesTags already covers it.
 
           const rootState = getState();
+          const wallets = cachedItems<WalletResponse>((rootState as unknown as Record<string, unknown>)[apiSlice.reducerPath], 'listWallets');
+          const zoneOf = (walletId: string) => wallets.find((wallet) => wallet.id === walletId)?.timeZone ?? deviceTimeZone();
           forEachCachedQueryArgs(rootState, 'listTransactions', (args) => {
+            if (!fitsTransactionList(data, args as TransactionListArgs, zoneOf)) return;
             dispatch(
               transactionsApiSlice.util.updateQueryData('listTransactions', args as TransactionListArgs, (draft) => {
                 draft.pages[0]?.items.unshift(data);

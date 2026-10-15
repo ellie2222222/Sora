@@ -2,7 +2,7 @@ import { CategoryStatus, type CategoryResponse, type CreateCategoryRequest, type
 
 import { categoriesApi as categoriesHttp, type CategoryListQuery } from '@/services/api';
 import { guestCategoriesApi } from '@/services/guest';
-import { buildOptimisticCategory, cacheKeyOf, enqueueOffline, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
+import { buildOptimisticCategory, cacheKeyOf, enqueueOffline, fitsListFilters, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
@@ -48,6 +48,8 @@ export const categoriesApiSlice = apiSlice.injectEndpoints({
 
           const rootState = getState();
           forEachCachedQueryArgs(rootState, 'listCategories', (args) => {
+            // A tree read nests a child under its parent; only a root belongs at its top level.
+            if (!fitsListFilters(data, args) || ((args as CategoryListQuery).tree === true && data.parentId !== null)) return;
             dispatch(
               categoriesApiSlice.util.updateQueryData('listCategories', args as CategoryListQuery, (draft) => {
                 draft.unshift(data);

@@ -85,7 +85,14 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
         >
           {viewMode === 'days' ? (
             <>
-              <Pressable testID="btn-previous-month" onPress={handlePrevMonth} hitSlop={theme.sizes.hitSlop.md} className="p-xs">
+              <Pressable
+                testID="btn-previous-month"
+                accessibilityRole="button"
+                accessibilityLabel={t('common.previousPeriod')}
+                onPress={handlePrevMonth}
+                hitSlop={theme.sizes.hitSlop.md}
+                className="p-xs"
+              >
                 <ChevronLeft size={theme.iconSize.xl} color={theme.colors.text} />
               </Pressable>
               <Pressable
@@ -108,7 +115,14 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
                   {monthName(month)} {year}
                 </Text>
               </Pressable>
-              <Pressable testID="btn-next-month" onPress={handleNextMonth} hitSlop={theme.sizes.hitSlop.md} className="p-xs">
+              <Pressable
+                testID="btn-next-month"
+                accessibilityRole="button"
+                accessibilityLabel={t('common.nextPeriod')}
+                onPress={handleNextMonth}
+                hitSlop={theme.sizes.hitSlop.md}
+                className="p-xs"
+              >
                 <ChevronRight size={theme.iconSize.xl} color={theme.colors.text} />
               </Pressable>
             </>

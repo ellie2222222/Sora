@@ -4,7 +4,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AccountStatus, WalletRole, type AccountResponse } from '@sora/contracts';
 
-import { Card, closeOpenSwipeRow, ConfirmDialog, Money, Skeleton, StateView, SwipeableRow, Text } from '@/components';
+import { Card, closeOpenSwipeRow, Money, MutationConfirmDialog, Skeleton, StateView, SwipeableRow, Text } from '@/components';
 import { useAuth, useTheme, useToast } from '@/app/providers';
 import {
   useArchiveWalletMutation,
@@ -14,7 +14,7 @@ import {
   useListMembersQuery,
 } from '@/app/store';
 import { accountSwipeActions, ArchiveAccountDialog } from '@/features/accounts';
-import { getRoleLabel, isNetworkError, messageOf, permissionsFor } from '@/utils';
+import { getRoleLabel, isNetworkError, permissionsFor } from '@/utils';
 import { WalletEditCard } from './WalletEditCard.tsx';
 
 type PendingAction = 'leave' | 'archive' | null;
@@ -52,18 +52,6 @@ export function WalletDetailPanel({
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [archivingAccountId, setArchivingAccountId] = useState<string | null>(null);
-
-  async function handleConfirmAction() {
-    setActionError(null);
-    try {
-      if (pendingAction === 'leave') await leaveWallet(walletId).unwrap();
-      else if (pendingAction === 'archive') await archiveWallet(walletId).unwrap();
-      setPendingAction(null);
-      onWalletGone();
-    } catch (error) {
-      setActionError(messageOf(error, t));
-    }
-  }
 
   const renderContent = () => {
     if (wallet.isLoading || accounts.isLoading) return         <View style={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.xl }}>
@@ -127,10 +115,22 @@ export function WalletDetailPanel({
             ) : null}
             {canShare ? (
               <>
-                <Pressable testID="wallet-detail-activity" hitSlop={theme.sizes.hitSlop.lg} onPress={onOpenActivity}>
+                <Pressable
+                  testID="wallet-detail-activity"
+                  accessibilityRole="button"
+                  accessibilityLabel={t('activity.title')}
+                  hitSlop={theme.sizes.hitSlop.lg}
+                  onPress={onOpenActivity}
+                >
                   <History size={theme.iconSize.xxl} color={theme.colors.textMuted} />
                 </Pressable>
-                <Pressable testID="wallet-detail-categories" hitSlop={theme.sizes.hitSlop.lg} onPress={onOpenCategories}>
+                <Pressable
+                  testID="wallet-detail-categories"
+                  accessibilityRole="button"
+                  accessibilityLabel={t('categories.title')}
+                  hitSlop={theme.sizes.hitSlop.lg}
+                  onPress={onOpenCategories}
+                >
                   <Settings size={theme.iconSize.xxl} color={theme.colors.textMuted} />
                 </Pressable>
               </>
@@ -143,7 +143,13 @@ export function WalletDetailPanel({
             {t('wallets.accounts')}
           </Text>
           {permissions.canWrite ? (
-            <Pressable testID="wallet-detail-add-account" hitSlop={theme.sizes.hitSlop.lg} onPress={onAddAccount}>
+            <Pressable
+              testID="wallet-detail-add-account"
+              accessibilityRole="button"
+              accessibilityLabel={t('accounts.addAccount')}
+              hitSlop={theme.sizes.hitSlop.lg}
+              onPress={onAddAccount}
+            >
               <Plus size={theme.iconSize.xl} color={theme.colors.primary} />
             </Pressable>
           ) : null}
@@ -243,14 +249,21 @@ export function WalletDetailPanel({
         {renderContent()}
       </ScrollView>
 
-      <ConfirmDialog
+      <MutationConfirmDialog
         visible={pendingAction !== null}
         title={pendingAction === 'leave' ? t('wallets.leaveConfirmTitle') : t('wallets.archiveConfirmTitle')}
         message={pendingAction === 'leave' ? t('wallets.leaveConfirmBody') : t('wallets.archiveConfirmBody')}
         confirmLabel={pendingAction === 'leave' ? t('wallets.leaveWallet') : t('wallets.archiveWallet')}
-        destructive
-        onConfirm={() => void handleConfirmAction()}
+        run={() => (pendingAction === 'leave' ? leaveWallet(walletId) : archiveWallet(walletId)).unwrap()}
         onCancel={() => setPendingAction(null)}
+        onDone={() => {
+          setPendingAction(null);
+          onWalletGone();
+        }}
+        onError={(message) => {
+          setPendingAction(null);
+          setActionError(message);
+        }}
       />
       <ArchiveAccountDialog
         accountId={archivingAccountId}

@@ -4,7 +4,7 @@ import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { WalletRole, type WalletInvitationResponse, type WalletMemberResponse } from '@sora/contracts';
 
-import { ActionSheet, Button, closeOpenSwipeRow, ConfirmDialog, ListItemEnter, StateView, SwipeableRow, Text } from '@/components';
+import { ActionSheet, Button, closeOpenSwipeRow, ConfirmDialog, ListItemEnter, MutationConfirmDialog, StateView, SwipeableRow, Text } from '@/components';
 import type { ActionSheetAction, SwipeRowAction } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
 import {
@@ -42,17 +42,6 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
   const [revokeTarget, setRevokeTarget] = useState<WalletInvitationResponse | null>(null);
 
   const isOwner = canAdminister(wallet.data?.role ?? null);
-
-  async function handleConfirmTransfer() {
-    if (transferTarget === null) return;
-    setTransferError(null);
-    try {
-      await transferOwnership({ walletId, body: { toUserId: transferTarget.userId } }).unwrap();
-      setTransferTarget(null);
-    } catch (error) {
-      setTransferError(messageOf(error, t));
-    }
-  }
 
   async function handleRoleChange(member: WalletMemberResponse, role: WalletRole) {
     setActionError(null);
@@ -196,14 +185,18 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
         onCancel={() => setActionTarget(null)}
       />
 
-      <ConfirmDialog
+      <MutationConfirmDialog
         visible={transferTarget !== null}
         title={t('members.transferTitle')}
         message={transferTarget !== null ? t('members.transferMessage', { name: transferTarget.displayName }) : undefined}
         confirmLabel={t('members.transfer')}
-        destructive
-        onConfirm={() => void handleConfirmTransfer()}
+        run={() => transferOwnership({ walletId, body: { toUserId: transferTarget!.userId } }).unwrap()}
         onCancel={() => setTransferTarget(null)}
+        onDone={() => setTransferTarget(null)}
+        onError={(message) => {
+          setTransferTarget(null);
+          setTransferError(message);
+        }}
       />
 
       <ConfirmDialog

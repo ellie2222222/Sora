@@ -22,7 +22,7 @@ import { useModal, useTheme, useToast, useWallets } from '@/app/providers';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { BudgetDetailModal, DeleteBudgetDialog } from '@/features/budgets';
 import { CancelGoalDialog, GoalDetailModal } from '@/features/goals';
-import { today, isNetworkError } from '@/utils';
+import { currentView, today, isNetworkError } from '@/utils';
 import { useListBudgetsQuery, useListGoalsQuery } from '@/app/store';
 import { BudgetCard, BudgetItemSkeleton } from '../components/BudgetCard.tsx';
 import { GoalCard, GoalItemSkeleton } from '../components/GoalCard.tsx';
@@ -72,6 +72,8 @@ export function PlanningScreen() {
   // Every budget and goal, grouped below, so ended and upcoming budgets and finished goals stay reachable.
   const budgets = useListBudgetsQuery({ walletId: activeWalletId ?? '' }, { skip: activeWalletId === null });
   const goals = useListGoalsQuery({ walletId: activeWalletId ?? '' }, { skip: activeWalletId === null });
+  const shownBudgets = currentView(budgets, activeWalletId !== null);
+  const shownGoals = currentView(goals, activeWalletId !== null);
   const todayInWallet = today(timeZone);
 
   const budgetGroupLabel: Record<BudgetGroup, string> = {
@@ -86,8 +88,8 @@ export function PlanningScreen() {
   };
 
   // Like the transaction list: the empty state carries its own create action, so the Fab joins only once rows exist.
-  const activeList = section === 'budgets' ? budgets : goals;
-  const showFab = permissions.canWrite && activeWalletId !== null && !activeList.isLoading && (activeList.data?.length ?? 0) > 0;
+  const activeList = section === 'budgets' ? shownBudgets : shownGoals;
+  const showFab = permissions.canWrite && activeWalletId !== null && !activeList.loading && (activeList.data?.length ?? 0) > 0;
   const listContentStyle = { padding: theme.spacing.md, paddingBottom: fabListPaddingBottom(theme), gap: theme.spacing.md };
 
   const handleRefresh = async () => {
@@ -107,7 +109,7 @@ export function PlanningScreen() {
     // The query is skipped without a wallet, so this must resolve before the
     // loading branch — otherwise the skeleton below never ends.
     if (activeWalletId === null) return <NoWalletState testID="planning-no-wallet" entrance="none" />;
-    if (budgets.isLoading) {
+    if (shownBudgets.loading) {
       return (
                 <View style={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
           {[1, 2, 3].map((key) => (
@@ -116,7 +118,8 @@ export function PlanningScreen() {
         </View>
       );
     }
-    if (budgets.isError && !isNetworkError(budgets.error)) {
+    // Offline with this wallet's list cached, the saved copy stays; with nothing saved, say offline.
+    if (budgets.isError && (!isNetworkError(budgets.error) || shownBudgets.data === undefined)) {
       return (
         <StateView
           variant="error"
@@ -128,7 +131,7 @@ export function PlanningScreen() {
       );
     }
 
-    const items = budgets.data ?? [];
+    const items = shownBudgets.data ?? [];
     if (items.length === 0) {
       return (
         <StateView
@@ -171,7 +174,7 @@ export function PlanningScreen() {
 
   const renderGoalsContent = () => {
     if (activeWalletId === null) return <NoWalletState testID="planning-no-wallet" entrance="none" />;
-    if (goals.isLoading) {
+    if (shownGoals.loading) {
       return (
                 <View style={{ padding: theme.spacing.md, gap: theme.spacing.md }}>
           {[1, 2, 3].map((key) => (
@@ -180,7 +183,7 @@ export function PlanningScreen() {
         </View>
       );
     }
-    if (goals.isError && !isNetworkError(goals.error)) {
+    if (goals.isError && (!isNetworkError(goals.error) || shownGoals.data === undefined)) {
       return (
         <StateView
           variant="error"
@@ -192,7 +195,7 @@ export function PlanningScreen() {
       );
     }
 
-    const items = goals.data ?? [];
+    const items = shownGoals.data ?? [];
     if (items.length === 0) {
       return (
         <StateView

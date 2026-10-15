@@ -3,14 +3,12 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { CategoryStatus, type CategoryResponse, type CategoryType } from '@sora/contracts';
 
-import { Text } from '@/components';
+import { StateView, Text } from '@/components';
 import { useTheme } from '@/app/providers';
 import { ensureContrast } from '@/design-system';
 import { useListCategoriesQuery } from '@/app/store';
 import { useDefaultToFirst } from '@/hooks';
 import { categoryIconFor } from '@/utils';
-
-import { CATEGORY_TYPE_LABEL_KEY } from './categoryTypeLabel.ts';
 
 export interface CategoryGridProps {
   walletId: string;
@@ -26,17 +24,17 @@ export interface CategoryGridProps {
 const COLUMNS = 4;
 
 /**
- * The inline, always-visible category chooser — a scrollable icon grid rather than
- * `CategoryPicker`'s tap-to-open sheet, for a form whose own scroll region already holds it.
+ * The inline, always-visible category chooser: a scrollable icon grid, for a form whose own
+ * scroll region already holds it.
  */
 export function CategoryGrid({ walletId, type, value, onChange, optional = false, error, testID }: CategoryGridProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const categories = useListCategoriesQuery({ walletId, type, status: CategoryStatus.ACTIVE });
 
-  useDefaultToFirst(categories.data, value, (first) => onChange(first.id), !optional);
-  const typeLabel = t(CATEGORY_TYPE_LABEL_KEY[type]).toLowerCase();
-
+  // Not `data`: after `type` or `walletId` changes it still holds the previous list, and would default to
+  // a category of the wrong type that the request then fails on.
+  useDefaultToFirst(categories.currentData, value, (first) => onChange(first.id), !optional);
 
   return (
     <View style={{ gap: theme.spacing.xs }} testID={testID}>
@@ -44,7 +42,7 @@ export function CategoryGrid({ walletId, type, value, onChange, optional = false
         {t('categories.categoryLabel', { defaultValue: 'Category' })}
       </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        {(categories.data ?? []).map((category) => (
+        {(categories.currentData ?? []).map((category) => (
           <CategoryCell
             key={category.id}
             category={category}
@@ -57,9 +55,18 @@ export function CategoryGrid({ walletId, type, value, onChange, optional = false
           />
         ))}
       </View>
-      {categories.data !== undefined && categories.data.length === 0 ? (
+      {categories.currentData === undefined && categories.isError ? (
+        <StateView
+          variant="error"
+          error={categories.error}
+          retryAction={() => void categories.refetch()}
+          testID={testID !== undefined ? `${testID}-error` : undefined}
+          entrance="none"
+        />
+      ) : null}
+      {categories.currentData !== undefined && categories.currentData.length === 0 ? (
         <Text tone="faint" style={{ padding: theme.spacing.md, textAlign: 'center' }}>
-          {t('categories.noCategoriesYet', { type: typeLabel })}
+          {t(`categories.noCategoriesOfType.${type}`)}
         </Text>
       ) : null}
       {error !== undefined ? (

@@ -32,14 +32,15 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
   const theme = useTheme();
   const { t } = useTranslation();
   const { showToast } = useToast();
-  const { activeWallet } = useWallets();
+  const { activeWallet, wallets } = useWallets();
   const walletId = propWalletId ?? activeWallet?.id;
+  const defaultCurrency = wallets.find((wallet) => wallet.id === walletId)?.balances[0]?.currency ?? 'VND';
   const [createAccount, { isLoading: isCreating }] = useCreateAccountMutation();
 
   const { setExpression, expressionRef, display: displayAmount, confirm } = useCalculatorExpression('', '0');
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>(initialType ?? AccountType.BANK_ACCOUNT);
-  const [currency, setCurrency] = useState(activeWallet?.balances[0]?.currency ?? 'VND');
+  const [currency, setCurrency] = useState(defaultCurrency);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -48,11 +49,13 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
       setExpression('');
       setName('');
       setType(initialType ?? AccountType.BANK_ACCOUNT);
-      setCurrency(activeWallet?.balances[0]?.currency ?? 'VND');
+      setCurrency(defaultCurrency);
       setFieldErrors({});
       setSubmitError(null);
     }
-  }, [visible, activeWallet, initialType]);
+    // Keyed on the wallet's id, not its object: a refetch of the wallet list (any transaction, a sync,
+    // coming back to the app) gives it a new identity and would wipe what the user is typing.
+  }, [visible, walletId, initialType]);
 
   // Ref pattern (see CalculatorKeypadProps.onConfirmRef): keeps the keypad grid's identity stable.
   // Declared before the early returns so every render calls the same hooks.

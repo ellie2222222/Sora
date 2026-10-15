@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Plus, ArrowUpFromLine, ArrowDownToLine, ArrowRightLeft } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
@@ -26,6 +26,15 @@ export function AddCategoryModal({
   const [name, setName] = useState("");
   const [type, setType] = useState<CategoryType>(CategoryType.EXPENSE);
   const [error, setError] = useState<string | null>(null);
+
+  // Each opening starts clean: a cancelled attempt's name and error must not come back with it.
+  useEffect(() => {
+    if (visible) {
+      setName("");
+      setType(CategoryType.EXPENSE);
+      setError(null);
+    }
+  }, [visible]);
 
   async function handleCreate() {
     setError(null);

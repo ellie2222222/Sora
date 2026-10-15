@@ -57,7 +57,6 @@ export function AddContributionModal({ visible, goalId, onClose, onBack, onClose
 
   const { setExpression, expressionRef, display: displayAmount, confirm } = useCalculatorExpression('', '0');
   const [accountId, setAccountId] = useState<string | null>(null);
-  const [walletId, setWalletId] = useState<string | undefined>(undefined);
   const [contributionDay, setContributionDay] = useState<CalendarDay>(() => today(timeZone));
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [note, setNote] = useState('');
@@ -70,7 +69,6 @@ export function AddContributionModal({ visible, goalId, onClose, onBack, onClose
     if (visible) {
       setExpression('');
       setAccountId(null);
-      setWalletId(undefined);
       setContributionDay(today(timeZone));
       setDatePickerOpen(false);
       setNote('');
@@ -207,7 +205,7 @@ export function AddContributionModal({ visible, goalId, onClose, onBack, onClose
         {recordAsTransaction ? (
           <CategoryGrid
             testID="picker-category"
-            walletId={walletId ?? goalData.walletId}
+            walletId={goalData.walletId}
             type="EXPENSE"
             value={categoryId}
             onChange={setCategoryId}
@@ -222,11 +220,10 @@ export function AddContributionModal({ visible, goalId, onClose, onBack, onClose
             compact
             testID="picker-account"
             label={t('goals.fromAccount', { defaultValue: 'From account' })}
+            // The account must be the goal's wallet's own (spec §13), so only those are offered.
+            walletId={goalData.walletId}
             value={accountId}
-            onChange={(id, selectedWalletId) => {
-              setAccountId(id);
-              setWalletId(selectedWalletId);
-            }}
+            onChange={setAccountId}
           />
         }
         amount={displayAmount}

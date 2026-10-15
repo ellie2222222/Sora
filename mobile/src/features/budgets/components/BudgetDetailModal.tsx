@@ -6,7 +6,7 @@ import { formatMoney, negate, parseMoney } from '@sora/contracts';
 import { BottomSheetModal, Card, Money, ProgressBar, Skeleton, StateView, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { useGetBudgetQuery } from '@/app/store';
-import { budgetPeriodLabel, isNetworkError } from '@/utils';
+import { budgetPeriodLabel, isNetworkError, currentView } from '@/utils';
 import { DeleteBudgetDialog } from './DeleteBudgetDialog.tsx';
 import { BudgetEditCard } from './BudgetEditCard.tsx';
 
@@ -49,18 +49,19 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
   const { permissions, isLoading: walletsLoading } = useWallets();
 
   const budget = useGetBudgetQuery(budgetId as string, { skip: !budgetId });
+  const shown = currentView(budget, budgetId !== null);
 
   const [deleting, setDeleting] = useState(false);
   // Tagged with its budget: the sheet stays mounted, and one budget's failure must not show on the next.
   const [deleteError, setDeleteError] = useState<{ budgetId: string; message: string } | null>(null);
 
   const renderContent = () => {
-    if (budget.isLoading || walletsLoading) return <BudgetDetailSkeleton />;
+    if (shown.loading || walletsLoading) return <BudgetDetailSkeleton />;
     if (budget.isError && !isNetworkError(budget.error)) {
       return <StateView variant="error" error={budget.error} retryAction={() => void budget.refetch()} />;
     }
 
-    const data = budget.data;
+    const data = shown.data;
     if (data === undefined) {
       return <StateView variant="error" error={new Error(t('budgets.budgetNotFound', "Couldn't find this budget"))} />;
     }

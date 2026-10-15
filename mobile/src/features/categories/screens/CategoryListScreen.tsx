@@ -12,7 +12,7 @@ import {
 import { Button, closeOpenSwipeRow, ListItemEnter, Skeleton, StateView, SwipeableRow, SyncStatusDot, Text } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { selectQueueEntryFor, useListCategoriesQuery } from '@/app/store';
-import { isNetworkError } from '@/utils';
+import { isNetworkError, permissionsForWallet } from '@/utils';
 import type { AppStackScreenProps } from "@/app/navigation";
 import { AddCategoryModal } from '../components/AddCategoryModal.tsx';
 import { CategoryManageDialog, type CategoryDialogMode } from '../components/CategoryManageDialog.tsx';
@@ -23,8 +23,10 @@ export function CategoryListScreen({
 }: AppStackScreenProps<"CategoryList">) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { activeWallet, permissions, isLoading: walletsLoading } = useWallets();
+  const { activeWallet, wallets, isLoading: walletsLoading } = useWallets();
   const walletId = route.params?.walletId ?? activeWallet?.id;
+  // The listed wallet's own role, not the active one's: this screen opens for any wallet from the switcher.
+  const permissions = permissionsForWallet(wallets, walletId ?? '');
   const [creating, setCreating] = useState(false);
   const [managing, setManaging] = useState<{ category: CategoryResponse; mode: CategoryDialogMode } | null>(null);
 
