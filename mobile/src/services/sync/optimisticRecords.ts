@@ -18,6 +18,7 @@ import {
   GoalStatus,
   mergeTransactionUpdate,
   todayIn,
+  TransactionStatus,
   TransactionType,
   type UpdateTransactionRequest,
   type AccountResponse,
@@ -96,7 +97,7 @@ export function buildOptimisticTransaction(
   return {
     id: localId,
     type: body.type,
-    status: body.status,
+    status: TransactionStatus.ACTIVE,
     amount: body.amount,
     currency: body.currency,
     description: body.description ?? null,
@@ -106,6 +107,7 @@ export function buildOptimisticTransaction(
     toAccount,
     category,
     goalId: body.goalId ?? null,
+    backsContribution: false,
     createdBy: PENDING_CREATED_BY,
     isCrossWallet:
       body.type === TransactionType.TRANSFER && !!fromAccount && !!toAccount
@@ -137,7 +139,6 @@ export function buildOptimisticEdit(
         goalId: previous.goalId,
         description: previous.description,
         transactionDate: previous.transactionDate,
-        status: previous.status,
         reference: previous.reference,
       },
       body,
@@ -154,6 +155,7 @@ export function buildOptimisticEdit(
     fromAccount,
     toAccount,
     category: built.category ?? (previous.category?.id === next.categoryId ? previous.category : null),
+    backsContribution: previous.backsContribution,
     createdBy: previous.createdBy,
     createdAt: previous.createdAt,
   };

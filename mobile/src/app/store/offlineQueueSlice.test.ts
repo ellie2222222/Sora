@@ -72,12 +72,13 @@ describe('selectQueueEntryFor', () => {
     assert.equal(selectQueueEntryFor('budget', 'shared-id')(state), null);
   });
 
-  // Pins current behaviour: rows arrive oldest-first and synced rows stay in the queue,
-  // so a synced create shadows a later still-pending update of the same record.
-  it('returns the oldest row for a record, even when a newer one is still open', () => {
+  // Synced rows stay in the queue, so a record's synced create would otherwise hide its failed edit.
+  it('reports the first row of a record still waiting, ahead of its synced ones', () => {
     const create = row('synced', { localId: 'tx-1', op: 'create' });
-    const update = row('pending', { localId: 'tx-1', op: 'update' });
+    const update = row('failed', { localId: 'tx-1', op: 'update' });
+    const later = row('pending', { localId: 'tx-1', op: 'update' });
 
-    assert.equal(selectQueueEntryFor('transaction', 'tx-1')(stateWith([create, update])), create);
+    assert.equal(selectQueueEntryFor('transaction', 'tx-1')(stateWith([create, update, later])), update);
+    assert.equal(selectQueueEntryFor('transaction', 'tx-1')(stateWith([create])), create);
   });
 });

@@ -13,7 +13,7 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from 'axios';
-import { MAX_PAGE_SIZE, type ApiEnvelope, type PaginationMeta } from '@sora/contracts';
+import { API_PREFIX, MAX_PAGE_SIZE, type ApiEnvelope, type PaginationMeta } from '@sora/contracts';
 
 import { env } from '@/app/config';
 import { toApiError } from '@/utils';
@@ -22,8 +22,27 @@ import { activeLocale } from '@/services/locale';
 import { collectPages } from './collectPages.ts';
 import { handleFailedResponse, type RetryableRequest } from './refreshRetry.ts';
 import { describeFailure, describeRequest, describeResponse } from './requestLog.ts';
+import { requestFingerprint, RetryKeys } from './retryKeys.ts';
 
-interface RetryableConfig extends InternalAxiosRequestConfig, RetryableRequest {}
+interface RetryableConfig extends InternalAxiosRequestConfig, RetryableRequest {
+  /** Set on a write whose Idempotency-Key `retryKeys` chose, so its answer can release the key. */
+  idempotencyFingerprint?: string;
+}
+
+const WRITE_METHODS = new Set(['post', 'patch', 'put', 'delete']);
+// Their bodies carry a password or a refresh token, which must not sit in memory as a fingerprint.
+const AUTH_PATH_PREFIX = `${API_PREFIX}/auth/`;
+const retryKeys = new RetryKeys();
+
+/** A write with no caller-pinned key gets one that an identical retry of an unanswered attempt reuses. */
+function assignIdempotencyKey(config: RetryableConfig): void {
+  const method = config.method?.toLowerCase() ?? 'get';
+  if (!WRITE_METHODS.has(method) || config.headers.has('Idempotency-Key')) return;
+  if (config.url === undefined || config.url.startsWith(AUTH_PATH_PREFIX)) return;
+  const fingerprint = requestFingerprint(method, config.url, config.data);
+  config.idempotencyFingerprint = fingerprint;
+  config.headers.set('Idempotency-Key', retryKeys.keyFor(fingerprint));
+}
 
 export const http = axios.create({
   baseURL: env.apiBaseUrl,
@@ -31,7 +50,8 @@ export const http = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-http.interceptors.request.use((config) => {
+http.interceptors.request.use((config: RetryableConfig) => {
+  assignIdempotencyKey(config);
   const token = session.getAccessToken();
   if (token !== null) {
     config.headers.set('Authorization', `Bearer ${token}`);
@@ -45,10 +65,15 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => {
     if (__DEV__) console.log(describeResponse(response.config, response.status));
+    const fingerprint = (response.config as RetryableConfig).idempotencyFingerprint;
+    if (fingerprint !== undefined) retryKeys.answered(fingerprint);
     return response;
   },
   (error: AxiosError) => {
     if (__DEV__) console.log(describeFailure(error));
+    // A 401 never ran the write: the refresh replays it under the same key, so the key stays held.
+    const fingerprint = (error.config as RetryableConfig | undefined)?.idempotencyFingerprint;
+    if (fingerprint !== undefined && error.response !== undefined && error.response.status !== 401) retryKeys.answered(fingerprint);
     return handleFailedResponse(
       { config: error.config as RetryableConfig | undefined, response: error.response, message: error.message },
       {
@@ -123,17 +148,11 @@ export async function deleteVoid(
 }
 
 /**
- * An idempotency key for creates (API spec §2.10). It only has to be unique per
- * attempt, not unguessable, so a timestamp plus randomness is sufficient and
- * avoids pulling in a crypto dependency for it.
- *
- * `key` lets a caller pin its own value instead — the guest-mode upload
- * sequencer (`guestUpload.ts`) needs one key per local transaction/contribution
- * that stays stable across a retry, so a resumed upload after an app kill
- * never double-records the same money. Every other caller omits it and gets
- * the default fresh-per-attempt behaviour.
+ * An Idempotency-Key a caller pins itself (API spec §2.10): the offline queue and the guest-mode
+ * upload sequencer keep one per queued row or local record, stable across an app kill, so a resumed
+ * send never double-records the same money. Without one, the request interceptor assigns a key that
+ * an identical retry of an unanswered attempt reuses (`retryKeys.ts`).
  */
 export function idempotencyHeaders(key?: string): AxiosRequestConfig {
-  const resolvedKey = key ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
-  return { headers: { 'Idempotency-Key': resolvedKey } };
+  return key === undefined ? {} : { headers: { 'Idempotency-Key': key } };
 }

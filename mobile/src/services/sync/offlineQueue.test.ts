@@ -265,3 +265,29 @@ describe('OfflineQueue.ownersWithOpenRows', () => {
     assert.deepEqual(await queue.ownersWithOpenRows(), ['user-a']);
   });
 });
+
+describe('OfflineQueue retry and discard', () => {
+  it('retry puts a parked row back to pending with its attempts cleared', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    const mutation = await queue.enqueue(newEntry());
+    await queue.markFailed(mutation.queueId, 'TRANSACTION_ALREADY_DELETED', 5);
+    await queue.markConflict(mutation.queueId, 'TRANSACTION_ALREADY_DELETED');
+
+    await queue.retry(mutation.queueId);
+
+    const [row] = queue.current();
+    assert.deepEqual([row?.status, row?.attempts, row?.errorCode], ['pending', 0, null]);
+  });
+
+  it('discard removes exactly the rows named', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    const gone = await queue.enqueue(newEntry());
+    const kept = await queue.enqueue(newEntry());
+
+    await queue.discard([gone.queueId]);
+
+    assert.deepEqual(queue.current().map((row) => row.queueId), [kept.queueId]);
+  });
+});

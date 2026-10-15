@@ -80,9 +80,9 @@ export function ledgerChangeOf(
   };
 }
 
-/** Only a completed transaction moves money (`affectsBalance`); a cancel reverses one. */
+/** Only an active transaction moves money (`affectsBalance`); a delete reverses one. */
 function signedAmount(change: LedgerChange): Scaled | null {
-  if (change.transaction.status !== TransactionStatus.COMPLETED) return null;
+  if (change.transaction.status !== TransactionStatus.ACTIVE) return null;
   const amount = parseMoney(change.transaction.amount);
   return change.kind === 'create' ? amount : subtract(ZERO, amount);
 }

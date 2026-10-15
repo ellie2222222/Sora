@@ -60,8 +60,4 @@ export const goalsApi = {
       idempotencyHeaders(idempotencyKey),
     );
   },
-
-  removeContribution(goalId: string, contributionId: string): Promise<void> {
-    return deleteVoid(apiUrl(ROUTES.goals.contribution(goalId, contributionId)));
-  },
 };

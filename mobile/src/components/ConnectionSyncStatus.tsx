@@ -5,10 +5,13 @@ import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { formatSavedAt } from '@/utils';
-import { useSavedCopyTime, useSyncStatusView } from '@/hooks';
+import { useNetworkStatus, useSavedCopyTime, useSyncStatusView } from '@/hooks';
+import type { QueuedMutation } from '@/services/sync';
 import { AnimatedIcon } from './AnimatedIcon';
 import { BottomSheetModal } from './BottomSheetModal';
 import { Button } from './Button.tsx';
+import { MutationConfirmDialog } from './MutationConfirmDialog.tsx';
+import { StuckWritesList } from './StuckWritesList.tsx';
 import { Text } from './Text';
 
 type OpenSheet = 'connection' | 'sync' | null;
@@ -47,6 +50,9 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
     syncDetail,
   } = useSyncStatusView();
   const [openSheet, setOpenSheet] = useState<OpenSheet>(null);
+  const { discardQueued } = useNetworkStatus();
+  const [discarding, setDiscarding] = useState<QueuedMutation | null>(null);
+  const [discardError, setDiscardError] = useState<string | null>(null);
   const savedAt = useSavedCopyTime();
   const savedTime = savedAt === null ? null : formatSavedAt(savedAt);
 
@@ -122,6 +128,19 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
         <Text variant="body" tone="muted" style={{ marginBottom: theme.spacing.md }}>
           {syncDetail}
         </Text>
+        {isGuest ? null : (
+          <StuckWritesList
+            onDiscard={(row) => {
+              setDiscardError(null);
+              setDiscarding(row);
+            }}
+          />
+        )}
+        {discardError === null ? null : (
+          <Text tone="danger" style={{ marginBottom: theme.spacing.md }}>
+            {discardError}
+          </Text>
+        )}
         {canRetry ? (
           <Button
             testID={`${testID}-sync-now`}
@@ -136,6 +155,20 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
           />
         ) : null}
       </BottomSheetModal>
+
+      <MutationConfirmDialog
+        visible={discarding !== null}
+        title={t('errors.syncDiscardTitle')}
+        message={t('errors.syncDiscardBody')}
+        confirmLabel={t('errors.syncDiscardAction')}
+        run={() => discardQueued(discarding!.queueId)}
+        onCancel={() => setDiscarding(null)}
+        onDone={() => setDiscarding(null)}
+        onError={(message) => {
+          setDiscarding(null);
+          setDiscardError(message);
+        }}
+      />
     </View>
   );
 }

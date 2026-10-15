@@ -10,7 +10,7 @@ import { describe, it } from 'node:test';
 import { ApiError } from '../../utils/errors.ts';
 import type { EntityAdapter, EntityAdapters } from './entityAdapters.ts';
 import { OfflineQueue } from './offlineQueue.ts';
-import { failedRetryDelayMs, MAX_FAILED_ATTEMPTS, runSyncPass } from './syncEngine.ts';
+import { dependentRows, failedRetryDelayMs, MAX_FAILED_ATTEMPTS, prunableRows, runSyncPass, SYNCED_ROW_RETENTION_MS } from './syncEngine.ts';
 import { memoryQueueDb, nextId } from './testSupport.ts';
 import type { NewQueuedMutation, QueueEntity } from './offlineQueueTypes.ts';
 
@@ -146,6 +146,40 @@ describe('runSyncPass retry backoff for failed rows', () => {
   it('doubles the delay per attempt and caps it', () => {
     assert.equal(failedRetryDelayMs(2), failedRetryDelayMs(1) * 2);
     assert.equal(failedRetryDelayMs(50), failedRetryDelayMs(20));
+  });
+
+  it('never lets a record\'s newer edit overtake an older one that is backing off, while other records go on', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    const older = await queue.enqueue(entry({ op: 'update', localId: 'tx-1', serverId: 'tx-1', payload: { amount: '100.0000' } }));
+    const newer = await queue.enqueue(entry({ op: 'update', localId: 'tx-1', serverId: 'tx-1', payload: { amount: '200.0000' } }));
+    await queue.enqueue(entry({ op: 'update', localId: 'tx-2', serverId: 'tx-2', payload: { amount: '7.0000' } }));
+
+    let outage = true;
+    const { adapters, calls } = recordingAdapters({
+      transaction: {
+        async update(id, payload, key) {
+          if (outage && key === older.idempotencyKey) throw new ApiError('INTERNAL_ERROR', 'down', 500);
+          calls.push({ entity: 'transaction', method: 'update', args: [id, payload, key] });
+        },
+      },
+    });
+
+    const first = await runSyncPass(queue, adapters);
+    assert.deepEqual(first.failed, [older.queueId]);
+    assert.deepEqual(first.deferred, [newer.queueId]);
+    assert.deepEqual(calls.map((call) => call.args[0]), ['tx-2']);
+
+    outage = false;
+    const failedAt = Date.parse(queue.current().find((row) => row.queueId === older.queueId)!.updatedAt);
+    const backingOff = await runSyncPass(queue, adapters, { now: failedAt + 1 });
+    assert.deepEqual(backingOff.synced, []);
+
+    await runSyncPass(queue, adapters, { now: failedAt + failedRetryDelayMs(1) });
+    assert.deepEqual(
+      calls.slice(1).map((call) => call.args[1]),
+      [{ amount: '100.0000' }, { amount: '200.0000' }],
+    );
   });
 
   it('parks a row as conflict after MAX_FAILED_ATTEMPTS instead of retrying forever', async () => {
@@ -365,6 +399,19 @@ describe('runSyncPass for contributions and permanent category deletes', () => {
     assert.deepEqual(contribution?.args[0], { goalId: 'server-goal-1', accountId: 'acc-1', amount: '5.0000' });
   });
 
+  it('sends a GOAL budget for a goal created offline with that goal\'s server id', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    await queue.enqueue(entry({ entity: 'goal', localId: 'local-goal', payload: { name: 'Trip' } }));
+    await queue.enqueue(entry({ entity: 'budget', localId: 'local-budget', payload: { periodType: 'GOAL', goalId: 'local-goal' } }));
+
+    const { adapters, calls } = recordingAdapters();
+    const result = await runSyncPass(queue, adapters);
+
+    assert.equal(result.synced.length, 2);
+    assert.deepEqual(calls.find((call) => call.entity === 'budget')?.args[0], { periodType: 'GOAL', goalId: 'server-goal-1' });
+  });
+
   it('routes a queued category delete to the permanent delete, not to archive', async () => {
     const queue = new OfflineQueue(memoryQueueDb());
     await queue.setOwner('user-a');
@@ -527,5 +574,56 @@ describe('runSyncPass after an interruption or an account switch', () => {
     });
     await runSyncPass(queue, adapters, { ignoreBackoff: true });
     assert.equal(queue.current()[0]?.status, 'failed');
+  });
+});
+
+describe('dependentRows', () => {
+  it("takes a discarded create's later changes and every write naming its record, transitively, and nothing else", async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    const account = await queue.enqueue(entry({ entity: 'account', localId: 'local-account', payload: { name: 'Cash' } }));
+    const rename = await queue.enqueue(entry({ entity: 'account', op: 'update', localId: 'local-account', serverId: 'local-account', payload: { name: 'Wallet' } }));
+    const spend = await queue.enqueue(entry({ localId: 'local-tx', payload: { fromAccountId: 'local-account', amount: '5.0000' } }));
+    const spendEdit = await queue.enqueue(entry({ op: 'update', localId: 'local-tx', serverId: 'local-tx', payload: { description: 'lunch' } }));
+    const unrelated = await queue.enqueue(entry({ localId: 'other-tx', payload: { fromAccountId: 'server-account', amount: '1.0000' } }));
+
+    const discarded = dependentRows(queue.current(), account).map((row) => row.queueId).sort();
+
+    assert.deepEqual(discarded, [account.queueId, rename.queueId, spend.queueId, spendEdit.queueId].sort());
+    assert.ok(!discarded.includes(unrelated.queueId));
+  });
+
+  it("takes only an edit's own later changes, never the record's create or earlier edits", async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    const first = await queue.enqueue(entry({ op: 'update', localId: 'tx-9', serverId: 'tx-9', payload: { amount: '1.0000' } }));
+    const second = await queue.enqueue(entry({ op: 'update', localId: 'tx-9', serverId: 'tx-9', payload: { amount: '2.0000' } }));
+    const third = await queue.enqueue(entry({ op: 'update', localId: 'tx-9', serverId: 'tx-9', payload: { amount: '3.0000' } }));
+
+    assert.deepEqual(dependentRows(queue.current(), second).map((row) => row.queueId).sort(), [second.queueId, third.queueId].sort());
+    assert.ok(!dependentRows(queue.current(), second).some((row) => row.queueId === first.queueId));
+  });
+});
+
+describe('prunableRows', () => {
+  it('drops synced rows past retention unless an open row still resolves an id through them', async () => {
+    const queue = new OfflineQueue(memoryQueueDb());
+    await queue.setOwner('user-a');
+    const oldAccount = await queue.enqueue(entry({ entity: 'account', localId: 'acc-old', payload: { name: 'Cash' } }));
+    const oldReferenced = await queue.enqueue(entry({ entity: 'account', localId: 'acc-ref', payload: { name: 'Bank' } }));
+    const fresh = await queue.enqueue(entry({ entity: 'account', localId: 'acc-new', payload: { name: 'Card' } }));
+    await queue.markSynced(oldAccount.queueId, 'server-old');
+    await queue.markSynced(oldReferenced.queueId, 'server-ref');
+    await queue.markSynced(fresh.queueId, 'server-new');
+    await queue.enqueue(entry({ localId: 'tx-open', payload: { fromAccountId: 'acc-ref', amount: '1.0000' } }));
+
+    const later = Date.parse(queue.current().find((row) => row.queueId === fresh.queueId)!.updatedAt) + SYNCED_ROW_RETENTION_MS;
+    const ageOf = (queueId: string) => Date.parse(queue.current().find((row) => row.queueId === queueId)!.updatedAt);
+    assert.ok(ageOf(oldAccount.queueId) <= later - SYNCED_ROW_RETENTION_MS);
+
+    const pruned = prunableRows(queue.current(), later).map((row) => row.queueId);
+    assert.ok(pruned.includes(oldAccount.queueId));
+    assert.ok(!pruned.includes(oldReferenced.queueId), 'an open transaction still names it');
+    assert.equal(prunableRows(queue.current(), ageOf(fresh.queueId) + 1).length, 0, 'nothing is pruned inside retention');
   });
 });

@@ -1,4 +1,4 @@
-import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 import type { QueuedMutation } from '@/services/sync';
 import type { RootState } from './index.ts';
@@ -28,6 +28,11 @@ const offlineQueueSlice = createSlice({
 
 export const { queueRowsReplaced } = offlineQueueSlice.actions;
 
+/** Writes the server refused, oldest first: each waits on the user to try again or discard it. */
+export const selectStuckRows = createSelector([(state: RootState) => state.offlineQueue.rows], (rows) =>
+  rows.filter((row) => row.status === 'failed' || row.status === 'conflict'),
+);
+
 export const selectPendingCount = (state: RootState): number =>
   state.offlineQueue.rows.filter((row) => row.status === 'pending' || row.status === 'syncing').length;
 
@@ -47,9 +52,17 @@ export const selectSyncStatus = (state: RootState): AggregateSyncStatus => {
   return 'synced';
 };
 
+/** A record's first row still waiting, else its first row: a synced create must not hide a failed edit. */
 export const selectQueueEntryFor =
   (entity: QueuedMutation['entity'], localId: string) =>
-  (state: RootState): QueuedMutation | null =>
-    state.offlineQueue.rows.find((row) => row.entity === entity && row.localId === localId) ?? null;
+  (state: RootState): QueuedMutation | null => {
+    let first: QueuedMutation | null = null;
+    for (const row of state.offlineQueue.rows) {
+      if (row.entity !== entity || row.localId !== localId) continue;
+      if (row.status !== 'synced') return row;
+      first ??= row;
+    }
+    return first;
+  };
 
 export default offlineQueueSlice.reducer;

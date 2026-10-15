@@ -139,7 +139,7 @@ export function buildEntityAdapters(apis: AdapterApis): EntityAdapters {
         throw new Error('entityAdapters: contributions are never edited');
       },
       async cancelOrArchive() {
-        throw new Error('entityAdapters: contribution removal is not queued offline');
+        throw new Error('entityAdapters: a contribution is never removed');
       },
     },
   };

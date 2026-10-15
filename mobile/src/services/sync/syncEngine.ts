@@ -32,8 +32,12 @@ const REFERENCE_FIELDS: Partial<Record<QueueEntity, ReferenceField[]>> = {
     { field: 'fromAccountId', refEntity: 'account' },
     { field: 'toAccountId', refEntity: 'account' },
     { field: 'categoryId', refEntity: 'category' },
+    { field: 'goalId', refEntity: 'goal' },
   ],
-  budget: [{ field: 'categoryId', refEntity: 'category' }],
+  budget: [
+    { field: 'categoryId', refEntity: 'category' },
+    { field: 'goalId', refEntity: 'goal' },
+  ],
   category: [{ field: 'parentId', refEntity: 'category' }],
   contribution: [
     { field: 'goalId', refEntity: 'goal' },
@@ -41,6 +45,55 @@ const REFERENCE_FIELDS: Partial<Record<QueueEntity, ReferenceField[]>> = {
     { field: 'categoryId', refEntity: 'category' },
   ],
 };
+
+/** Whether `row`'s payload names the record `created` makes, in one of its reference fields. */
+function namesRecordOf(row: QueuedMutation, created: QueuedMutation): boolean {
+  return (REFERENCE_FIELDS[row.entity] ?? []).some(
+    ({ field, refEntity }) => refEntity === created.entity && (row.payload as Record<string, unknown> | null)?.[field] === created.localId,
+  );
+}
+
+/**
+ * The open rows discarding `target` takes with it: the record's own later changes, and — when the
+ * target is a create — every open write that names the record it would have made, transitively.
+ * Left behind, each would wait forever on a create that will never sync.
+ */
+export function dependentRows(rows: readonly QueuedMutation[], target: QueuedMutation): QueuedMutation[] {
+  const open = rows.filter((row) => row.status !== 'synced');
+  const discarded = new Map<string, QueuedMutation>([[target.queueId, target]]);
+  const pending = [target];
+
+  while (pending.length > 0) {
+    const gone = pending.pop()!;
+    for (const row of open) {
+      if (discarded.has(row.queueId)) continue;
+      const sameRecordLater = row.entity === gone.entity && row.localId === gone.localId && row.createdAt > gone.createdAt;
+      const namesUnmadeRecord = gone.op === 'create' && namesRecordOf(row, gone);
+      if (sameRecordLater || namesUnmadeRecord) {
+        discarded.set(row.queueId, row);
+        pending.push(row);
+      }
+    }
+  }
+  return [...discarded.values()];
+}
+
+/**
+ * A synced row is kept this long: a screen may show its record under the local id until it next refreshes,
+ * and an edit made there finds the server id through the create's row (`resolveOwnId`).
+ */
+export const SYNCED_ROW_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+/** Synced rows past retention that no open row still resolves an id through. */
+export function prunableRows(rows: readonly QueuedMutation[], now: number): QueuedMutation[] {
+  const open = rows.filter((row) => row.status !== 'synced');
+  return rows.filter(
+    (row) =>
+      row.status === 'synced' &&
+      now - Date.parse(row.updatedAt) >= SYNCED_ROW_RETENTION_MS &&
+      !open.some((pending) => (pending.entity === row.entity && pending.localId === row.localId) || namesRecordOf(pending, row)),
+  );
+}
 
 type ResolveResult = { ok: true; payload: unknown } | { ok: false };
 
@@ -160,15 +213,29 @@ export async function runSyncPass(
     await queue.refresh();
     const rows = queue
       .current()
-      .filter((row) => isDue(row, now, ignoreBackoff))
+      .filter((row) => row.status !== 'synced')
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    // A record whose earlier row is still waiting holds back its later ones: an update carries only the
+    // changed fields, so an older one landing after a newer one would quietly undo it.
+    const held = new Set<string>();
 
     for (const row of rows) {
       // Signed out or switched account mid-pass: never send one user's writes under the next one's token.
       if (row.ownerUserId !== queue.ownerId()) break;
 
+      const record = `${row.entity}:${row.localId}`;
+      if (!isDue(row, now, ignoreBackoff)) {
+        held.add(record);
+        continue;
+      }
+      if (held.has(record)) {
+        result.deferred.push(row.queueId);
+        continue;
+      }
+
       const resolution = resolveReferences(queue, row.entity, row.payload);
       if (!resolution.ok) {
+        held.add(record);
         result.deferred.push(row.queueId);
         continue;
       }
@@ -184,6 +251,7 @@ export async function runSyncPass(
         } else {
           const targetId = resolveOwnId(queue, row);
           if (!targetId) {
+            held.add(record);
             result.deferred.push(row.queueId);
             await queue.markPending(row.queueId);
             continue;
@@ -201,6 +269,7 @@ export async function runSyncPass(
         }
         result.synced.push(row.queueId);
       } catch (error) {
+        held.add(record);
         const classification = classifyFailure(error);
         if (classification === 'conflict') {
           await queue.markConflict(row.queueId, errorCodeOf(error));

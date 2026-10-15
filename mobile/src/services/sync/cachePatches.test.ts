@@ -9,7 +9,7 @@ import type { LedgerChange } from './pendingTotals.ts';
 const expense = {
   id: 'tx-1',
   type: TransactionType.EXPENSE,
-  status: TransactionStatus.COMPLETED,
+  status: TransactionStatus.ACTIVE,
   amount: '100.0000',
   currency: 'VND',
   transactionDate: '2026-09-15T09:00:00.000Z',

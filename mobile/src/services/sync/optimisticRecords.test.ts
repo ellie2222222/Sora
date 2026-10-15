@@ -48,7 +48,6 @@ const apiState = {
 
 const expense = {
   type: 'EXPENSE',
-  status: 'COMPLETED',
   fromAccountId: bank.id,
   categoryId: food.id,
   amount: '150000.0000',
@@ -59,7 +58,6 @@ const expense = {
 function transfer(toAccountId: string): CreateTransactionRequest {
   return {
     type: 'TRANSFER',
-    status: 'COMPLETED',
     fromAccountId: bank.id,
     toAccountId,
     amount: '50000.0000',

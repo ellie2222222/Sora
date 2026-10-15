@@ -158,6 +158,18 @@ export class OfflineQueue {
     await this.refresh();
   }
 
+  /** A user's "Try again" on a stuck row: a fresh start, with the attempt count that parked it cleared. */
+  async retry(queueId: string): Promise<void> {
+    await this.db.updateStatus(queueId, { status: 'pending', errorCode: null, attempts: 0, updatedAt: new Date().toISOString() });
+    await this.refresh();
+  }
+
+  /** A user's "Discard": the writes leave this device unsent. Callers pass `dependentRows` too. */
+  async discard(queueIds: readonly string[]): Promise<void> {
+    for (const queueId of queueIds) await this.db.remove(queueId);
+    await this.refresh();
+  }
+
   async findByLocalId(entity: QueueEntity, localId: string): Promise<QueuedMutation | null> {
     const row = await this.db.findByLocalId(entity, localId);
     return row !== null && row.ownerUserId === this.owner ? row : null;

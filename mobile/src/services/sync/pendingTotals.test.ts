@@ -29,7 +29,7 @@ function tx(overrides: Partial<TransactionResponse>): TransactionResponse {
   return {
     id: 'tx-1',
     type: TransactionType.EXPENSE,
-    status: TransactionStatus.COMPLETED,
+    status: TransactionStatus.ACTIVE,
     amount: '100.0000',
     currency: 'VND',
     description: null,
@@ -39,6 +39,7 @@ function tx(overrides: Partial<TransactionResponse>): TransactionResponse {
     toAccount: null,
     category: food,
     goalId: null,
+    backsContribution: false,
     createdBy: { id: 'user-me', displayName: 'Me' },
     isCrossWallet: false,
     createdAt: '2026-09-10T08:00:00.000Z',
@@ -151,9 +152,9 @@ describe('applyToAccount', () => {
     assert.deepEqual([bank.balance, bank.transferredOut, cash.balance, cash.transferredIn], ['900.0000', '100.0000', '100.0000', '100.0000']);
   });
 
-  it('counts but moves no money for a transaction that is not completed', () => {
+  it('counts but moves no money for a transaction that is not active', () => {
     const detail = account();
-    applyToAccount(detail, ledgerChangeOf('create', tx({ status: TransactionStatus.PENDING })));
+    applyToAccount(detail, ledgerChangeOf('create', tx({ status: TransactionStatus.DELETED })));
     assert.equal(detail.balance, '1000.0000');
     assert.equal(detail.transactionCount, 4);
   });
@@ -329,7 +330,7 @@ describe('applyToDashboard', () => {
 
     assert.deepEqual([d.totalBalance[0]?.amount, d.income[0]?.amount, d.expense[0]?.amount], ['1040.0000', '540.0000', '300.0000']);
     assert.equal(d.activeBudgets[0]?.spent, '950.0000', 'the budget no longer counts it');
-    assert.deepEqual(d.recentTransactions.map((row) => [row.id, row.type, row.status]), [['tx-1', 'INCOME', 'COMPLETED']]);
+    assert.deepEqual(d.recentTransactions.map((row) => [row.id, row.type, row.status]), [['tx-1', 'INCOME', 'ACTIVE']]);
   });
 
   it('keeps an internal transfer out of every figure but reports a cross-wallet one on its own (BR-06)', () => {

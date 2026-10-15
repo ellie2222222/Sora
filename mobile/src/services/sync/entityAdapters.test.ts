@@ -60,7 +60,7 @@ describe('buildEntityAdapters — contribution', () => {
       message: 'entityAdapters: contributions are never edited',
     });
     await assert.rejects(adapters.contribution.cancelOrArchive('c-1', {}, 'k'), {
-      message: 'entityAdapters: contribution removal is not queued offline',
+      message: 'entityAdapters: a contribution is never removed',
     });
     assert.equal(adapters.contribution.deletePermanently, undefined);
   });

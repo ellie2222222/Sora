@@ -207,6 +207,21 @@ dependency," bundled into the section-1 sign-off rather than a separate ask.
   last write wins (every field is now editable in place, BR-03). Revisit once budgets/goals (which *do*
   have contested mutable fields) are in scope (Phase 5) rather than design a general
   last-write-wins/merge strategy now for a case the pilot barely has.
+- **Built (2026-10-12): resolving a stuck write.**
+  - The sync sheet lists every `failed`/`conflict` row (`components/StuckWritesList.tsx`): what it
+    was, the server's reason, **Try again** and **Discard**.
+  - Try again resets the row's attempts and runs a pass (`retryQueuedWrite`).
+  - Discard asks first, then removes the row together with everything `dependentRows`
+    (`syncEngine.ts`) says waits on it: the record's later changes and, for a create, every write
+    naming the record it would have made (`discardQueuedWrite`).
+- **Built (2026-10-12): per-record order.** A record's row that is backing off, parked or deferred
+  holds back that record's later rows, so an older partial update never lands after a newer one.
+- **Built (2026-10-12): an open write's patch is never refetched away.**
+  - A synced write's tag refresh skips every tag an open row's entity touches (`syncTags.ts`), and
+    sends it once the last such row syncs or is discarded.
+  - This covers the sync pass, reconnect and the return to foreground.
+  - A pull-to-refresh still reads the server outright, because the user asked for exactly that; the
+    stuck write stays listed in the sync sheet.
 
 ## 9. Pull-to-refresh, auth, deletion, startup
 
