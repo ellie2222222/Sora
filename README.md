@@ -107,7 +107,7 @@ sudo -u postgres createdb --owner=sora sora_db
 cp .env.example .env
 ```
 
-Fill in at minimum `DATABASE_URL` and `JWT_SECRET` (`openssl rand -base64 48`).
+Fill in at minimum `DATABASE_URL` and `JWT_SECRET` (`openssl rand -base64 48`). Set `GEMINI_API_KEY` for real assistant replies; without it the chat runs on an offline keyword assistant (RUNBOOK → Configuration).
 `server/src/config/env.ts` validates the whole environment once at boot and the process refuses to
 start on anything missing or unusable — a secret that reads as configured but is 8 characters
 authenticates nothing while looking fine, so that failure has to be loud and early rather than
@@ -149,9 +149,15 @@ parsing beyond the status code.
 `webpage/` doesn't count).**
 
 ```bash
-npm run dev:mobile                 # or: npm start -w @sora/mobile / cd mobile && npx expo start
+npm run dev:mobile:build           # once (and after a native change): build + install the Sora development build
+npm run dev:mobile                 # Metro for that build; open Sora on the phone
+npm run dev:mobile:usb             # the same over a USB cable (after adb reverse tcp:8081 tcp:8081)
 npm run dev:mobile:clear           # same, with Metro's cache cleared — use when the bundle serves stale code
+npm run dev:mobile:go              # or run in Expo Go instead, with no build (Google sign-in can't finish there)
 ```
+
+Step-by-step flows for a USB phone, the emulator, Wi-Fi, Expo Go, APKs and Google sign-in:
+[RUNBOOK → Running the mobile app](RUNBOOK.md#running-the-mobile-app).
 
 Set `EXPO_PUBLIC_API_BASE_URL` to a host **the device** can reach. On a physical phone `localhost`
 resolves to the phone itself, so it must be your machine's LAN address; the API's

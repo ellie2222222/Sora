@@ -389,11 +389,15 @@ node scripts/check-contract-parity.mjs        # contract ↔ schema ↔ API spec
 npm run db:migrate                            # apply db/migrations/*.sql in order
 npm run db:test                               # apply, then run db/tests/*.sql probes
 npm run db:seed                               # demo data through a running API (SEED_API_URL); --dry-run needs none
+npm run db:seed:passwords                     # .env.seed accounts' password → 1 (SEED_PASSWORD); disposable-named databases only
 
 npm run setup                                 # install + build contracts + migrate, one shot
 npm run dev:server                            # server: build, then watch + auto-restart
-npm run dev:mobile                            # mobile: expo start
-npm run dev:mobile:clear                      # mobile, Metro cache cleared (stale bundle after an edit)
+npm run dev:mobile                            # mobile: Metro for the Sora development build (tunnel)
+npm run dev:mobile:clear                      # same, Metro cache cleared (stale bundle after an edit)
+npm run dev:mobile:usb                        # same, for a USB phone/emulator: every URL is localhost:8081 via adb reverse
+npm run dev:mobile:build                      # build + install the development build on the USB phone/emulator; rerun after a native change
+npm run dev:mobile:go                         # mobile in Expo Go instead (no Google sign-in there)
 npm run dev                                   # both together
 # One-shot, no watch:
 npm run build -w @sora/server && npm start -w @sora/server
@@ -761,7 +765,8 @@ authenticates nothing while looking fine.
 `LOGIN_LOCKOUT_MINUTES` (15), `GOOGLE_CLIENT_ID`, `EXCHANGE_RATE_API_URL`,
 `EXCHANGE_RATE_TIMEOUT_SECONDS` (5), `EXCHANGE_RATE_CACHE_TTL_MINUTES` (720), `CORS_ORIGINS`
 (comma list; unset allows any origin outside production and none in it), `PORT`, `NODE_ENV`,
-`APP_VERSION`.
+`APP_VERSION`, `GEMINI_API_KEY` (unset uses the offline keyword assistant), `GEMINI_MODEL`
+(gemini-3.8-flash), `GEMINI_FALLBACK_MODEL` (gemini-3.1-flash-lite).
 
 The local `.env` may still carry variables from the deleted stack (SMTP, `NEXT_PUBLIC_*`).
 Nothing reads them. Add a variable to `env.ts` first — a value present only in

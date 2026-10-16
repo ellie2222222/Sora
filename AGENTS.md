@@ -125,9 +125,13 @@ npm run agents:check                           # .agents/skills matches .claude/
 npm run db:migrate                             # Run SQL migrations
 npm run db:test                                # Run database constraint probes
 npm run db:seed                                # Demo data through a running API (SEED_API_URL); --dry-run needs none
+npm run db:seed:passwords                      # .env.seed accounts' password → 1 (SEED_PASSWORD); disposable-named databases only
 npm run dev:server                             # Start server in watch mode
-npm run dev:mobile                             # Start Expo mobile app
+npm run dev:mobile                             # Metro for the Sora development build (tunnel)
 npm run dev:mobile:clear                       # Same, with Metro's cache cleared
+npm run dev:mobile:usb                         # Same, for a USB phone/emulator (localhost:8081 via adb reverse)
+npm run dev:mobile:build                       # Build + install the development build; rerun after a native change
+npm run dev:mobile:go                          # The app in Expo Go instead (no Google sign-in there)
 ```
 
 ---

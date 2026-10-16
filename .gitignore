@@ -30,6 +30,9 @@ mobile/android/
 ios/Pods/
 ios/build/
 *.keystore
+# Built installers are release artifacts, not source
+*.apk
+*.aab
 !debug.keystore
 
 # Editors / OS

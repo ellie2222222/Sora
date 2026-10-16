@@ -32,18 +32,22 @@ computer.
 | # | Device | Network | Metro command | `EXPO_PUBLIC_API_BASE_URL` | Works with the API in Docker? |
 |---|---|---|---|---|---|
 | A | Android emulator on this PC | (same PC) | `npm run start:lan -w @sora/mobile`, then `a` | `http://10.0.2.2:3000` | Yes |
-| B | Physical Android phone, USB cable | (cable) | `npm run start:lan -w @sora/mobile` | `http://localhost:3000` plus `adb reverse tcp:3000 tcp:3000` | Yes |
+| B | Physical Android phone, USB cable | (cable) | `npm run dev:mobile:usb` (development build) | `http://127.0.0.1:3000` plus `adb reverse tcp:8081 tcp:8081` and `adb reverse tcp:3000 tcp:3000` | Yes |
 | C | Physical phone, **same** Wi-Fi as the PC | LAN | `npm run start:lan -w @sora/mobile` | `http://<PC's Wi-Fi IP>:3000` | Only if port 3000 accepts connections on the Wi-Fi address ([check](#check-c1-is-the-api-reachable-on-the-wi-fi-address)) |
 | D | Physical phone, **different** network (mobile data, another Wi-Fi, guest Wi-Fi with client isolation) | Internet | `npm run dev:mobile` (tunnel) | an `https://` tunnel URL for port 3000 | Yes |
 | E | iPhone (Expo Go) | as C or D | as C or D | as C or D | as C or D. No `adb reverse` on iOS |
 
 How the start commands differ:
-- `npm run dev:mobile` at the repo root is `expo start --go --tunnel`. It always tunnels Metro.
+- `npm run dev:mobile` at the repo root is `expo start --dev-client --tunnel`: it serves the Sora
+  **development build** that `npm run dev:mobile:build` installs, and always tunnels Metro.
+  Google sign-in only works there.
+- `npm run dev:mobile:usb` is the development build over a USB cable (`--localhost`): every URL is
+  `localhost:8081`, which `adb reverse` carries to the PC, so lazily loaded code downloads too.
+- `npm run dev:mobile:go` is the same in **Expo Go** (`expo start --go --tunnel`), with no build.
 - `npm run start:lan -w @sora/mobile` is `expo start --go`, which serves Metro on your LAN
-  without a tunnel. It's faster and enough for A, B and C.
-- Both open the app in **Expo Go** (`--go`). If Metro serves a stale bundle, the variants with
-  the cache cleared are `npm run dev:mobile:clear` (tunnel) and
-  `npm run start:lan:clear -w @sora/mobile` (LAN).
+  without a tunnel. It's faster and enough for A and C in Expo Go.
+- If Metro serves a stale bundle, the variants with the cache cleared are `npm run dev:mobile:clear`
+  (development build, tunnel) and `npm run start:lan:clear -w @sora/mobile` (Expo Go, LAN).
 
 ## Rules That Apply to Every Case
 
@@ -242,8 +246,8 @@ This covers mobile data, a different Wi-Fi, a guest network that isolates device
 a VPN. The phone can't reach any LAN address of the PC, so **both** connections need a public
 route.
 
-1. **Metro:** `npm run dev:mobile` already runs `expo start --tunnel`. Scan its QR code in Expo
-   Go.
+1. **Metro:** `npm run dev:mobile` already runs `expo start --dev-client --tunnel`. Open Sora (or
+   scan its QR code; `npm run dev:mobile:go` for Expo Go).
 2. **API:** expose `localhost:3000` through a tunnel of your own. Expo's tunnel doesn't carry it.
    Either of these works, but each needs its tool installed (not a repo dependency):
    ```bash

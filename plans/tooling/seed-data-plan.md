@@ -85,6 +85,10 @@ Root script: `"db:seed": "node scripts/seed/seed-demo.mts"`.
   exact identifiers only.
 - `runId` (short, lowercase) and the passwords (24-character base64url) come from `node:crypto`,
   never from `rng.ts`. That keeps them unpredictable and leaves the data stream depending only on `SEED`.
+  For local testing, `scripts/seed/set-test-passwords.mjs` (`npm run db:seed:passwords`) then resets
+  exactly the `.env.seed` accounts to `1` (or `SEED_PASSWORD`) by writing the hash. Registration's
+  12-character minimum isn't loosened, and login accepts any non-empty password. It refuses a database
+  whose name doesn't look disposable.
 - Output goes to `.env.seed` (matched by `.gitignore`'s `.env.*`): `SEED_API_BASE` (the URL with
   `/api/v1`, like `E2E_API_BASE`), `SEED`, `SEED_ANCHOR`, `SEED_RUN_ID`, `SEED_<PERSONA>_EMAIL`/`_PASSWORD`,
   `SEED_WALLET_<KEY>`, and `SEED_SISTER_INVITATION_TOKEN`. The token is returned only by
