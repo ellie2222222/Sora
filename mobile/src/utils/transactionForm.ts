@@ -18,7 +18,6 @@ import {
   parseMoney,
   TransactionType,
   CategoryType,
-  TransactionStatus,
   type CreateTransactionRequest,
   type TransactionResponse,
   type UpdateTransactionRequest,

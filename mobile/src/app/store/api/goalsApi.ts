@@ -1,6 +1,5 @@
 import {
   GoalStatus,
-  TransactionStatus,
   TransactionType,
   type ContributionResponse,
   type CreateContributionRequest,
