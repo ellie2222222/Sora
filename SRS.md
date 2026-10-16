@@ -771,7 +771,7 @@ Story-ID prefixes: **AUTH-US**, **WAL-US** (wallets & sharing), **ACC-US**, **TX
 - Email and password are required; the address must be available **case-insensitively** (`Foo@x.com` collides with `foo@x.com`).
 - The password must be 12–200 characters. No composition rules are imposed, and none are hinted at in the form.
 - A base currency is captured, defaulting to VND.
-- A preferred language (English or Vietnamese) is chosen on the sign-up screen, preselected to the app's current language; it names the new wallet and its Cash account and becomes the account's saved language.
+- The language picked in the sign-in and sign-up screens' language button (any supported language, preselected to the app's current one) is sent with sign-up; it names the new wallet and its Cash account and becomes the account's saved language.
 - On success, all of the following exist or none do: the user; a wallet named for their display name; their OWNER membership on it; a starter category tree.
 - The user is signed in on completion and lands on a usable, empty dashboard for their new wallet — they can record an expense without any further setup.
 - The registration is audited.
@@ -1630,8 +1630,10 @@ The most rule-dense feature in the product, because a transaction is the only th
 - The assistant reads only the wallet the question is about, and only while the asker is a member of it.
 - A conversation is private to the user who started it. Chat history stays readable offline; sending needs a connection.
 - A guest is told the assistant needs an account and is offered sign-in.
+- While an answer is being prepared, the app says what it is really doing. Past about 10 seconds it says the answer is taking longer than usual.
+- If the assistant can't answer in time, I'm told why and my message stays on screen. I can retry it, and it is then stored once, or edit it. A failed send stores nothing.
 
-**Error cases:** a wallet the asker is not a member of reads as not found (BR-05), as does another user's conversation.
+**Error cases:** a wallet the asker is not a member of reads as not found (BR-05), as does another user's conversation. When the model is unavailable, busy or too slow, the send fails with that reason; the assistant never substitutes a canned reply.
 
 ---
 

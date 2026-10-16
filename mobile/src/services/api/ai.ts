@@ -1,4 +1,5 @@
 import {
+  AI_REPLY_BUDGET_MS,
   ROUTES,
   apiUrl,
   type AiConversationResponse,
@@ -9,6 +10,9 @@ import {
 } from '@sora/contracts';
 
 import { getList, postOne, type ListResult, type PageQuery } from './client.ts';
+
+/** Room on top of the API's own reply budget for the network and saving, so the app hears its error rather than timing out first. */
+const AI_SEND_GRACE_MS = 10_000;
 
 /** API spec §17. Signed-in only: the assistant reads server-side data, so guest mode has no counterpart. */
 export const aiApi = {
@@ -29,8 +33,12 @@ export const aiApi = {
     return getList<AiMessageResponse>(apiUrl(ROUTES.ai.messages(conversationId)), page);
   },
 
-  send(conversationId: string, body: SendAiMessageRequest): Promise<SendAiMessageResponse> {
-    return postOne<SendAiMessageResponse>(apiUrl(ROUTES.ai.sendMessage(conversationId)), body);
+  /** `requestId` goes out as `x-request-id`, the id the API logs every step of this reply under. */
+  send(conversationId: string, body: SendAiMessageRequest, requestId?: string): Promise<SendAiMessageResponse> {
+    return postOne<SendAiMessageResponse>(apiUrl(ROUTES.ai.sendMessage(conversationId)), body, {
+      timeout: AI_REPLY_BUDGET_MS + AI_SEND_GRACE_MS,
+      ...(requestId ? { headers: { 'x-request-id': requestId } } : {}),
+    });
   },
 
   confirmAction(conversationId: string, messageId: string): Promise<AiMessageResponse> {

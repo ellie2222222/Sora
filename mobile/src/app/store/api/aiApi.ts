@@ -3,6 +3,7 @@ import type { AiConversationResponse, AiMessageResponse, SendAiMessageRequest, S
 import { aiApi as aiHttp, type ListResult } from '@/services/api';
 import { cacheKeyOf } from '@/services/sync';
 import { FIRST_PAGE, nextPageParam } from '@/utils';
+import { prependExchange } from './aiMessages.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
 import { readSignedInCached } from './guestFallback.ts';
 
@@ -53,21 +54,20 @@ export const aiApiSlice = apiSlice.injectEndpoints({
       queryFn: (conversationId) => toQueryFnResult(() => aiHttp.deleteConversation(conversationId)),
       invalidatesTags: ['AiConversation'],
     }),
-    sendAiMessage: builder.mutation<SendAiMessageResponse, { conversationId: string; body: SendAiMessageRequest }>({
-      queryFn: ({ conversationId, body }) => toQueryFnResult(() => aiHttp.send(conversationId, body)),
+    sendAiMessage: builder.mutation<SendAiMessageResponse, { conversationId: string; body: SendAiMessageRequest; requestId?: string }>({
+      queryFn: ({ conversationId, body, requestId }) => toQueryFnResult(() => aiHttp.send(conversationId, body, requestId)),
       onQueryStarted: async ({ conversationId }, { dispatch, queryFulfilled }) => {
         try {
           const { data } = await queryFulfilled;
           dispatch(
-            aiApiSlice.util.updateQueryData('listAiMessages', conversationId, (draft) => {
-              draft.pages[0]?.items.unshift(data.assistantMessage, data.userMessage);
-            }),
+            aiApiSlice.util.updateQueryData('listAiMessages', conversationId, (draft) => prependExchange(draft.pages[0], data)),
           );
         } catch {
           // Nothing was added to the cache.
         }
       },
-      invalidatesTags: ['AiConversation'],
+      // A new chat's first fetch can still be loading when the answer lands, and then has no page to add it to.
+      invalidatesTags: (_result, _error, { conversationId }) => ['AiConversation', { type: 'AiMessage', id: conversationId }],
     }),
     confirmAiAction: builder.mutation<AiMessageResponse, { conversationId: string; messageId: string }>({
       queryFn: ({ conversationId, messageId }) => toQueryFnResult(() => aiHttp.confirmAction(conversationId, messageId)),

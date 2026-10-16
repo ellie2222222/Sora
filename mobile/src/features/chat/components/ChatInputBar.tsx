@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SendHorizontal } from 'lucide-react-native';
-import { Platform, Pressable, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
@@ -12,19 +12,29 @@ const SINGLE_ROW_ON_WEB = Platform.OS === 'web' ? { rows: 1 } : {};
 
 export function ChatInputBar({
   disabled,
+  busy = false,
   onSend,
   placeholder,
+  refill,
 }: {
   disabled: boolean;
+  /** A message is out: the send button shows it is working rather than just greyed out. */
+  busy?: boolean;
   onSend: (message: string) => Promise<boolean>;
   /** Replaces the default prompt, e.g. to say why the field is disabled. */
   placeholder?: string;
+  /** Puts text back in the field, e.g. an unsent message the user chose to edit; a new `nonce` repeats it. */
+  refill?: { text: string; nonce: number };
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [text, setText] = useState('');
   const [focused, setFocused] = useState(false);
   const [pressed, setPressed] = useState(false);
+
+  useEffect(() => {
+    if (refill) setText(refill.text);
+  }, [refill]);
 
   const sendSize = theme.sizes.badge.md;
   const fieldMinHeight = theme.sizes.controlHeight;
@@ -94,7 +104,7 @@ export function ChatInputBar({
           testID="btn-submit-ai-message"
           accessibilityRole="button"
           accessibilityLabel={t('ai.send')}
-          accessibilityState={{ disabled: !canSend }}
+          accessibilityState={{ disabled: !canSend, busy }}
           disabled={!canSend}
           hitSlop={theme.sizes.hitSlop.sm}
           onPress={() => void send()}
@@ -111,7 +121,11 @@ export function ChatInputBar({
             opacity: canSend && pressed ? theme.opacity.pressed : 1,
           }}
         >
-          <SendHorizontal size={theme.iconSize.lg} color={canSend ? theme.colors.onPrimary : theme.colors.textFaint} />
+          {busy ? (
+            <ActivityIndicator size="small" color={theme.colors.textMuted} />
+          ) : (
+            <SendHorizontal size={theme.iconSize.lg} color={canSend ? theme.colors.onPrimary : theme.colors.textFaint} />
+          )}
         </Pressable>
       </View>
     </View>

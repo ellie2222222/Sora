@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { History, LogIn, MessageSquarePlus, Sparkles } from 'lucide-react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, History, LogIn, MessageSquarePlus, RotateCcw, Sparkles } from 'lucide-react-native';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 
-import { AnimatedScreen, ListLoadMoreFooter, Skeleton, StateView, Text } from '@/components';
+import { AnimatedScreen, Button, ListLoadMoreFooter, Skeleton, StateView, Text } from '@/components';
 import { useAuth, useTheme, useToast, useWallets } from '@/app/providers';
 import {
   useConfirmAiActionMutation,
@@ -19,10 +20,25 @@ import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { useNetworkStatus } from '@/hooks';
 import { canLoadMore, currentView, flattenPages, getServerErrorMessage, isNetworkError } from '@/utils';
 import { chatAvailability } from '../chatAvailability.ts';
+import {
+  failureOf,
+  chatKey,
+  isInFlight,
+  NEW_CHAT,
+  newRequestId,
+  retryExchange,
+  SLOW_AFTER_MS,
+  startExchange,
+  withExchange,
+  type ExchangeStage,
+  type PendingByChat,
+  type PendingExchange,
+} from '../chatExchange.ts';
 import { ChatInputBar } from '../components/ChatInputBar.tsx';
-import { ChatMessageItem } from '../components/ChatMessageItem.tsx';
+import { BUBBLE_MAX_WIDTH, ChatBubble, ChatMessageItem, MessageText } from '../components/ChatMessageItem.tsx';
 import { ConversationHistorySheet } from '../components/ConversationHistorySheet.tsx';
 import { SuggestedPromptChips } from '../components/SuggestedPromptChips.tsx';
+import { ThinkingIndicator } from '../components/ThinkingIndicator.tsx';
 
 const TITLE_LENGTH = 60;
 
@@ -98,8 +114,20 @@ function SignedInChat() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [hasPickedInitial, setHasPickedInitial] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [pendingText, setPendingText] = useState<string | null>(null);
+  const [pendingByChat, setPendingByChat] = useState<PendingByChat>({});
+  const [refill, setRefill] = useState<{ text: string; nonce: number }>();
   const [busyMessageId, setBusyMessageId] = useState<string | null>(null);
+  // Read inside an in-flight send, where the state captured at its start would be stale.
+  const pendingRef = useRef<PendingByChat>({});
+  const viewingRef = useRef<string | null>(null);
+  viewingRef.current = conversationId;
+  /** Answers that arrived while this chat was open; only these fade in, never scrolled-back history. */
+  const arrived = useRef(new Set<string>());
+
+  const setPendingFor = (key: string, next: PendingExchange | null) => {
+    pendingRef.current = withExchange(pendingRef.current, key, next);
+    setPendingByChat(pendingRef.current);
+  };
 
   // Reopen the latest chat once, rather than every time the list refetches.
   useEffect(() => {
@@ -107,6 +135,19 @@ function SignedInChat() {
     setConversationId(conversations.data[0]?.id ?? null);
     setHasPickedInitial(true);
   }, [conversations.data, hasPickedInitial]);
+
+  // Said once, when the wait really has run long; never a cycle of made-up progress steps.
+  useEffect(() => {
+    const timers = Object.entries(pendingByChat)
+      .filter(([, exchange]) => exchange.stage === 'waiting')
+      .map(([key, exchange]) =>
+        setTimeout(() => {
+          const current = pendingRef.current[key];
+          if (current?.stage === 'waiting' && current.startedAt === exchange.startedAt) setPendingFor(key, { ...current, stage: 'slow' });
+        }, Math.max(0, SLOW_AFTER_MS - (Date.now() - exchange.startedAt))),
+      );
+    return () => timers.forEach(clearTimeout);
+  }, [pendingByChat]);
 
   const messages = useListAiMessagesInfiniteQuery(conversationId ?? '', { skip: conversationId === null });
   const [createConversation] = useCreateAiConversationMutation();
@@ -121,25 +162,52 @@ function SignedInChat() {
   if (activeWalletId === null) return <NoWalletState testID="ai-no-wallet" />;
 
   const locale = isLocale(i18n.language) ? i18n.language : 'en';
-  const isSending = pendingText !== null;
-  const { canSend, blockedReason: blocked } = chatAvailability({ isOnline, isSending, canWrite: permissions.canWrite });
+  // Each chat shows and blocks on its own exchange only, so a send elsewhere never hides or replaces it.
+  const shownPending = pendingByChat[chatKey(conversationId)] ?? null;
+  const inFlight = isInFlight(shownPending);
+  const { canSend, blockedReason: blocked } = chatAvailability({ isOnline, isSending: inFlight, canWrite: permissions.canWrite });
 
-  /** Resolves false on failure so the input can give the text back. */
-  const send = async (text: string): Promise<boolean> => {
-    setPendingText(text);
+  /** Every path ends in a cleared or a failed exchange, never one left "preparing". */
+  const deliver = async (exchange: PendingExchange): Promise<boolean> => {
+    if (isInFlight(pendingRef.current[chatKey(exchange.conversationId)] ?? null)) return false;
+    const startedIn = viewingRef.current;
+    setPendingFor(chatKey(exchange.conversationId), exchange);
+    let targetId = exchange.conversationId;
     try {
-      const targetId =
-        conversationId ?? (await createConversation({ walletId: activeWalletId, title: text.slice(0, TITLE_LENGTH) }).unwrap()).id;
-      await sendMessage({ conversationId: targetId, body: { walletId: activeWalletId, message: text, locale } }).unwrap();
-      // Selected only now, so a new chat's first fetch already includes this exchange.
-      setConversationId(targetId);
+      if (targetId === null) {
+        targetId = (await createConversation({ walletId: exchange.walletId, title: exchange.text.slice(0, TITLE_LENGTH) }).unwrap()).id;
+        setPendingFor(NEW_CHAT, null);
+        setPendingFor(targetId, { ...exchange, conversationId: targetId, stage: 'waiting' });
+        if (viewingRef.current === startedIn) setConversationId(targetId);
+      }
+      const requestId = newRequestId();
+      try {
+        const result = await sendMessage({
+          conversationId: targetId,
+          body: { walletId: exchange.walletId, message: exchange.text, locale: exchange.locale },
+          requestId,
+        }).unwrap();
+        arrived.current.add(result.assistantMessage.id);
+      } catch (error) {
+        if (__DEV__) console.log(`[ai] send failed rid=${requestId}`);
+        throw error;
+      }
+      setPendingFor(targetId, null);
       return true;
     } catch (error) {
-      showToast(isNetworkError(error) ? t('ai.offlineHint') : getServerErrorMessage(error, t), 'error');
-      return false;
-    } finally {
-      setPendingText(null);
+      setPendingFor(chatKey(targetId), { ...exchange, conversationId: targetId, stage: 'failed', failure: failureOf(error, t) });
+      return true;
     }
+  };
+
+  const send = (text: string) => deliver(startExchange({ text, walletId: activeWalletId, locale }, conversationId));
+
+  const editUnsent = () => {
+    const key = chatKey(viewingRef.current);
+    const unsent = pendingRef.current[key];
+    if (unsent === undefined) return;
+    setRefill({ text: unsent.text, nonce: Date.now() });
+    setPendingFor(key, null);
   };
 
   const decide = async (messageId: string, decision: 'confirm' | 'dismiss') => {
@@ -171,7 +239,7 @@ function SignedInChat() {
 
   const blockedReason = blocked === 'offline' ? t('ai.offlineHint') : blocked === 'viewOnly' ? t('ai.proposal.viewOnly') : null;
   const renderBody = () => {
-    if (conversationId !== null && shownMessages.loading) {
+    if (conversationId !== null && shownMessages.loading && shownPending === null) {
       return (
         <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, flex: 1, justifyContent: 'flex-end' }}>
           {[...Array(4)].map((_, i) => (
@@ -180,7 +248,7 @@ function SignedInChat() {
         </View>
       );
     }
-    if (conversationId !== null && messages.isError && items.length === 0 && !isNetworkError(messages.error)) {
+    if (conversationId !== null && messages.isError && items.length === 0 && shownPending === null && !isNetworkError(messages.error)) {
       return (
         <StateView
           variant="error"
@@ -191,7 +259,7 @@ function SignedInChat() {
         />
       );
     }
-    if (items.length === 0 && !isSending) {
+    if (items.length === 0 && shownPending === null) {
       return (
         <View className="flex-1 justify-center" style={{ gap: theme.spacing.lg, padding: theme.spacing.lg }}>
           <StateView variant="empty" icon={Sparkles} title={t('ai.emptyTitle')} message={t('ai.emptyMessage')} testID="ai-empty" entrance="none" />
@@ -205,11 +273,22 @@ function SignedInChat() {
         inverted
         data={items}
         keyExtractor={(message) => message.id}
-        contentContainerStyle={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm }}
-        ListHeaderComponent={isSending ? <PendingExchange text={pendingText} /> : null}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.md }}
+        ListHeaderComponent={
+          shownPending !== null ? (
+            <PendingExchangeView
+              exchange={shownPending}
+              canRetry={isOnline}
+              onRetry={() => void deliver(retryExchange(shownPending))}
+              onEdit={editUnsent}
+            />
+          ) : null
+        }
         renderItem={({ item }) => (
           <ChatMessageItem
             message={item}
+            animate={arrived.current.has(item.id)}
             blockedReason={blockedReason}
             busyMessageId={busyMessageId}
             onConfirm={(id) => void decide(id, 'confirm')}
@@ -235,7 +314,7 @@ function SignedInChat() {
 
   return (
     <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <AssistantHeader 
+      <AssistantHeader
         rightElement={
           <View className="flex-row" style={{ gap: theme.spacing.md }}>
             <Pressable testID="btn-open-ai-history" accessibilityRole="button" accessibilityLabel={t('ai.history')} hitSlop={theme.sizes.hitSlop.md} onPress={() => setHistoryOpen(true)}>
@@ -255,7 +334,7 @@ function SignedInChat() {
           {t('ai.offlineHint')}
         </Text>
       ) : null}
-      <ChatInputBar disabled={!canSend} onSend={send} />
+      <ChatInputBar disabled={!canSend} busy={inFlight} onSend={send} refill={refill} />
 
       <ConversationHistorySheet
         visible={historyOpen}
@@ -272,18 +351,58 @@ function SignedInChat() {
   );
 }
 
-/** The question just sent and a thinking line, shown until the answer replaces both. */
-function PendingExchange({ text }: { text: string | null }) {
+const STAGE_LABEL_KEY: Record<Exclude<ExchangeStage, 'failed'>, string> = {
+  starting: 'ai.status.starting',
+  waiting: 'ai.status.preparing',
+  slow: 'ai.status.slow',
+};
+
+/** The message just sent, then what the app is doing for it, or why it failed with Retry (same request) and Edit. */
+function PendingExchangeView({
+  exchange,
+  canRetry,
+  onRetry,
+  onEdit,
+}: {
+  exchange: PendingExchange;
+  canRetry: boolean;
+  onRetry: () => void;
+  onEdit: () => void;
+}) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const failed = exchange.stage === 'failed';
+
   return (
-    <View style={{ gap: theme.spacing.xs, marginVertical: theme.spacing.sm }}>
-      <View style={{ alignSelf: 'flex-end', maxWidth: '85%', padding: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderRadius: theme.radius.lg, backgroundColor: theme.colors.primary }}>
-        <Text tone="onPrimary">{text}</Text>
+    <View testID="ai-pending-exchange" style={{ gap: theme.spacing.sm, marginVertical: theme.spacing.xs }}>
+      <View style={{ alignItems: 'flex-end' }}>
+        <ChatBubble fromUser muted={failed}>
+          <MessageText text={exchange.text} fromUser muted={failed} />
+        </ChatBubble>
       </View>
-      <Text variant="caption" tone="muted" testID="ai-thinking">
-        {t('ai.thinking')}
-      </Text>
+      {exchange.stage !== 'failed' ? (
+        <ThinkingIndicator label={t(STAGE_LABEL_KEY[exchange.stage])} />
+      ) : (
+        <Animated.View
+          entering={FadeIn.duration(180)}
+          testID="ai-send-failed"
+          accessibilityLiveRegion="polite"
+          style={{ alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: BUBBLE_MAX_WIDTH, gap: theme.spacing.xs }}
+        >
+          <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
+            <AlertCircle size={theme.iconSize.sm} color={theme.colors.danger} />
+            <Text variant="caption" style={{ color: theme.colors.danger, flexShrink: 1 }}>
+              {exchange.failure?.message}
+            </Text>
+          </View>
+          <View className="flex-row" style={{ gap: theme.spacing.sm }}>
+            <Button variant="ghost" size="sm" testID="btn-edit-ai-message" onPress={onEdit} label={t('ai.failure.edit')} />
+            {exchange.failure?.retryable ? (
+              <Button variant="secondary" size="sm" testID="btn-retry-ai-message" icon={RotateCcw} disabled={!canRetry} onPress={onRetry} label={t('ai.failure.retry')} />
+            ) : null}
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -292,7 +411,7 @@ function ChatMessageSkeleton({ fromUser }: { fromUser: boolean }) {
   const theme = useTheme();
   return (
     <View style={{ alignItems: fromUser ? 'flex-end' : 'flex-start', marginVertical: theme.spacing.sm }}>
-      <Skeleton width={fromUser ? '55%' : '70%'} height={theme.lineHeight.md + 2 * theme.spacing.md} radius={theme.radius.lg} />
+      <Skeleton width={fromUser ? '55%' : '70%'} height={theme.lineHeight.md + 2 * theme.spacing.sm} radius={theme.radius.lg} />
     </View>
   );
 }
