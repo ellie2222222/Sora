@@ -87,7 +87,9 @@ export function UploadProgressPanel({ status, error, walletName, view, onBackgro
           ) : null}
           {status === 'stopped' || status === 'failed' ? (
             <Text tone="muted" style={{ textAlign: 'center', maxWidth: theme.sizes.readableWidth }}>
-              {t('guest.upload.pausedBody', { done: formatCount(view.doneRows), total: formatCount(view.totalRows), wallet: walletName })}
+              {view.doneRows === 0
+                ? t('guest.upload.pausedBodyNone', { total: formatCount(view.totalRows), wallet: walletName })
+                : t('guest.upload.pausedBody', { done: formatCount(view.doneRows), total: formatCount(view.totalRows), wallet: walletName })}
             </Text>
           ) : null}
         </View>
