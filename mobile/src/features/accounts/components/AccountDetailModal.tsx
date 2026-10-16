@@ -2,17 +2,18 @@ import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ArrowDownLeft, ArrowDownToLine, ArrowUpFromLine, ArrowUpRight, ChevronRight, ReceiptText, type LucideIcon } from 'lucide-react-native';
-import { AccountStatus, type MoneyString } from '@sora/contracts';
+import { AccountStatus, TransactionType, type MoneyString } from '@sora/contracts';
 
 import { BottomSheetModal, Money, Skeleton, StateView, Text } from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
 import { useGetAccountQuery } from '@/app/store';
-import { isNetworkError, permissionsForWallet, currentView } from '@/utils';
-import { ACCOUNT_ICON, ACCOUNT_TYPE_LABEL_KEY } from './AccountPicker.tsx';
+import { isDeviceOnline, isNetworkError, noResponseMessage, permissionsForWallet, currentView } from '@/utils';
+import { AccountBadge } from './AccountBadge.tsx';
+import { ACCOUNT_TYPE_LABEL_KEY } from './AccountPicker.tsx';
 import { AccountEditForm } from './AccountEditForm.tsx';
 import { ArchiveAccountDialog } from './ArchiveAccountDialog.tsx';
 
-export interface AccountDetailModalProps {
+interface AccountDetailModalProps {
   accountId: string | null;
   onClose: () => void;
   /** The list is another tab, so the host closes this sheet as it goes there; `walletId` may not be the active one. */
@@ -34,7 +35,12 @@ export function AccountDetailModal({ accountId, onClose, onViewTransactions }: A
     if (shown.loading) return <AccountDetailSkeleton />;
     if (account.isError) {
       return isNetworkError(account.error) ? (
-        <StateView variant="error" title={t('errors.offlineTitle')} message={t('errors.connectionOfflineDetail')} entrance="none" />
+        <StateView
+          variant="error"
+          title={noResponseMessage(t)}
+          message={t(isDeviceOnline() ? 'errors.connectionUnreachableDetail' : 'errors.connectionOfflineDetail')}
+          entrance="none"
+        />
       ) : (
         <StateView variant="error" title={t('common.error')} message={t('accounts.loadFailed')} retryAction={() => void account.refetch()} entrance="none" />
       );
@@ -47,17 +53,10 @@ export function AccountDetailModal({ accountId, onClose, onViewTransactions }: A
     }
     // The account's own wallet decides, not the active one: this sheet opens from any wallet's page.
     const canWrite = permissionsForWallet(wallets, data.walletId).canWrite;
-    const TypeIcon = ACCOUNT_ICON[data.type];
-
     return (
       <>
         <View className="items-center" style={{ paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.lg }}>
-          <View
-            className="items-center justify-center"
-            style={{ width: theme.sizes.badge.md, height: theme.sizes.badge.md, borderRadius: theme.radius.pill, backgroundColor: theme.colors.primaryMuted }}
-          >
-            <TypeIcon size={theme.iconSize.lg} color={theme.colors.primary} />
-          </View>
+          <AccountBadge accountId={data.id} type={data.type} />
           <Text variant="title" numberOfLines={2} style={{ textAlign: 'center', marginTop: theme.spacing.sm }} testID="account-detail-name">
             {data.name}
           </Text>
@@ -68,8 +67,8 @@ export function AccountDetailModal({ accountId, onClose, onViewTransactions }: A
         </View>
 
         <View>
-          <FigureRow icon={ArrowDownLeft} label={t('dashboard.income')} amount={data.totalIncome} currency={data.currency} type="INCOME" />
-          <FigureRow icon={ArrowUpRight} label={t('dashboard.expenses')} amount={data.totalExpense} currency={data.currency} type="EXPENSE" />
+          <FigureRow icon={ArrowDownLeft} label={t('dashboard.income')} amount={data.totalIncome} currency={data.currency} type={TransactionType.INCOME} />
+          <FigureRow icon={ArrowUpRight} label={t('dashboard.expenses')} amount={data.totalExpense} currency={data.currency} type={TransactionType.EXPENSE} />
           <FigureRow icon={ArrowDownToLine} label={t('accounts.transferredIn')} amount={data.transferredIn} currency={data.currency} />
           <FigureRow icon={ArrowUpFromLine} label={t('accounts.transferredOut')} amount={data.transferredOut} currency={data.currency} />
         </View>

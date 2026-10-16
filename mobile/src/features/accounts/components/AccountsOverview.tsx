@@ -1,24 +1,19 @@
 import { useState } from 'react';
 import { Landmark, Plus } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import {
-  ACCOUNT_TYPES,
-  AccountStatus,
-  add,
-  formatMoney,
-  isNegative,
-  negate,
-  parseMoney,
-  ZERO,
-  type AccountResponse,
-} from '@sora/contracts';
+import { ACCOUNT_TYPES, AccountStatus, type AccountResponse } from '@sora/contracts';
 
 import { Money, SectionLabel, Skeleton, StateView, SwipeableRow, SyncStatusDot, Text } from '@/components';
 import { useModal, useTheme, useToast } from '@/app/providers';
 import { selectQueueEntryFor, useListAccountsQuery } from '@/app/store';
-import { isNetworkError, sumScaledByKey } from '@/utils';
+import { isNetworkError } from '@/utils';
+import { accountTint } from '../accountTint.ts';
+import { netWorthByCurrency } from '../netWorth.ts';
+import { AccountBadge } from './AccountBadge.tsx';
+import { NetWorthSummary, NetWorthSummarySkeleton } from './NetWorthSummary.tsx';
 import { ACCOUNT_ICON, ACCOUNT_TYPE_LABEL_KEY } from './AccountPicker.tsx';
 import { accountSwipeActions } from './accountSwipeActions.ts';
 import { ArchiveAccountDialog } from './ArchiveAccountDialog.tsx';
@@ -85,33 +80,9 @@ export function AccountsOverview({
 
   const { assets, liabilities, netWorth } = netWorthByCurrency(items);
 
-  const [primaryNetWorth, ...otherNetWorth] = netWorth;
-
   return (
     <View testID="section-accounts" style={{ gap: theme.spacing.xl }}>
-      <View style={{ gap: theme.spacing.xs }}>
-        <SectionLabel>{t('accounts.netWorth')}</SectionLabel>
-        {primaryNetWorth !== undefined ? (
-          <Money
-            amount={primaryNetWorth.amount}
-            currency={primaryNetWorth.currency}
-            weight="bold"
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            style={{ fontSize: theme.fontSize.display }}
-            testID="accounts-net-worth"
-          />
-        ) : null}
-        {/* BR-07: each further currency is its own figure, never added to the first. */}
-        {otherNetWorth.map((item) => (
-          <Money key={item.currency} amount={item.amount} currency={item.currency} weight="semibold" style={{ fontSize: theme.fontSize.lg, color: theme.colors.textMuted }} />
-        ))}
-
-        <View className="flex-row flex-wrap" style={{ columnGap: theme.spacing.xl, rowGap: theme.spacing.xs, marginTop: theme.spacing.sm }}>
-          <PositionFigure label={t('accounts.assets')} totals={assets} dotColor={theme.colors.income} />
-          <PositionFigure label={t('accounts.liabilities')} totals={liabilities} dotColor={theme.colors.expense} />
-        </View>
-      </View>
+      <NetWorthSummary walletId={walletId} netWorth={netWorth} assets={assets} liabilities={liabilities} />
 
       <View style={{ gap: theme.spacing.xs }}>
         <SectionLabel
@@ -136,26 +107,36 @@ export function AccountsOverview({
           {t('accounts.accountsLabel')}
         </SectionLabel>
 
-        <View>
-          {items.map((account, index) => (
-            <View key={account.id}>
-              {/* Inset to the name column, so the icons read as one column rather than a ruled table. */}
-              {index > 0 ? (
-                <View style={{ height: theme.borderWidth.thin, backgroundColor: theme.colors.border, marginLeft: theme.sizes.badge.md + theme.spacing.md }} />
-              ) : null}
-              <SwipeableRow
-                backgroundColor={theme.colors.background}
-                onActivate={() => onOpenAccount(account.id)}
-                actions={
-                  canWrite
-                    ? accountSwipeActions(t, { onOpen: () => onOpenAccount(account.id), onArchive: () => setArchivingId(account.id) })
-                    : []
-                }
+        <View style={{ gap: theme.spacing.sm }}>
+          {items.map((account, index) => {
+            const tint = accountTint(account.id, theme.accountTints);
+            return (
+              // `entering` runs on mount only, so a refetch or a balance change never replays it.
+              <Animated.View
+                key={account.id}
+                entering={FadeInDown.duration(CARD_ENTER_MS).delay(Math.min(index, CARD_STAGGER_CAP) * CARD_STAGGER_MS)}
+                testID={`card-account-${account.id}`}
+                style={{
+                  borderRadius: theme.radius.lg,
+                  borderWidth: theme.borderWidth.thin,
+                  borderColor: theme.colors.border,
+                  overflow: 'hidden',
+                }}
               >
-                <AccountItem account={account} onPress={() => onOpenAccount(account.id)} />
-              </SwipeableRow>
-            </View>
-          ))}
+                <SwipeableRow
+                  backgroundColor={tint.surface}
+                  onActivate={() => onOpenAccount(account.id)}
+                  actions={
+                    canWrite
+                      ? accountSwipeActions(t, { onOpen: () => onOpenAccount(account.id), onArchive: () => setArchivingId(account.id) })
+                      : []
+                  }
+                >
+                  <AccountItem account={account} onPress={() => onOpenAccount(account.id)} />
+                </SwipeableRow>
+              </Animated.View>
+            );
+          })}
         </View>
       </View>
       <ArchiveAccountDialog
@@ -171,33 +152,14 @@ export function AccountsOverview({
   );
 }
 
-/** Assets or liabilities, a supporting figure under net worth: a coloured dot marks which, not the number. */
-function PositionFigure({ label, totals, dotColor }: { label: string; totals: { currency: string; amount: string }[]; dotColor: string }) {
-  const theme = useTheme();
-  const empty = totals.length === 0;
-  return (
-    <View style={{ gap: theme.spacing.xxs }}>
-      <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
-        <View style={{ width: theme.sizes.dot.sm, height: theme.sizes.dot.sm, borderRadius: theme.radius.pill, backgroundColor: empty ? theme.colors.border : dotColor }} />
-        <Text variant="caption" tone="muted">
-          {label}
-        </Text>
-      </View>
-      {empty ? (
-        <Text variant="label" tone="muted">
-          —
-        </Text>
-      ) : (
-        totals.map((item) => <Money key={item.currency} amount={item.amount} currency={item.currency} variant="label" weight="semibold" />)
-      )}
-    </View>
-  );
-}
+const CARD_ENTER_MS = 240;
+const CARD_STAGGER_MS = 40;
+/** Past a few cards the stagger would hold the last ones back for no reason. */
+const CARD_STAGGER_CAP = 5;
 
 function AccountItem({ account, onPress }: { account: AccountResponse; onPress: () => void }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const Icon = ACCOUNT_ICON[account.type];
   const syncStatus = useSelector(selectQueueEntryFor('account', account.id))?.status;
 
   return (
@@ -206,14 +168,14 @@ function AccountItem({ account, onPress }: { account: AccountResponse; onPress: 
       accessibilityRole="button"
       onPress={onPress}
       className="flex-row items-center"
-      style={{ gap: theme.spacing.md, minHeight: theme.sizes.listRowMinHeight, paddingVertical: theme.spacing.sm }}
+      style={{
+        gap: theme.spacing.md,
+        minHeight: theme.sizes.listRowMinHeight,
+        paddingVertical: theme.spacing.md,
+        paddingHorizontal: theme.spacing.lg,
+      }}
     >
-      <View
-        className="items-center justify-center"
-        style={{ width: theme.sizes.badge.md, height: theme.sizes.badge.md, borderRadius: theme.radius.pill, backgroundColor: theme.colors.surfaceMuted }}
-      >
-        <Icon size={theme.iconSize.md} color={theme.colors.textMuted} />
-      </View>
+      <AccountBadge accountId={account.id} type={account.type} />
       <View style={{ flex: 1, gap: theme.spacing.xxs }}>
         <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
           <Text weight="medium" numberOfLines={1} style={{ flexShrink: 1 }}>
@@ -225,7 +187,7 @@ function AccountItem({ account, onPress }: { account: AccountResponse; onPress: 
           {t(ACCOUNT_TYPE_LABEL_KEY[account.type])}
         </Text>
       </View>
-      <Money amount={account.balance} currency={account.currency} weight="semibold" numberOfLines={1} />
+      <Money amount={account.balance} currency={account.currency} weight="semibold" numberOfLines={1} style={{ fontSize: theme.fontSize.lg }} />
     </Pressable>
   );
 }
@@ -236,20 +198,15 @@ export function AccountsOverviewSkeleton() {
 
   return (
     <View style={{ gap: theme.spacing.xl }}>
-      <View style={{ gap: theme.spacing.xs }}>
-        <SectionLabel>{t('accounts.netWorth')}</SectionLabel>
-        <Skeleton width={theme.sizes.skeletonWidth.xxl} height={theme.sizes.skeletonLine.display} radius={theme.radius.sm} />
-        <View className="flex-row" style={{ gap: theme.spacing.xl, marginTop: theme.spacing.sm }}>
-          <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
-          <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.label} radius={theme.radius.sm} />
-        </View>
-      </View>
+      <NetWorthSummarySkeleton />
 
       <View style={{ gap: theme.spacing.xs }}>
         <SectionLabel>{t('accounts.accountsLabel')}</SectionLabel>
-        {[1, 2, 3].map((key) => (
-          <AccountItemSkeleton key={key} />
-        ))}
+        <View style={{ gap: theme.spacing.sm }}>
+          {[1, 2, 3].map((key) => (
+            <AccountItemSkeleton key={key} />
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -259,7 +216,18 @@ function AccountItemSkeleton() {
   const theme = useTheme();
 
   return (
-    <View className="flex-row items-center" style={{ gap: theme.spacing.md, minHeight: theme.sizes.listRowMinHeight, paddingVertical: theme.spacing.sm }}>
+    <View
+      className="flex-row items-center"
+      style={{
+        gap: theme.spacing.md,
+        minHeight: theme.sizes.listRowMinHeight,
+        paddingVertical: theme.spacing.md,
+        paddingHorizontal: theme.spacing.lg,
+        borderRadius: theme.radius.lg,
+        borderWidth: theme.borderWidth.thin,
+        borderColor: theme.colors.border,
+      }}
+    >
       <Skeleton width={theme.sizes.badge.md} height={theme.sizes.badge.md} radius={theme.radius.pill} />
       <View style={{ flex: 1, gap: theme.spacing.xs }}>
         <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
@@ -268,33 +236,4 @@ function AccountItemSkeleton() {
       <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
     </View>
   );
-}
-
-/**
- * Assets/liabilities/net-worth per currency, never summed across currencies
- * (BR-07). A credit card's negative `balance` is the one signed amount in
- * the domain (VL-04) and is what makes an account a liability here.
- */
-function netWorthByCurrency(accounts: AccountResponse[]) {
-  const isAsset = (account: AccountResponse) => !isNegative(parseMoney(account.balance));
-  const assetsByCurrency = sumScaledByKey(accounts.filter(isAsset), (account) => account.currency, (account) => account.balance);
-  const liabilitiesByCurrency = sumScaledByKey(
-    accounts.filter((account) => !isAsset(account)),
-    (account) => account.currency,
-    (account) => account.balance,
-  );
-
-  const currencies = new Set([...assetsByCurrency.keys(), ...liabilitiesByCurrency.keys()]);
-
-  const assets = Array.from(assetsByCurrency.entries()).map(([currency, amount]) => ({ currency, amount: formatMoney(amount) }));
-  const liabilities = Array.from(liabilitiesByCurrency.entries()).map(([currency, amount]) => ({
-    currency,
-    amount: formatMoney(negate(amount)),
-  }));
-  const netWorth = Array.from(currencies).map((currency) => ({
-    currency,
-    amount: formatMoney(add(assetsByCurrency.get(currency) ?? ZERO, liabilitiesByCurrency.get(currency) ?? ZERO)),
-  }));
-
-  return { assets, liabilities, netWorth };
 }
