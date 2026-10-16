@@ -11,17 +11,17 @@ import { registerSchema } from '@sora/contracts';
 const registerFormSchema = registerSchema.omit({ timeZone: true });
 import type { z } from 'zod';
 
-import { AnimatedScreen, Button, Input, SegmentedControl, Text } from '@/components';
+import { AnimatedScreen, Button, Input, Text } from '@/components';
 import { useAuth, useLocaleControl, useTheme } from '@/app/providers';
-import { SUPPORTED_LOCALES } from '@/app/i18n';
 import { deviceTimeZone, messageOf } from '@/utils';
 import type { AuthStackScreenProps } from '@/app/navigation';
+import { AuthPreferences } from '../components/AuthPreferences.tsx';
 
 export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { register } = useAuth();
-  const { locale, setLocale } = useLocaleControl();
+  const { locale } = useLocaleControl();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // The pre-.default() input type, not the output RegisterRequest: RHF's values
@@ -54,6 +54,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
 
   return (
     <AnimatedScreen testID="screen-register" style={{ backgroundColor: theme.colors.background }}>
+      <AuthPreferences />
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -71,24 +72,6 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
           <Text tone="muted" style={{ marginBottom: theme.spacing.lg }}>
             {t('auth.registerSubtitle')}
           </Text>
-
-          <View style={{ gap: theme.spacing.xs }}>
-            <Text weight="semibold" style={{ fontSize: theme.fontSize.sm }}>
-              {t('auth.languageLabel')}
-            </Text>
-            <SegmentedControl
-              options={SUPPORTED_LOCALES.map((code) => ({
-                value: code,
-                label: t(`settings.languageNames.${code}`),
-                testID: `btn-register-locale-${code}`,
-              }))}
-              value={locale}
-              onChange={(next) => void setLocale(next)}
-            />
-            <Text variant="caption" tone="muted">
-              {t('auth.languageHint')}
-            </Text>
-          </View>
 
           <Controller
             control={control}

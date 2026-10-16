@@ -4,7 +4,7 @@
     "slug": "sora",
     "version": "0.1.0",
     "orientation": "portrait",
-    "scheme": "sora",
+    "scheme": ["sora", "com.sora.app"],
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {

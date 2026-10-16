@@ -17,6 +17,7 @@ import {
   toApiError,
   type TranslationFunction,
 } from './errors.ts';
+import { setDeviceOnline } from './deviceConnectivity.ts';
 
 describe('isNetworkError', () => {
   it('treats a transport failure as offline', () => {
@@ -164,8 +165,12 @@ describe('getServerErrorMessage and messageOf', () => {
     return `t:${key}`;
   };
 
-  it('reports offline before anything the error itself says', () => {
-    assert.equal(getServerErrorMessage(new ApiError('INTERNAL_ERROR', 'Server exploded', 0), t), 't:errors.offlineTitle');
+  it('reports a missing response before anything the error itself says: offline, or the server unreachable', () => {
+    const noResponse = new ApiError('INTERNAL_ERROR', 'Server exploded', 0);
+    setDeviceOnline(false);
+    assert.equal(getServerErrorMessage(noResponse, t), 't:errors.offlineTitle');
+    setDeviceOnline(true);
+    assert.equal(getServerErrorMessage(noResponse, t), 't:errors.connectionUnreachable');
   });
 
   it('translates the error code and passes its params through to t', () => {

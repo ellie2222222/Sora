@@ -5,6 +5,7 @@ import NetInfo from '@react-native-community/netinfo';
 
 import { healthApi } from '@/services/api';
 import { setCurrentlyOnline } from '@/services/sync';
+import { setDeviceOnline } from '@/utils';
 
 /** Whether the API answers, which a device with internet access can still fail to reach. */
 export type ServerStatus = 'checking' | 'connected' | 'unreachable';
@@ -55,6 +56,7 @@ export function NetworkStatusProvider({ children, onRetrySync, onRetryQueued, on
     const unsubscribe = NetInfo.addEventListener((state) => {
       const online = state.isConnected === true && state.isInternetReachable !== false;
       setIsOnline(online);
+      setDeviceOnline(online);
       setCurrentlyOnline(online);
       void checkServer();
     });

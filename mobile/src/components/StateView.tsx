@@ -5,7 +5,7 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
-import { getServerErrorMessage, isNetworkError, isUnauthenticated } from '@/utils';
+import { getServerErrorMessage, isNetworkError, isUnauthenticated, noResponseMessage } from '@/utils';
 import { AnimatedIcon, type IconAnimationType } from './AnimatedIcon';
 import { Button } from './Button';
 import { SlideUp } from './SlideUp';
@@ -76,15 +76,13 @@ export function StateView({
 
   const defaultTitles: Record<StateViewVariant, string> = {
     empty: t('errors.nothingHereYet', 'Nothing here yet'),
-    error: isNetworkError(error)
-      ? t('errors.offlineTitle', "You're offline")
-      : t('errors.somethingWentWrong', 'Something went wrong. Please try again.'),
+    error: isNetworkError(error) ? noResponseMessage(t) : t('errors.somethingWentWrong', 'Something went wrong. Please try again.'),
     'no-results': t('errors.noResultsFound', 'No results found'),
     informational: t('errors.nothingHereYet', 'Nothing here yet'),
   };
 
   const errorMessage = variant === 'error' && error !== undefined
-    ? (isNetworkError(error) ? t('errors.offlineTitle', "You're offline") : getServerErrorMessage(error, t))
+    ? getServerErrorMessage(error, t)
     : undefined;
 
   const resolvedTitle = title ?? errorMessage ?? defaultTitles[variant];

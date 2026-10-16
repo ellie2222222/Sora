@@ -1,6 +1,5 @@
-import type { LucideIcon } from 'lucide-react-native';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, type PressableProps } from 'react-native';
+import { useState, type ComponentType } from 'react';
+import { ActivityIndicator, Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
@@ -8,6 +7,8 @@ import { Text } from './Text.tsx';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'danger-outline' | 'danger-soft' | 'ghost';
 type ButtonSize = 'sm' | 'md' | 'lg';
+/** A Lucide icon, or a mark that must keep its own colours (e.g. `GoogleLogo`), which may ignore `color`. */
+export type ButtonIcon = ComponentType<{ size: number; color: string; style?: StyleProp<ViewStyle> }>;
 
 export interface ButtonProps extends Omit<PressableProps, 'children'> {
   label: string;
@@ -16,7 +17,7 @@ export interface ButtonProps extends Omit<PressableProps, 'children'> {
   loading?: boolean;
   loadingLabel?: string;
   fullWidth?: boolean;
-  icon?: LucideIcon;
+  icon?: ButtonIcon;
   testID?: string;
 }
 

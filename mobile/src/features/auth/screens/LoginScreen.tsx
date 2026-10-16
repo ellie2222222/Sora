@@ -7,9 +7,10 @@ import { LogIn } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { loginSchema, type LoginRequest } from '@sora/contracts';
 
-import { AnimatedScreen, Button, Input, Text } from '@/components';
+import { AnimatedScreen, Button, GoogleLogo, Input, Text } from '@/components';
 import { useAuth, useLocaleControl, useTheme } from '@/app/providers';
 import { deviceTimeZone, messageOf } from '@/utils';
+import { AuthPreferences } from '../components/AuthPreferences.tsx';
 import { useGoogleSignIn } from '../hooks/useGoogleSignIn.ts';
 import type { AuthStackScreenProps } from '@/app/navigation';
 
@@ -74,6 +75,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
 
   return (
     <AnimatedScreen testID="screen-login" style={{ backgroundColor: theme.colors.background }}>
+      <AuthPreferences />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -149,6 +151,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
               <Button
                 testID="login-google"
                 label={t('auth.continueWithGoogle')}
+                icon={GoogleLogo}
                 variant="secondary"
                 onPress={() => void onGoogleSignIn()}
                 loading={googlePending}

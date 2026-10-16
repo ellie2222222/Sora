@@ -21,6 +21,7 @@ export * from './ErrorBoundary';
 export * from './StateView';
 export * from './DonutChart';
 export * from './Fab';
+export * from './GoogleLogo';
 export * from './OtherCurrencies';
 export * from './PeriodBar';
 export * from './PeriodSummaryCard';

@@ -5,6 +5,7 @@ export * from './currentView.ts';
 export * from './dashboardAnalytics.ts';
 export * from './dashboardPeriod.ts';
 export * from './date.ts';
+export * from './deviceConnectivity.ts';
 export * from './errors.ts';
 export * from './groupByDate.ts';
 export * from './money.ts';

@@ -1,39 +1,21 @@
 /**
- * Google sign-in via the implicit `id_token` flow — the app never sees or
- * exchanges an authorization code, it hands the API exactly the ID token
- * `POST /auth/google` already verifies server-side against Google's own
- * signing keys (never trusting the client's own reading of the token).
- *
- * Not usable until real client ids are configured (env.googleClientId*,
- * from .env.example); the OAuth round-trip has never been run against Google.
+ * Only the ID token reaches `POST /auth/google`, which checks it against `GOOGLE_CLIENT_ID`. Google redirects only
+ * to the app owning the client id (package `com.sora.app` + signing SHA-1), so Expo Go can never finish this.
  */
 
-import * as AuthSession from 'expo-auth-session';
-import { useMemo } from 'react';
+import * as Google from 'expo-auth-session/providers/google';
+import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
 import { env } from '@/app/config';
 
-const GOOGLE_DISCOVERY = {
-  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-  tokenEndpoint: 'https://oauth2.googleapis.com/token',
-  revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-};
+/** Covers the account picker plus the code exchange; past it the button stops spinning instead of hanging. */
+const EXCHANGE_TIMEOUT_MS = 60_000;
 
 function clientIdForPlatform(): string | undefined {
   if (Platform.OS === 'ios') return env.googleClientIdIos ?? env.googleClientIdWeb;
   if (Platform.OS === 'android') return env.googleClientIdAndroid ?? env.googleClientIdWeb;
   return env.googleClientIdWeb;
-}
-
-/**
- * Google's implicit id_token flow expects a `nonce` (OIDC §3.2.2.1). It only
- * has to be unique per attempt to be useful against replay — same reasoning
- * as client.ts's Idempotency-Key — so `Math.random()` is enough and avoids an
- * async crypto call inside a hook whose config must build synchronously.
- */
-function requestNonce(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
 export interface GoogleSignInResult {
@@ -44,29 +26,41 @@ export interface GoogleSignInResult {
 
 export function useGoogleSignIn(): GoogleSignInResult {
   const clientId = clientIdForPlatform();
-  const nonce = useMemo(() => requestNonce(), []);
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: clientId ?? 'unconfigured',
+    webClientId: env.googleClientIdWeb,
+    iosClientId: env.googleClientIdIos,
+    androidClientId: env.googleClientIdAndroid,
+    selectAccount: true,
+  });
+  const waiting = useRef<((idToken: string | null) => void) | null>(null);
 
-  const [request, , promptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: clientId ?? 'unconfigured',
-      responseType: AuthSession.ResponseType.IdToken,
-      scopes: ['openid', 'email', 'profile'],
-      redirectUri: AuthSession.makeRedirectUri(),
-      usePKCE: false,
-      extraParams: { nonce },
-    },
-    GOOGLE_DISCOVERY,
-  );
+  // On native the ID token arrives only after the provider's own code exchange, as a later `response`.
+  useEffect(() => {
+    if (response === null || waiting.current === null) return;
+    const idToken = response.type === 'success' ? response.params.id_token : undefined;
+    waiting.current(idToken ? idToken : null);
+    waiting.current = null;
+  }, [response]);
 
-  const signIn = useMemo(
-    () => async (): Promise<string | null> => {
-      if (clientId === undefined || request === null) return null;
-      const result = await promptAsync();
-      if (result.type !== 'success') return null;
-      return result.params.id_token ?? null;
-    },
-    [clientId, request, promptAsync],
-  );
+  const signIn = useCallback(async (): Promise<string | null> => {
+    if (clientId === undefined || request === null) return null;
+    const answered = new Promise<string | null>((resolve) => {
+      waiting.current = resolve;
+      setTimeout(() => {
+        if (waiting.current === resolve) {
+          waiting.current = null;
+          resolve(null);
+        }
+      }, EXCHANGE_TIMEOUT_MS);
+    });
+    const result = await promptAsync();
+    if (result.type !== 'success') {
+      waiting.current = null;
+      return null;
+    }
+    return answered;
+  }, [clientId, request, promptAsync]);
 
   return { available: clientId !== undefined, signIn };
 }

@@ -9,6 +9,8 @@
 
 import { ERROR_STATUS, type ApiErrorBody, type ErrorCode } from '@sora/contracts';
 
+import { isDeviceOnline } from './deviceConnectivity.ts';
+
 export type FieldErrors = Record<string, string[]>;
 
 export class ApiError extends Error {
@@ -183,6 +185,10 @@ export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
   AI_CONVERSATION_NOT_FOUND: 'errors.aiConversationNotFound',
   AI_MESSAGE_NOT_FOUND: 'errors.aiMessageNotFound',
   AI_ACTION_NOT_PENDING: 'errors.aiActionNotPending',
+  AI_PROVIDER_UNAVAILABLE: 'errors.aiProviderUnavailable',
+  AI_PROVIDER_BUSY: 'errors.aiProviderBusy',
+  AI_PROVIDER_TIMEOUT: 'errors.aiProviderTimeout',
+  AI_REQUEST_CANCELLED: 'errors.aiRequestCancelled',
 };
 
 /** A stored error code's message, e.g. a queued write's last refusal; generic when there is none. */
@@ -191,9 +197,14 @@ export function messageForCode(code: ErrorCode | null, t: TranslationFunction, p
   return key ? t(key, params) : t('errors.somethingWentWrong');
 }
 
+/** What a request that got no response means: offline only when the device has no internet itself. */
+export function noResponseMessage(t: TranslationFunction): string {
+  return isDeviceOnline() ? t('errors.connectionUnreachable') : t('errors.offlineTitle');
+}
+
 export function getServerErrorMessage(error: unknown, t: TranslationFunction): string {
   if (isNetworkError(error)) {
-    return t('errors.offlineTitle');
+    return noResponseMessage(t);
   }
   return messageForCode(isApiError(error) ? error.code : null, t, isApiError(error) ? error.params : undefined);
 }
