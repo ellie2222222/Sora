@@ -1,4 +1,4 @@
-import { getThemeColors, type ColorTokens, type ThemeMode, type ThemeName } from './colors.ts';
+import { ACCOUNT_TINTS, getThemeColors, type AccountTint, type ColorTokens, type ThemeMode, type ThemeName } from './colors.ts';
 import { radius, type Radius } from './radius.ts';
 import { buildShadows, type Shadows } from './shadows.ts';
 import {
@@ -32,6 +32,7 @@ export interface Theme {
   name: ThemeName;
   mode: ThemeMode;
   colors: ColorTokens;
+  accountTints: readonly AccountTint[];
   spacing: Spacing;
   radius: Radius;
   fontSize: FontSize;
@@ -54,6 +55,7 @@ export function buildTheme(name: ThemeName, mode: ThemeMode = 'dark'): Theme {
     name,
     mode,
     colors,
+    accountTints: ACCOUNT_TINTS[mode],
     spacing,
     radius,
     fontSize,
@@ -71,6 +73,7 @@ export function buildTheme(name: ThemeName, mode: ThemeMode = 'dark'): Theme {
   };
 }
 
+export * from './brand.ts';
 export * from './colors.ts';
 export * from './contrast.ts';
 export * from './radius.ts';

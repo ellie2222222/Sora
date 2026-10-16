@@ -145,6 +145,30 @@ export const FLOW_COLORS = {
   },
 } as const satisfies Record<ThemeMode, Record<'income' | 'expense' | 'transfer', string>>;
 
+/** Which account, not money direction: no red or vivid green, so a tint never reads as expense or income. */
+export interface AccountTint {
+  name: 'teal' | 'navy' | 'purple' | 'forest' | 'charcoal';
+  surface: string;
+  accent: string;
+}
+
+export const ACCOUNT_TINTS = {
+  dark: [
+    { name: 'teal', surface: '#0E2A2C', accent: '#5EEAD4' },
+    { name: 'navy', surface: '#121D36', accent: '#93C5FD' },
+    { name: 'purple', surface: '#221B36', accent: '#C4B5FD' },
+    { name: 'forest', surface: '#15281D', accent: '#A3CFB0' },
+    { name: 'charcoal', surface: '#262220', accent: '#D6C3A9' },
+  ],
+  light: [
+    { name: 'teal', surface: '#E3F3F1', accent: '#0F766E' },
+    { name: 'navy', surface: '#E7EDF8', accent: '#1E40AF' },
+    { name: 'purple', surface: '#EEE9F8', accent: '#6D28D9' },
+    { name: 'forest', surface: '#E6F0E9', accent: '#3B6B4B' },
+    { name: 'charcoal', surface: '#EFECE8', accent: '#57534E' },
+  ],
+} as const satisfies Record<ThemeMode, readonly AccountTint[]>;
+
 /** Tinted backgrounds behind each semantic colour (chips, icon circles, soft buttons). */
 const SEMANTIC_MUTED_DARK = {
   incomeMuted: '#0F2A1F',
@@ -189,8 +213,8 @@ export function getThemeColors(name: ThemeName, mode: ThemeMode = 'dark'): Color
       borderControl: '#6B6B74',
       surfacePressed: '#3F3F46',
       text: '#FAFAFA',
-      textMuted: '#A1A1AA',
-      textFaint: '#84848D',
+      textMuted: '#B0B0B8',
+      textFaint: '#93939C',
       primary: ramp[300],
       primaryMuted: mixHex(ramp[900], DARK_SURFACE, PRIMARY_TINT_TOWARD_SURFACE),
       onPrimary: '#0B1220',
@@ -231,7 +255,7 @@ export function getThemeColors(name: ThemeName, mode: ThemeMode = 'dark'): Color
     surfacePressed: '#CBD5E1',
     text: '#0F172A',
     textMuted: '#475569',
-    textFaint: '#627085',
+    textFaint: '#5C6A7F',
     primary: ramp[600],
     primaryMuted: mixHex(ramp[100], LIGHT_SURFACE, PRIMARY_TINT_TOWARD_SURFACE),
     onPrimary: '#FFFFFF',

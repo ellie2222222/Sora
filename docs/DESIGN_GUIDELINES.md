@@ -356,7 +356,17 @@ Inline styles, NativeWind classes and visual props such as an icon's `size` foll
   mode. A new pair (a new chip, a new button variant) gets added there with the change.
 - ~90% of the UI is neutral; one accent (`primary`) for primary actions. A second bright color must
   encode a *different* meaning, never visual variety.
+- **Account identity tints** (`theme.accountTints`, `ACCOUNT_TINTS` in `colors.ts`) are that different
+  meaning: *which* account. An account's tint comes from its id (`accountTint()`), so it is the
+  same on every screen, every render and in both modes. Its card is the tint's `surface`, and its badge
+  is the `accent` with the type icon drawn in `surface`. Tints are deep in dark mode and pale in light.
+  They contain no red or vivid green, so they never read as expense or income. Amounts on a tinted
+  card keep their normal tones. `colors.test.ts` holds `text`, `textMuted` and `textFaint` to 4.5:1 on
+  every tint, and the badge to 3:1.
 - No raw literals (`#FF0000`) in components — tokens only (MB-06).
+- A selected tab or segment shows its state by more than hue: `SegmentedControl`'s selected segment is
+  `primaryMuted` with a `primary` border (3:1 on the track) and a bold `primary` label; the bottom tab bar's
+  active icon sits on a `primaryMuted` pill above the sliding indicator. Inactive icons match their labels.
 - Text on a colored background uses a darker/lighter stop of the *same* family, never plain
   black/gray. Title + subtitle on a colored chip use two different stops, not the same one twice.
 - Text contrast ≥ 4.5:1 for body, ≥ 3:1 for large text and icons conveying state — in both themes.
@@ -392,6 +402,11 @@ interactive components — not for a single transaction, categories, simple labe
 navigation, or items that naturally share a section. Don't turn a list into floating cards; a
 transaction list's day card holds a whole day, not one row.
 
+The accounts tab's net worth panel (`NetWorthSummary`) is the reference summary card:
+- one headline figure, with its currency mark set smaller and muted beside the digits;
+- every other currency as its own small figure, labelled as held separately rather than as a conversion (BR-07);
+- two equal assets and liabilities cards, each on its `incomeMuted`/`expenseMuted` tint with an inset accent bar and a word label.
+
 One focal point per card; identical internal padding and radius across a set regardless of content
 length (ragged padding is the most common "amateur" tell). A featured card gets a `borderWidth.medium` accent border
 + a small badge on the *same* background as its siblings — changing the background too is
@@ -399,8 +414,9 @@ double-signaling.
 
 ### Lists
 
-Dense/data-heavy lists: full-width rows, no rounded-card wrapper. Accounts use hairline dividers;
-transactions group each day's rows into one day card (see "Transaction lists are a ledger"). Sparse/browsable lists (menus, settings): more padding, no border —
+Dense/data-heavy lists: full-width rows, no rounded-card wrapper. The one exception is a wallet's
+accounts: each is a card in its own identity tint (see Color), because there are few of them and
+telling them apart at a glance is the point. Transactions group each day's rows into one day card (see "Transaction lists are a ledger"). Sparse/browsable lists (menus, settings): more padding, no border —
 whitespace is the separator. Long lists use `FlatList`/`SectionList`, never `.map()` in a
 `ScrollView`.
 
@@ -427,6 +443,10 @@ At most one row is open at a time. Tapping the open row or scrolling its list cl
 navigation, important actions, recognizable categories, status and controls — not on every line.
 "Icon + title + badge + card + subtitle" is almost always worse than a two-line text row. An
 icon-only control has an `accessibilityLabel`.
+
+The one exception is a third-party brand mark its owner requires as-is: `GoogleLogo` on the Google
+sign-in button keeps Google's own colours (`GOOGLE_LOGO_COLORS` in `design-system/brand.ts`) in
+every theme. Lucide ships no brand marks.
 
 ### Touch targets and accessibility
 
@@ -540,7 +560,10 @@ the new tab at a fixed width and the icons stay still (`MainTabNavigator.tsx`). 
 continuous": a long-running operation's own progress screen (the guest upload, `features/guest/`)
 keeps a circling ring, a breathing halo and a passing highlight going while the work runs, because
 that motion is what says it is still alive. It stops the moment the work stops, and Reduce Motion
-stills it. Duration scales with the
+stills it. The assistant's thinking dots (`ThinkingIndicator`) follow the same rule: they pulse only
+while a message is out and unmount when it is answered or fails. Their label names the real stage:
+creating the chat, preparing the answer, or, past 10 s, that it is taking longer than usual. It never
+shows fake streamed text. Duration scales with the
 size of the change: small (checkbox, icon swap) 100–200ms; larger (panel slide, sheet) 250–400ms — past ~400ms it feels sluggish. Entering:
 ease-out. Exiting: ease-in. Animation never blocks or delays an action.
 

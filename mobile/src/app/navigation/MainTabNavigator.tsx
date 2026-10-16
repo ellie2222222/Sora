@@ -83,7 +83,8 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             ? options.title
             : route.name;
 
-        const color = isFocused ? theme.colors.primary : theme.colors.textMuted;
+        // Icon and label share one colour, so the two halves of a tab never disagree about its state.
+        const color = isFocused ? theme.colors.primary : theme.colors.text;
 
         const onPress = () => {
           const event = navigation.emit({
@@ -116,13 +117,25 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             className="flex-1 items-center justify-center"
             style={{ paddingVertical: theme.spacing.xs }}
           >
-            {options.tabBarIcon?.({ focused: isFocused, color, size: theme.iconSize.xxl }) ?? null}
+            {/* Negative margins cancel the pill's padding, so the active tab lays out exactly like the others. */}
+            <View
+              style={{
+                paddingHorizontal: theme.spacing.sm,
+                marginHorizontal: -theme.spacing.sm,
+                paddingVertical: theme.spacing.xxs,
+                marginVertical: -theme.spacing.xxs,
+                borderRadius: theme.radius.pill,
+                backgroundColor: isFocused ? theme.colors.primaryMuted : 'transparent',
+              }}
+            >
+              {options.tabBarIcon?.({ focused: isFocused, color, size: theme.iconSize.xxl }) ?? null}
+            </View>
             <Text
               variant="caption"
               // The weight prop, not a numeric fontWeight: Mulish ships one file per weight, so Android ignores the number.
               weight={isFocused ? 'bold' : 'medium'}
               // A fixed column per tab: xs keeps "Einstellungen" whole, and xs text reads only at full strength.
-              style={{ color: isFocused ? theme.colors.primary : theme.colors.text, fontSize: theme.fontSize.xs, marginTop: theme.spacing.xxs }}
+              style={{ color, fontSize: theme.fontSize.xs, marginTop: theme.spacing.xxs }}
               numberOfLines={1}
             >
               {label}
@@ -161,7 +174,7 @@ export function MainTabNavigator() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.textMuted,
+        tabBarInactiveTintColor: theme.colors.text,
       }}
     >
       <Tab.Screen

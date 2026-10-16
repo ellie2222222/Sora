@@ -27,15 +27,18 @@ function trackStyle(theme: Theme) {
   };
 }
 
+// The selected fill sits barely apart from the track in dark mode, so the primary border (3:1) carries the state.
+// Every segment keeps the border width, so selecting one never shifts the row.
 function segmentStyle(theme: Theme, selected: boolean) {
   return {
     borderRadius: concentricRadius(theme.radius.md, theme.borderWidth.thin, theme.spacing.xxs),
-    backgroundColor: selected ? theme.colors.surface : 'transparent',
-    ...(selected ? theme.shadows.xs : theme.shadows.none),
+    borderWidth: theme.borderWidth.thin,
+    borderColor: selected ? theme.colors.primary : 'transparent',
+    backgroundColor: selected ? theme.colors.primaryMuted : 'transparent',
   };
 }
 
-/** Equal-width tabs on a muted track; the selected one is raised onto `surface`. */
+/** Equal-width tabs on a muted track; the selected one is tinted, outlined and labelled in `primary`. */
 export function SegmentedControl<T extends string>({ options, value, onChange }: SegmentedControlProps<T>) {
   const theme = useTheme();
 
@@ -53,7 +56,11 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
             className="flex-1 py-sm items-center justify-center"
             style={segmentStyle(theme, selected)}
           >
-            <Text weight={selected ? 'bold' : 'medium'} tone={selected ? undefined : 'muted'} style={{ fontSize: theme.fontSize.sm }}>
+            <Text
+              weight={selected ? 'bold' : 'medium'}
+              tone={selected ? undefined : 'muted'}
+              style={{ fontSize: theme.fontSize.sm, ...(selected ? { color: theme.colors.primary } : null) }}
+            >
               {option.label}
             </Text>
           </Pressable>

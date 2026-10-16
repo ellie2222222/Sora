@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import {
+  ACCOUNT_TINTS,
   FLOW_COLORS,
   STATUS_COLORS,
   THEME_MODES,
@@ -190,7 +191,16 @@ const RENDERED_PAIRS: { label: string; fg: keyof ColorTokens; bg: keyof ColorTok
   { label: 'selected row: primary text on tint', fg: 'primary', bg: 'primaryMuted', min: 4.5 },
   { label: 'selected row: text on tint', fg: 'text', bg: 'primaryMuted', min: 4.5 },
   { label: 'selected row: muted caption on tint', fg: 'textMuted', bg: 'primaryMuted', min: 4.5 },
+  { label: 'selected row: faint caption on tint', fg: 'textFaint', bg: 'primaryMuted', min: 4.5 },
+  { label: 'unselected segment label on its track', fg: 'textMuted', bg: 'surfaceMuted', min: 4.5 },
+  { label: 'selected segment border on its track', fg: 'primary', bg: 'surfaceMuted', min: 3 },
+  { label: 'inactive tab icon and label on the tab bar', fg: 'text', bg: 'surface', min: 4.5 },
+  { label: 'active tab icon on its pill', fg: 'primary', bg: 'primaryMuted', min: 3 },
   { label: 'muted caption on warning tint', fg: 'textMuted', bg: 'warningMuted', min: 4.5 },
+  // Net worth's assets and liabilities cards: title and figures on their semantic tint.
+  ...(['text', 'textMuted'] as const).flatMap((fg) =>
+    (['incomeMuted', 'expenseMuted'] as const).map((bg) => ({ label: `net worth card: ${fg} on ${bg}`, fg, bg, min: 4.5 })),
+  ),
   { label: 'info on its tint', fg: 'info', bg: 'infoMuted', min: 4.5 },
   { label: 'success on its tint', fg: 'success', bg: 'successMuted', min: 4.5 },
   { label: 'warning on its tint', fg: 'warning', bg: 'warningMuted', min: 4.5 },
@@ -272,6 +282,27 @@ describe('Design System - Rendered contrast', () => {
             ratio >= pair.min,
             `${pair.fg} ${colors[pair.fg]} on ${pair.bg} ${colors[pair.bg]} = ${ratio.toFixed(2)}:1, theme=${themeName}, mode=${mode}`,
           );
+        }
+      }
+    });
+  }
+});
+
+describe('Design System - Account tints', () => {
+  for (const mode of THEME_MODES) {
+    it(`every ${mode} tint keeps text, muted and faint captions and its badge readable in every palette`, () => {
+      assert.equal(new Set(ACCOUNT_TINTS[mode].map((tint) => tint.surface)).size, ACCOUNT_TINTS[mode].length);
+      for (const themeName of THEME_NAMES) {
+        const colors = getThemeColors(themeName, mode);
+        for (const tint of ACCOUNT_TINTS[mode]) {
+          for (const fg of ['text', 'textMuted', 'textFaint'] as const) {
+            const ratio = contrastRatio(colors[fg], tint.surface);
+            assert.ok(ratio >= 4.5, `${fg} on ${tint.name} ${tint.surface} = ${ratio.toFixed(2)}:1, theme=${themeName}, mode=${mode}`);
+          }
+          const lift = contrastRatio(tint.surface, colors.background);
+          assert.ok(lift >= 1.08, `${tint.name} card ${tint.surface} barely differs from the background (${lift.toFixed(2)}:1), mode=${mode}`);
+          const badge = contrastRatio(tint.accent, tint.surface);
+          assert.ok(badge >= 3, `${tint.name} badge ${tint.accent} on ${tint.surface} = ${badge.toFixed(2)}:1, mode=${mode}`);
         }
       }
     });
