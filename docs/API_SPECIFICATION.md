@@ -116,7 +116,10 @@ Ranks compare (`roleSatisfies()`): OWNER ⊇ EDITOR ⊇ VIEWER. Everything under
 | 410 | Gone (expired invitation) |
 | 422 | Validation failed, in a body or a query string (a wrong-typed or out-of-range query value included) |
 | 429 | Rate limited |
+| 499 | The client closed the connection before the answer was ready (the assistant's send, §17.5); never read by a client |
 | 500 | Unexpected server error |
+| 503 | A dependency is unavailable or busy (exchange rates, the assistant's model); retry later |
+| 504 | A dependency took too long (the assistant's model, §17.5); retry |
 
 ### 2.7 Error codes
 
@@ -1182,7 +1185,7 @@ A chat that answers questions about one wallet and can **propose** an income or 
 
 A conversation belongs to the user who created it. Another user's conversation id is `404 AI_CONVERSATION_NOT_FOUND`, the same as an id that does not exist. Each message names the wallet it is about, and read access to that wallet is checked on every send (AC-01: a non-member gets `404 WALLET_NOT_FOUND`). The assistant reads only that wallet, through read-only tools: its active accounts with their derived balances, its active categories, and the current month's §14.1 figures (so transfers are never income or expense, BR-06).
 
-The model is pluggable behind one server-side interface. The default is a deterministic keyword-rule provider that needs no API key; every figure it states comes from a tool, never from its own arithmetic. Replies are written in the request's `locale` (any of `LOCALES`).
+The model is pluggable behind one server-side interface. Without `GEMINI_API_KEY` it is a deterministic keyword-rule provider, chosen by configuration for development and tests; with one it is Google Gemini, asked for `application/json` against a fixed response schema. When Gemini cannot answer, the send fails with an `AI_PROVIDER_*` error (§17.5) — it never falls back to the keyword provider, whose canned replies would pass for the model's answer. Either way every figure stated comes from a tool, never from the model's own arithmetic, and a proposal is kept only when it names the wallet's own active account and a category of its type. Replies are written in the request's `locale` (any of `LOCALES`). `content` is plain text for a chat bubble: no Markdown, line breaks kept, a list as one item per line starting `• `, amounts written the way that locale writes numbers; the server strips any Markdown or leaked `\"` escapes a model still returns.
 
 Types: `AiConversationResponse` `{id, walletId, title, createdAt, updatedAt}` · `AiMessageResponse` `{id, conversationId, role (USER | ASSISTANT), content, action, createdAt}` · `AiActionResponse` `{type (CREATE_TRANSACTION), status (PENDING | CONFIRMED | DISMISSED), transaction, accountName, categoryName, transactionId}`. `transaction` is an income or expense in exactly the §11.2 request shape (`aiTransactionDraftSchema`), in the account's own currency (BR-07); `accountName` is the name at proposal time; `categoryName` is the category's current name as the reader reads it (§2.11), falling back to the name at proposal time if the category no longer resolves.
 
@@ -1248,9 +1251,13 @@ Conversations and their messages are chat history, not financial data, so §17.3
 
 **Response `201`** — `SendAiMessageResponse` `{conversation, userMessage, assistantMessage}`. `assistantMessage.action` is set only when the caller holds `EDITOR` on an active wallet and the proposal names that wallet's own active account and a category of the matching type in the account's currency. Otherwise the assistant explains in text and proposes nothing.
 
-**Errors** — `404 AI_CONVERSATION_NOT_FOUND` · `404 WALLET_NOT_FOUND` · `422 VALIDATION_FAILED`
+**Errors** — `404 AI_CONVERSATION_NOT_FOUND` · `404 WALLET_NOT_FOUND` · `422 VALIDATION_FAILED` · `503 AI_PROVIDER_UNAVAILABLE` (every model failed, or the provider refused the request) · `503 AI_PROVIDER_BUSY` (every model rate limited) · `504 AI_PROVIDER_TIMEOUT` (no model answered within the budget) · `499 AI_REQUEST_CANCELLED` (the client disconnected first)
 
-**Side effects** — inserts the user's and the assistant's `ai_messages` rows and sets the conversation's `walletId` and `updatedAt`, in one transaction. The provider sees at most the last 15 earlier messages; the stored history is never trimmed.
+**Time budget** — the API answers within `AI_REPLY_BUDGET_MS` (30 s, `@sora/contracts`), every model attempt and retry included, keeping 2 s of it for saving; the app waits 10 s longer, so it receives the answer or the error rather than timing out first. The primary model gets up to 12 s per attempt and the fallback model up to 9 s, each tried at most twice. A 5xx or network failure backs off (500 ms doubling to 2 s, with jitter, never less than a `Retry-After`); a 429, a timeout, an unknown model or a 400 (one model can reject a request shape the other accepts) moves straight to the next model; a 401/403, or a reply Gemini blocks for safety, stops every attempt. No attempt starts with under 2 s left.
+
+**Cancellation** — when the client disconnects, the model call is aborted and nothing is saved.
+
+**Side effects** — nothing is written until the reply is ready. Then the user's and the assistant's `ai_messages` rows are inserted and the conversation's `walletId` and `updatedAt` set, in one transaction; a failed or cancelled send leaves the conversation as it was. A retry under the same `Idempotency-Key` (§2.10) replays a reply that was saved, so the exchange is stored once. An `x-request-id` header (8–64 letters, digits or `-`) tags every log line about the reply. The provider sees at most the last 15 earlier messages; the stored history is never trimmed.
 
 ### 17.6 POST /ai/conversations/{id}/messages/{messageId}/confirm
 

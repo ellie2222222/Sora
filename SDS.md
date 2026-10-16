@@ -881,6 +881,10 @@ grouped here for readability only.
 | `AI_CONVERSATION_NOT_FOUND` | 404 | No such conversation, or another user's |
 | `AI_MESSAGE_NOT_FOUND` | 404 | No such message, or it carries no proposal |
 | `AI_ACTION_NOT_PENDING` | 409 | A proposal already confirmed or dismissed |
+| `AI_PROVIDER_UNAVAILABLE` | 503 | Every model failed, refused the request, or blocked it for safety; retry later |
+| `AI_PROVIDER_BUSY` | 503 | Every model was rate limited; retry in a moment |
+| `AI_PROVIDER_TIMEOUT` | 504 | No model answered within `AI_REPLY_BUDGET_MS` |
+| `AI_REQUEST_CANCELLED` | 499 | The client disconnected first; logged only, nothing saved |
 
 ---
 

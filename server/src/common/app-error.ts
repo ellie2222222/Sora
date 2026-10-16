@@ -101,6 +101,10 @@ const MESSAGES: Record<ErrorCode, string> = {
   AI_CONVERSATION_NOT_FOUND: 'Conversation not found',
   AI_MESSAGE_NOT_FOUND: 'Message not found',
   AI_ACTION_NOT_PENDING: 'This proposal was already confirmed or dismissed',
+  AI_PROVIDER_UNAVAILABLE: 'The assistant is unavailable right now — try again shortly',
+  AI_PROVIDER_BUSY: 'The assistant is busy right now — try again in a moment',
+  AI_PROVIDER_TIMEOUT: 'The assistant took too long to answer — try again',
+  AI_REQUEST_CANCELLED: 'The request was cancelled before the answer was ready',
 };
 
 export function defaultMessage(code: ErrorCode): string {

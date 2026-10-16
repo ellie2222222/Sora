@@ -41,6 +41,12 @@ export interface LlmRequest {
   history: { role: AiMessageRole; content: string }[];
   toolbox: AiToolbox;
   now: Date;
+  /** Epoch ms by which the reply must be ready, so the client hears the answer or the error. */
+  deadline?: number;
+  /** Aborts when the client disconnects; a provider stops calling out and gives up. */
+  signal?: AbortSignal;
+  /** The HTTP request id, so every log line about this reply can be joined to the access log. */
+  requestId?: string;
 }
 
 export interface LlmProposal {

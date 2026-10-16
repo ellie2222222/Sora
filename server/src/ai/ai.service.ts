@@ -10,6 +10,7 @@
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
+  AI_REPLY_BUDGET_MS,
   AccountStatus,
   AiActionStatus,
   AiActionType,
@@ -124,11 +125,19 @@ export class AiService {
     return paginated(await this.toMessageResponses(rows), paginationMeta(query.page, query.pageSize, Number(total)));
   }
 
+  /**
+   * Nothing is saved until the reply is ready: a request the client abandoned (`signal`) or one
+   * whose provider failed leaves the conversation as it was, so the client's retry is the only copy.
+   */
   async sendMessage(
     user: AuthenticatedUser,
     conversationId: string,
     request: z.output<typeof sendAiMessageSchema>,
+    lifecycle: { signal?: AbortSignal; requestId?: string } = {},
   ): Promise<SendAiMessageResponse> {
+    const started = Date.now();
+    const deadline = started + AI_REPLY_BUDGET_MS;
+    const rid = lifecycle.requestId ?? 'none';
     await this.ownConversation(user, conversationId);
     const walletAccess = await this.access.require(user.id, request.walletId, 'VIEWER');
 
@@ -141,24 +150,23 @@ export class AiService {
       .limit(HISTORY_WINDOW)
       .execute();
 
-    this.logger.log(
-      `[AiService.sendMessage] User ${user.id} sending message in conversation ${conversationId} (wallet: ${request.walletId}, locale: ${request.locale}): "${request.message}"`,
-    );
-
     const reply = await this.provider.reply({
       locale: request.locale,
       message: request.message,
       history: recent.reverse(),
       toolbox: this.tools.toolbox(user, walletAccess),
       now: new Date(),
+      deadline,
+      signal: lifecycle.signal,
+      requestId: lifecycle.requestId,
     });
+    if (lifecycle.signal?.aborted) {
+      this.logger.log(`ai.cancelled rid=${rid} stage=after-reply ms=${Date.now() - started}`);
+      throw new AppError('AI_REQUEST_CANCELLED');
+    }
     const proposal = await this.acceptedProposal(reply.proposal, walletAccess);
 
-    this.logger.log(
-      `[AiService.sendMessage] Assistant reply returned for conversation ${conversationId}: "${reply.content.slice(0, 150)}${reply.content.length > 150 ? '...' : ''}"${proposal ? ` | Proposal for ${proposal.transaction.amount} ${proposal.transaction.currency}` : ''}`,
-    );
-
-    return this.database.db.transaction().execute(async (trx) => {
+    const saved = await this.database.db.transaction().execute(async (trx) => {
       const userMessage = await trx
         .insertInto('ai_messages')
         .values({ conversation_id: conversationId, role: AiMessageRole.USER, content: request.message })
@@ -197,6 +205,10 @@ export class AiService {
         assistantMessage: toMessageResponse(assistantMessage),
       };
     });
+    this.logger.log(
+      `ai.persisted rid=${rid} provider=${this.provider.name} conversation=${conversationId}${proposal ? ' proposal=yes' : ''} ms=${Date.now() - started}`,
+    );
+    return saved;
   }
 
   /**

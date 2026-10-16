@@ -181,6 +181,10 @@ WALLET_LAST_OWNER
 System-wide failures carry no resource prefix: `INTERNAL_ERROR`, `RATE_LIMITED`, `ROUTE_NOT_FOUND`,
 `IDEMPOTENCY_KEY_IN_USE`, `VALUATION_UNAVAILABLE`.
 
+The assistant's model is an upstream dependency, so its failures are named for it: `AI_PROVIDER_UNAVAILABLE` and
+`AI_PROVIDER_BUSY` (503), `AI_PROVIDER_TIMEOUT` (504), and `AI_REQUEST_CANCELLED` (499, logged only: the client that
+would read it has already gone).
+
 A device that cannot reach the server is the client's condition, not the API's. The app detects it
 (`isNetworkError` in `mobile/src/utils/errors.ts`) and never adds it to the server `ErrorCode` enum.
 

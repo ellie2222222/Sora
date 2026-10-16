@@ -11,10 +11,6 @@ import { AiService } from './ai.service.ts';
 import { GeminiLlmProvider } from './gemini-llm.provider.ts';
 import { LLM_PROVIDER } from './llm-provider.ts';
 import { MockLlmProvider } from './mock-llm.provider.ts';
-import { ContextBuilderService } from './services/context-builder.service.ts';
-import { IntentDetectorService } from './services/intent-detector.service.ts';
-import { ModelRouterService } from './services/model-router.service.ts';
-import { QueryPlannerService } from './services/query-planner.service.ts';
 
 /**
  * AuditService, ConfigModule, and DatabaseService are @Global — not re-imported here.
@@ -27,10 +23,6 @@ import { QueryPlannerService } from './services/query-planner.service.ts';
   providers: [
     AiService,
     AiToolsService,
-    ModelRouterService,
-    IntentDetectorService,
-    QueryPlannerService,
-    ContextBuilderService,
     {
       provide: LLM_PROVIDER,
       useFactory: (config: AppConfig) => {
@@ -45,12 +37,6 @@ import { QueryPlannerService } from './services/query-planner.service.ts';
       inject: [CONFIG],
     },
   ],
-  exports: [
-    AiService,
-    ModelRouterService,
-    IntentDetectorService,
-    QueryPlannerService,
-    ContextBuilderService,
-  ],
+  exports: [AiService],
 })
 export class AiModule {}

@@ -5,13 +5,8 @@ import {
   executeWithGemini,
 } from './intent-context.ts';
 import type { LlmProvider, LlmReply, LlmRequest } from './llm-provider.ts';
-import { MockLlmProvider } from './mock-llm.provider.ts';
 
-/**
- * Real Google Gemini LLM Provider.
- * Assembles full authorized financial context and lets Google Gemini detect user intent
- * and formulate responses/proposals natively across all supported languages.
- */
+/** Gemini reads the caller's wallet context and detects intent itself, in any of the app's languages. */
 @Injectable()
 export class GeminiLlmProvider implements LlmProvider {
   readonly name = 'gemini';
@@ -19,35 +14,24 @@ export class GeminiLlmProvider implements LlmProvider {
 
   constructor(
     private readonly apiKey: string,
-    private readonly model: string = 'gemini-3.8-flash',
-    private readonly fallbackModel: string = 'gemini-3.1-flash-lite',
+    private readonly model: string,
+    private readonly fallbackModel: string,
   ) {}
 
+  // Chat text is the user's financial life in their own words, so only its shape is logged.
   async reply(request: LlmRequest): Promise<LlmReply> {
-    this.logger.log(`[AI Request] User message: "${request.message}" (locale: ${request.locale})`);
-
-    this.logger.log(`[Construct Prompt] Assembling full wallet context and financial data...`);
     const context = await buildAiContext(request);
-    this.logger.log(
-      `[Constructed Prompt] Target model: ${this.model} (fallback: ${this.fallbackModel}) | System instructions: ${context.systemInstructions.length} chars | History count: ${context.history.length}`,
+    this.logger.debug(
+      `Prompt for ${this.model} (fallback ${this.fallbackModel}): ${context.systemInstructions.length} chars, ${context.history.length} earlier messages, locale ${request.locale}`,
     );
 
-    this.logger.log(`[Execute Gemini] Invoking model to detect intent and generate response...`);
-    const reply = await executeWithGemini(
-      context,
-      request,
-      {
-        apiKey: this.apiKey,
-        model: this.model,
-        fallbackModel: this.fallbackModel,
-      },
-      () => new MockLlmProvider().reply(request),
-    );
+    const reply = await executeWithGemini(context, request, {
+      apiKey: this.apiKey,
+      model: this.model,
+      fallbackModel: this.fallbackModel,
+    });
 
-    this.logger.log(
-      `[Return Response] Content: "${reply.content}"${reply.proposal ? ` | Proposal: ${JSON.stringify(reply.proposal)}` : ''}`,
-    );
-
+    this.logger.debug(`Reply: ${reply.content.length} chars${reply.proposal ? `, proposes a ${reply.proposal.transaction.type}` : ''}`);
     return reply;
   }
 }

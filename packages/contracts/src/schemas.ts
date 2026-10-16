@@ -534,6 +534,12 @@ export const aiConversationQuerySchema = z.object({
   ...pageQueryFields,
 });
 
+/**
+ * How long the API may spend answering one chat message, every model attempt and retry included.
+ * The app waits a little longer than this, so it always hears the API's answer or its error.
+ */
+export const AI_REPLY_BUDGET_MS = 30_000;
+
 export const sendAiMessageSchema = z.object({
   /** The wallet the question is about; read access is checked on every send. */
   walletId: uuidSchema,

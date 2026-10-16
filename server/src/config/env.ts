@@ -83,23 +83,7 @@ const envSchema = z.object({
   GEMINI_MODEL: z
     .string()
     .optional()
-    .transform((value) => (value && value.trim().length > 0 ? value.trim() : undefined)),
-  GEMINI_MODEL_INTENT: z
-    .string()
-    .optional()
-    .transform((value) => (value && value.trim().length > 0 ? value.trim() : 'gemini-3.1-flash-lite')),
-  GEMINI_MODEL_CHAT: z
-    .string()
-    .optional()
-    .transform((value) => (value && value.trim().length > 0 ? value.trim() : 'gemini-3.1-flash-lite')),
-  GEMINI_MODEL_ANALYSIS: z
-    .string()
-    .optional()
-    .transform((value) => (value && value.trim().length > 0 ? value.trim() : 'gemini-3.1-flash-lite')),
-  GEMINI_MODEL_COMPLEX: z
-    .string()
-    .optional()
-    .transform((value) => (value && value.trim().length > 0 ? value.trim() : 'gemini-3.1-pro-preview')),
+    .transform((value) => (value && value.trim().length > 0 ? value.trim() : 'gemini-3.8-flash')),
   GEMINI_FALLBACK_MODEL: z
     .string()
     .optional()

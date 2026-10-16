@@ -17,7 +17,8 @@ The authoritative contract is [API spec §17](../../docs/API_SPECIFICATION.md#17
 - **The draft is the §11.2 request shape** (`aiTransactionDraftSchema` = income | expense), with `transactionDate`, not `date`. It is always in the account's currency: a message naming another currency gets an explanation, not a draft (BR-07). §7's "preserve USD in a VND wallet" row is wrong and was not built.
 - **`walletId` is required on every send**, and read access is checked each time. Budgets and goals are read through `DashboardService`, not new calc helpers.
 - **No `ai.repository.ts`**: services query Kysely directly, like every other module. The tools are `AiToolsService.toolbox()`: `walletSnapshot` and `monthSummary`.
-- **Mobile**: one `AiChatScreen` (history is a bottom sheet, not `AiChatListScreen`) in the centre tab; no `TypingIndicator` component (a "Thinking…" line instead).
+- **Mobile**: one `AiChatScreen` (history is a bottom sheet, not `AiChatListScreen`) in the centre tab. `ThinkingIndicator` shows the real stage (starting the chat, preparing, taking longer), and a failed send stays on screen with Retry and Edit (`features/chat/chatExchange.ts`). The RTK slice is `app/store/api/aiApi.ts`; `services/api/ai.ts` is the plain HTTP client.
+- **Provider**: Google Gemini when `GEMINI_API_KEY` is set (`GeminiLlmProvider`, `intent-context.ts`): one structured call detects the intent and answers, within `AI_REPLY_BUDGET_MS` and the retry rules of API spec §17.5. When it can't answer, the send fails with `AI_PROVIDER_*`; it never falls back to `MockLlmProvider`, which serves only when no key is set. All ten locales, not just `en`/`vi`.
 
 ## 1. Executive Summary & Context
 

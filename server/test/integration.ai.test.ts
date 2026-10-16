@@ -2,6 +2,13 @@ import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 
+import { request as httpRequest } from 'node:http';
+import type { AddressInfo } from 'node:net';
+
+import { API_PREFIX } from '@sora/contracts';
+
+import { LLM_PROVIDER, type LlmProvider, type LlmRequest } from '../src/ai/llm-provider.ts';
+import { AppError } from '../src/common/app-error.ts';
 import { addMember, createAccount, integrationSkipReason, registerProbeUser, startTestApi, type ProbeUser, type TestApi } from './support/integration.ts';
 
 /** Letters only, so an account name inside a chat message is never read as an amount. */
@@ -123,5 +130,69 @@ describe('AI assistant against a real database', { skip: integrationSkipReason()
     assert.equal(deleted.status, 200);
     const gone = await api.call('GET', `/ai/conversations/${doomed}/messages`, { token: owner.token });
     assert.deepEqual([gone.status, gone.body?.error?.code], [404, 'AI_CONVERSATION_NOT_FOUND']);
+  });
+
+  describe('when the model fails, is retried or is abandoned', () => {
+    let provider: LlmProvider;
+    let realReply: LlmProvider['reply'];
+    const messageCount = async (conversationId: string) =>
+      Number((await api.sql<{ n: string }>('SELECT count(*) AS n FROM ai_messages WHERE conversation_id = $1', [conversationId]))[0]!.n);
+
+    before(() => {
+      provider = api.app.get<LlmProvider>(LLM_PROVIDER);
+      realReply = provider.reply.bind(provider);
+    });
+    after(() => {
+      provider.reply = realReply;
+    });
+
+    it('answers 503 AI_PROVIDER_UNAVAILABLE and saves nothing, so a retry under the same key records one exchange', async () => {
+      const chat = await newConversation(owner);
+      const key = `probe-${randomUUID()}`;
+      const body = { walletId: owner.walletId, message: 'hello' };
+      provider.reply = async () => {
+        throw new AppError('AI_PROVIDER_UNAVAILABLE');
+      };
+      const failed = await api.call('POST', `/ai/conversations/${chat}/messages`, { token: owner.token, body, headers: { 'Idempotency-Key': key } });
+      assert.deepEqual([failed.status, failed.body?.error?.code], [503, 'AI_PROVIDER_UNAVAILABLE']);
+      assert.equal(await messageCount(chat), 0);
+
+      provider.reply = realReply;
+      const retried = await api.call('POST', `/ai/conversations/${chat}/messages`, { token: owner.token, body, headers: { 'Idempotency-Key': key } });
+      assert.equal(retried.status, 201);
+      const replayed = await api.call('POST', `/ai/conversations/${chat}/messages`, { token: owner.token, body, headers: { 'Idempotency-Key': key } });
+      assert.equal(replayed.body?.data?.userMessage?.id, retried.body?.data?.userMessage?.id);
+      assert.equal(await messageCount(chat), 2);
+    });
+
+    it('stops the model call and saves nothing when the client disconnects before the answer', async () => {
+      const chat = await newConversation(owner);
+      let sawAbort!: () => void;
+      const aborted = new Promise<void>((resolve) => (sawAbort = resolve));
+      provider.reply = (request: LlmRequest) =>
+        new Promise((_resolve, reject) => {
+          request.signal?.addEventListener('abort', () => {
+            sawAbort();
+            reject(new AppError('AI_REQUEST_CANCELLED'));
+          });
+        });
+
+      const port = (api.app.getHttpServer().address() as AddressInfo).port;
+      const payload = JSON.stringify({ walletId: owner.walletId, message: 'hello' });
+      const req = httpRequest({
+        host: '127.0.0.1',
+        port,
+        method: 'POST',
+        path: `${API_PREFIX}/ai/conversations/${chat}/messages`,
+        headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload), authorization: `Bearer ${owner.token}` },
+      });
+      req.on('error', () => undefined);
+      req.end(payload);
+      setTimeout(() => req.destroy(), 200);
+
+      await aborted;
+      provider.reply = realReply;
+      assert.equal(await messageCount(chat), 0);
+    });
   });
 });

@@ -2,18 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   aiTransactionDraftSchema,
   formatMoney,
-  formatMoneyCompact,
   MoneyError,
   parseMoney,
   REQUIRED_ROLE,
   roleSatisfies,
   TransactionType,
   WalletStatus,
-  type CurrencyTotal,
+  type AiMessageRole,
   type Locale,
 } from '@sora/contracts';
 
-import { UserIntent, type GroupedAiContext } from './intent-context.ts';
+import { displayAmount, joinTotals } from './display-amount.ts';
+import { UserIntent } from './intent-context.ts';
 import type {
   LlmProvider,
   LlmReply,
@@ -21,11 +21,7 @@ import type {
   WalletSnapshot,
 } from './llm-provider.ts';
 
-// ---------------------------------------------------------------------------
-// Deterministic Mock Entities & Interfaces (Offline / Tests Only)
-// ---------------------------------------------------------------------------
-
-export interface TransactionEntities {
+interface TransactionEntities {
   type: 'INCOME' | 'EXPENSE';
   amount: bigint | null;
   formattedAmount: string | null;
@@ -36,21 +32,21 @@ export interface TransactionEntities {
   date: string | null;
 }
 
-export interface SpendingEntities {
+interface SpendingEntities {
   categoryHint: string | null;
   timeframe: string | null;
 }
 
-export interface BudgetEntities {
+interface BudgetEntities {
   categoryHint: string | null;
   budgetNameHint: string | null;
 }
 
-export interface GoalEntities {
+interface GoalEntities {
   goalNameHint: string | null;
 }
 
-export interface IntentEntities {
+interface IntentEntities {
   [key: string]: unknown;
   transaction?: TransactionEntities;
   spending?: SpendingEntities;
@@ -58,10 +54,10 @@ export interface IntentEntities {
   goal?: GoalEntities;
 }
 
-export interface IntentDetectionContext {
+interface IntentDetectionContext {
   message: string;
   locale: Locale;
-  history?: { role: any; content: string }[];
+  history?: { role: AiMessageRole; content: string }[];
   now?: Date;
 }
 
@@ -72,10 +68,6 @@ export interface DetectedIntentResult {
   rawMessage: string;
   normalizedMessage: string;
 }
-
-// ---------------------------------------------------------------------------
-// Static Keyword Arrays (Heuristic Mock Simulator)
-// ---------------------------------------------------------------------------
 
 const EXPENSE_WORDS = ['spent', 'spend', 'paid', 'pay', 'bought', 'buy', 'cost', 'chi', 'tieu', 'mua', 'tra', 'het'];
 const INCOME_WORDS = ['received', 'receive', 'earned', 'earn', 'got paid', 'salary', 'income', 'nhan', 'luong', 'thuong', 'bonus'];
@@ -167,187 +159,13 @@ export function detectUserIntent(context: IntentDetectionContext): DetectedInten
   };
 }
 
-export async function groupContextForAi(
-  detected: DetectedIntentResult,
-  request: LlmRequest,
-): Promise<GroupedAiContext> {
-  const { toolbox, locale, now, history } = request;
-
-  let walletContext: GroupedAiContext['walletContext'] | undefined;
-  let financialData: GroupedAiContext['financialData'] | undefined;
+/** Fetches only what the detected intent answers from, once. */
+export async function executeIntent(detected: DetectedIntentResult, request: LlmRequest): Promise<LlmReply> {
+  const copy = COPY[request.locale];
 
   switch (detected.intent) {
     case UserIntent.RECORD_TRANSACTION: {
-      const snapshot = await toolbox.walletSnapshot();
-      walletContext = {
-        walletId: snapshot.walletId,
-        walletName: snapshot.walletName,
-        role: snapshot.role,
-        canWrite: roleSatisfies(snapshot.role, REQUIRED_ROLE.WRITE),
-        status: snapshot.status,
-        accounts: snapshot.accounts,
-        categories: snapshot.categories,
-      };
-      break;
-    }
-
-    case UserIntent.QUERY_BALANCES: {
-      const snapshot = await toolbox.walletSnapshot();
-      walletContext = {
-        walletId: snapshot.walletId,
-        walletName: snapshot.walletName,
-        role: snapshot.role,
-        canWrite: roleSatisfies(snapshot.role, REQUIRED_ROLE.WRITE),
-        status: snapshot.status,
-        accounts: snapshot.accounts,
-        categories: [],
-      };
-      financialData = {
-        balances: snapshot.accounts.map((acc) => ({
-          accountName: acc.name,
-          balance: acc.balance,
-          currency: acc.currency,
-        })),
-      };
-      break;
-    }
-
-    case UserIntent.QUERY_SPENDING: {
-      const summary = await toolbox.monthSummary();
-      financialData = {
-        monthSpending: {
-          totals: summary.expense,
-          byCategory: summary.spendingByCategory.map((c) => ({
-            categoryName: c.categoryName,
-            percentage: c.percentage,
-          })),
-        },
-      };
-      break;
-    }
-
-    case UserIntent.QUERY_BUDGETS: {
-      const summary = await toolbox.monthSummary();
-      financialData = {
-        budgets: summary.activeBudgets.map((b) => ({
-          name: b.name,
-          spent: b.spent,
-          amount: b.amount,
-          currency: b.currency,
-          usagePercentage: b.usagePercentage,
-          isOverBudget: b.isOverBudget,
-        })),
-      };
-      break;
-    }
-
-    case UserIntent.QUERY_GOALS: {
-      const summary = await toolbox.monthSummary();
-      financialData = {
-        goals: summary.activeGoals.map((g) => ({
-          name: g.name,
-          currentAmount: g.currentAmount,
-          targetAmount: g.targetAmount,
-          currency: g.currency,
-          progressPercentage: g.progressPercentage,
-        })),
-      };
-      break;
-    }
-
-    case UserIntent.GENERAL_ASSISTANCE:
-    default: {
-      const [snapshot, summary] = await Promise.all([
-        toolbox.walletSnapshot(),
-        toolbox.monthSummary(),
-      ]);
-      walletContext = {
-        walletId: snapshot.walletId,
-        walletName: snapshot.walletName,
-        role: snapshot.role,
-        canWrite: roleSatisfies(snapshot.role, REQUIRED_ROLE.WRITE),
-        status: snapshot.status,
-        accounts: snapshot.accounts,
-        categories: snapshot.categories,
-      };
-      financialData = {
-        balances: snapshot.accounts.map((acc) => ({
-          accountName: acc.name,
-          balance: acc.balance,
-          currency: acc.currency,
-        })),
-        monthSpending: {
-          totals: summary.expense,
-          byCategory: summary.spendingByCategory.map((c) => ({
-            categoryName: c.categoryName,
-            percentage: c.percentage,
-          })),
-        },
-        budgets: summary.activeBudgets.map((b) => ({
-          name: b.name,
-          spent: b.spent,
-          amount: b.amount,
-          currency: b.currency,
-          usagePercentage: b.usagePercentage,
-          isOverBudget: b.isOverBudget,
-        })),
-        goals: summary.activeGoals.map((g) => ({
-          name: g.name,
-          currentAmount: g.currentAmount,
-          targetAmount: g.targetAmount,
-          currency: g.currency,
-          progressPercentage: g.progressPercentage,
-        })),
-      };
-      break;
-    }
-  }
-
-  const systemInstructions = buildSystemInstructions(detected.intent, locale, walletContext, financialData);
-
-  return {
-    intent: detected.intent,
-    confidence: detected.confidence,
-    entities: detected.entities,
-    userMessage: request.message,
-    locale,
-    now,
-    systemInstructions,
-    walletContext,
-    financialData,
-    history,
-  };
-}
-
-function buildSystemInstructions(
-  intent: UserIntent,
-  locale: Locale,
-  walletContext?: GroupedAiContext['walletContext'],
-  financialData?: GroupedAiContext['financialData'],
-): string {
-  const parts: string[] = [
-    `You are the embedded finance assistant for Sora. Your goal is to resolve user queries concisely and accurately.`,
-    `Locale: ${locale}.`,
-    `Intent: ${intent}.`,
-  ];
-  if (walletContext) {
-    parts.push(`Current wallet: ${walletContext.walletName} (${walletContext.walletId}).`);
-    if (!walletContext.canWrite) {
-      parts.push(`The user has VIEWER-only access. You MUST NOT propose any transaction drafts.`);
-    }
-  }
-  if (financialData) {
-    parts.push(`Financial data: ${JSON.stringify(financialData)}`);
-  }
-  return parts.join('\n');
-}
-
-export async function executeIntent(context: GroupedAiContext, request: LlmRequest): Promise<LlmReply> {
-  const copy = COPY[context.locale];
-
-  switch (context.intent) {
-    case UserIntent.RECORD_TRANSACTION: {
-      const entities = context.entities.transaction as TransactionEntities | undefined;
+      const entities = detected.entities.transaction;
       if (!entities || entities.amount === null) return { content: copy.help };
 
       const snapshot = await request.toolbox.walletSnapshot();
@@ -441,19 +259,15 @@ export async function executeIntent(context: GroupedAiContext, request: LlmReque
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 export function normalize(input: string): string {
   return input.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/g, 'd').replace(/Đ/g, 'd').toLowerCase();
 }
 
-export function hasAny(text: string, phrases: readonly string[]): boolean {
+function hasAny(text: string, phrases: readonly string[]): boolean {
   return phrases.some((phrase) => containsPhrase(text, phrase));
 }
 
-export function containsPhrase(text: string, phrase: string): boolean {
+function containsPhrase(text: string, phrase: string): boolean {
   const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`).test(text);
 }
@@ -490,7 +304,7 @@ export function parseAmount(message: string): bigint | null {
 
 const CURRENCY_CODES = ['USD', 'VND', 'EUR', 'JPY', 'GBP', 'AUD', 'SGD', 'KRW', 'CNY', 'THB'];
 
-export function mentionedCurrency(message: string): string | null {
+function mentionedCurrency(message: string): string | null {
   const code = message.toUpperCase().match(new RegExp(`(^|[^A-Z])(${CURRENCY_CODES.join('|')})($|[^A-Z])`));
   if (code) return code[2]!;
   if (message.includes('$')) return 'USD';
@@ -498,13 +312,13 @@ export function mentionedCurrency(message: string): string | null {
   return null;
 }
 
-export function longestNameMatch<T extends { name: string }>(text: string, items: readonly T[]): T | undefined {
+function longestNameMatch<T extends { name: string }>(text: string, items: readonly T[]): T | undefined {
   return items
     .filter((item) => containsPhrase(text, normalize(item.name)))
     .sort((a, b) => b.name.length - a.name.length)[0];
 }
 
-export const CATEGORY_HINTS: { words: string[]; categories: string[] }[] = [
+const CATEGORY_HINTS: { words: string[]; categories: string[] }[] = [
   { words: ['lunch', 'dinner', 'breakfast', 'meal', 'food', 'pho', 'com', 'bun', 'an trua', 'an toi', 'an sang'], categories: ['food', 'dining out'] },
   { words: ['coffee', 'cafe', 'ca phe', 'tra sua', 'drink', 'drinks'], categories: ['drinks', 'dining out'] },
   { words: ['grocery', 'groceries', 'sieu thi', 'di cho'], categories: ['groceries'] },
@@ -518,7 +332,7 @@ export const CATEGORY_HINTS: { words: string[]; categories: string[] }[] = [
   { words: ['gift', 'qua', 'li xi'], categories: ['gift'] },
 ];
 
-export function pickCategory(text: string, snapshot: WalletSnapshot, type: TransactionType) {
+function pickCategory(text: string, snapshot: WalletSnapshot, type: TransactionType) {
   const candidates = snapshot.categories.filter((category) => category.type === type);
   const byName = (name: string) => candidates.find((category) => normalize(category.name) === name);
 
@@ -536,33 +350,7 @@ export function pickCategory(text: string, snapshot: WalletSnapshot, type: Trans
   );
 }
 
-export const NUMBER_FORMAT: Readonly<Record<Locale, { group: string; decimal: string }>> = {
-  en: { group: ',', decimal: '.' },
-  vi: { group: '.', decimal: ',' },
-  de: { group: '.', decimal: ',' },
-  es: { group: '.', decimal: ',' },
-  fr: { group: ' ', decimal: ',' },
-  hi: { group: ',', decimal: '.' },
-  ja: { group: ',', decimal: '.' },
-  ko: { group: ',', decimal: '.' },
-  ru: { group: ' ', decimal: ',' },
-  zh: { group: ',', decimal: '.' },
-};
-
-export function displayAmount(amount: string, currency: string, locale: Locale): string {
-  const compact = formatMoneyCompact(parseMoney(amount));
-  const negative = compact.startsWith('-');
-  const [whole, fraction] = (negative ? compact.slice(1) : compact).split('.');
-  const { group, decimal } = NUMBER_FORMAT[locale];
-  const grouped = whole!.replace(/\B(?=(\d{3})+(?!\d))/g, group);
-  return `${negative ? '-' : ''}${grouped}${fraction ? decimal + fraction : ''} ${currency}`;
-}
-
-export function joinTotals(totals: CurrencyTotal[], locale: Locale): string {
-  return totals.map((total) => displayAmount(total.amount, total.currency, locale)).join(' + ');
-}
-
-export const COPY = {
+const COPY = {
   en: {
     help:
       'I can record an expense or income ("Spent 50k on lunch from Cash"), and answer questions about ' +
@@ -787,10 +575,6 @@ export const COPY = {
   },
 } satisfies Record<Locale, unknown>;
 
-// ---------------------------------------------------------------------------
-// Mock Provider Class
-// ---------------------------------------------------------------------------
-
 /**
  * A deterministic stand-in for a real model: detects intent, groups
  * context from the toolbox, and answers deterministically. It exists so
@@ -803,27 +587,16 @@ export class MockLlmProvider implements LlmProvider {
   private readonly logger = new Logger(MockLlmProvider.name);
 
   async reply(request: LlmRequest): Promise<LlmReply> {
-    this.logger.log(`[Detect Intent] Analyzing user message: "${request.message}" (locale: ${request.locale})`);
     const detected = detectUserIntent({
       message: request.message,
       locale: request.locale,
       history: request.history,
       now: request.now,
     });
-    this.logger.log(
-      `[Detected Intent] intent=${detected.intent} (confidence: ${(detected.confidence * 100).toFixed(0)}%) entities=${JSON.stringify(detected.entities, (_, v) => (typeof v === 'bigint' ? v.toString() : v))}`,
-    );
+    // The intent only, never the message or its amounts: chat text stays out of the logs.
+    this.logger.debug(`Detected ${detected.intent} (${(detected.confidence * 100).toFixed(0)}%), locale ${request.locale}`);
 
-    this.logger.log(`[Construct Prompt] Assembling deterministic context for intent: ${detected.intent}`);
-    const context = await groupContextForAi(detected, request);
-
-    this.logger.log(`[Execute Deterministic] Generating reply for intent: ${detected.intent}...`);
-    const reply = await executeIntent(context, request);
-
-    this.logger.log(
-      `[Return Response] Content: "${reply.content}"${reply.proposal ? ` | Proposal: ${JSON.stringify(reply.proposal)}` : ''}`,
-    );
-
+    const reply = await executeIntent(detected, request);
     return reply;
   }
 }

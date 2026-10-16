@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Req, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { z } from 'zod';
 
 import {
@@ -13,6 +14,7 @@ import {
 
 import { ClientIp, CurrentUser, type AuthenticatedUser } from '../common/decorators.ts';
 import type { Enveloped } from '../common/envelope.ts';
+import type { RequestWithId } from '../common/request-logging.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';
 import { AiService } from './ai.service.ts';
 
@@ -59,8 +61,15 @@ export class AiController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('conversationId') conversationId: string,
     @Body(zodPipe(sendAiMessageSchema)) body: z.infer<typeof sendAiMessageSchema>,
+    @Req() request: RequestWithId,
+    @Res({ passthrough: true }) response: Response,
   ): Promise<SendAiMessageResponse> {
-    return this.ai.sendMessage(user, conversationId, body);
+    // A closed connection before the answer is written means the app stopped waiting: stop paying for the model call.
+    const disconnected = new AbortController();
+    response.on('close', () => {
+      if (!response.writableFinished) disconnected.abort();
+    });
+    return this.ai.sendMessage(user, conversationId, body, { signal: disconnected.signal, requestId: request.requestId });
   }
 
   @HttpCode(HttpStatus.OK)
