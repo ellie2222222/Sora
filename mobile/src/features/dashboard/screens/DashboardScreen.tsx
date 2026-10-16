@@ -22,15 +22,12 @@ import { BudgetDetailModal } from '@/features/budgets';
 import { GoalDetailModal } from '@/features/goals';
 import { dashboardApiSlice } from '@/app/store';
 import {
-  formatPeriodLabel,
-  parseDay,
   shiftAnchor,
   today,
   type DashboardPeriod,
 } from '@/utils';
 import type { MainTabScreenProps } from '@/app/navigation';
 import { PeriodReport, PeriodReportSkeleton, type ReportSection } from '../components/PeriodReport';
-import { YearlyReport } from '../components/YearlyReport';
 
 type DashboardTab = ReportSection | 'accounts';
 const TABS: readonly DashboardTab[] = ['overview', 'spending', 'accounts'];
@@ -90,31 +87,18 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
         </Pressable>
       ) : null}
 
-      {/* The year's trend needs each month on its own; its spending breakdown is one query over the whole year. */}
-      {section === 'overview' && period === 'yearly' ? (
-        <YearlyReport
-          key={`${walletId}|${scopeAccountId ?? 'all'}`}
-          walletId={walletId}
-          accountId={scopeAccountId}
-          year={parseDay(anchor).year}
-          periodLabel={formatPeriodLabel(period, anchor)}
-          onOpenBudget={setSelectedBudgetId}
-          onOpenGoal={setSelectedGoalId}
-          onPreviousPeriod={() => shiftPeriod(-1)}
-        />
-      ) : (
-        <PeriodReport
-          section={section}
-          walletId={walletId}
-          accountId={scopeAccountId}
-          period={period}
-          anchor={anchor}
-          navigation={navigation}
-          onOpenBudget={setSelectedBudgetId}
-          onOpenGoal={setSelectedGoalId}
-          onPreviousPeriod={() => shiftPeriod(-1)}
-        />
-      )}
+      <PeriodReport
+        section={section}
+        walletId={walletId}
+        accountId={scopeAccountId}
+        period={period}
+        anchor={anchor}
+        today={today(timeZone)}
+        navigation={navigation}
+        onOpenBudget={setSelectedBudgetId}
+        onOpenGoal={setSelectedGoalId}
+        onPreviousPeriod={() => shiftPeriod(-1)}
+      />
     </>
   );
 

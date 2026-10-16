@@ -79,9 +79,11 @@ exposes nothing new: any `VIEWER` can already read every transaction's `createdB
   so the period bar hides there). Five period granularities (day/week/month/quarter/year), with two
   call patterns: `PeriodReport` fetches the selected window plus the one before it (two direct
   hook calls) for the change-vs-previous indicators and the "insights" lines, and renders the
-  Overview or Spending tab from that one response — Spending in the yearly view too, over the
-  whole year's window; Overview's yearly view is `YearlyReport`, which fetches all 12 months via `MonthDataPoint`, one query
-  component per month so hook-call count stays stable across a fixed-length list. Handles
+  Overview or Spending tab from that one response, the yearly view included. It also prefetches
+  the next window when there is one, so stepping either way lands on a cached answer. Overview's
+  yearly view adds `YearlyTrend` below the year's totals: the month-by-month chart, which loads
+  behind them from all 12 months via `MonthDataPoint`, one query component per month so the
+  hook-call count stays stable across a fixed-length list. Handles
   loading/error/empty per screen convention (MB-07); a month whose query errors still settles as
   a zero point in the trend rather than spinning forever. "Empty" is three distinct states
   (`emptyReasonFor` in `dashboardAnalytics.ts`) — no accounts, nothing ever recorded, or a window

@@ -57,6 +57,13 @@ describe('readSignedIn with a saved copy', () => {
     await assert.rejects(readSignedIn(async () => { throw serverError; }, () => undefined, isNetwork, cache), serverError);
   });
 
+  it('answers without waiting for the save', async () => {
+    let finishSave = () => undefined as void;
+    const cache = { load: async () => undefined, save: () => new Promise<void>((resolve) => (finishSave = resolve)) };
+    assert.equal(await readSignedIn(async () => 'fresh', () => undefined, isNetwork, cache), 'fresh');
+    finishSave();
+  });
+
   it('returns the response even if saving it fails', async () => {
     const cache = { load: async () => undefined, save: async () => { throw new Error('disk full'); } };
     assert.equal(await readSignedIn(async () => 'fresh', () => undefined, isNetwork, cache), 'fresh');

@@ -131,7 +131,8 @@ export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: axiosBaseQuery,
   tagTypes: API_TAG_TYPES,
-  refetchOnReconnect: true,
-  refetchOnFocus: true,
+  // Writes invalidate what they touch and the sync engine refreshes everything on foreground and
+  // reconnect, so holding an unused read longer than RTK's 60 s only saves the repeat request.
+  keepUnusedDataFor: 300,
   endpoints: () => ({}),
 });

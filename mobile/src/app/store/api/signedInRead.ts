@@ -30,7 +30,8 @@ export async function readSignedIn<T>(
     throw error;
   }
   setOnline(true);
-  // A failed write must not turn a good read into an error.
-  await cache?.save(result).catch(() => undefined);
+  // In the background: the copy only serves a later offline read, so the screen never waits on the disk,
+  // and a failed write never turns a good read into an error.
+  void cache?.save(result).catch(() => undefined);
   return result;
 }

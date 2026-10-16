@@ -1,11 +1,23 @@
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { largestCurrencyTotal } from '@sora/contracts';
 
 import { Skeleton, StateView } from '@/components';
 import { useTheme } from '@/app/providers';
-import { useGetDashboardSummaryQuery, useListCategoriesQuery } from '@/app/store';
-import { emptyReasonFor, formatPeriodLabel, isNetworkError, previousWindow, shiftAnchor, windowFor, type CalendarDay, type DashboardPeriod } from '@/utils';
+import { dashboardApiSlice, useGetDashboardSummaryQuery, useListCategoriesQuery } from '@/app/store';
+import {
+  emptyReasonFor,
+  formatPeriodLabel,
+  isCurrentPeriod,
+  isNetworkError,
+  parseDay,
+  previousWindow,
+  shiftAnchor,
+  windowFor,
+  type CalendarDay,
+  type DashboardPeriod,
+} from '@/utils';
 import type { MainTabScreenProps } from '@/app/navigation';
 
 import { DashboardEmptyForWallet } from './DashboardEmptyForWallet';
@@ -14,6 +26,7 @@ import { CategoryBreakdown } from './CategoryBreakdown';
 import { IncomeExpenseSummary } from './IncomeExpenseSummary';
 import { MemberSplit } from './MemberSplit';
 import { PeriodInsights } from './PeriodInsights';
+import { YearlyTrend } from './YearlyTrend';
 
 type DashboardNavigation = MainTabScreenProps<'Dashboard'>['navigation'];
 
@@ -25,6 +38,7 @@ export function PeriodReport({
   accountId,
   period,
   anchor,
+  today,
   navigation,
   onOpenBudget,
   onOpenGoal,
@@ -35,6 +49,7 @@ export function PeriodReport({
   accountId: string | null;
   period: DashboardPeriod;
   anchor: CalendarDay;
+  today: CalendarDay;
   navigation: DashboardNavigation;
   onOpenBudget: (budgetId: string) => void;
   onOpenGoal: (goalId: string) => void;
@@ -47,6 +62,13 @@ export function PeriodReport({
   const current = useGetDashboardSummaryQuery({ walletId, accountId: scope, ...windowFor(period, anchor) });
   const previous = useGetDashboardSummaryQuery({ walletId, accountId: scope, ...previousWindow(period, anchor) });
   const categories = useListCategoriesQuery({ walletId }, { skip: section !== 'spending' });
+
+  // The window before is already read for the comparison, so stepping either way lands on a cached answer.
+  const prefetchSummary = dashboardApiSlice.usePrefetch('getDashboardSummary');
+  const hasNextPeriod = !isCurrentPeriod(period, anchor, today);
+  useEffect(() => {
+    if (hasNextPeriod) prefetchSummary({ walletId, accountId: scope, ...windowFor(period, shiftAnchor(period, anchor, 1)) });
+  }, [hasNextPeriod, prefetchSummary, walletId, scope, period, anchor]);
 
   // `currentData` is empty while a new wallet/account/window loads, where `data` would still hold the old figures.
   if (current.currentData === undefined && current.isFetching) return <PeriodReportSkeleton section={section} />;
@@ -115,6 +137,8 @@ export function PeriodReport({
         previous={previous.currentData}
         previousLabel={formatPeriodLabel(period, shiftAnchor(period, anchor, -1))}
       />
+
+      {period === 'yearly' ? <YearlyTrend key={`${walletId}|${accountId ?? 'all'}`} walletId={walletId} accountId={accountId} year={parseDay(anchor).year} /> : null}
 
       {budgetGoals}
 
