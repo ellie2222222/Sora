@@ -1,11 +1,11 @@
 import type { LucideIcon } from 'lucide-react-native';
-import { Inbox, Info, Search, TriangleAlert } from 'lucide-react-native';
+import { CloudOff, Inbox, Info, Search, TriangleAlert, WifiOff } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
-import { getServerErrorMessage, isNetworkError, isUnauthenticated, noResponseMessage } from '@/utils';
+import { getServerErrorMessage, isApiError, isDeviceOnline, isNetworkError, isUnauthenticated, noResponseMessage } from '@/utils';
 import { AnimatedIcon, type IconAnimationType } from './AnimatedIcon';
 import { Button } from './Button';
 import { SlideUp } from './SlideUp';
@@ -52,7 +52,7 @@ const VARIANT_ANIMATION: Record<StateViewVariant, IconAnimationType> = {
 };
 
 export function StateView({
-  variant,
+  variant: requestedVariant,
   icon,
   iconColor,
   title,
@@ -68,25 +68,32 @@ export function StateView({
   const theme = useTheme();
   const { t } = useTranslation();
 
-  if (variant === 'error' && isSelfResolvingError(error, [title, message], t('errors.offlineTitle', "You're offline"))) {
-    return null;
-  }
+  // The refresh interceptor answers an unrecoverable 401 by switching to sign-in, so a banner would only flash.
+  if (requestedVariant === 'error' && isUnauthenticated(error)) return null;
 
-  const Icon = icon ?? VARIANT_ICON[variant];
+  // No answer from the API is not a failure of the screen: a saved copy is answered before it ever gets here,
+  // so this is data the device has never held. Say so calmly and offer a retry, never a red error.
+  const unreachable = requestedVariant === 'error' && isNetworkError(error);
+  const variant: StateViewVariant = unreachable ? 'informational' : requestedVariant;
+
+  const Icon = icon ?? (unreachable ? (isDeviceOnline() ? CloudOff : WifiOff) : VARIANT_ICON[variant]);
 
   const defaultTitles: Record<StateViewVariant, string> = {
     empty: t('errors.nothingHereYet', 'Nothing here yet'),
-    error: isNetworkError(error) ? noResponseMessage(t) : t('errors.somethingWentWrong', 'Something went wrong. Please try again.'),
+    error: t('errors.somethingWentWrong', 'Something went wrong. Please try again.'),
     'no-results': t('errors.noResultsFound', 'No results found'),
     informational: t('errors.nothingHereYet', 'Nothing here yet'),
   };
 
-  const errorMessage = variant === 'error' && error !== undefined
-    ? getServerErrorMessage(error, t)
-    : undefined;
+  const errorMessage = unreachable
+    ? noResponseMessage(t)
+    : variant === 'error' && error !== undefined
+      ? describeError(error, t)
+      : undefined;
 
   const resolvedTitle = title ?? errorMessage ?? defaultTitles[variant];
-  const resolvedMessage = message ?? (title !== undefined ? errorMessage : undefined);
+  const resolvedMessage =
+    message ?? (title !== undefined ? errorMessage : unreachable ? t('errors.notSavedOnDevice') : undefined);
 
   const resolvedPrimary =
     primaryAction ??
@@ -95,7 +102,7 @@ export function StateView({
       : undefined);
 
   const resolvedIconColor =
-    iconColor ?? (variant === 'error' ? theme.colors.danger : theme.colors.primary);
+    iconColor ?? (variant === 'error' ? theme.colors.danger : unreachable ? theme.colors.warning : theme.colors.primary);
 
   const containerStyle = {
     flex: 1,
@@ -134,7 +141,7 @@ export function StateView({
           loading={resolvedPrimary.loading}
           icon={resolvedPrimary.icon}
           style={{ marginTop: theme.spacing.md, alignSelf: 'center' }}
-          testID={testID !== undefined ? `${testID}-${variant === 'error' ? 'retry' : 'action'}` : undefined}
+          testID={testID !== undefined ? `${testID}-${requestedVariant === 'error' ? 'retry' : 'action'}` : undefined}
         />
       ) : null}
       {secondaryAction !== undefined ? (
@@ -211,17 +218,8 @@ function QuickActionChip({ action, testID }: { action: StateViewAction; testID?:
   );
 }
 
-const CONNECTIVITY_WORDS = ['internet', 'offline', 'network', 'connection'];
-
-/**
- * Offline and an unrecoverable 401 resolve themselves elsewhere (local-data fallback; the refresh
- * interceptor switches to AuthNavigator), so a banner would only flash and vanish.
- */
-function isSelfResolvingError(error: unknown, texts: readonly unknown[], offlineTitle: string): boolean {
-  if (isNetworkError(error) || isUnauthenticated(error)) return true;
-  return texts.some(
-    (text) =>
-      typeof text === 'string' &&
-      (text === offlineTitle || CONNECTIVITY_WORDS.some((word) => text.toLowerCase().includes(word))),
-  );
+/** A screen's own `new Error(t(...))` already says what went wrong; only an API error needs its code translated. */
+function describeError(error: unknown, t: (key: string) => string): string {
+  if (!isApiError(error) && error instanceof Error && error.message !== '') return error.message;
+  return getServerErrorMessage(error, t);
 }

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { add, amountInCurrency, formatMoney, largestCurrencyTotal, maxOf, parseMoney, percentageOf, ZERO } from '@sora/contracts';
 import type { DashboardResponse, Scaled } from '@sora/contracts';
 
-import { SectionLabel, Skeleton, TrendBarChart } from '@/components';
+import { SectionLabel, Skeleton, Text, TrendBarChart } from '@/components';
 import { useTheme } from '@/app/providers';
 import { monthTick, parseDay, type CalendarDay } from '@/utils';
 
@@ -46,6 +46,8 @@ export function YearlyTrend({ walletId, accountId, year }: { walletId: string; a
   const monthlyExpense = months.map((month) => amountInCurrency(byMonth[month]?.expense ?? [], currency));
   // Each bar's height relative to the year's peak, kept in bigint space rather than widening a Scaled into a JS number.
   const yearMax = [...monthlyIncome, ...monthlyExpense].reduce((max, amount) => maxOf(max, amount), ZERO);
+  // A month that never answered draws as a zero bar, which reads as a month with no activity unless said.
+  const someMonthsMissing = months.some((month) => byMonth[month] === undefined);
   const points = months.map((month, index) => ({
     label: monthTick(parseDay(month).month),
     income: percentageOf(monthlyIncome[index] ?? ZERO, yearMax),
@@ -60,6 +62,11 @@ export function YearlyTrend({ walletId, accountId, year }: { walletId: string; a
           <SectionLabel>{t('dashboard.monthByMonth')}</SectionLabel>
         </View>
         <TrendBarChart points={points} />
+        {someMonthsMissing ? (
+          <Text variant="caption" tone="muted" style={{ marginTop: theme.spacing.sm }} testID="dashboard-year-months-missing">
+            {t('dashboard.someMonthsUnavailable')}
+          </Text>
+        ) : null}
       </View>
     </>
   );

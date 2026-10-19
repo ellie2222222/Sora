@@ -86,7 +86,11 @@ export function WalletDetailPanel({
 
     const data = wallet.data;
     if (data === undefined) {
-      return <StateView variant="error" error={new Error(t('wallets.walletNotFound', "Couldn't find this wallet"))} />;
+      return wallet.isError ? (
+        <StateView variant="error" error={wallet.error} retryAction={() => void wallet.refetch()} />
+      ) : (
+        <StateView variant="error" error={new Error(t('wallets.walletNotFound', "Couldn't find this wallet"))} />
+      );
     }
 
     const permissions = permissionsFor(data.role);

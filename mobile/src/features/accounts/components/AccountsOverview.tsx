@@ -37,7 +37,7 @@ export function AccountsOverview({
 
   // `currentData` is empty while another wallet's accounts load, where `data` would still show the old wallet's.
   if (accounts.currentData === undefined && accounts.isFetching) return <AccountsOverviewSkeleton />;
-  if (accounts.isError && !isNetworkError(accounts.error)) {
+  if (accounts.isError && (!isNetworkError(accounts.error) || accounts.currentData === undefined)) {
     return (
       <StateView
         variant="error"

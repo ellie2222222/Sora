@@ -118,7 +118,7 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
         </>
       );
     }
-    if (members.isError && !isNetworkError(members.error)) {
+    if (members.isError && (!isNetworkError(members.error) || members.data === undefined)) {
       return <StateView variant="error" error={members.error} retryAction={() => void members.refetch()} />;
     }
 

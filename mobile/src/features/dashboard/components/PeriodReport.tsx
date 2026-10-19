@@ -86,7 +86,15 @@ export function PeriodReport({
 
   const data = current.currentData;
   if (data === undefined) {
-    return <StateView variant="error" error={new Error(t('dashboard.noData', 'Nothing to show yet.'))} entrance="none" />;
+    return (
+      <StateView
+        variant="error"
+        error={current.error ?? new Error(t('dashboard.noData', 'Nothing to show yet.'))}
+        retryAction={() => void current.refetch()}
+        testID="dashboard-period-error"
+        entrance="none"
+      />
+    );
   }
 
   const emptyReason = emptyReasonFor(data);

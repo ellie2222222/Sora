@@ -160,7 +160,8 @@ export function TransactionListScreen({
     }
   };
 
-  const items = loadedItems ?? (kept.scopeKey === scopeKey ? kept.items : []);
+  // Once the new window has failed, last month's rows would sit under this month's label for good.
+  const items = loadedItems ?? (kept.scopeKey === scopeKey && !transactions.isError ? kept.items : []);
 
   const showFab = !transactions.isLoading && items.length > 0;
 
@@ -248,7 +249,7 @@ export function TransactionListScreen({
             </Text>
           </View>
         ) : awaitingWindow && items.length === 0 ? (
-          <PeriodSummarySkeleton />
+          transactions.isError ? null : <PeriodSummarySkeleton />
         ) : (
           <PeriodSummaryCard transactions={items} filterType={filterType} testID={`${testIDPrefix}-period-summary`} />
         )}
@@ -291,7 +292,7 @@ export function TransactionListScreen({
   );
 
   const renderEmptyBody = () => {
-    if (transactions.isError && !isNetworkError(transactions.error)) {
+    if (transactions.isError && (!isNetworkError(transactions.error) || awaitingWindow)) {
       return (
         <StateView
           variant="error"

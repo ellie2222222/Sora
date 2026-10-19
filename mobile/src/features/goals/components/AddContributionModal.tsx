@@ -113,7 +113,7 @@ export function AddContributionModal({ visible, goalId, onClose, onBack, onClose
     );
   }
 
-  if (goal.isError && !isNetworkError(goal.error)) {
+  if (goal.isError && (!isNetworkError(goal.error) || goal.data === undefined)) {
     return (
       <BottomSheetModal visible={visible} onClose={onClose} onBack={onBack} onCloseAll={onCloseAll} title={t('goals.addContribution')}>
         <StateView variant="error" error={goal.error} retryAction={() => void goal.refetch()} testID="add-contribution-error" />

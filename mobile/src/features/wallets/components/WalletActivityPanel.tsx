@@ -14,7 +14,6 @@ import {
   formatTimeOfDay,
   getRoleLabel,
   groupConsecutiveByDay,
-  isNetworkError,
   today,
 } from '@/utils';
 
@@ -48,7 +47,7 @@ export function WalletActivityPanel({ walletId }: { walletId: string }) {
       </View>
     );
   }
-  if (activity.isError && items.length === 0 && !isNetworkError(activity.error)) {
+  if (activity.isError && items.length === 0) {
     return (
       <StateView
         variant="error"

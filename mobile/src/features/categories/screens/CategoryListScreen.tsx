@@ -79,7 +79,9 @@ export function CategoryListScreen({
         </View>
       );
     }
-    const failed = [expense, income, transfer].find((query) => query.isError && !isNetworkError(query.error));
+    const failed = [expense, income, transfer].find(
+      (query) => query.isError && (!isNetworkError(query.error) || query.data === undefined),
+    );
     if (failed !== undefined) {
       return <StateView variant="error" error={failed.error} retryAction={() => void failed.refetch()} />;
     }

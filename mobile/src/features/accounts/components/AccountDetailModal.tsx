@@ -7,7 +7,7 @@ import { AccountStatus, TransactionType, type MoneyString } from '@sora/contract
 import { BottomSheetModal, Money, Skeleton, StateView, Text } from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
 import { useGetAccountQuery } from '@/app/store';
-import { isDeviceOnline, isNetworkError, noResponseMessage, permissionsForWallet, currentView } from '@/utils';
+import { isNetworkError, permissionsForWallet, currentView } from '@/utils';
 import { AccountBadge } from './AccountBadge.tsx';
 import { ACCOUNT_TYPE_LABEL_KEY } from './AccountPicker.tsx';
 import { AccountEditForm } from './AccountEditForm.tsx';
@@ -33,14 +33,10 @@ export function AccountDetailModal({ accountId, onClose, onViewTransactions }: A
 
   const renderContent = () => {
     if (shown.loading) return <AccountDetailSkeleton />;
-    if (account.isError) {
+    // Data first: a refetch that failed must not hide an account already on screen.
+    if (account.isError && (shown.data === undefined || !isNetworkError(account.error))) {
       return isNetworkError(account.error) ? (
-        <StateView
-          variant="error"
-          title={noResponseMessage(t)}
-          message={t(isDeviceOnline() ? 'errors.connectionUnreachableDetail' : 'errors.connectionOfflineDetail')}
-          entrance="none"
-        />
+        <StateView variant="error" error={account.error} retryAction={() => void account.refetch()} entrance="none" />
       ) : (
         <StateView variant="error" title={t('common.error')} message={t('accounts.loadFailed')} retryAction={() => void account.refetch()} entrance="none" />
       );

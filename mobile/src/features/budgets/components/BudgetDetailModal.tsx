@@ -63,7 +63,11 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
 
     const data = shown.data;
     if (data === undefined) {
-      return <StateView variant="error" error={new Error(t('budgets.budgetNotFound', "Couldn't find this budget"))} />;
+      return budget.isError ? (
+        <StateView variant="error" error={budget.error} retryAction={() => void budget.refetch()} />
+      ) : (
+        <StateView variant="error" error={new Error(t('budgets.budgetNotFound', "Couldn't find this budget"))} />
+      );
     }
 
     const canEdit = permissions.canWrite;

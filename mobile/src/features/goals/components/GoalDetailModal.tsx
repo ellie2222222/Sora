@@ -46,7 +46,11 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
     if (data === undefined) {
       return (
         <View style={{ padding: theme.spacing.md }}>
-          <StateView variant="error" error={new Error(t('goals.goalNotFound', "Couldn't find this goal"))} />
+          {goal.isError ? (
+            <StateView variant="error" error={goal.error} retryAction={() => void goal.refetch()} />
+          ) : (
+            <StateView variant="error" error={new Error(t('goals.goalNotFound', "Couldn't find this goal"))} />
+          )}
         </View>
       );
     }

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '@/components';
 import { GuestUploadIndicator, GuestUploadScreen } from '@/features/guest';
 import { WalletProvider, useAuth, useTheme } from '@/app/providers';
+import { useConnectivityToasts } from '@/hooks';
 import { AppNavigator } from './AppNavigator.tsx';
 import { AuthNavigator } from './AuthNavigator.tsx';
 
@@ -26,6 +27,7 @@ export function RootNavigator() {
     dismissOtherAccountNotice,
     logout,
   } = useAuth();
+  useConnectivityToasts();
 
   if (restoring) {
     return (

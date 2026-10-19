@@ -18,7 +18,7 @@ import {
 import { isLocale, type AiMessageResponse } from '@sora/contracts';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { useNetworkStatus } from '@/hooks';
-import { canLoadMore, currentView, flattenPages, getServerErrorMessage, isNetworkError } from '@/utils';
+import { canLoadMore, currentView, flattenPages, getServerErrorMessage } from '@/utils';
 import { chatAvailability } from '../chatAvailability.ts';
 import {
   failureOf,
@@ -248,12 +248,15 @@ function SignedInChat() {
         </View>
       );
     }
-    if (conversationId !== null && messages.isError && items.length === 0 && shownPending === null && !isNetworkError(messages.error)) {
+    // Unanswered history is not an empty chat: the conversation list or this chat's messages failed to load.
+    const failedHistory =
+      conversationId !== null && messages.isError ? messages : conversations.isError && conversations.data === undefined ? conversations : null;
+    if (failedHistory !== null && items.length === 0 && shownPending === null) {
       return (
         <StateView
           variant="error"
-          error={messages.error}
-          retryAction={() => void messages.refetch()}
+          error={failedHistory.error}
+          retryAction={() => void failedHistory.refetch()}
           testID="ai-messages-error"
           entrance="none"
         />

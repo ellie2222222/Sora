@@ -20,7 +20,8 @@ type OpenSheet = 'connection' | 'sync' | null;
  * Wallet-header connection/sync indicator — two small icons, informational
  * only. Never blocks reading or writing: every screen stays usable offline
  * via the queue/cache in `services/sync/`, so a tap opens a lightweight
- * sheet rather than a banner, toast, or error screen.
+ * sheet rather than a banner or error screen. The one passing toast when the
+ * API stops or starts answering is `useConnectivityToasts`.
  */
 export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { testID?: string }) {
   const theme = useTheme();
