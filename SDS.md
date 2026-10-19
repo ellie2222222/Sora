@@ -571,8 +571,9 @@ the real API — it is not a second local dataset.
 - **Reads while offline:** the server is the source of truth; the device keeps a copy of what it
   last said. Every successful signed-in read is saved to SQLite (`cached_responses` in the
   sync database, via `LocalCache`), keyed by account, endpoint, argument and page. A read
-  that finds no network answers from that copy (`readSignedIn`), so screens stay populated
-  offline and after a restart. A copy only exists for a read that has run, so the transaction list
+  that gets no answer, or a server fault (`INTERNAL_ERROR`, 5xx), answers from that copy
+  (`readSignedIn`), so screens stay populated offline and after a restart. A refusal (4xx) never
+  does: a revoked member must not keep reading the wallet. A copy only exists for a read that has run, so the transaction list
   prefetches the add sheet's accounts and categories (`useWarmAddTransactionReads`): an expense
   can be recorded offline even if the sheet was never opened online. An offline write's in-place list patch is saved too
   (`localCacheMiddleware`), so a queued row is still listed after a restart. The guest store is
@@ -587,10 +588,17 @@ the real API — it is not a second local dataset.
   the online mutation invalidates) replace every patched figure with the server's. Not moved: a
   queued edit's category/date change, and caches not loaded when the write was made; both show
   the server's last figure until the sync.
+- **"No answer" means the API's:** a response without the API's error envelope came from a tunnel,
+  proxy or gateway standing in for an API that did not answer (an offline tunnel's 404, a 502), so
+  `toApiError` gives it status 0 like a dropped connection (`isNetworkError`). For the same reason a
+  failed refresh ends the session only on an envelope-carrying 4xx (`isRefreshRejection`): a server
+  outage never signs the user out. A screen whose read failed with no saved copy shows a calm
+  "Can't reach Sora / nothing saved on this device yet" view with a retry (`StateView`), never a
+  red error and never the empty state, which would claim the data does not exist.
 - **Saved-copy note:** while any screen shows a saved copy instead of a fresh response, the wallet
   header shows "Saved 14:32" (the oldest such copy's time) and the connection sheet explains it. Each
-  key clears when it is next answered fresh. On reconnect the first sync pass runs, then every
-  tag is invalidated so mounted screens refetch — after the pass, so the offline patches never
+  key clears when it is next answered fresh. When the API becomes reachable again the first sync
+  pass runs, then every tag is invalidated so mounted screens refetch — after the pass, so the offline patches never
   drop out ahead of the server having the writes.
 - **At rest:** the queue and the read cache share one database, `sora_sync_encrypted.db`, encrypted
   with SQLCipher (`expo-sqlite`'s `useSQLCipher` plugin option) under a 256-bit key held in
@@ -607,7 +615,10 @@ the real API — it is not a second local dataset.
 - **What queues:** create/update/cancel/archive for transactions, accounts and categories; create/update/delete for budgets;
   goal create; goal contributions (payload carries `goalId`, so a contribution to a goal created
   offline waits for that goal's server id); and a category's permanent delete (`op: 'delete'`).
-  Wallets, members and invitations are online-only.
+  Wallets, members and invitations are online-only. A write is sent at once while the API was last
+  reachable; one that gets no answer is queued rather than failed, under the Idempotency-Key it was
+  sent with, so if the API applied it after all the replay is recognised instead of recording the
+  money twice (`sendOrQueue`). A refusal is shown to the user and never queued.
 - **Ownership:** each queued row records the signed-in user (`ownerUserId`, the access token's
   `sub`). Only that user's rows are shown or replayed, so a user switch never sends one person's
   queued writes under another's token. Rows queued before ownership existed carry no owner. They go
@@ -625,8 +636,22 @@ the real API — it is not a second local dataset.
   `AccountsOverview`).
 - **Lifecycle:** an `OfflineQueue` class (`services/sync/offlineQueue.ts`) enqueues a mutation as
   `pending`, transitions it through `syncing` → `synced`/`failed`/`conflict` as it's replayed.
-  `startSyncEngine(store)` runs from app startup and is re-triggered on reconnect (its own NetInfo
-  listener), on foreground, on a 45-second foreground interval, and by the status sheet's "Sync now".
+  `startSyncEngine(store)` runs from app startup and is re-triggered whenever the API becomes
+  reachable again, on foreground, on a 45-second foreground interval, and by the status sheet's
+  "Sync now".
+- **Reachability:** one flag (`networkState.ts`) says whether the API was last reachable. Every
+  signed-in read and write, each sync pass and the header's `/health` check set it either way; NetInfo
+  only lowers it, since internet coming back says nothing about the API. Its change listeners drive
+  the refresh above and the header's connection status. A server outage never changes NetInfo, so
+  while the flag is down a probe (`reachabilityProbe.ts`) asks `/health` at 5 s, 10 s, 20 s, 40 s,
+  then every 60 s, and raises the flag when the API answers. A fall within two minutes of a rise
+  keeps that backoff growing, so one endpoint that keeps failing while `/health` answers cannot make
+  every screen refetch every few seconds. Identical writes in flight share an Idempotency-Key
+  (`RetryKeys`), so a double-tapped Save records once whether it is sent or queued. A signed-in user gets one passing toast when
+  the API stops answering and one when it is back, none for a flap within two minutes
+  (`useConnectivityToasts`). Idempotency keys are kept 30 days (API spec §2.10), so a write replayed
+  after a long outage and a fresh sign-in is still recognised. The `server-outage` Maestro flow
+  drives all of this on a device through `mobile/e2e/outage-switch.mts`.
 - **Aggregate status** (`selectSyncStatus`) prioritizes a live sync pass over a stale failure, and
   a failure over a merely-queued row — the ordering a user actually needs to see first.
 
