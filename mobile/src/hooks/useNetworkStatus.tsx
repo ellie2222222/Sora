@@ -4,7 +4,7 @@ import { AppState } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 
 import { healthApi } from '@/services/api';
-import { setCurrentlyOnline } from '@/services/sync';
+import { onOnlineChange, setCurrentlyOnline } from '@/services/sync';
 import { setDeviceOnline } from '@/utils';
 
 /** Whether the API answers, which a device with internet access can still fail to reach. */
@@ -49,7 +49,10 @@ export function NetworkStatusProvider({ children, onRetrySync, onRetryQueued, on
     const check = ++latestCheck.current;
     setServerStatus('checking');
     const reachable = await healthApi.ping();
-    if (check === latestCheck.current) setServerStatus(reachable ? 'connected' : 'unreachable');
+    if (check !== latestCheck.current) return;
+    setServerStatus(reachable ? 'connected' : 'unreachable');
+    // An answer from the API itself, so it may raise the flag as well as lower it.
+    setCurrentlyOnline(reachable);
   }, []);
 
   useEffect(() => {
@@ -57,16 +60,20 @@ export function NetworkStatusProvider({ children, onRetrySync, onRetryQueued, on
       const online = state.isConnected === true && state.isInternetReachable !== false;
       setIsOnline(online);
       setDeviceOnline(online);
-      setCurrentlyOnline(online);
+      // Only ever lowers it: internet back says nothing about the API, which checkServer then asks.
+      if (!online) setCurrentlyOnline(false);
       void checkServer();
     });
     const appStateSubscription = AppState.addEventListener('change', (status) => {
       if (status === 'active') void checkServer();
     });
+    // A read, write, sync pass or probe finding the API gone (or back) mid-session, which NetInfo never reports.
+    const unsubscribeOnline = onOnlineChange((online) => setServerStatus(online ? 'connected' : 'unreachable'));
 
     return () => {
       unsubscribe();
       appStateSubscription.remove();
+      unsubscribeOnline();
     };
   }, [checkServer]);
 

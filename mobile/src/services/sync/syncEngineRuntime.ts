@@ -1,20 +1,22 @@
 /**
- * The RN-touching half of the sync engine: wires real triggers (reconnect,
- * foreground, a foreground safety-net interval) to `runSyncPass`, and
- * reconciles the RTK Query cache once a pass completes. Only this file
- * imports AppState/NetInfo/the api slices — `syncEngine.ts`'s `runSyncPass`
- * stays platform-free and unit-testable.
+ * The RN-touching half of the sync engine: wires real triggers (the API becoming
+ * reachable again, foreground, a foreground safety-net interval) to `runSyncPass`,
+ * and reconciles the RTK Query cache once a pass completes. Only this file
+ * imports AppState/the api slices — `syncEngine.ts`'s `runSyncPass` stays
+ * platform-free and unit-testable.
  */
 
 import { AppState, type AppStateStatus } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
 
 import { API_TAG_TYPES, apiSlice } from '../../app/store/api/apiSlice.ts';
 import { queueRowsReplaced } from '../../app/store/offlineQueueSlice.ts';
 import type { AppStore } from '@/app/store';
 import { defaultEntityAdapters } from './entityAdapters.ts';
+import { isDeviceOnline } from '../../utils/deviceConnectivity.ts';
 import { localCache } from './localCacheInstance.ts';
+import { isCurrentlyOnline, onOnlineChange, setCurrentlyOnline } from './networkState.ts';
 import { offlineQueue } from './offlineQueueInstance.ts';
+import { startReachabilityProbe } from './reachabilityProbe.ts';
 import { dependentRows, prunableRows, runSyncPass } from './syncEngine.ts';
 import type { QueuedMutation } from './offlineQueueTypes.ts';
 import { DeferredInvalidation, ENTITY_TAGS } from './syncTags.ts';
@@ -38,7 +40,10 @@ function tagsOf(rows: readonly QueuedMutation[]): string[] {
 async function syncPass(store: AppStore, ignoreBackoff = false): Promise<void> {
   const synced: QueuedMutation[] = [];
   const adapters = await defaultEntityAdapters();
-  await runSyncPass(offlineQueue, adapters, { onSynced: (row) => synced.push(row), ignoreBackoff });
+  const result = await runSyncPass(offlineQueue, adapters, { onSynced: (row) => synced.push(row), ignoreBackoff });
+  // What a pass learns about the API is as good as a read's: it flags an outage, or the end of one.
+  if (result.stoppedOnNetworkError) setCurrentlyOnline(false);
+  else if (result.synced.length > 0) setCurrentlyOnline(true);
   // After the pass, when the queue says which writes are still open, never row by row in between.
   refreshTags(store, tagsOf(synced));
   // Without this the table only grows, and every status change re-reads all of it.
@@ -81,13 +86,20 @@ export function startSyncEngine(store: AppStore): () => void {
     });
   };
 
-  let wasOnline = true;
-  const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
-    const online = state.isConnected === true && state.isInternetReachable !== false;
-    // After the queue drains, not before: a refetch ahead of the sync would drop the offline patches for a moment.
-    if (online && !wasOnline) refreshAfterPass = true;
-    wasOnline = online;
-    if (online) trigger();
+  // Any way the API comes back counts — NetInfo reconnecting, a read or the probe getting an answer — since a
+  // server outage never changes NetInfo. After the queue drains, not before: a refetch ahead of the sync
+  // would drop the offline patches for a moment.
+  const unsubscribeOnline = onOnlineChange((online) => {
+    if (!online) return;
+    refreshAfterPass = true;
+    trigger();
+  });
+  const stopProbe = startReachabilityProbe({
+    ping: async () => (await import('../api/health.ts')).healthApi.ping(),
+    isOnline: isCurrentlyOnline,
+    setOnline: setCurrentlyOnline,
+    onOnlineChange,
+    canReachInternet: isDeviceOnline,
   });
 
   let lastAppState = AppState.currentState;
@@ -106,7 +118,8 @@ export function startSyncEngine(store: AppStore): () => void {
 
   return () => {
     unsubscribeQueue();
-    unsubscribeNetInfo();
+    unsubscribeOnline();
+    stopProbe();
     appStateSubscription.remove();
     clearInterval(interval);
   };
