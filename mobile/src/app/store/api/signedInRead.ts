@@ -10,21 +10,27 @@ export interface ReadCache<T> {
  * ledger, and seeding it routes the user to guest upload (CLAUDE.md rule 17).
  * With no saved copy the network error rethrows; screens treat it as non-fatal.
  *
- * No short-circuit while flagged offline: the flag is only cleared by the next
- * NetInfo change, so one failed request would otherwise block every read after it.
+ * A server fault (`isServerFault`) is answered from the saved copy too, but leaves
+ * the online flag alone: one failing endpoint must not switch every write to the queue.
+ * A refusal (4xx) always rethrows — a revoked member must not keep reading the wallet.
+ *
+ * No short-circuit while flagged offline: a read that succeeds is one of the ways the
+ * app learns the API is back, so one failed request must not block every read after it.
  */
 export async function readSignedIn<T>(
   fromApi: () => Promise<T>,
   setOnline: (online: boolean) => void,
   isNetworkError: (error: unknown) => boolean,
   cache?: ReadCache<T>,
+  isServerFault: (error: unknown) => boolean = () => false,
 ): Promise<T> {
   let result: T;
   try {
     result = await fromApi();
   } catch (error) {
-    if (!isNetworkError(error)) throw error;
-    setOnline(false);
+    const unreachable = isNetworkError(error);
+    if (!unreachable && !isServerFault(error)) throw error;
+    if (unreachable) setOnline(false);
     const saved = await cache?.load();
     if (saved !== undefined) return saved;
     throw error;

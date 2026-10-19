@@ -8,7 +8,9 @@ import type {
 } from '@sora/contracts';
 
 import { invitationsApi as invitationsHttp, type InvitationState } from '@/services/api';
+import { cacheKeyOf } from '@/services/sync';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
+import { readSignedInCached } from './guestFallback.ts';
 
 export type { InvitationState } from '@/services/api';
 
@@ -16,7 +18,8 @@ export type { InvitationState } from '@/services/api';
 export const invitationsApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     listInvitations: builder.query<WalletInvitationResponse[], { walletId: string; state?: InvitationState }>({
-      queryFn: ({ walletId, state }) => toQueryFnResult(() => invitationsHttp.list(walletId, state)),
+      queryFn: (arg, { endpoint }) =>
+        toQueryFnResult(() => readSignedInCached(cacheKeyOf(endpoint, arg), () => invitationsHttp.list(arg.walletId, arg.state))),
       providesTags: ['WalletInvitation'],
     }),
     createInvitation: builder.mutation<

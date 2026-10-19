@@ -1,6 +1,6 @@
 import { ensureSeeded } from '@/services/guest';
 import { localCache, setCurrentlyOnline } from '@/services/sync';
-import { isNetworkError } from '@/utils';
+import { isNetworkError, isServerFault } from '@/utils';
 import { readSignedIn } from './signedInRead.ts';
 
 /**
@@ -22,5 +22,5 @@ export async function readGuestOrApi<T>(
 
 /** A signed-in-only read: the API, or the account's own saved copy under `cacheKey` when offline. */
 export function readSignedInCached<T>(cacheKey: string, fromApi: () => Promise<T>): Promise<T> {
-  return readSignedIn(fromApi, setCurrentlyOnline, isNetworkError, localCache.entry<T>(cacheKey));
+  return readSignedIn(fromApi, setCurrentlyOnline, isNetworkError, localCache.entry<T>(cacheKey), isServerFault);
 }

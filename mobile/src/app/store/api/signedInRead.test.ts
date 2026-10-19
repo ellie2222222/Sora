@@ -57,6 +57,16 @@ describe('readSignedIn with a saved copy', () => {
     await assert.rejects(readSignedIn(async () => { throw serverError; }, () => undefined, isNetwork, cache), serverError);
   });
 
+  it('answers a server fault from the saved copy without marking the device offline', async () => {
+    const cache = memoryCache('saved');
+    const fault = new Error('500');
+    const isFault = (error: unknown) => error === fault;
+    const flags: boolean[] = [];
+    assert.equal(await readSignedIn(async () => { throw fault; }, (v) => flags.push(v), isNetwork, cache, isFault), 'saved');
+    assert.deepEqual(flags, []);
+    await assert.rejects(readSignedIn(async () => { throw fault; }, () => undefined, isNetwork, memoryCache<string>(), isFault), fault);
+  });
+
   it('answers without waiting for the save', async () => {
     let finishSave = () => undefined as void;
     const cache = { load: async () => undefined, save: () => new Promise<void>((resolve) => (finishSave = resolve)) };
