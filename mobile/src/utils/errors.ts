@@ -38,7 +38,8 @@ export class ApiError extends Error {
 export const NETWORK_ERROR_MESSAGE = 'No internet connection. Check your connection and try again.';
 export const UNKNOWN_ERROR_MESSAGE = 'Something went wrong. Please try again.';
 
-function isErrorBody(value: unknown): value is ApiErrorBody {
+/** The API's error envelope; anything without it was not sent by the API (`toApiError`). */
+export function isErrorBody(value: unknown): value is ApiErrorBody {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as { error?: unknown; message?: unknown };
   if (typeof candidate.error !== 'object' || candidate.error === null) return false;
@@ -68,7 +69,10 @@ function describesNoResponse(message: string): boolean {
   return NO_RESPONSE_PHRASES.some((phrase) => lower.includes(phrase));
 }
 
-/** True only when the request got no response — an HTTP status of any kind means the server was reached. */
+/**
+ * True only when the API gave no answer: no response at all, or one without the API's error envelope
+ * (`toApiError`). A status the API itself sent, of any kind, means it was reached.
+ */
 export function isNetworkError(error: unknown): boolean {
   if (!error) return false;
   // toApiError gives every transport failure status 0; anything else carries a real server status.
@@ -99,7 +103,9 @@ export function toApiError(status: number | undefined, body: unknown, transportM
   if (status === undefined) {
     return new ApiError('INTERNAL_ERROR', transportMessage ?? NETWORK_ERROR_MESSAGE, 0);
   }
-  return new ApiError('INTERNAL_ERROR', transportMessage ?? UNKNOWN_ERROR_MESSAGE, status);
+  // The API wraps every error it sends, so a bare status came from a tunnel, proxy or gateway standing
+  // in for an API that did not answer (a tunnel's 404 "endpoint offline", a 502): unreachable, status 0.
+  return new ApiError('INTERNAL_ERROR', transportMessage ?? UNKNOWN_ERROR_MESSAGE, 0);
 }
 
 /** The data `ApiError` carries, with no prototype chain — see `serializeApiError`. */
@@ -220,6 +226,15 @@ export function messageOf(
   if (isApiError(error)) return error.message || fallback;
   if (error instanceof Error && error.message) return error.message;
   return fallback;
+}
+
+/**
+ * The API answered but failed on its own side (its database down, a bug) rather than refusing the
+ * request. Feature codes that also map to 5xx (`AI_PROVIDER_*`, `VALUATION_UNAVAILABLE`) are left to
+ * their screens, which say what is unavailable.
+ */
+export function isServerFault(error: unknown): boolean {
+  return isApiError(error) && error.code === 'INTERNAL_ERROR' && error.status >= 500;
 }
 
 /** A 401 the interceptor could not repair — the session is genuinely over. */

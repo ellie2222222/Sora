@@ -10,6 +10,7 @@ import {
   getServerErrorMessage,
   isApiError,
   isNetworkError,
+  isServerFault,
   isUnauthenticated,
   issueMessagesByPath,
   messageOf,
@@ -82,13 +83,23 @@ describe('toApiError', () => {
     assert.equal(toApiError(undefined, envelope).status, 422);
   });
 
-  it('keeps the real status of a non-JSON response, so it is not mistaken for offline', () => {
-    const error = toApiError(502, '<html>Bad Gateway</html>', 'Request failed with status code 502');
+  it('treats a response without the API envelope as the API not answering: a gateway or tunnel stood in', () => {
+    const gateway = toApiError(502, '<html>Bad Gateway</html>', 'Request failed with status code 502');
+    assert.equal(gateway.code, 'INTERNAL_ERROR');
+    assert.equal(gateway.status, 0);
+    assert.equal(gateway.message, 'Request failed with status code 502');
+    assert.equal(isNetworkError(gateway), true);
 
-    assert.equal(error.code, 'INTERNAL_ERROR');
-    assert.equal(error.status, 502);
-    assert.equal(error.message, 'Request failed with status code 502');
-    assert.equal(isNetworkError(error), false);
+    // A tunnel whose PC side is down answers 404 with its own page; that is not the API's ROUTE_NOT_FOUND.
+    assert.equal(isNetworkError(toApiError(404, '<html>ERR_NGROK_3200 endpoint offline</html>')), true);
+    assert.equal(isNetworkError(toApiError(503, '')), true);
+  });
+
+  it('keeps every status the API itself sent, 5xx included, as reached', () => {
+    const withCode = (code: ApiErrorBody['error']['code']): ApiErrorBody => ({ ...envelope, error: { code } });
+    assert.equal(isNetworkError(toApiError(500, withCode('INTERNAL_ERROR'))), false);
+    assert.equal(isNetworkError(toApiError(503, withCode('AI_PROVIDER_UNAVAILABLE'))), false);
+    assert.equal(isNetworkError(toApiError(404, withCode('ROUTE_NOT_FOUND'))), false);
   });
 
   it('uses the generic messages when the transport supplied none', () => {
@@ -141,6 +152,16 @@ describe('serializeApiError', () => {
     assert.equal(isApiError({ code: 'FORBIDDEN', message: 'x', status: 403 }), false);
     assert.equal(isApiError({ code: 'FORBIDDEN', message: 'x', status: '403', fields: {} }), false);
     assert.equal(isApiError(new Error('plain')), false);
+  });
+});
+
+describe('isServerFault', () => {
+  it('is the API failing on its own side, not a refusal, an outage or a feature being unavailable', () => {
+    assert.equal(isServerFault(new ApiError('INTERNAL_ERROR', 'x', 500)), true);
+    assert.equal(isServerFault(serializeApiError(new ApiError('INTERNAL_ERROR', 'x', 500))), true);
+    assert.equal(isServerFault(toApiError(undefined, undefined)), false);
+    assert.equal(isServerFault(new ApiError('FORBIDDEN', 'x')), false);
+    assert.equal(isServerFault(new ApiError('AI_PROVIDER_UNAVAILABLE', 'x')), false);
   });
 });
 
