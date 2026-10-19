@@ -1,0 +1,125 @@
+appId: com.sora.app
+name: With the API down behind a gateway, every tab still renders, an expense queues and survives a restart, then syncs once
+tags:
+  - sync
+# The device keeps its network throughout: only outage-switch.mts stops answering for the API, as a
+# tunnel or gateway does when the server behind it is down. Runs even when a step fails.
+onFlowComplete:
+  - runScript:
+      file: ../scripts/outage.js
+      env:
+        STATE: up
+---
+- runFlow: ../subflows/login.yaml
+- evalScript: ${output.description = 'E2E outage expense ' + Date.now()}
+- extendedWaitUntil:
+    visible:
+      id: "list-transactions"
+    timeout: 15000
+# Each tab reads once while the API answers, so each has a saved copy to show during the outage.
+- tapOn:
+    id: "tab-planning"
+- extendedWaitUntil:
+    visible:
+      id: "screen-planning"
+    timeout: 15000
+- tapOn:
+    id: "tab-dashboard"
+- extendedWaitUntil:
+    visible:
+      id: "screen-dashboard"
+    timeout: 15000
+- tapOn:
+    id: "tab-home"
+- waitForAnimationToEnd
+
+- runScript:
+    file: ../scripts/outage.js
+    env:
+      STATE: down
+# A pull asks the API and gets the gateway's 502 page, which the app must read as "unreachable", not an error.
+- swipe:
+    start: 50%, 56%
+    end: 50%, 95%
+    duration: 800
+# The header's connection label, and the one passing toast.
+- extendedWaitUntil:
+    visible:
+      text: "Can't reach Sora.*"
+    timeout: 30000
+- assertNotVisible:
+    text: "Something went wrong.*"
+- assertVisible:
+    text: "E2E seeded expense"
+
+- tapOn:
+    id: "tab-planning"
+- extendedWaitUntil:
+    visible:
+      id: "screen-planning"
+    timeout: 10000
+- assertNotVisible:
+    text: "Something went wrong.*"
+- tapOn:
+    id: "tab-dashboard"
+- extendedWaitUntil:
+    visible:
+      id: "screen-dashboard"
+    timeout: 10000
+- assertNotVisible:
+    text: "Something went wrong.*"
+- tapOn:
+    id: "tab-settings"
+- extendedWaitUntil:
+    visible:
+      id: "screen-settings"
+    timeout: 10000
+- assertNotVisible:
+    text: "Something went wrong.*"
+- tapOn:
+    id: "tab-home"
+- waitForAnimationToEnd
+
+- runFlow:
+    file: ../subflows/add-expense.yaml
+    env:
+      DESCRIPTION: ${output.description}
+- extendedWaitUntil:
+    visible:
+      text: "Changes waiting to sync"
+    timeout: 10000
+- assertVisible:
+    text: ${output.description}
+
+# Killed and relaunched while the API is still down: the session and the queued expense both survive.
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "screen-home"
+    timeout: 30000
+- assertNotVisible:
+    id: "screen-login"
+- extendedWaitUntil:
+    visible:
+      text: ${output.description}
+    timeout: 15000
+- assertNotVisible:
+    text: "Something went wrong.*"
+
+# Back up with no NetInfo change: the reachability probe must notice, sync, and the write land once.
+- runScript:
+    file: ../scripts/outage.js
+    env:
+      STATE: up
+- extendedWaitUntil:
+    visible:
+      text: "Data synced"
+    timeout: 90000
+- runScript:
+    file: ../scripts/api-login.js
+- runScript:
+    file: ../scripts/count-transactions.js
+    env:
+      DESCRIPTION: ${output.description}
+- assertTrue: ${output.matches == 1}

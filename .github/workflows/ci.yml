@@ -269,6 +269,14 @@ jobs:
       - name: Seed probe user
         run: node mobile/e2e/seed.mts "$GITHUB_ENV"
 
+      # The app reaches the API through this, so the server-outage flow can take the API down while
+      # the device stays online, the way a tunnel or gateway answers when its server is gone.
+      - name: Start outage switch
+        run: |
+          nohup node mobile/e2e/outage-switch.mts 3418 > "$RUNNER_TEMP/outage-switch.log" 2>&1 &
+          for attempt in $(seq 1 30); do curl -fs http://127.0.0.1:3418/api/v1/health && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/outage-switch.log"; exit 1
+
       # SORA_E2E_BUILD lets this release build reach the local API over plain HTTP (app.config.js).
       - name: Build E2E APK
         working-directory: mobile
@@ -276,7 +284,8 @@ jobs:
           SORA_E2E_BUILD: '1'
           # The emulator's alias for the host's loopback. Unlike `adb reverse`, it goes through the
           # emulator's own network, so airplane mode really cuts the app off (offline-sync flow).
-          EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:3000
+          # Port 3418 is the outage switch in front of the API.
+          EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:3418
           EXPO_PUBLIC_ALLOW_INSECURE_API: 'true'
           NODE_ENV: production
         run: |
@@ -306,7 +315,7 @@ jobs:
           disable-animations: true
           script: |
             adb install mobile/android/app/build/outputs/apk/release/app-release.apk
-            maestro test mobile/e2e -e E2E_API_BASE="$E2E_API_BASE" -e E2E_EMAIL="$E2E_EMAIL" -e E2E_PASSWORD="$E2E_PASSWORD" -e E2E_WALLET_ID="$E2E_WALLET_ID" --format junit --output "$RUNNER_TEMP/maestro-report.xml"
+            maestro test mobile/e2e -e E2E_API_BASE="$E2E_API_BASE" -e E2E_EMAIL="$E2E_EMAIL" -e E2E_PASSWORD="$E2E_PASSWORD" -e E2E_WALLET_ID="$E2E_WALLET_ID" -e E2E_OUTAGE_SWITCH=http://127.0.0.1:3418 --format junit --output "$RUNNER_TEMP/maestro-report.xml"
 
       - name: Upload failure artifacts
         if: failure()
@@ -317,3 +326,4 @@ jobs:
             ~/.maestro/tests
             ${{ runner.temp }}/maestro-report.xml
             ${{ runner.temp }}/api.log
+            ${{ runner.temp }}/outage-switch.log

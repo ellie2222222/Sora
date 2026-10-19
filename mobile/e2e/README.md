@@ -12,6 +12,7 @@ Selectors are the NC-04 `testID`s (CLAUDE.md).
 | `subflows/guest-with-expense.yaml`, `guest-to-sign-in.yaml` | Fresh install as a guest with one expense; then from the guest to the sign-in screen |
 | `scripts/` | Maestro JS run on the host: records or reads data through the API |
 | `seed.mts` | Creates the probe user the flows sign in as |
+| `outage-switch.mts` | Sits between the app and the API; `scripts/outage.js` takes the API "down" behind it (`server-outage` flow) |
 
 ## Run locally
 
@@ -26,28 +27,34 @@ flows write data and never clean it up.
    E2E_API_URL=http://127.0.0.1:3417 node mobile/e2e/seed.mts e2e.env
    ```
 
-3. Build the E2E APK. `SORA_E2E_BUILD=1` lets this release build use plain HTTP to the local API
+3. Start the outage switch in front of the API, and keep it running:
+
+   ```bash
+   E2E_API_URL=http://127.0.0.1:3417 node mobile/e2e/outage-switch.mts 3418
+   ```
+
+4. Build the E2E APK, pointed at the switch. `SORA_E2E_BUILD=1` lets this release build use plain HTTP to the local API
    (`app.config.js`). The prebuild regenerates `mobile/android/`, so back up anything you changed there.
 
    ```bash
    cd mobile
    SORA_E2E_BUILD=1 npx expo prebuild --platform android --clean --no-install
    cd android
-   EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3417 EXPO_PUBLIC_ALLOW_INSECURE_API=true NODE_ENV=production ./gradlew assembleRelease
+   EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3418 EXPO_PUBLIC_ALLOW_INSECURE_API=true NODE_ENV=production ./gradlew assembleRelease
    ```
 
-4. Install it and run the flows. `10.0.2.2` is the emulator's route to the host's loopback. Use it,
+5. Install it and run the flows. `10.0.2.2` is the emulator's route to the host's loopback. Use it,
    not `adb reverse`: a reversed port bypasses airplane mode, so the offline-sync flow would never go
    offline.
 
    ```bash
    adb install -r mobile/android/app/build/outputs/apk/release/app-release.apk
-   maestro test mobile/e2e -e E2E_API_BASE=… -e E2E_EMAIL=… -e E2E_PASSWORD=… -e E2E_WALLET_ID=…
+   maestro test mobile/e2e -e E2E_API_BASE=… -e E2E_EMAIL=… -e E2E_PASSWORD=… -e E2E_WALLET_ID=… -e E2E_OUTAGE_SWITCH=http://127.0.0.1:3418
    ```
 
-   Pass the four `E2E_*` values from `e2e.env`.
+   Pass the four `E2E_*` values from `e2e.env`, plus the switch's host-side address.
 
-5. Regenerate a normal `android/` afterwards (`npx expo prebuild --platform android --clean`), so a
+6. Regenerate a normal `android/` afterwards (`npx expo prebuild --platform android --clean`), so a
    later local release build doesn't keep the E2E cleartext setting.
 
 CI does the same in the `e2e` job of `.github/workflows/ci.yml`.
