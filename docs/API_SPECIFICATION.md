@@ -142,7 +142,7 @@ Mutating endpoints accept an optional `Idempotency-Key` header. A replay with th
 - A replay that arrives **while the first attempt is still running** waits for it (up to 30 seconds) and receives the same response; the write happens once. Still running after that, the replay is refused with `409 IDEMPOTENCY_KEY_IN_USE` and can be retried.
 - The same key with a **different** body (or method or path) is refused with `422 VALIDATION_FAILED`, as is a key longer than 255 characters.
 - A first attempt that **failed** is not remembered, so its retry runs normally.
-- Keys are scoped per user and kept for 24 hours in `idempotency_keys`, so a replay is recognised after an API restart and by any API process. Expired rows are purged; nothing derived reads them. A public route (register, login) ignores the header: there is no user to scope a key to.
+- Keys are scoped per user and kept for 30 days in `idempotency_keys`, so a replay is recognised after an API restart and by any API process. Expired rows are purged; nothing derived reads them. A public route (register, login) ignores the header: there is no user to scope a key to.
 - A claim whose first attempt never completed (the process died mid-write) is taken over by a replay after 2 minutes and run again. This is the one case a write could happen twice: only if the first attempt committed its write and then died before recording its response.
 
 ### 2.11 Locale

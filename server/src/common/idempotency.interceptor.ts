@@ -31,7 +31,9 @@ import { AppError } from './app-error.ts';
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 const MAX_KEY_LENGTH = 255;
-export const RETENTION_MS = 24 * 60 * 60 * 1000;
+// A write the app sent but never heard back from is queued and replayed once the API is back, possibly
+// after a long outage and a fresh sign-in (refresh tokens last 7 days), and must still be recognised then.
+export const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 /**
  * A claim whose attempt has been running this long belongs to one that died (a crash, a deploy):
  * every statement is cut off at DATABASE_STATEMENT_TIMEOUT_MS, so a live write ends well before.
