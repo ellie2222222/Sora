@@ -8,7 +8,7 @@ import {
 
 import { accountsApi as accountsHttp, type AccountListQuery } from '@/services/api';
 import { guestAccountsApi } from '@/services/guest';
-import { buildOptimisticAccount, cacheKeyOf, enqueueOffline, fitsListFilters, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
+import { buildOptimisticAccount, cacheKeyOf, sendOrQueue, fitsListFilters, forEachCachedQueryArgs, isStillQueued, newLocalId } from '@/services/sync';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
@@ -53,14 +53,14 @@ export const accountsApiSlice = apiSlice.injectEndpoints({
       queryFn: (body, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         if (isGuest) return toQueryFnResult(() => guestAccountsApi.create(body));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            const localId = newLocalId();
-            await enqueueOffline({ entity: 'account', op: 'create', localId, serverId: null, payload: body });
-            return buildOptimisticAccount(body, localId);
-          });
-        }
-        return toQueryFnResult(() => accountsHttp.create(body));
+        return toQueryFnResult(async () => {
+          const localId = newLocalId();
+          return sendOrQueue(
+            { entity: 'account', op: 'create', localId, serverId: null, payload: body },
+            (idempotencyKey) => accountsHttp.create(body, idempotencyKey),
+            () => buildOptimisticAccount(body, localId),
+          );
+        });
       },
       onQueryStarted: async (_body, { dispatch, queryFulfilled, getState }) => {
         try {
@@ -86,13 +86,13 @@ export const accountsApiSlice = apiSlice.injectEndpoints({
     updateAccount: builder.mutation<AccountResponse, { accountId: string; body: UpdateAccountRequest }>({
       queryFn: ({ accountId, body }, { getState }) => {
         if (selectIsGuest(getState() as RootState)) return toQueryFnResult(() => guestAccountsApi.update(accountId, body));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            await enqueueOffline({ entity: 'account', op: 'update', localId: accountId, serverId: accountId, payload: body });
-            return { ...body } as unknown as AccountResponse; // Reconciled by onQueryStarted's cache patch below.
-          });
-        }
-        return toQueryFnResult(() => accountsHttp.update(accountId, body));
+        return toQueryFnResult(() =>
+          sendOrQueue(
+            { entity: 'account', op: 'update', localId: accountId, serverId: accountId, payload: body },
+            (idempotencyKey) => accountsHttp.update(accountId, body, idempotencyKey),
+            () => ({ ...body }) as unknown as AccountResponse, // Reconciled by onQueryStarted's cache patch below.
+          ),
+        );
       },
       onQueryStarted: async ({ accountId, body }, { dispatch, queryFulfilled, getState }) => {
         try {
@@ -118,12 +118,13 @@ export const accountsApiSlice = apiSlice.injectEndpoints({
       queryFn: (accountId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         if (isGuest) return toQueryFnResult(() => guestAccountsApi.archive(accountId));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            await enqueueOffline({ entity: 'account', op: 'archive', localId: accountId, serverId: accountId, payload: {} });
-          });
-        }
-        return toQueryFnResult(() => accountsHttp.archive(accountId));
+        return toQueryFnResult(() =>
+          sendOrQueue(
+            { entity: 'account', op: 'archive', localId: accountId, serverId: accountId, payload: {} },
+            (idempotencyKey) => accountsHttp.archive(accountId, idempotencyKey),
+            () => undefined,
+          ),
+        );
       },
       onQueryStarted: async (accountId, { dispatch, queryFulfilled, getState }) => {
         try {

@@ -15,10 +15,9 @@ import {
   buildOptimisticTransaction,
   cachedItems,
   cacheKeyOf,
-  enqueueOffline,
+  sendOrQueue,
   fitsTransactionList,
   forEachCachedQueryArgs,
-  isCurrentlyOnline,
   isStillQueued,
   ledgerChangeOf,
   newLocalId,
@@ -87,14 +86,14 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
       queryFn: (body, { getState }) => {
         const state = getState() as RootState;
         if (selectIsGuest(state)) return toQueryFnResult(() => guestTransactionsApi.create(body));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            const localId = newLocalId();
-            await enqueueOffline({ entity: 'transaction', op: 'create', localId, serverId: null, payload: body });
-            return buildOptimisticTransaction(body, localId, (state as unknown as Record<string, unknown>)[apiSlice.reducerPath]);
-          });
-        }
-        return toQueryFnResult(() => transactionsHttp.create(body));
+        return toQueryFnResult(async () => {
+          const localId = newLocalId();
+          return sendOrQueue(
+            { entity: 'transaction', op: 'create', localId, serverId: null, payload: body },
+            (idempotencyKey) => transactionsHttp.create(body, idempotencyKey),
+            () => buildOptimisticTransaction(body, localId, (state as unknown as Record<string, unknown>)[apiSlice.reducerPath]),
+          );
+        });
       },
       onQueryStarted: async (body, { dispatch, queryFulfilled, getState }) => {
         try {
@@ -131,22 +130,24 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
       queryFn: ({ transactionId, body }, { getState }) => {
         const state = getState() as RootState;
         if (selectIsGuest(state)) return toQueryFnResult(() => guestTransactionsApi.update(transactionId, body));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            await enqueueOffline({
+        return toQueryFnResult(() =>
+          sendOrQueue(
+            {
               entity: 'transaction',
               op: 'update',
               localId: transactionId,
               serverId: transactionId,
               payload: body,
-            });
-            const previous = movesMoney(body) ? findCachedTransaction(state, transactionId) : null;
-            const edited = previous && buildOptimisticEdit(previous, body, (state as unknown as Record<string, unknown>)[apiSlice.reducerPath]);
-            // Reconciled by onQueryStarted's cache patch below.
-            return edited ?? ({ ...body } as unknown as TransactionResponse);
-          });
-        }
-        return toQueryFnResult(() => transactionsHttp.update(transactionId, body));
+            },
+            (idempotencyKey) => transactionsHttp.update(transactionId, body, idempotencyKey),
+            () => {
+              const previous = movesMoney(body) ? findCachedTransaction(state, transactionId) : null;
+              const edited = previous && buildOptimisticEdit(previous, body, (state as unknown as Record<string, unknown>)[apiSlice.reducerPath]);
+              // Reconciled by onQueryStarted's cache patch below.
+              return edited ?? ({ ...body } as unknown as TransactionResponse);
+            },
+          ),
+        );
       },
       onQueryStarted: async ({ transactionId, body }, { dispatch, queryFulfilled, getState }) => {
         // Read before the patches below replace it: reversing a money edit needs the old figures.
@@ -182,19 +183,19 @@ export const transactionsApiSlice = apiSlice.injectEndpoints({
       queryFn: ({ transactionId, reason }, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         if (isGuest) return toQueryFnResult(() => guestTransactionsApi.delete(transactionId));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            await enqueueOffline({
+        return toQueryFnResult(() =>
+          sendOrQueue(
+            {
               entity: 'transaction',
               op: 'cancel',
               localId: transactionId,
               serverId: transactionId,
               payload: { reason },
-            });
-            return { id: transactionId, status: TransactionStatus.DELETED } as unknown as TransactionResponse;
-          });
-        }
-        return toQueryFnResult(() => transactionsHttp.delete(transactionId, reason));
+            },
+            (idempotencyKey) => transactionsHttp.delete(transactionId, reason, idempotencyKey),
+            () => ({ id: transactionId, status: TransactionStatus.DELETED }) as unknown as TransactionResponse,
+          ),
+        );
       },
       onQueryStarted: async ({ transactionId }, { dispatch, queryFulfilled, getState }) => {
         try {

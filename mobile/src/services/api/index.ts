@@ -9,5 +9,6 @@ export * from './goals.ts';
 export * from './health.ts';
 export * from './invitations.ts';
 export * from './members.ts';
+export * from './retryKeys.ts';
 export * from './transactions.ts';
 export * from './wallets.ts';

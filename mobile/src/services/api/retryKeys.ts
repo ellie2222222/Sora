@@ -7,7 +7,7 @@
  * success or refusal, settles the request: the next one, even identical, is a new write.
  */
 
-/** Kept a little under the server's 24-hour retention, so a reused key is never one it has purged. */
+/** After a day an identical request is a new write, not a retry; well inside the server's 30-day key retention. */
 export const UNANSWERED_KEY_TTL_MS = 23 * 60 * 60 * 1000;
 
 export function mintIdempotencyKey(): string {

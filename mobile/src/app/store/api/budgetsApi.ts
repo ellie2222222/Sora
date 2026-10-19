@@ -2,7 +2,7 @@ import type { BudgetResponse, CreateBudgetRequest, UpdateBudgetRequest } from '@
 
 import { budgetsApi as budgetsHttp, type BudgetListQuery } from '@/services/api';
 import { guestBudgetsApi } from '@/services/guest';
-import { buildOptimisticBudget, cacheKeyOf, enqueueOffline, fitsListFilters, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
+import { buildOptimisticBudget, cacheKeyOf, sendOrQueue, fitsListFilters, forEachCachedQueryArgs, isStillQueued, newLocalId } from '@/services/sync';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
@@ -47,14 +47,14 @@ export const budgetsApiSlice = apiSlice.injectEndpoints({
       queryFn: (body, { getState }) => {
         const state = getState() as RootState;
         if (selectIsGuest(state)) return toQueryFnResult(() => guestBudgetsApi.create(body));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            const localId = newLocalId();
-            await enqueueOffline({ entity: 'budget', op: 'create', localId, serverId: null, payload: body });
-            return buildOptimisticBudget(body, localId, (state as unknown as Record<string, unknown>)[apiSlice.reducerPath]);
-          });
-        }
-        return toQueryFnResult(() => budgetsHttp.create(body));
+        return toQueryFnResult(async () => {
+          const localId = newLocalId();
+          return sendOrQueue(
+            { entity: 'budget', op: 'create', localId, serverId: null, payload: body },
+            (idempotencyKey) => budgetsHttp.create(body, idempotencyKey),
+            () => buildOptimisticBudget(body, localId, (state as unknown as Record<string, unknown>)[apiSlice.reducerPath]),
+          );
+        });
       },
       onQueryStarted: async (_body, { dispatch, queryFulfilled, getState }) => {
         try {
@@ -80,13 +80,13 @@ export const budgetsApiSlice = apiSlice.injectEndpoints({
       queryFn: ({ budgetId, body }, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         if (isGuest) return toQueryFnResult(() => guestBudgetsApi.update(budgetId, body));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            await enqueueOffline({ entity: 'budget', op: 'update', localId: budgetId, serverId: budgetId, payload: body });
-            return { ...body } as unknown as BudgetResponse; // Reconciled by onQueryStarted's cache patch below.
-          });
-        }
-        return toQueryFnResult(() => budgetsHttp.update(budgetId, body));
+        return toQueryFnResult(() =>
+          sendOrQueue(
+            { entity: 'budget', op: 'update', localId: budgetId, serverId: budgetId, payload: body },
+            (idempotencyKey) => budgetsHttp.update(budgetId, body, idempotencyKey),
+            () => ({ ...body }) as unknown as BudgetResponse, // Reconciled by onQueryStarted's cache patch below.
+          ),
+        );
       },
       onQueryStarted: async ({ budgetId, body }, { dispatch, queryFulfilled, getState }) => {
         try {
@@ -113,12 +113,13 @@ export const budgetsApiSlice = apiSlice.injectEndpoints({
       queryFn: (budgetId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         if (isGuest) return toQueryFnResult(() => guestBudgetsApi.delete(budgetId));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            await enqueueOffline({ entity: 'budget', op: 'delete', localId: budgetId, serverId: budgetId, payload: {} });
-          });
-        }
-        return toQueryFnResult(() => budgetsHttp.delete(budgetId));
+        return toQueryFnResult(() =>
+          sendOrQueue(
+            { entity: 'budget', op: 'delete', localId: budgetId, serverId: budgetId, payload: {} },
+            (idempotencyKey) => budgetsHttp.delete(budgetId, idempotencyKey),
+            () => undefined,
+          ),
+        );
       },
       onQueryStarted: async (budgetId, { dispatch, queryFulfilled, getState }) => {
         try {

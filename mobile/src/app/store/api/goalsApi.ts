@@ -15,10 +15,9 @@ import {
   buildOptimisticGoal,
   buildOptimisticTransaction,
   cacheKeyOf,
-  enqueueOffline,
+  sendOrQueue,
   fitsListFilters,
   forEachCachedQueryArgs,
-  isCurrentlyOnline,
   isStillQueued,
   ledgerChangeOf,
   newLocalId,
@@ -92,14 +91,14 @@ export const goalsApiSlice = apiSlice.injectEndpoints({
       queryFn: (body, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         if (isGuest) return toQueryFnResult(() => guestGoalsApi.create(body));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            const localId = newLocalId();
-            await enqueueOffline({ entity: 'goal', op: 'create', localId, serverId: null, payload: body });
-            return buildOptimisticGoal(body, localId);
-          });
-        }
-        return toQueryFnResult(() => goalsHttp.create(body));
+        return toQueryFnResult(async () => {
+          const localId = newLocalId();
+          return sendOrQueue(
+            { entity: 'goal', op: 'create', localId, serverId: null, payload: body },
+            (idempotencyKey) => goalsHttp.create(body, idempotencyKey),
+            () => buildOptimisticGoal(body, localId),
+          );
+        });
       },
       onQueryStarted: async (_body, { dispatch, queryFulfilled, getState }) => {
         try {
@@ -124,13 +123,13 @@ export const goalsApiSlice = apiSlice.injectEndpoints({
     updateGoal: builder.mutation<GoalResponse, { goalId: string; body: UpdateGoalRequest }>({
       queryFn: ({ goalId, body }, { getState }) => {
         if (selectIsGuest(getState() as RootState)) return toQueryFnResult(() => guestGoalsApi.update(goalId, body));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            await enqueueOffline({ entity: 'goal', op: 'update', localId: goalId, serverId: goalId, payload: body });
-            return { ...body } as unknown as GoalResponse; // Reconciled by onQueryStarted's cache patch below.
-          });
-        }
-        return toQueryFnResult(() => goalsHttp.update(goalId, body));
+        return toQueryFnResult(() =>
+          sendOrQueue(
+            { entity: 'goal', op: 'update', localId: goalId, serverId: goalId, payload: body },
+            (idempotencyKey) => goalsHttp.update(goalId, body, idempotencyKey),
+            () => ({ ...body }) as unknown as GoalResponse, // Reconciled by onQueryStarted's cache patch below.
+          ),
+        );
       },
       onQueryStarted: async ({ goalId, body }, { dispatch, queryFulfilled, getState }) => {
         try {
@@ -156,12 +155,13 @@ export const goalsApiSlice = apiSlice.injectEndpoints({
     cancelGoal: builder.mutation<void, string>({
       queryFn: (goalId, { getState }) => {
         if (selectIsGuest(getState() as RootState)) return toQueryFnResult(() => guestGoalsApi.cancel(goalId));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            await enqueueOffline({ entity: 'goal', op: 'cancel', localId: goalId, serverId: goalId, payload: {} });
-          });
-        }
-        return toQueryFnResult(() => goalsHttp.cancel(goalId));
+        return toQueryFnResult(() =>
+          sendOrQueue(
+            { entity: 'goal', op: 'cancel', localId: goalId, serverId: goalId, payload: {} },
+            (idempotencyKey) => goalsHttp.cancel(goalId, idempotencyKey),
+            () => undefined,
+          ),
+        );
       },
       onQueryStarted: async (goalId, { dispatch, queryFulfilled, getState }) => {
         try {
@@ -193,14 +193,14 @@ export const goalsApiSlice = apiSlice.injectEndpoints({
       queryFn: ({ goalId, body }, { getState }) => {
         const state = getState() as RootState;
         if (selectIsGuest(state)) return toQueryFnResult(() => guestGoalsApi.addContribution(goalId, body));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            const localId = newLocalId();
-            await enqueueOffline({ entity: 'contribution', op: 'create', localId, serverId: null, payload: { ...body, goalId } });
-            return buildOptimisticContribution(goalId, body, localId, (state as unknown as Record<string, unknown>)[apiSlice.reducerPath]);
-          });
-        }
-        return toQueryFnResult(() => goalsHttp.addContribution(goalId, body));
+        return toQueryFnResult(async () => {
+          const localId = newLocalId();
+          return sendOrQueue(
+            { entity: 'contribution', op: 'create', localId, serverId: null, payload: { ...body, goalId } },
+            (idempotencyKey) => goalsHttp.addContribution(goalId, body, idempotencyKey),
+            () => buildOptimisticContribution(goalId, body, localId, (state as unknown as Record<string, unknown>)[apiSlice.reducerPath]),
+          );
+        });
       },
       onQueryStarted: async ({ goalId, body }, { dispatch, queryFulfilled, getState }) => {
         try {

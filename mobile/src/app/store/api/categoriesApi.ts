@@ -2,7 +2,7 @@ import { CategoryStatus, type CategoryResponse, type CreateCategoryRequest, type
 
 import { categoriesApi as categoriesHttp, type CategoryListQuery } from '@/services/api';
 import { guestCategoriesApi } from '@/services/guest';
-import { buildOptimisticCategory, cacheKeyOf, enqueueOffline, fitsListFilters, forEachCachedQueryArgs, isCurrentlyOnline, isStillQueued, newLocalId } from '@/services/sync';
+import { buildOptimisticCategory, cacheKeyOf, sendOrQueue, fitsListFilters, forEachCachedQueryArgs, isStillQueued, newLocalId } from '@/services/sync';
 import type { RootState } from '../index.ts';
 import { selectIsGuest } from '../authSlice.ts';
 import { apiSlice, toQueryFnResult } from './apiSlice.ts';
@@ -32,14 +32,14 @@ export const categoriesApiSlice = apiSlice.injectEndpoints({
       queryFn: (body, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         if (isGuest) return toQueryFnResult(() => guestCategoriesApi.create(body));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            const localId = newLocalId();
-            await enqueueOffline({ entity: 'category', op: 'create', localId, serverId: null, payload: body });
-            return buildOptimisticCategory(body, localId);
-          });
-        }
-        return toQueryFnResult(() => categoriesHttp.create(body));
+        return toQueryFnResult(async () => {
+          const localId = newLocalId();
+          return sendOrQueue(
+            { entity: 'category', op: 'create', localId, serverId: null, payload: body },
+            (idempotencyKey) => categoriesHttp.create(body, idempotencyKey),
+            () => buildOptimisticCategory(body, localId),
+          );
+        });
       },
       onQueryStarted: async (_body, { dispatch, queryFulfilled, getState }) => {
         try {
@@ -66,13 +66,13 @@ export const categoriesApiSlice = apiSlice.injectEndpoints({
       queryFn: ({ categoryId, body }, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         if (isGuest) return toQueryFnResult(() => guestCategoriesApi.update(categoryId, body));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            await enqueueOffline({ entity: 'category', op: 'update', localId: categoryId, serverId: categoryId, payload: body });
-            return { ...body } as unknown as CategoryResponse; // Reconciled by onQueryStarted's cache patch below.
-          });
-        }
-        return toQueryFnResult(() => categoriesHttp.update(categoryId, body));
+        return toQueryFnResult(() =>
+          sendOrQueue(
+            { entity: 'category', op: 'update', localId: categoryId, serverId: categoryId, payload: body },
+            (idempotencyKey) => categoriesHttp.update(categoryId, body, idempotencyKey),
+            () => ({ ...body }) as unknown as CategoryResponse, // Reconciled by onQueryStarted's cache patch below.
+          ),
+        );
       },
       onQueryStarted: async ({ categoryId, body }, { dispatch, queryFulfilled, getState }) => {
         try {
@@ -98,12 +98,13 @@ export const categoriesApiSlice = apiSlice.injectEndpoints({
       queryFn: (categoryId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         if (isGuest) return toQueryFnResult(() => guestCategoriesApi.archive(categoryId));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            await enqueueOffline({ entity: 'category', op: 'archive', localId: categoryId, serverId: categoryId, payload: {} });
-          });
-        }
-        return toQueryFnResult(() => categoriesHttp.archive(categoryId));
+        return toQueryFnResult(() =>
+          sendOrQueue(
+            { entity: 'category', op: 'archive', localId: categoryId, serverId: categoryId, payload: {} },
+            (idempotencyKey) => categoriesHttp.archive(categoryId, idempotencyKey),
+            () => undefined,
+          ),
+        );
       },
       onQueryStarted: async (categoryId, { dispatch, queryFulfilled, getState }) => {
         try {
@@ -129,12 +130,13 @@ export const categoriesApiSlice = apiSlice.injectEndpoints({
       queryFn: (categoryId, { getState }) => {
         const isGuest = selectIsGuest(getState() as RootState);
         if (isGuest) return toQueryFnResult(() => guestCategoriesApi.deletePermanently(categoryId));
-        if (!isCurrentlyOnline()) {
-          return toQueryFnResult(async () => {
-            await enqueueOffline({ entity: 'category', op: 'delete', localId: categoryId, serverId: categoryId, payload: {} });
-          });
-        }
-        return toQueryFnResult(() => categoriesHttp.deletePermanently(categoryId));
+        return toQueryFnResult(() =>
+          sendOrQueue(
+            { entity: 'category', op: 'delete', localId: categoryId, serverId: categoryId, payload: {} },
+            (idempotencyKey) => categoriesHttp.deletePermanently(categoryId, idempotencyKey),
+            () => undefined,
+          ),
+        );
       },
       onQueryStarted: async (categoryId, { dispatch, queryFulfilled, getState }) => {
         try {

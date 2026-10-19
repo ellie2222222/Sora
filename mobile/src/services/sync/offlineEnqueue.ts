@@ -1,14 +1,20 @@
 /**
- * The one place an RTK Query `queryFn`'s offline branch reaches to enqueue a
+ * The one place an RTK Query `queryFn` reaches to send or enqueue a signed-in
  * mutation, so every entity slice does the same thing: mint a local id (only
- * for `create`) and a stable idempotency key, then hand the row to the
- * queue. The idempotency key is minted once here and never again — every
+ * for `create`) and a stable idempotency key, then send it or hand the row to
+ * the queue. The idempotency key is minted once here and never again — every
  * retry the sync engine performs reuses the value stored on the row.
  */
 
+import { RetryKeys } from '@/services/api';
 import { newLocalId } from '@/services/guest';
+import { isNetworkError } from '../../utils/errors.ts';
+import { isCurrentlyOnline, setCurrentlyOnline } from './networkState.ts';
 import { offlineQueue } from './offlineQueueInstance.ts';
-import type { QueueEntity, QueueOp, QueuedMutation } from './offlineQueueTypes.ts';
+import type { QueueEntity, QueueOp } from './offlineQueueTypes.ts';
+import { sendOrQueueWith } from './sendOrQueue.ts';
+
+const writeKeys = new RetryKeys(newLocalId);
 
 export interface EnqueueOfflineParams {
   entity: QueueEntity;
@@ -19,8 +25,24 @@ export interface EnqueueOfflineParams {
   payload: unknown;
 }
 
-export async function enqueueOffline(params: EnqueueOfflineParams): Promise<QueuedMutation> {
-  return offlineQueue.enqueue({ ...params, idempotencyKey: newLocalId() });
+/** Sends `send` now, or queues `row` when offline or unanswered; `whenQueued` is the optimistic result. */
+export function sendOrQueue<T>(
+  row: EnqueueOfflineParams,
+  send: (idempotencyKey: string) => Promise<T>,
+  whenQueued: () => T | Promise<T>,
+): Promise<T> {
+  return sendOrQueueWith(
+    {
+      isOnline: isCurrentlyOnline,
+      setOnline: setCurrentlyOnline,
+      isNetworkError,
+      keys: writeKeys,
+      enqueue: (queued) => offlineQueue.enqueue(queued),
+    },
+    row,
+    send,
+    whenQueued,
+  );
 }
 
 /**
