@@ -1,21 +1,21 @@
 import type { TextStyle } from 'react-native';
 
 export const fontSize = {
-  xs: 11,
-  sm: 13,
-  md: 15,
-  lg: 17,
-  xl: 20,
-  xxl: 26,
-  display: 34,
-  hero: 42,
+  xs: 12,
+  sm: 14,
+  md: 16,
+  lg: 18,
+  xl: 22,
+  xxl: 28,
+  display: 36,
+  hero: 44,
 } as const;
 
 /** Line heights for multi-line copy that needs more room than the platform default. */
 export const lineHeight = {
-  sm: 18,
-  md: 20,
-  lg: 22,
+  sm: 20,
+  md: 22,
+  lg: 24,
 } as const;
 
 export const letterSpacing = {

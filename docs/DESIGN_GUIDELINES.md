@@ -31,7 +31,8 @@ establishes hierarchy, or gives feedback. Anything that exists only because it "
 
 Don't default to: card grids for every figure, glassmorphism, decorative gradients, glows or
 blobs, heavy shadows, oversized KPI numbers, stacks of badges, an icon on every line, decorative
-charts, "AI insight" panels, motivational copy, or invented scores.
+charts, "AI insight" panels, motivational copy, or invented scores. The one deliberate exception is
+the accounts deck (see Cards → Account carousel), whose 3D cards, gradients, textures, backlight and shadow were asked for.
 
 ```text
 ✗ ┌─────────┐ ┌─────────┐ ┌─────────┐        ✓ Income                    ₫30,000,000
@@ -113,7 +114,7 @@ money go?", "Am I within budget?"). No question, no chart. Use the simplest form
 |---|---|
 | Trend over time, balance history | Line |
 | Category comparison, budget vs actual | Bar |
-| Composition | Donut (≤ ~6 slices, rest grouped as "Other") |
+| Composition | Donut: the three largest slices, the rest grouped as "Others", each labelled beside the ring |
 | Budget progress | Progress bar |
 | Income vs expense | Line or grouped bar |
 | Daily spending intensity | Calendar heatmap |
@@ -162,6 +163,10 @@ return (
 Wrapping an early return in a bare `<View>` does **not** satisfy this — the state must live inside
 the real screen structure, not just inside another container. The user must always be able to
 answer "where am I?" and "what can I still do?"; a state that removes the header or nav traps them.
+
+One exception, asked for: switching wallets covers the app with "Opening <wallet>…"
+(`WalletSwitchOverlay`) until the new wallet's reads settle (at least 450 ms, at most 6 s), so the old
+wallet's figures never show under the new one's name. It is bounded, so it never traps the user.
 
 ### Scope to the smallest boundary that's true
 
@@ -294,7 +299,7 @@ Inline styles, NativeWind classes and visual props such as an icon's `size` foll
   arbitrary 13px or 22px reads as unintentional.
 - Proximity encodes grouping: related elements get a tight gap, unrelated groups a larger one —
   before any divider does.
-- `paddingHorizontal > paddingVertical`, and `paddingVertical <= fontSize` (15px font → 10–12px
+- `paddingHorizontal > paddingVertical`, and `paddingVertical <= fontSize` (16px font → 10–12px
   vertical, 20–24px horizontal).
 - Finance screens are **dense enough to scan**: strong alignment, consistent columns, compact
   metadata, small secondary labels. Whitespace is for separating groups, not for looking premium.
@@ -333,8 +338,8 @@ Inline styles, NativeWind classes and visual props such as an icon's `size` foll
 ### Shadows
 
 - Shadow = elevation signal, not decoration. Flat in-flow cards need none — a hairline border does
-  the job. The one in-flow exception is a transaction list's day card (`shadows.sm`), which lifts
-  each day apart from the next.
+  the job. The in-flow exceptions are a transaction list's day card (`shadows.sm`), which lifts
+  each day apart from the next, and the account carousel's cards (`shadows.lg`, see Cards).
 - Bigger blur/spread = further off the page; reserve for modals, sheets, dropdowns, popovers.
 - Two-layer shadows (tight contact + soft diffuse) read more natural than one large blur.
 - At most two floating elevation levels on screen at once — a third means you need a modal instead.
@@ -358,15 +363,22 @@ Inline styles, NativeWind classes and visual props such as an icon's `size` foll
   encode a *different* meaning, never visual variety.
 - **Account identity tints** (`theme.accountTints`, `ACCOUNT_TINTS` in `colors.ts`) are that different
   meaning: *which* account. An account's tint comes from its id (`accountTint()`), so it is the
-  same on every screen, every render and in both modes. Its card is the tint's `surface`, and its badge
-  is the `accent` with the type icon drawn in `surface`. Tints are deep in dark mode and pale in light.
+  same on every screen, every render and in both modes. Its badge is the `accent` with the type icon drawn
+  in `surface`. The accounts deck's cards use their own wider skin set instead (see Cards → Account carousel). Tints are deep in dark mode and pale in light.
   They contain no red or vivid green, so they never read as expense or income. Amounts on a tinted
   card keep their normal tones. `colors.test.ts` holds `text`, `textMuted` and `textFaint` to 4.5:1 on
   every tint, and the badge to 3:1.
 - No raw literals (`#FF0000`) in components — tokens only (MB-06).
 - A selected tab or segment shows its state by more than hue: `SegmentedControl`'s selected segment is
   `primaryMuted` with a `primary` border (3:1 on the track) and a bold `primary` label; the bottom tab bar's
-  active icon sits on a `primaryMuted` pill above the sliding indicator. Inactive icons match their labels.
+  active tab is `primary` in icon and label, its label bold, over the sliding indicator; no background behind the
+  icon. Inactive icons match their labels.
+- A theme switch eases every colour from old to new over 200 ms (`theme.motion.colorTransition`, Reanimated CSS
+  transitions on the UI thread). So an element that draws a theme colour is a themed primitive from
+  `components/Themed.tsx` (`ThemedView`, `ThemedPressable`, `ThemedScrollView`, `ThemedTextInput`; `ThemedIcon` for
+  an icon), or a Reanimated view with `theme.motion.colorTransition` in its style; `Text` already is one. A plain
+  `View` with a theme colour jumps. Reduce Motion and web skip the easing (web uses the CSS transition in
+  `ThemeProvider.tsx`). The status bar follows the app's theme mode, not the phone's.
 - Text on a colored background uses a darker/lighter stop of the *same* family, never plain
   black/gray. Title + subtitle on a colored chip use two different stops, not the same one twice.
 - Text contrast ≥ 4.5:1 for body, ≥ 3:1 for large text and icons conveying state — in both themes.
@@ -378,9 +390,9 @@ and a quiet tone each lower legibility, and together they compound. So a tone ha
 
 | Tone | Smallest size |
 |---|---|
-| `text`, or a semantic colour (`income`, `danger`, `primary`, …) | `fontSize.xs` (11) |
-| `textMuted` | `fontSize.sm` (13) |
-| `textFaint` | `fontSize.md` (15) |
+| `text`, or a semantic colour (`income`, `danger`, `primary`, …) | `fontSize.xs` (12) |
+| `textMuted` | `fontSize.sm` (14) |
+| `textFaint` | `fontSize.md` (16) |
 
 - Sizes are the effective `fontSize` token, whether it comes from the `Text` variant
   (`caption` = `sm`, `label` = `sm`, `body` = `md`) or a `style` override. A `color: textMuted` in
@@ -402,7 +414,8 @@ interactive components — not for a single transaction, categories, simple labe
 navigation, or items that naturally share a section. Don't turn a list into floating cards; a
 transaction list's day card holds a whole day, not one row.
 
-The accounts tab's net worth panel (`NetWorthSummary`) is the reference summary card:
+The accounts tab's net worth section (`NetWorthSummary`) sits directly on the screen, not in a card,
+and is the reference summary:
 - one headline figure, with its currency mark set smaller and muted beside the digits;
 - every other currency as its own small figure, labelled as held separately rather than as a conversion (BR-07);
 - two equal assets and liabilities cards, each on its `incomeMuted`/`expenseMuted` tint with an inset accent bar and a word label.
@@ -412,11 +425,46 @@ length (ragged padding is the most common "amateur" tell). A featured card gets 
 + a small badge on the *same* background as its siblings — changing the background too is
 double-signaling.
 
+### Account carousel
+
+The Accounts tab shows a wallet's accounts as a 3D deck (`AccountCarousel`, `AccountCard`), a deliberate
+exception to "no decorative gradients, glows or heavy shadows", asked for so each account reads as its
+own physical card:
+
+- **One card in front, its neighbours beside and behind it.** The previous and next card sit
+  `DECK.sideShift` out from behind the front one, smaller (`DECK.sideScale`), turned towards it
+  (`DECK.tiltDeg`) and drawn under it; cards further away show only mid-drag, fading out before they would
+  wrap round (`deckPose`, `carouselLayout.ts`). Two passing cards swing apart and swap draw order once, as
+  they cross. Dragging sideways moves the deck with the finger, and a fling snaps at most one card on
+  (`deckSnapIndex`). A deck of three or more loops: after the last card comes the first (`deckLoops`). A tap
+  on a side card brings it forward, on the front card opens it. The front card is an account, not a slot: an
+  account added or archived elsewhere keeps the same one in front.
+- **Colour says which account.** Each card wears one of ten skins (`ACCOUNT_CARD_SKINS`, `colors.ts`):
+  a vivid diagonal gradient, the same in both modes like a physical card. No two cards in a wallet share
+  a skin until it has more than ten accounts (`assignCardSkins`): accounts claim in the order they were
+  created, so a new account never recolours an older card. The skin is the deck's own and does not follow
+  the 5-colour identity tint the badge uses elsewhere. Text is `ACCOUNT_CARD_TEXT`, held to 4.5:1 on both
+  gradient stops by `colors.test.ts`. A lit diagonal facet (`ACCOUNT_CARD_TEXTURE.facet`) sits over every skin.
+- **Texture and shape say what kind.** Bank account and credit card carry a chip (credit adds the
+  contactless mark) on `radius.xl`; cash a banknote's wavy guilloche on tight `radius.md` corners; an
+  e-wallet soft rings from its corner on round `radius.xxl`. The caption under the balance names the bank or
+  provider (or the type), the card's last four digits as `•••• 4821`, and the currency; the network's mark sits
+  top-right as on a real card, in place of the type icon. Nothing is invented: no full card number, no expiry date.
+- **Backlight and shadow.** The front card is lit from behind in its own skin colour: a soft oval radial
+  gradient, wider than tall and faint, sized from the card by `BACKLIGHT` (`shadows.ts`); not a blurred shadow,
+  which Android re-blurs every frame of a drag. It fades as the card leaves the front; every card has `shadows.lg`. A press does not dim a card.
+- Motion follows the finger and the snap only, never runs on its own; Reduce Motion keeps every card flat
+  and snaps without a spring. Under the deck, the names slide with it: the front one centred, bright and
+  underlined in its colour, its neighbours dimmed either side; a tap brings that card forward. A screen
+  reader treats the deck as one adjustable element ("Account 2 of 4": increment/decrement step through, activate
+  opens the front account). While accounts load, a card-shaped skeleton holds the deck's height. Archiving
+  lives in the account's sheet; the deck has no swipe actions.
+
 ### Lists
 
 Dense/data-heavy lists: full-width rows, no rounded-card wrapper. The one exception is a wallet's
-accounts: each is a card in its own identity tint (see Color), because there are few of them and
-telling them apart at a glance is the point. Transactions group each day's rows into one day card (see "Transaction lists are a ledger"). Sparse/browsable lists (menus, settings): more padding, no border —
+accounts: a carousel of cards, each in its own skin (see Cards → Account carousel),
+because there are few of them and telling them apart at a glance is the point. Transactions group each day's rows into one day card (see "Transaction lists are a ledger"). Sparse/browsable lists (menus, settings): more padding, no border —
 whitespace is the separator. Long lists use `FlatList`/`SectionList`, never `.map()` in a
 `ScrollView`.
 
@@ -429,8 +477,8 @@ The list pads its end with `fabListPaddingBottom` so the last row scrolls clear 
 
 A row the caller may change wraps itself in `SwipeableRow` (`mobile/src/components/swipe/`): swipe
 left reveals its actions inside the row, primary-filled for Edit and danger-filled for the
-destructive one. Offer only what the entity actually supports, under its real name: budgets,
-accounts and wallets **Archive**, goals **Cancel**, members **Remove**, invitations **Revoke**. Pass no actions when the
+destructive one. Offer only what the entity actually supports, under its real name: budgets
+**Delete** (BR-04), accounts and wallets **Archive**, goals **Cancel**, members **Remove**, invitations **Revoke**. Pass no actions when the
 role or state forbids a write, and the row renders without a gesture. Edit opens the entity's
 existing edit flow. A destructive action always goes through a `ConfirmDialog`, and a failure is
 shown as a toast. Swipe is a shortcut and never the only way in. The same action stays reachable by
@@ -446,7 +494,10 @@ icon-only control has an `accessibilityLabel`.
 
 The one exception is a third-party brand mark its owner requires as-is: `GoogleLogo` on the Google
 sign-in button keeps Google's own colours (`GOOGLE_LOGO_COLORS` in `design-system/brand.ts`) in
-every theme. Lucide ships no brand marks.
+every theme. Lucide ships no brand marks. The account cards' network marks are the same kind of exception
+(`NetworkLogo`): Visa, Mastercard, JCB, American Express and UnionPay are the full-colour marks from
+Iconify's `logos` set (CC0, `networkLogoData.ts`); on a coloured card Visa is drawn white from Simple Icons'
+path (CC0), as printed cards carry it. NAPAS is in neither library, so it shows its name as a wordmark.
 
 ### Touch targets and accessibility
 

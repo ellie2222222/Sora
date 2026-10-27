@@ -35,7 +35,7 @@ export function ListLoadMoreFooter({ isFetchingNextPage, hasNextPage, isError, o
         <Pressable
           accessibilityRole="button"
           onPress={onRetry}
-          hitSlop={theme.sizes.hitSlop.md}
+          style={{ minHeight: theme.sizes.touchTarget, justifyContent: 'center' }}
           testID={testID === undefined ? undefined : `${testID}-retry`}
         >
           <Text variant="label" weight="semibold">

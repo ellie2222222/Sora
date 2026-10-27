@@ -6,6 +6,7 @@ import type { GoalResponse } from '@sora/contracts';
 import { Card, Money, ProgressBar, Skeleton, SyncStatusDot, Text } from '@/components';
 import { useTheme } from '@/app/providers';
 import { selectQueueEntryFor } from '@/app/store';
+import { formatDay } from '@/utils';
 
 export function GoalCard({ goal, overdue = false, onPress }: { goal: GoalResponse; overdue?: boolean; onPress: () => void }) {
   const theme = useTheme();
@@ -39,11 +40,11 @@ export function GoalCard({ goal, overdue = false, onPress }: { goal: GoalRespons
 
         <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
           <Text variant="caption" tone="muted">
-            {goal.progressPercentage.toFixed(0)}%
+            {t('common.percent', { percent: goal.progressPercentage.toFixed(0) })}
           </Text>
           {goal.targetDate !== null ? (
             <Text variant="caption" tone={overdue ? 'danger' : 'muted'}>
-              {t('goals.deadline')}: {goal.targetDate}
+              {t('goals.deadlineOn', { date: formatDay(goal.targetDate) })}
             </Text>
           ) : null}
         </View>

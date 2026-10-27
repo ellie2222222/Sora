@@ -65,7 +65,7 @@ function Dot({ index }: { index: number }) {
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return (
     <Animated.View
-      style={[{ width: theme.sizes.dot.sm, height: theme.sizes.dot.sm, borderRadius: theme.radius.pill, backgroundColor: theme.colors.primary }, style]}
+      style={[{ width: theme.sizes.dot.sm, height: theme.sizes.dot.sm, borderRadius: theme.radius.pill, backgroundColor: theme.colors.primary }, style, theme.motion.colorTransition]}
     />
   );
 }

@@ -1,7 +1,7 @@
 import { CloudOff, Plus, Wallet as WalletIcon } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
-import { SkeletonList, StateView } from '@/components';
+import { StateView } from '@/components';
 import { useAuth, useModal, useWallets } from '@/app/providers';
 
 /**

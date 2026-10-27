@@ -86,15 +86,20 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
               <ProgressBar percentage={data.progressPercentage} tone="income" height={theme.sizes.progressBar.lg} />
 
               <View className="flex-row justify-between" style={{ marginTop: theme.spacing.sm }}>
-                <Money amount={data.remaining} currency={data.currency} variant="caption" />
+                <View className="flex-row" style={{ gap: theme.spacing.xs }}>
+                  <Text variant="caption" tone="muted">
+                    {t('goals.remaining')}
+                  </Text>
+                  <Money amount={data.remaining} currency={data.currency} variant="caption" testID="goal-detail-remaining" />
+                </View>
                 {data.targetDate !== null ? (
                   <Text variant="caption" tone="muted">
-                    {t('goals.target', 'Target')}: {formatDay(data.targetDate)}
+                    {t('goals.targetOn', { date: formatDay(data.targetDate) })}
                   </Text>
                 ) : null}
               </View>
 
-              {permissions.canWrite ? (
+              {canEdit ? (
                 <Button
                   testID="btn-add-contribution"
                   label={t('goals.addContribution', 'Add contribution')}
@@ -113,7 +118,9 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
           </>
         }
         ListEmptyComponent={
-          shownContributions.loading ? null : contributions.isError ? (
+          shownContributions.loading ? (
+            <ContributionRowsSkeleton />
+          ) : contributions.isError ? (
             <StateView variant="error" error={contributions.error} retryAction={() => void contributions.refetch()} />
           ) : (
             <Text tone="faint">{t('goals.noContributionsYet', 'No contributions yet.')}</Text>
@@ -138,7 +145,7 @@ export function GoalDetailModal({ goalId, onClose }: GoalDetailModalProps) {
   };
 
   return (
-    <BottomSheetModal visible={goalId !== null} onClose={onClose} title={t('goals.detailTitle', 'Goal')}>
+    <BottomSheetModal visible={goalId !== null} onClose={onClose} title={t('goals.detailTitle', 'Goal')} entity="goal-detail">
       <View style={{ flex: 1, minHeight: theme.sizes.sheetBodyMinHeight }}>
         {renderContent()}
       </View>
@@ -222,6 +229,17 @@ function GoalDetailSkeleton() {
         </View>
       </Card>
 
+      <ContributionRowsSkeleton />
+    </View>
+  );
+}
+
+/** Shaped like `ContributionItem`, for the history alone while it loads. */
+function ContributionRowsSkeleton() {
+  const theme = useTheme();
+
+  return (
+    <>
       {Array.from({ length: 4 }).map((_, i) => (
         <View
           key={i}
@@ -235,6 +253,6 @@ function GoalDetailSkeleton() {
           <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.body} />
         </View>
       ))}
-    </View>
+    </>
   );
 }

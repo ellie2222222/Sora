@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
-import { useTranslation } from 'react-i18next';
 import { largestCurrencyTotal } from '@sora/contracts';
 
 import { Skeleton, StateView } from '@/components';
@@ -56,7 +55,6 @@ export function PeriodReport({
   onPreviousPeriod: () => void;
 }) {
   const theme = useTheme();
-  const { t } = useTranslation();
 
   const scope = accountId ?? undefined;
   const current = useGetDashboardSummaryQuery({ walletId, accountId: scope, ...windowFor(period, anchor) });
@@ -86,10 +84,12 @@ export function PeriodReport({
 
   const data = current.currentData;
   if (data === undefined) {
+    // No answer and no error means the request has not gone out yet, which is still loading.
+    if (!current.isError) return <PeriodReportSkeleton section={section} />;
     return (
       <StateView
         variant="error"
-        error={current.error ?? new Error(t('dashboard.noData', 'Nothing to show yet.'))}
+        error={current.error}
         retryAction={() => void current.refetch()}
         testID="dashboard-period-error"
         entrance="none"

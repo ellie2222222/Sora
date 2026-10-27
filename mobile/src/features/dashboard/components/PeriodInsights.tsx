@@ -35,9 +35,8 @@ export function PeriodInsights({
       const change = changeAgainst(topCategory.amount, previousSlice.amount);
       if (change !== null && Math.abs(change) >= 5) {
         lines.push(
-          t('dashboard.spendingChangedPeriod', {
+          t(change >= 0 ? 'dashboard.spendingUpPeriod' : 'dashboard.spendingDownPeriod', {
             category: topCategory.categoryName,
-            direction: change >= 0 ? t('dashboard.increased') : t('dashboard.decreased'),
             change: Math.abs(change),
           }),
         );

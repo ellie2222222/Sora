@@ -100,7 +100,7 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
 
           <View className="flex-row" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.sm }}>
             <Text variant="caption" tone="muted">
-              {t('budgets.planned', 'Planned:')}
+              {t('budgets.planned', 'Planned')}
             </Text>
             <Money amount={data.amount} currency={data.currency} variant="caption" />
           </View>
@@ -127,7 +127,7 @@ export function BudgetDetailModal({ budgetId, onClose }: BudgetDetailModalProps)
       visible={budgetId !== null}
       onClose={onClose}
       title={t('budgets.detailTitle', 'Budget')}
-      testID="budget-detail-modal"
+      entity="budget-detail"
     >
       {/* Scrolls so Save stays reachable above the docked amount keypad. */}
       <ScrollView
