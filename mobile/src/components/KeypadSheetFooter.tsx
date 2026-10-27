@@ -3,6 +3,7 @@ import { View } from 'react-native';
 
 import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
+import { ThemedView } from './Themed.tsx';
 
 export interface KeypadSheetFooterProps {
   /** Left of the amount: an `IconChip` or a compact picker. */
@@ -22,7 +23,7 @@ export function KeypadSheetFooter({ leading, amount, amountTestID, errors = [], 
   const theme = useTheme();
 
   return (
-    <View
+    <ThemedView
       style={{
         flexShrink: 0,
         gap: theme.spacing.sm,
@@ -44,6 +45,6 @@ export function KeypadSheetFooter({ leading, amount, amountTestID, errors = [], 
         ) : null,
       )}
       {children}
-    </View>
+    </ThemedView>
   );
 }

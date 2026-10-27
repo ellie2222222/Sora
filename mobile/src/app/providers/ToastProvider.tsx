@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react-native';
 
-// Direct path, not the `@/components` barrel: every component in there imports
-// useTheme back through this directory's own barrel, and routing through both
-// barrels here would close the require-cycle shape rule 14 in CLAUDE.md documents.
+// Direct paths, not the `@/components` barrel: its components import useTheme back through this
+// directory's barrel, so going through both would close a require cycle (CLAUDE.md MB-10).
 import { Text } from '../../components/Text';
+import { ThemedIcon, ThemedPressable, ThemedView } from '../../components/Themed.tsx';
 import { spacing } from '@/design-system';
 import { ToastContext, type ToastVariant } from './ToastContext.ts';
 import { useTheme } from './ThemeProvider.tsx';
@@ -25,7 +25,7 @@ interface ToastEntry {
   variant: ToastVariant;
 }
 
-type IconComponent = ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+type IconComponent = ComponentType<{ size: number; color: string }>;
 
 const VARIANT_ICON: Record<ToastVariant, IconComponent> = {
   success: CheckCircle2,
@@ -99,7 +99,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           const color = variantColor[toast.variant];
           return (
             <Animated.View key={toast.id} entering={ENTERING} exiting={EXITING} style={styles.toastWrapper}>
-              <Pressable
+              <ThemedPressable
                 onPress={() => dismissToast(toast.id)}
                 accessibilityRole="alert"
                 accessibilityLabel={toast.message}
@@ -112,6 +112,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                     borderColor: theme.colors.border,
                     borderWidth: theme.borderWidth.thin,
                     borderRadius: theme.radius.md,
+                    minHeight: theme.sizes.touchTarget,
                     paddingVertical: theme.spacing.sm,
                     paddingHorizontal: theme.spacing.lg,
                     gap: theme.spacing.sm,
@@ -120,7 +121,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 ]}
               >
                 {/* An inset bar, not a left border: a one-sided border cannot follow rounded corners. */}
-                <View
+                <ThemedView
                   style={{
                     alignSelf: 'stretch',
                     width: theme.borderWidth.thick,
@@ -128,11 +129,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                     backgroundColor: color,
                   }}
                 />
-                <Icon size={theme.iconSize.lg} color={color} />
+                <ThemedIcon icon={Icon} size={theme.iconSize.lg} color={color} />
                 <Text variant="label" style={styles.message}>
                   {toast.message}
                 </Text>
-              </Pressable>
+              </ThemedPressable>
             </Animated.View>
           );
         })}

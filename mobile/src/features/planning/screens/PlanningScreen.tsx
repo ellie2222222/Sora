@@ -4,20 +4,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { GoalStatus, type BudgetResponse, type GoalResponse } from '@sora/contracts';
 
-import {
-  AnimatedScreen,
-  closeOpenSwipeRow,
-  Fab,
-  fabListPaddingBottom,
-  ListItemEnter,
-  RefreshableFlatList,
-  SegmentedControl,
-  SlideSwap,
-  StateView,
-  SwipeableRow,
-  Text,
-  type SwipeRowAction,
-} from '@/components';
+import { AnimatedScreen, closeOpenSwipeRow, Fab, fabListPaddingBottom, ListItemEnter, RefreshableFlatList, SegmentedControl, SlideSwap, StateView, SwipeableRow, Text, ThemedView, type SwipeRowAction } from '@/components';
 import { useModal, useTheme, useToast, useWallets } from '@/app/providers';
 import { NoWalletState, WalletContextBar } from '@/features/wallets';
 import { BudgetDetailModal, DeleteBudgetDialog } from '@/features/budgets';
@@ -245,7 +232,7 @@ export function PlanningScreen() {
   return (
     <AnimatedScreen testID="screen-planning">
       <WalletContextBar>
-        <View
+        <ThemedView
           style={{
             paddingHorizontal: theme.spacing.md,
             paddingVertical: theme.spacing.sm,
@@ -260,7 +247,7 @@ export function PlanningScreen() {
             value={section}
             onChange={setSection}
           />
-        </View>
+        </ThemedView>
 
         <SlideSwap swapKey={section === 'budgets' ? 0 : 1} style={{ flex: 1 }}>
           {section === 'budgets' ? renderBudgetsContent() : renderGoalsContent()}

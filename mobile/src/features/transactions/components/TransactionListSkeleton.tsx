@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { Card, SegmentedControlSkeleton, Skeleton, TransactionItemSkeleton } from '@/components';
+import { Card, SegmentedControlSkeleton, Skeleton, ThemedView, TransactionItemSkeleton } from '@/components';
 import { useTheme } from '@/app/providers';
 
 export function TransactionListSkeleton() {
@@ -45,7 +45,7 @@ export function PeriodSummarySkeleton() {
             <Skeleton width={theme.sizes.skeletonWidth.lg} height={theme.sizes.skeletonLine.heading} radius={theme.radius.sm} />
           </View>
         </View>
-        <View
+        <ThemedView
           style={{
             gap: theme.spacing.xs,
             paddingTop: theme.spacing.sm,
@@ -55,7 +55,7 @@ export function PeriodSummarySkeleton() {
         >
           <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
           <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
-        </View>
+        </ThemedView>
       </View>
     </Card>
   );
@@ -68,7 +68,7 @@ export function TransactionDaysSkeleton() {
   return (
     <>
       {[4, 2].map((rows, day) => (
-        <View
+        <ThemedView
           key={day}
           style={{ borderRadius: theme.radius.md, backgroundColor: theme.colors.surface, marginBottom: theme.spacing.sm, ...theme.shadows.sm }}
         >
@@ -84,7 +84,7 @@ export function TransactionDaysSkeleton() {
               <TransactionItemSkeleton key={row} />
             ))}
           </View>
-        </View>
+        </ThemedView>
       ))}
     </>
   );

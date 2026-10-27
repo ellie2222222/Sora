@@ -8,6 +8,7 @@ import { formatDay, type CalendarDay } from '@/utils';
 import { DatePickerModal } from './DatePickerModal';
 import { DatePresetSheet, type DatePresetSheetProps } from './DatePresetSheet';
 import { Text } from './Text';
+import { ThemedIcon, ThemedPressable } from './Themed.tsx';
 
 export interface DateFieldProps {
   label: string;
@@ -41,15 +42,15 @@ export function DateField({ label, value, onChange, onClear, placeholder, error,
       <Text variant="label" tone="muted">
         {label}
       </Text>
-      <Pressable
+      <ThemedPressable
         testID={testID}
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={value !== null ? `${label}, ${formatDay(value)}` : label}
         className="flex-row items-center justify-between"
         style={{
-          borderWidth: theme.borderWidth.thin,
-          height: theme.sizes.controlHeight,
+          borderWidth: error !== undefined ? theme.borderWidth.medium : theme.borderWidth.thin,
+          minHeight: theme.sizes.controlHeight,
           borderRadius: theme.radius.md,
           borderColor: error !== undefined ? theme.colors.danger : theme.colors.borderControl,
           backgroundColor: theme.colors.surface,
@@ -66,14 +67,14 @@ export function DateField({ label, value, onChange, onClear, placeholder, error,
               onPress={onClear}
               style={{ width: theme.sizes.touchTarget, height: theme.sizes.touchTarget, marginRight: -theme.spacing.sm, alignItems: 'center', justifyContent: 'center' }}
               accessibilityRole="button"
-              accessibilityLabel={t('common.clearDate', 'Clear date')}
+              accessibilityLabel={t('common.clearDate')}
             >
-              <X size={theme.iconSize.md} color={theme.colors.textMuted} />
+              <ThemedIcon icon={X} size={theme.iconSize.md} color={theme.colors.textMuted} />
             </Pressable>
           ) : null}
-          <Calendar size={theme.iconSize.lg} color={theme.colors.textMuted} />
+          <ThemedIcon icon={Calendar} size={theme.iconSize.lg} color={theme.colors.textMuted} />
         </View>
-      </Pressable>
+      </ThemedPressable>
       {error !== undefined ? (
         <Text variant="caption" tone="danger">
           {error}

@@ -1,4 +1,3 @@
-import { View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import type { Locale } from '@sora/contracts';
 import CN from 'country-flag-icons/string/3x2/CN';
@@ -13,6 +12,7 @@ import US from 'country-flag-icons/string/3x2/US';
 import VN from 'country-flag-icons/string/3x2/VN';
 
 import { useTheme } from '@/app/providers';
+import { ThemedView } from '@/components';
 
 /** A language has no flag of its own, so each shows the country most of its speakers here would expect. */
 const FLAG: Readonly<Record<Locale, string>> = { en: US, vi: VN, de: DE, es: ES, fr: FR, hi: IN, ja: JP, ko: KR, ru: RU, zh: CN };
@@ -27,7 +27,7 @@ export function LanguageFlag({ locale }: { locale: Locale }) {
 
   return (
     // The border keeps a mostly white flag (Japan's) visible on a light surface.
-    <View
+    <ThemedView
       style={{
         width,
         height,
@@ -38,6 +38,6 @@ export function LanguageFlag({ locale }: { locale: Locale }) {
       }}
     >
       <SvgXml xml={FLAG[locale]} width="100%" height="100%" preserveAspectRatio="xMidYMid slice" />
-    </View>
+    </ThemedView>
   );
 }

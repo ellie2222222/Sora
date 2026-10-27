@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
+import { ThemedIcon } from './Themed.tsx';
 
 export type SheetCloseLabel = 'cancel' | 'close';
 
@@ -39,10 +40,10 @@ export function SheetHeader({ title, onClose, closeLabel, onBack, entity }: Shee
             onPress={onBack}
             accessibilityRole="button"
             accessibilityLabel={back}
-            hitSlop={theme.sizes.hitSlop.md}
+            hitSlop={(theme.sizes.touchTarget - theme.iconSize.xl) / 2}
             style={{ alignSelf: 'flex-start' }}
           >
-            <ChevronLeft size={theme.iconSize.xl} color={theme.colors.textMuted} />
+            <ThemedIcon icon={ChevronLeft} size={theme.iconSize.xl} color={theme.colors.textMuted} />
           </Pressable>
         ) : null}
       </View>

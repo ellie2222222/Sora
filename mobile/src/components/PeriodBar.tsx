@@ -7,6 +7,7 @@ import { ActionSheet } from './ActionSheet.tsx';
 import { Text } from './Text.tsx';
 import { useTheme } from '@/app/providers';
 import { DASHBOARD_PERIODS, formatPeriodLabel, isCurrentPeriod, type CalendarDay, type DashboardPeriod } from '@/utils';
+import { ThemedIcon, ThemedPressable } from './Themed.tsx';
 
 export interface PeriodBarProps {
   period: DashboardPeriod;
@@ -49,6 +50,7 @@ export function PeriodBar({ period, anchor, onChangePeriod, onShift, onOpenPicke
   return (
     <View testID={`${testIDPrefix}-period-selector`} className="flex-row items-center justify-between">
       <Pressable
+        testID={`${testIDPrefix}-period-prev`}
         accessibilityRole="button"
         accessibilityLabel={t('common.previousPeriod')}
         onPress={() => onShift(-1)}
@@ -56,14 +58,14 @@ export function PeriodBar({ period, anchor, onChangePeriod, onShift, onOpenPicke
         hitSlop={theme.sizes.hitSlop.sm}
         style={stepStyle('prev')}
       >
-        <ChevronLeft size={theme.iconSize.xl} color={theme.colors.textMuted} />
+        <ThemedIcon icon={ChevronLeft} size={theme.iconSize.xl} color={theme.colors.textMuted} />
       </Pressable>
 
       <View className="flex-row items-center" style={{ flexShrink: 1, gap: theme.spacing.xs }}>
-        <Pressable
+        <ThemedPressable
           testID={`${testIDPrefix}-period-selector-picker-trigger`}
           accessibilityRole="button"
-          accessibilityLabel={t('common.selectDate')}
+          accessibilityLabel={`${t('common.selectDate')}, ${formatPeriodLabel(period, anchor)}`}
           onPress={onOpenPicker}
           disabled={onOpenPicker === undefined}
           {...pressHandlers('label')}
@@ -78,13 +80,13 @@ export function PeriodBar({ period, anchor, onChangePeriod, onShift, onOpenPicke
             backgroundColor: pressed === 'label' ? theme.colors.surfacePressed : 'transparent',
           }}
         >
-          {onOpenPicker !== undefined ? <Calendar size={theme.iconSize.md} color={theme.colors.textMuted} /> : null}
+          {onOpenPicker !== undefined ? <ThemedIcon icon={Calendar} size={theme.iconSize.md} color={theme.colors.textMuted} /> : null}
           <Text weight="bold" numberOfLines={1} style={{ flexShrink: 1, fontSize: theme.fontSize.lg }}>
             {formatPeriodLabel(period, anchor)}
           </Text>
-        </Pressable>
+        </ThemedPressable>
 
-        <Pressable
+        <ThemedPressable
           testID={`${testIDPrefix}-period-granularity`}
           accessibilityRole="button"
           accessibilityLabel={t('common.viewBy')}
@@ -105,20 +107,21 @@ export function PeriodBar({ period, anchor, onChangePeriod, onShift, onOpenPicke
           <Text variant="caption" weight="semibold" tone="muted">
             {t(`common.periods.${period}`)}
           </Text>
-          <ChevronDown size={theme.iconSize.sm} color={theme.colors.textMuted} />
-        </Pressable>
+          <ThemedIcon icon={ChevronDown} size={theme.iconSize.sm} color={theme.colors.textMuted} />
+        </ThemedPressable>
       </View>
 
       <Pressable
+        testID={`${testIDPrefix}-period-next`}
         accessibilityRole="button"
         accessibilityLabel={t('common.nextPeriod')}
         onPress={() => onShift(1)}
         disabled={disableNext}
         {...pressHandlers('next')}
         hitSlop={theme.sizes.hitSlop.sm}
-        style={[stepStyle('next'), { opacity: disableNext ? theme.opacity.disabled : 1 }]}
+        style={stepStyle('next')}
       >
-        <ChevronRight size={theme.iconSize.xl} color={theme.colors.textMuted} />
+        <ThemedIcon icon={ChevronRight} size={theme.iconSize.xl} color={disableNext ? theme.colors.buttonOutlineDisabledText : theme.colors.textMuted} />
       </Pressable>
 
       <ActionSheet

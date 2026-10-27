@@ -1,13 +1,13 @@
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '@/components';
+import { StyleSheet, View } from 'react-native';
+import { Text, ThemedIcon, ThemedPressable, ThemedView } from '@/components';
 import { useTheme } from '@/app/providers';
 
 export function SettingsDivider() {
   const theme = useTheme();
   return (
-    <View
+    <ThemedView
       style={{
         height: StyleSheet.hairlineWidth,
         backgroundColor: theme.colors.border,
@@ -39,7 +39,7 @@ export function CollapsibleSection({
 
   return (
     <View className="bg-transparent">
-      <Pressable
+      <ThemedPressable
         testID={testID}
         onPress={onToggle}
         onPressIn={() => setPressed(true)}
@@ -71,19 +71,19 @@ export function CollapsibleSection({
         </View>
 
         {isOpen ? (
-          <ChevronDown size={theme.iconSize.lg} color={theme.colors.primary} />
+          <ThemedIcon icon={ChevronDown} size={theme.iconSize.lg} color={theme.colors.primary} />
         ) : (
-          <ChevronRight size={theme.iconSize.lg} color={theme.colors.textFaint} />
+          <ThemedIcon icon={ChevronRight} size={theme.iconSize.lg} color={theme.colors.textFaint} />
         )}
-      </Pressable>
+      </ThemedPressable>
 
       {isOpen ? (
-        <View
+        <ThemedView
           className="p-md gap-md"
           style={{ backgroundColor: theme.colors.surfaceInset }}
         >
           {children}
-        </View>
+        </ThemedView>
       ) : null}
     </View>
   );

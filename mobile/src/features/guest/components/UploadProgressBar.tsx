@@ -14,6 +14,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useTheme } from '@/app/providers';
 import { useSvgId } from './useSvgId.ts';
+import { ThemedView } from '@/components';
 
 const HALO_OPACITY = 0.18;
 const SHIMMER_PEAK_OPACITY = 0.45;
@@ -77,13 +78,15 @@ export function UploadProgressBar({ fraction, active, thickness, testID }: Uploa
             opacity: active ? HALO_OPACITY : 0,
           },
           haloStyle,
+          theme.motion.colorTransition,
         ]}
       />
-      <View style={{ height: thickness, borderRadius: theme.radius.pill, backgroundColor: theme.colors.border, overflow: 'hidden' }}>
+      <ThemedView style={{ height: thickness, borderRadius: theme.radius.pill, backgroundColor: theme.colors.border, overflow: 'hidden' }}>
         <Animated.View
           style={[
             { height: thickness, borderRadius: theme.radius.pill, backgroundColor: active ? theme.colors.primary : theme.colors.textMuted, overflow: 'hidden' },
             fillStyle,
+            theme.motion.colorTransition,
           ]}
         >
           {active && !reduceMotion && shimmerWidth > 0 ? (
@@ -101,7 +104,7 @@ export function UploadProgressBar({ fraction, active, thickness, testID }: Uploa
             </Animated.View>
           ) : null}
         </Animated.View>
-      </View>
+      </ThemedView>
     </View>
   );
 }

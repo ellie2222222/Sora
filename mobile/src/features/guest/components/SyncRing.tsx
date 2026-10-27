@@ -17,6 +17,7 @@ import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
 import { useTheme } from '@/app/providers';
 import { useSvgId } from './useSvgId.ts';
+import { ThemedIcon } from '@/components';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -157,7 +158,7 @@ export function SyncRing({ fraction, active, burstKey }: SyncRingProps) {
         <Mote key={index} burst={burst} drift={mote.drift * size} delay={mote.delay} rise={size / 2} />
       ))}
 
-      <CloudUpload size={theme.iconSize.hero} color={active ? theme.colors.primary : theme.colors.textMuted} strokeWidth={theme.iconStroke.thin} />
+      <ThemedIcon icon={CloudUpload} size={theme.iconSize.hero} color={active ? theme.colors.primary : theme.colors.textMuted} strokeWidth={theme.iconStroke.thin} />
     </View>
   );
 }

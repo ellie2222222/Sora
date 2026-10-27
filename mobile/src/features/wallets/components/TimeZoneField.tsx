@@ -1,9 +1,9 @@
 import { Check, ChevronDown, Globe } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { BottomSheetModal, Input, Text } from '@/components';
+import { BottomSheetModal, Input, Text, ThemedIcon, ThemedPressable } from '@/components';
 import { useTheme } from '@/app/providers';
 import { deviceTimeZone } from '@/utils';
 import { timeZoneLabel, timeZoneOptions } from '../timeZones.ts';
@@ -32,7 +32,7 @@ export function TimeZoneField({ value, onChange, testID = 'picker-time-zone' }: 
       <Text variant="label" tone="muted">
         {t('wallets.timeZone')}
       </Text>
-      <Pressable
+      <ThemedPressable
         testID={testID}
         onPress={() => {
           setQuery('');
@@ -51,13 +51,13 @@ export function TimeZoneField({ value, onChange, testID = 'picker-time-zone' }: 
         }}
       >
         <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-          <Globe size={theme.iconSize.lg} color={theme.colors.textMuted} />
+          <ThemedIcon icon={Globe} size={theme.iconSize.lg} color={theme.colors.textMuted} />
           <Text numberOfLines={1} style={{ flex: 1 }}>
             {timeZoneLabel(value)}
           </Text>
-          <ChevronDown size={theme.iconSize.lg} color={theme.colors.textMuted} />
+          <ThemedIcon icon={ChevronDown} size={theme.iconSize.lg} color={theme.colors.textMuted} />
         </View>
-      </Pressable>
+      </ThemedPressable>
       <Text variant="caption" tone="muted">
         {t('wallets.timeZoneHint')}
       </Text>
@@ -72,16 +72,17 @@ export function TimeZoneField({ value, onChange, testID = 'picker-time-zone' }: 
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <ScrollView
+          <FlatList
+            data={options}
+            keyExtractor={(zone) => zone}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             style={{ maxHeight: theme.sizes.listMaxHeight.md }}
-          >
-            {options.map((zone) => {
+            extraData={`${pressedZone}|${value}`}
+            renderItem={({ item: zone }) => {
               const selected = zone === value;
               return (
-                <Pressable
-                  key={zone}
+                <ThemedPressable
                   testID={`option-time-zone-${zone}`}
                   onPressIn={() => setPressedZone(zone)}
                   onPressOut={() => setPressedZone(null)}
@@ -113,11 +114,11 @@ export function TimeZoneField({ value, onChange, testID = 'picker-time-zone' }: 
                       </Text>
                     ) : null}
                   </View>
-                  {selected ? <Check size={theme.iconSize.md} color={theme.colors.primary} /> : null}
-                </Pressable>
+                  {selected ? <ThemedIcon icon={Check} size={theme.iconSize.md} color={theme.colors.primary} /> : null}
+                </ThemedPressable>
               );
-            })}
-          </ScrollView>
+            }}
+          />
         </View>
       </BottomSheetModal>
     </View>

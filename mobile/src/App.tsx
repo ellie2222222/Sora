@@ -10,7 +10,6 @@ import {
   useFonts,
 } from '@expo-google-fonts/mulish';
 import { Platform } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { Provider as ReduxProvider } from 'react-redux';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -72,7 +71,6 @@ export default function App() {
               <ThemeProvider>
                 <LocaleProvider>
                   <ToastProvider>
-                    <StatusBar style="auto" />
                     <ErrorBoundary>
                       <RootNavigator />
                     </ErrorBoundary>

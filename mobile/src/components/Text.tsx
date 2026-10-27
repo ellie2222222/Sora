@@ -1,4 +1,6 @@
+import { createContext, useContext } from 'react';
 import { Text as RNText, type DimensionValue, type TextProps as RNTextProps } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { Skeleton } from './Skeleton.tsx';
 
@@ -39,9 +41,12 @@ const VARIANT_WEIGHT: Record<TextVariant, WeightKey> = {
   heading: 'bold',
 };
 
+// A span inside another Text is laid out by its parent, so only the outermost one carries the colour transition.
+const InsideText = createContext(false);
+
 export function Text({
   variant = 'body',
-  tone = 'default',
+  tone,
   weight,
   numeric = false,
   isLoading = false,
@@ -50,6 +55,7 @@ export function Text({
   ...props
 }: TextComponentProps) {
   const theme = useTheme();
+  const nested = useContext(InsideText);
 
   if (isLoading) {
     return <Skeleton width={skeletonWidth} height={theme.sizes.skeletonLine[variant]} radius={theme.radius.sm} />;
@@ -62,26 +68,29 @@ export function Text({
     danger: theme.colors.danger,
     success: theme.colors.success,
     onPrimary: theme.colors.onPrimary,
-  }[tone];
+  }[tone ?? 'default'];
 
+  const textStyle = [
+    {
+      // A span with no tone of its own takes its parent's colour, so it eases along with it.
+      color: nested && tone === undefined ? undefined : color,
+      fontSize: theme.fontSize[VARIANT_SIZE[variant]],
+      // No fontWeight here: Mulish ships one static file per weight, and
+      // pairing a custom fontFamily with an explicit fontWeight makes
+      // Android's Typeface.create() look for a bold/normal *variant* of
+      // that exact family name, fail to find one, and silently fall back
+      // to the system font — the weight already lives in which font file
+      // this is.
+      fontFamily: theme.fontFamily[weight ?? VARIANT_WEIGHT[variant]],
+      fontVariant: numeric ? theme.numericFontVariant : undefined,
+    },
+    style,
+  ];
+
+  if (nested) return <RNText {...props} style={textStyle} />;
   return (
-    <RNText
-      {...props}
-      style={[
-        {
-          color,
-          fontSize: theme.fontSize[VARIANT_SIZE[variant]],
-          // No fontWeight here: Mulish ships one static file per weight, and
-          // pairing a custom fontFamily with an explicit fontWeight makes
-          // Android's Typeface.create() look for a bold/normal *variant* of
-          // that exact family name, fail to find one, and silently fall back
-          // to the system font — the weight already lives in which font file
-          // this is.
-          fontFamily: theme.fontFamily[weight ?? VARIANT_WEIGHT[variant]],
-          fontVariant: numeric ? theme.numericFontVariant : undefined,
-        },
-        style,
-      ]}
-    />
+    <InsideText.Provider value>
+      <Animated.Text {...props} style={[textStyle, theme.motion.colorTransition]} />
+    </InsideText.Provider>
   );
 }

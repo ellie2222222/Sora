@@ -1,10 +1,10 @@
 import { ChevronDown } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
-import { BottomSheetModal, Text, ThemeToggle } from '@/components';
+import { BottomSheetModal, Text, ThemedIcon, ThemedPressable, ThemeToggle } from '@/components';
 import { useLocaleControl, useTheme, useThemeControl } from '@/app/providers';
 import { LanguageFlag, LanguageOptions } from '@/features/settings';
 
@@ -25,7 +25,7 @@ export function AuthPreferences() {
         className="flex-row items-center justify-between"
         style={{ paddingTop: insets.top + theme.spacing.sm, paddingHorizontal: theme.spacing.xl }}
       >
-        <Pressable
+        <ThemedPressable
           testID="btn-auth-language"
           accessibilityRole="button"
           accessibilityLabel={`${t('settings.language')}: ${t(`settings.languageNames.${locale}`)}`}
@@ -49,8 +49,8 @@ export function AuthPreferences() {
           <Text variant="label" weight="semibold">
             {t(`settings.languageNames.${locale}`)}
           </Text>
-          <ChevronDown size={theme.iconSize.sm} color={theme.colors.textMuted} />
-        </Pressable>
+          <ThemedIcon icon={ChevronDown} size={theme.iconSize.sm} color={theme.colors.textMuted} />
+        </ThemedPressable>
 
         <ThemeToggle
           testID="toggle-auth-theme"

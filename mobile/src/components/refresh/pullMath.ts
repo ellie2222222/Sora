@@ -16,15 +16,17 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-export function calculatePullProgress(pullDistance: number, threshold = DEFAULT_PULL_THRESHOLD): number {
+export function calculatePullProgress(pullDistance: number, thresholdPx?: number): number {
   'worklet';
+  const threshold = thresholdPx ?? DEFAULT_PULL_THRESHOLD;
   if (threshold <= 0) return 0;
   return clamp(pullDistance / threshold, 0, 1);
 }
 
 /** One full turn at the threshold, and it keeps turning with any pull beyond it. */
-export function calculatePullRotation(pullDistance: number, threshold = DEFAULT_PULL_THRESHOLD): number {
+export function calculatePullRotation(pullDistance: number, thresholdPx?: number): number {
   'worklet';
+  const threshold = thresholdPx ?? DEFAULT_PULL_THRESHOLD;
   if (threshold <= 0) return 0;
   return (Math.max(pullDistance, 0) / threshold) * 360;
 }
@@ -49,9 +51,10 @@ export function rawPullFor(distance: number, maxDistance: number): number {
 /** Moves from `HIDDEN_TRANSLATE_Y` to `RESTING_TRANSLATE_Y` as the pull reaches `threshold`, then keeps following it. */
 export function calculateIndicatorTranslateY(
   distance: number,
-  threshold = DEFAULT_PULL_THRESHOLD,
+  thresholdPx?: number,
 ): number {
   'worklet';
+  const threshold = thresholdPx ?? DEFAULT_PULL_THRESHOLD;
   if (distance <= 0) return HIDDEN_TRANSLATE_Y;
   const progress = calculatePullProgress(distance, threshold);
   const overpull = Math.max(distance - threshold, 0) * OVERPULL_INDICATOR_RATIO;

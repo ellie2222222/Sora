@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { SendHorizontal } from 'lucide-react-native';
-import { ActivityIndicator, Platform, Pressable, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { concentricRadius } from '@/design-system';
+import { ThemedIcon, ThemedPressable, ThemedTextInput, ThemedView } from '@/components';
 
 const MAX_LENGTH = 2000;
 /** A web `<textarea>` with no `rows` is two lines tall; on native, `rows` would cap the field's growth instead. */
@@ -53,7 +54,7 @@ export function ChatInputBar({
   };
 
   return (
-    <View
+    <ThemedView
       style={{
         paddingHorizontal: theme.spacing.md,
         paddingVertical: theme.spacing.sm,
@@ -62,7 +63,7 @@ export function ChatInputBar({
         backgroundColor: theme.colors.background,
       }}
     >
-      <View
+      <ThemedView
         className="flex-row items-end"
         style={{
           borderRadius: theme.radius.xl,
@@ -71,7 +72,7 @@ export function ChatInputBar({
           backgroundColor: disabled ? theme.colors.surfaceMuted : theme.colors.surface,
         }}
       >
-        <TextInput
+        <ThemedTextInput
           testID="input-ai-message"
           accessibilityLabel={prompt}
           value={text}
@@ -100,7 +101,7 @@ export function ChatInputBar({
             ...({ outlineStyle: 'none', outlineWidth: 0 } as object),
           }}
         />
-        <Pressable
+        <ThemedPressable
           testID="btn-submit-ai-message"
           accessibilityRole="button"
           accessibilityLabel={t('ai.send')}
@@ -124,10 +125,10 @@ export function ChatInputBar({
           {busy ? (
             <ActivityIndicator size="small" color={theme.colors.textMuted} />
           ) : (
-            <SendHorizontal size={theme.iconSize.lg} color={canSend ? theme.colors.onPrimary : theme.colors.textFaint} />
+            <ThemedIcon icon={SendHorizontal} size={theme.iconSize.lg} color={canSend ? theme.colors.onPrimary : theme.colors.textFaint} />
           )}
-        </Pressable>
-      </View>
-    </View>
+        </ThemedPressable>
+      </ThemedView>
+    </ThemedView>
   );
 }

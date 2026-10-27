@@ -4,7 +4,7 @@ import { Modal, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TriangleAlert, X } from 'lucide-react-native';
 
-import { Button, Text } from '@/components';
+import { Button, Text, ThemedView } from '@/components';
 import { useTheme, useToast } from '@/app/providers';
 import { NO_ROWS_UPLOADED, advance, isFinished, simulatedView } from '../uploadPreviewSimulation.ts';
 import { UploadPill } from './GuestUploadIndicator.tsx';
@@ -82,13 +82,13 @@ function SimulatedUpload({ onClose }: { onClose: () => void }) {
 
   if (inBackground) {
     return (
-      <View testID="screen-guest-upload-preview-background" className="flex-1 items-center justify-center" style={{ backgroundColor: theme.colors.background, padding: theme.spacing.xl, gap: theme.spacing.lg }}>
+      <ThemedView testID="screen-guest-upload-preview-background" className="flex-1 items-center justify-center" style={{ backgroundColor: theme.colors.background, padding: theme.spacing.xl, gap: theme.spacing.lg }}>
         <Text tone="muted" style={{ textAlign: 'center', maxWidth: theme.sizes.readableWidth }}>
           {t('guest.upload.preview.backgroundHint')}
         </Text>
         <Button testID="btn-close-upload-preview" label={t('guest.upload.preview.close')} icon={X} variant="outline" onPress={onClose} fullWidth />
         <UploadPill status={status} fraction={view.fraction} onPress={() => setInBackground(false)} />
-      </View>
+      </ThemedView>
     );
   }
 

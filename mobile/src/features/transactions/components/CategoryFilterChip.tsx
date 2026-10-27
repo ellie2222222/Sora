@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Tag, X } from 'lucide-react-native';
 
-import { Text } from '@/components';
+import { Text, ThemedIcon, ThemedPressable } from '@/components';
 import { useTheme } from '@/app/providers';
 import { useListCategoriesQuery } from '@/app/store';
 
@@ -24,13 +23,16 @@ export function CategoryFilterChip({
   const [pressed, setPressed] = useState(false);
   const categories = useListCategoriesQuery({ walletId });
   const name = categories.data?.find((category) => category.id === categoryId)?.name ?? t('categories.categoryLabel');
+  const chipHeight = theme.lineHeight.sm + theme.spacing.xs * 2 + theme.borderWidth.thin * 2;
+  const verticalSlop = Math.max(0, (theme.sizes.touchTarget - chipHeight) / 2);
 
   return (
-    <Pressable
+    <ThemedPressable
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={t('transactions.clearCategoryFilter', { category: name })}
       onPress={onClear}
+      hitSlop={{ top: verticalSlop, bottom: verticalSlop }}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
       className="flex-row items-center"
@@ -45,11 +47,11 @@ export function CategoryFilterChip({
         backgroundColor: pressed ? theme.colors.surfacePressed : theme.colors.primaryMuted,
       }}
     >
-      <Tag size={theme.iconSize.sm} color={theme.colors.primary} />
-      <Text variant="caption" weight="semibold" numberOfLines={1}>
+      <ThemedIcon icon={Tag} size={theme.iconSize.sm} color={theme.colors.primary} />
+      <Text variant="caption" weight="semibold" numberOfLines={1} style={{ lineHeight: theme.lineHeight.sm }}>
         {name}
       </Text>
-      <X size={theme.iconSize.sm} color={theme.colors.textMuted} />
-    </Pressable>
+      <ThemedIcon icon={X} size={theme.iconSize.sm} color={theme.colors.textMuted} />
+    </ThemedPressable>
   );
 }

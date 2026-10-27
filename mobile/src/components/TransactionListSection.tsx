@@ -13,6 +13,7 @@ import { TransactionItem } from './TransactionItem.tsx';
 import { TransactionTotals } from './TransactionTotals.tsx';
 import { ListItemEnter } from './ListItemEnter.tsx';
 import { SwipeableRow, type SwipeRowAction } from './swipe/index.ts';
+import { ThemedView } from './Themed.tsx';
 
 /** Animates only freshly created rows, not every remount of existing data (tab switch, scroll-back, reopen). */
 const RECENTLY_CREATED_MS = 5000;
@@ -38,7 +39,7 @@ export function TransactionDayCard({ day, transactions, showTotals, onPress, onE
   const theme = useTheme();
 
   return (
-    <View
+    <ThemedView
       style={{
         borderRadius: theme.radius.md,
         backgroundColor: theme.colors.surface,
@@ -67,7 +68,7 @@ export function TransactionDayCard({ day, transactions, showTotals, onPress, onE
           />
         ))}
       </View>
-    </View>
+    </ThemedView>
   );
 }
 

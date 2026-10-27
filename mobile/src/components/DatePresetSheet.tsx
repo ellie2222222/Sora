@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { Calendar, Check, ChevronRight } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -8,6 +8,7 @@ import { formatDay, type CalendarDay } from '@/utils';
 import { BottomSheetModal } from './BottomSheetModal';
 import { DatePickerModal } from './DatePickerModal';
 import { Text } from './Text';
+import { ThemedIcon, ThemedPressable, ThemedView } from './Themed.tsx';
 
 export interface DatePreset {
   key: string;
@@ -79,7 +80,7 @@ export function DatePresetSheet({ visible, title, prompt, presets, value, onSele
           {presets.map((preset) => {
             const selected = preset.day === value;
             return (
-              <Pressable
+              <ThemedPressable
                 key={preset.key}
                 testID={`option-${entity}-${preset.key}`}
                 onPress={() => choose(preset.day)}
@@ -92,15 +93,15 @@ export function DatePresetSheet({ visible, title, prompt, presets, value, onSele
                 <Text weight={selected ? 'semibold' : 'regular'}>{preset.label}</Text>
                 <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
                   <Text tone="muted">{formatDay(preset.day)}</Text>
-                  {selected ? <Check size={theme.iconSize.md} color={theme.colors.primary} /> : null}
+                  {selected ? <ThemedIcon icon={Check} size={theme.iconSize.md} color={theme.colors.primary} /> : null}
                 </View>
-              </Pressable>
+              </ThemedPressable>
             );
           })}
         </View>
 
-        <View style={{ borderTopWidth: theme.borderWidth.thin, borderTopColor: theme.colors.border, paddingTop: theme.spacing.sm }}>
-          <Pressable
+        <ThemedView style={{ borderTopWidth: theme.borderWidth.thin, borderTopColor: theme.colors.border, paddingTop: theme.spacing.sm }}>
+          <ThemedPressable
             testID={`option-${entity}-custom`}
             onPress={() => setCalendarOpen(true)}
             {...pressHandlers('custom')}
@@ -110,7 +111,7 @@ export function DatePresetSheet({ visible, title, prompt, presets, value, onSele
             style={rowStyle('custom', isCustom)}
           >
             <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-              <Calendar size={theme.iconSize.lg} color={theme.colors.textMuted} />
+              <ThemedIcon icon={Calendar} size={theme.iconSize.lg} color={theme.colors.textMuted} />
               <View>
                 <Text weight={isCustom ? 'semibold' : 'regular'}>{t('common.customDate')}</Text>
                 <Text variant="caption" tone="muted">
@@ -118,9 +119,9 @@ export function DatePresetSheet({ visible, title, prompt, presets, value, onSele
                 </Text>
               </View>
             </View>
-            <ChevronRight size={theme.iconSize.md} color={theme.colors.textMuted} />
-          </Pressable>
-        </View>
+            <ThemedIcon icon={ChevronRight} size={theme.iconSize.md} color={theme.colors.textMuted} />
+          </ThemedPressable>
+        </ThemedView>
       </View>
 
       <DatePickerModal

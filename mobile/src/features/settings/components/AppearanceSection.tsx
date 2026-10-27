@@ -1,18 +1,20 @@
 import { Check, Moon, Palette, Sun } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Text, ThemeToggle } from '@/components';
+import { Money, Text, ThemedIcon, ThemedPressable, ThemedView, ThemeToggle } from '@/components';
 import { useTheme, useThemeControl } from '@/app/providers';
 import { PALETTE_RAMPS, THEME_NAMES, type ThemeName } from '@/design-system';
 import { CollapsibleSection, SettingsDivider } from './CollapsibleSection';
+
+const PREVIEW_AMOUNT = '12500000';
 
 function ThemeSwatch({ name }: { name: ThemeName }) {
   const theme = useTheme();
   const ramp = PALETTE_RAMPS[name];
 
   return (
-    <View
+    <ThemedView
       className="rounded-sm overflow-hidden flex-row"
       style={{
         width: theme.sizes.swatch.width,
@@ -24,7 +26,7 @@ function ThemeSwatch({ name }: { name: ThemeName }) {
       <View className="flex-1" style={{ backgroundColor: ramp[300] }} />
       <View className="flex-1" style={{ backgroundColor: ramp[600] }} />
       <View className="flex-1" style={{ backgroundColor: ramp[900] }} />
-    </View>
+    </ThemedView>
   );
 }
 
@@ -47,13 +49,13 @@ export function AppearanceSection({
   return (
     <CollapsibleSection
       testID="settings-nav-appearance"
-      icon={<Palette size={theme.iconSize.lg} color={theme.colors.textMuted} />}
-      title={t('settings.appearance', 'Appearance')}
+      icon={<ThemedIcon icon={Palette} size={theme.iconSize.lg} color={theme.colors.textMuted} />}
+      title={t('settings.appearance')}
       subtitle={appearanceSubtitle}
       isOpen={isOpen}
       onToggle={onToggle}
     >
-      <Pressable
+      <ThemedPressable
         testID="settings-row-dark-mode"
         onPress={() => void setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
         onPressIn={() => setModeRowPressed(true)}
@@ -67,9 +69,9 @@ export function AppearanceSection({
         }}
       >
         {themeMode === 'dark' ? (
-          <Moon size={theme.iconSize.xxl} color={theme.colors.primary} />
+          <ThemedIcon icon={Moon} size={theme.iconSize.lg} color={theme.colors.primary} />
         ) : (
-          <Sun size={theme.iconSize.xxl} color={theme.colors.textMuted} />
+          <ThemedIcon icon={Sun} size={theme.iconSize.lg} color={theme.colors.textMuted} />
         )}
         <View className="flex-1">
           <Text weight="semibold" style={{ fontSize: theme.fontSize.sm }}>
@@ -77,8 +79,8 @@ export function AppearanceSection({
           </Text>
           <Text variant="caption" tone="muted">
             {themeMode === 'dark'
-              ? t('settings.darkModeDesc', { defaultValue: 'Easy on the eyes in low light' })
-              : t('settings.lightModeDesc', { defaultValue: 'Bright and clean for daytime' })}
+              ? t('settings.darkModeDesc')
+              : t('settings.lightModeDesc')}
           </Text>
         </View>
         <ThemeToggle
@@ -86,19 +88,19 @@ export function AppearanceSection({
           value={themeMode === 'dark'}
           onValueChange={(isDark) => void setThemeMode(isDark ? 'dark' : 'light')}
         />
-      </Pressable>
+      </ThemedPressable>
 
       <SettingsDivider />
 
       <View className="gap-xs">
         <Text variant="label" weight="semibold" tone="muted" style={{ marginBottom: theme.spacing.xxs }}>
-          {t('settings.colorPalette', 'Color Palette')}
+          {t('settings.colorPalette')}
         </Text>
         <View className="gap-xxs">
           {THEME_NAMES.map((name) => {
             const isSelected = name === themeName;
             return (
-              <Pressable
+              <ThemedPressable
                 key={name}
                 testID={`settings-theme-${name}`}
                 onPress={() => void setThemeName(name)}
@@ -110,6 +112,7 @@ export function AppearanceSection({
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: theme.spacing.md,
+                  minHeight: theme.sizes.touchTarget,
                   paddingVertical: theme.spacing.sm,
                   paddingHorizontal: theme.spacing.xs,
                   borderRadius: theme.radius.sm,
@@ -123,9 +126,9 @@ export function AppearanceSection({
                   </Text>
                 </View>
                 {isSelected ? (
-                  <Check size={theme.iconSize.lg} color={theme.colors.primary} strokeWidth={theme.iconStroke.bold} />
+                  <ThemedIcon icon={Check} size={theme.iconSize.lg} color={theme.colors.primary} strokeWidth={theme.iconStroke.bold} />
                 ) : null}
-              </Pressable>
+              </ThemedPressable>
             );
           })}
         </View>
@@ -135,13 +138,11 @@ export function AppearanceSection({
 
       <View className="gap-xs py-xs">
         <Text variant="label" weight="semibold" tone="muted">
-          {t('settings.preview', { defaultValue: 'Theme preview' })}
+          {t('settings.preview')}
         </Text>
-        <Text variant="heading" weight="bold" style={{ fontSize: theme.fontSize.xl }}>
-          ₫12,500,000
-        </Text>
+        <Money amount={PREVIEW_AMOUNT} currency="VND" variant="heading" weight="bold" style={{ fontSize: theme.fontSize.xl }} />
         <Text variant="caption" tone="muted">
-          {t(`settings.themeNames.${themeName}`)} · {themeMode === 'dark' ? 'Dark' : 'Light'}
+          {appearanceSubtitle}
         </Text>
       </View>
     </CollapsibleSection>

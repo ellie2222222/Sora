@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BackHandler, Platform, TextInput, View } from 'react-native';
+import { BackHandler, Platform, View, type TextInput } from 'react-native';
 
 import { formatMoney } from '@sora/contracts';
 
@@ -9,6 +9,7 @@ import { CalculatorKeypad } from './CalculatorKeypad.tsx';
 import { useKeyboardDock } from './KeyboardDockProvider.tsx';
 import { useCalculatorExpression } from './useCalculatorExpression.ts';
 import { Text } from './Text.tsx';
+import { ThemedTextInput } from './Themed.tsx';
 
 export interface MoneyInputProps {
   /** Plain decimal string (MoneyString), e.g. "1500.0000" — kept in sync with the live-evaluated result. */
@@ -129,7 +130,7 @@ export function MoneyInput({ value, onChangeValue, label, error, placeholder = '
           {label}
         </Text>
       ) : null}
-      <TextInput
+      <ThemedTextInput
         ref={inputRef}
         testID={testID}
         value={displayValue}
@@ -150,7 +151,7 @@ export function MoneyInput({ value, onChangeValue, label, error, placeholder = '
         }}
         accessibilityLabel={label}
         style={{
-          height: theme.sizes.controlHeight,
+          minHeight: theme.sizes.controlHeight,
           borderRadius: theme.radius.md,
           borderWidth: focused || hasError ? theme.borderWidth.medium : theme.borderWidth.thin,
           borderColor: hasError ? theme.colors.danger : focused ? theme.colors.primary : theme.colors.borderControl,

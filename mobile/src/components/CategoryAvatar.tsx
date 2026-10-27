@@ -1,9 +1,9 @@
-import { View } from 'react-native';
 import { TransactionType, type TransactionType as TxType } from '@sora/contracts';
 
 import { useTheme } from '@/app/providers';
 import { categoryIconFor, TRANSFER_ICON } from '@/utils';
 import { Text } from './Text.tsx';
+import { ThemedIcon, ThemedView } from './Themed.tsx';
 
 export interface CategoryAvatarProps {
   categoryIcon?: string | null;
@@ -30,7 +30,7 @@ export function CategoryAvatar({ categoryIcon, categoryName, transactionType, ti
   const initial = initialSource.slice(0, 1).toUpperCase();
 
   return (
-    <View
+    <ThemedView
       testID={testID}
       className="items-center justify-center"
       style={{
@@ -41,12 +41,12 @@ export function CategoryAvatar({ categoryIcon, categoryName, transactionType, ti
       }}
     >
       {Icon !== null ? (
-        <Icon size={size * 0.5} color={tint} />
+        <ThemedIcon icon={Icon} size={size * 0.5} color={tint} />
       ) : (
         <Text weight="semibold" style={{ color: tint, fontSize: size * 0.4 }}>
           {initial}
         </Text>
       )}
-    </View>
+    </ThemedView>
   );
 }

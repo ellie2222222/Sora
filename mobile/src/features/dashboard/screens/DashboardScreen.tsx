@@ -1,18 +1,9 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 
-import {
-  AnimatedScreen,
-  closeOpenSwipeRow,
-  PeriodBar,
-  RefreshableScrollView,
-  SegmentedControl,
-  SegmentedControlSkeleton,
-  SlideSwap,
-  Text,
-} from '@/components';
+import { AnimatedScreen, closeOpenSwipeRow, PeriodBar, RefreshableScrollView, SegmentedControl, SegmentedControlSkeleton, SlideSwap, Text, ThemedIcon, ThemedView } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { useWalletDay } from '@/hooks';
 import { ChevronRight } from 'lucide-react-native';
@@ -80,7 +71,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
           className="flex-row items-center self-start"
           style={{ gap: theme.spacing.xs }}
         >
-          <ChevronRight size={theme.iconSize.md} color={theme.colors.primary} />
+          <ThemedIcon icon={ChevronRight} size={theme.iconSize.md} color={theme.colors.primary} />
           <Text weight="medium" style={{ color: theme.colors.primary }}>
             {t('dashboard.manageAccount')}
           </Text>
@@ -106,7 +97,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
     <AnimatedScreen testID="screen-dashboard">
       <WalletContextBar>
         {walletsLoading || activeWalletId !== null ? (
-          <View
+          <ThemedView
             style={{
               paddingHorizontal: theme.spacing.md,
               paddingVertical: theme.spacing.sm,
@@ -131,7 +122,7 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Dashboard'>)
             {tab !== 'accounts' ? (
               <PeriodBar period={period} anchor={anchor} onChangePeriod={setPeriod} onShift={shiftPeriod} today={today(timeZone)} />
             ) : null}
-          </View>
+          </ThemedView>
         ) : null}
 
         <SlideSwap swapKey={TABS.indexOf(tab)} style={{ flex: 1 }}>

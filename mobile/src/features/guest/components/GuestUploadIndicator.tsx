@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Text } from '@/components';
+import { Text, ThemedPressable } from '@/components';
 import { useTheme, useToast } from '@/app/providers';
 import { guestUploadTask, type GuestUploadStatus } from '@/services/guest';
 import { useGuestUploadTask, useGuestUploadView } from '../useGuestUpload.ts';
@@ -50,7 +50,7 @@ export function UploadPill({ status, fraction, onPress }: { status: GuestUploadS
   return (
     <View pointerEvents="box-none" style={{ position: 'absolute', top: insets.top + theme.spacing.xs, left: 0, right: 0, alignItems: 'center' }}>
       <Animated.View entering={FadeInUp.duration(220)} exiting={FadeOutUp.duration(180)}>
-        <Pressable
+        <ThemedPressable
           testID="guest-upload-indicator"
           accessibilityRole="button"
           accessibilityLabel={label}
@@ -79,7 +79,7 @@ export function UploadPill({ status, fraction, onPress }: { status: GuestUploadS
             {label}
           </Text>
           <UploadProgressBar fraction={fraction} active={status === 'running'} thickness={theme.borderWidth.thick} />
-        </Pressable>
+        </ThemedPressable>
       </Animated.View>
     </View>
   );

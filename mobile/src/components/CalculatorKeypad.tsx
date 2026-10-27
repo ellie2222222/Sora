@@ -1,11 +1,12 @@
 import { Calendar, Check, Delete } from 'lucide-react-native';
 import { memo, useState, type ReactNode, type RefObject } from 'react';
-import { Platform, Pressable, View, type ViewProps } from 'react-native';
+import { Platform, View, type ViewProps } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { insertToken } from '@/utils';
 import { Text } from './Text.tsx';
+import { ThemedIcon, ThemedPressable } from './Themed.tsx';
 
 export interface CalculatorKeypadProps {
   /**
@@ -39,7 +40,8 @@ const preventInputBlur: ViewProps =
     : {};
 
 type DigitKey = { label: string; insert: string };
-type KeyRow = { digits: DigitKey[]; operator: string };
+type Operator = '+' | '−' | '×' | '÷';
+type KeyRow = { digits: DigitKey[]; operator: Operator };
 
 const DIGIT_ROWS: KeyRow[] = [
   { digits: [{ label: '7', insert: '7' }, { label: '8', insert: '8' }, { label: '9', insert: '9' }], operator: '+' },
@@ -50,7 +52,14 @@ const LAST_ROW_DIGITS: DigitKey[] = [
   { label: '.', insert: '.' },
   { label: '0', insert: '0' },
 ];
-const LAST_ROW_OPERATOR = '÷';
+const LAST_ROW_OPERATOR: Operator = '÷';
+
+const OPERATOR_LABEL_KEY: Record<Operator, string> = {
+  '+': 'common.keypadPlus',
+  '−': 'common.keypadMinus',
+  '×': 'common.keypadMultiply',
+  '÷': 'common.keypadDivide',
+};
 
 const DIGIT_BLOCK_COLUMNS = 4;
 
@@ -85,7 +94,7 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
 
   const digitCell = (key: DigitKey) => (
     <KeyColumn key={key.label}>
-      <Pressable
+      <ThemedPressable
         testID={testID !== undefined ? `${testID}-key-${key.label}` : undefined}
         accessibilityRole="button"
         accessibilityLabel={key.label}
@@ -104,16 +113,16 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
         <Text variant="title" weight="semibold" numeric style={{ color: theme.colors.text }}>
           {key.label}
         </Text>
-      </Pressable>
+      </ThemedPressable>
     </KeyColumn>
   );
 
-  const operatorCell = (glyph: string) => (
+  const operatorCell = (glyph: Operator) => (
     <KeyColumn key={glyph}>
-      <Pressable
+      <ThemedPressable
         testID={testID !== undefined ? `${testID}-key-${glyph}` : undefined}
         accessibilityRole="button"
-        accessibilityLabel={glyph}
+        accessibilityLabel={t(OPERATOR_LABEL_KEY[glyph])}
         onPress={() => insert(glyph)}
         onPressIn={() => setPressedKey(glyph)}
         onPressOut={() => setPressedKey(null)}
@@ -129,7 +138,7 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
         <Text variant="body" weight="semibold" numeric style={{ color: theme.colors.primary }}>
           {glyph}
         </Text>
-      </Pressable>
+      </ThemedPressable>
     </KeyColumn>
   );
 
@@ -149,10 +158,10 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
         <View style={rowStyle}>
           {LAST_ROW_DIGITS.map(digitCell)}
           <KeyColumn>
-            <Pressable
+            <ThemedPressable
               testID={testID !== undefined ? `${testID}-key-backspace` : undefined}
               accessibilityRole="button"
-              accessibilityLabel={t('common.backspace', 'Backspace')}
+              accessibilityLabel={t('common.backspace')}
               onPress={backspace}
               onPressIn={() => setPressedKey('backspace')}
               onPressOut={() => setPressedKey(null)}
@@ -165,8 +174,8 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
                 borderColor: theme.colors.border,
               }}
             >
-              <Delete size={theme.iconSize.xl} color={theme.colors.text} strokeWidth={theme.iconStroke.thin} />
-            </Pressable>
+              <ThemedIcon icon={Delete} size={theme.iconSize.xl} color={theme.colors.text} strokeWidth={theme.iconStroke.thin} />
+            </ThemedPressable>
           </KeyColumn>
           {operatorCell(LAST_ROW_OPERATOR)}
         </View>
@@ -174,7 +183,7 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
 
       <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, gap }}>
         {onQuickDateRef !== undefined ? (
-          <Pressable
+          <ThemedPressable
             testID={testID !== undefined ? `${testID}-key-date` : undefined}
             accessibilityRole="button"
             accessibilityLabel={dateAccessibilityLabel ?? dateLabel}
@@ -193,7 +202,7 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
               borderColor: theme.colors.primary,
             }}
           >
-            <Calendar size={theme.iconSize.md} color={theme.colors.onPrimary} />
+            <ThemedIcon icon={Calendar} size={theme.iconSize.md} color={theme.colors.onPrimary} />
             {dateLabel !== undefined ? (
               <Text
                 variant="label"
@@ -205,13 +214,13 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
                 {dateLabel}
               </Text>
             ) : null}
-          </Pressable>
+          </ThemedPressable>
         ) : null}
-        <Pressable
+        <ThemedPressable
           testID={testID !== undefined ? `${testID}-key-confirm` : undefined}
           disabled={confirmDisabled}
           accessibilityRole="button"
-          accessibilityLabel={t('common.confirm', 'Confirm')}
+          accessibilityLabel={t('common.confirm')}
           accessibilityState={{ disabled: confirmDisabled }}
           onPress={() => onConfirmRef.current()}
           onPressIn={() => setPressedKey('confirm')}
@@ -226,12 +235,12 @@ export const CalculatorKeypad = memo(function CalculatorKeypad({
             borderColor: confirmDisabled ? theme.colors.buttonPrimaryDisabledBorder : theme.colors.primary,
           }}
         >
-          <Check
+          <ThemedIcon icon={Check}
             size={theme.iconSize.xl}
             color={confirmDisabled ? theme.colors.buttonPrimaryDisabledText : theme.colors.onPrimary}
             strokeWidth={theme.iconStroke.bold}
           />
-        </Pressable>
+        </ThemedPressable>
       </View>
     </View>
   );

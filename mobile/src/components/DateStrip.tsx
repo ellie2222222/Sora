@@ -1,8 +1,9 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { useTheme } from '@/app/providers';
-import { addDays, monthName, parseDay, type CalendarDay } from '@/utils';
+import { addDays, formatDay, monthName, parseDay, type CalendarDay } from '@/utils';
 import { Text } from './Text.tsx';
+import { ThemedPressable, ThemedView } from './Themed.tsx';
 
 export interface DateStripProps {
   selectedDay: CalendarDay;
@@ -37,11 +38,12 @@ export function DateStrip({ selectedDay, onSelectDay, testID, today }: DateStrip
 
         return (
           <View key={day}>
-            <Pressable
+            <ThemedPressable
               testID={testID ? `${testID}-day-${day}` : undefined}
               onPress={() => onSelectDay(day)}
               accessibilityRole="button"
-              accessibilityLabel={day}
+              accessibilityLabel={formatDay(day)}
+              accessibilityState={{ selected: isSelected }}
               hitSlop={theme.sizes.hitSlop.sm}
               className="items-center py-xs"
               style={{
@@ -53,7 +55,7 @@ export function DateStrip({ selectedDay, onSelectDay, testID, today }: DateStrip
               <Text variant="caption" weight="semibold" style={{ color: isSelected ? theme.colors.onPrimary : theme.colors.textMuted }}>
                 {monthName(month)}
               </Text>
-              <View
+              <ThemedView
                 className="items-center justify-center mt-xxs"
                 style={{
                   width: theme.sizes.badge.sm,
@@ -78,8 +80,8 @@ export function DateStrip({ selectedDay, onSelectDay, testID, today }: DateStrip
                 >
                   {date}
                 </Text>
-              </View>
-            </Pressable>
+              </ThemedView>
+            </ThemedPressable>
           </View>
         );
       })}

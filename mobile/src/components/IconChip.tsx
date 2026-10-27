@@ -1,8 +1,10 @@
 import { Pressable, View } from 'react-native';
 import { ChevronDown, X, type LucideIcon } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
+import { ThemedIcon, ThemedView } from './Themed.tsx';
 
 export interface IconChipProps {
   icon: LucideIcon;
@@ -33,10 +35,11 @@ export function IconChip({
   testID,
 }: IconChipProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   const body = (
     <>
-      <View
+      <ThemedView
         style={{
           width: theme.sizes.badge.sm,
           height: theme.sizes.badge.sm,
@@ -46,9 +49,9 @@ export function IconChip({
           backgroundColor: error ? theme.colors.dangerMuted : theme.colors.warningMuted,
         }}
       >
-        <Icon size={theme.iconSize.md} color={error ? theme.colors.danger : theme.colors.warning} />
-      </View>
-      {onPress !== undefined && onClear === undefined ? <ChevronDown size={theme.iconSize.sm} color={theme.colors.textMuted} /> : null}
+        <ThemedIcon icon={Icon} size={theme.iconSize.md} color={error ? theme.colors.danger : theme.colors.warning} />
+      </ThemedView>
+      {onPress !== undefined && onClear === undefined ? <ThemedIcon icon={ChevronDown} size={theme.iconSize.sm} color={theme.colors.textMuted} /> : null}
       <Text tone={placeholder ? 'faint' : 'muted'} numberOfLines={1} style={{ flexShrink: 1 }}>
         {label}
       </Text>
@@ -78,12 +81,12 @@ export function IconChip({
           testID={testID !== undefined ? `${testID}-clear` : undefined}
           onPress={onClear}
           accessibilityRole="button"
-          accessibilityLabel={clearAccessibilityLabel}
+          accessibilityLabel={clearAccessibilityLabel ?? t('common.clear')}
           // A real 44pt box rather than hitSlop, so the target cannot spill onto the chip's own button;
           // the negative margin cancels the row gap so the two boxes abut instead.
           style={{ width: theme.sizes.touchTarget, height: theme.sizes.touchTarget, marginLeft: -theme.spacing.xs, alignItems: 'center', justifyContent: 'center' }}
         >
-          <X size={theme.iconSize.sm} color={theme.colors.textMuted} />
+          <ThemedIcon icon={X} size={theme.iconSize.sm} color={theme.colors.textMuted} />
         </Pressable>
       ) : null}
     </View>

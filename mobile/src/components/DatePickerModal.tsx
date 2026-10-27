@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react-native';
-import { Pressable, ScrollView, View } from 'react-native';
+import { FlatList, Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 
@@ -8,7 +8,8 @@ import { useTheme } from '@/app/providers';
 import { BottomSheetModal } from './BottomSheetModal';
 import { Button } from './Button';
 import { Text } from './Text';
-import { addMonths, monthGrid, monthName, parseDay, withYear, type CalendarDay } from '@/utils';
+import { addMonths, formatDay, monthGrid, monthName, parseDay, withYear, type CalendarDay } from '@/utils';
+import { ThemedIcon, ThemedPressable, ThemedView } from './Themed.tsx';
 
 export interface DatePickerModalProps {
   visible: boolean;
@@ -18,6 +19,8 @@ export interface DatePickerModalProps {
   /** Today in the wallet's zone, which the Today button picks and the grid marks. */
   today: CalendarDay;
 }
+
+const YEAR_COLUMNS = 4;
 
 export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, today }: DatePickerModalProps) {
   const theme = useTheme();
@@ -72,10 +75,10 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
   const years = Array.from({ length: 90 }, (_, i) => currentYear - 60 + i);
 
   return (
-    <BottomSheetModal visible={visible} onClose={onClose} title={t('common.selectDate', { defaultValue: 'Pick a date' })} entity="date-picker">
+    <BottomSheetModal visible={visible} onClose={onClose} title={t('common.selectDate')} entity="date-picker">
       <View style={{ gap: theme.spacing.md }}>
 
-        <View
+        <ThemedView
           className="flex-row justify-between items-center"
           style={{
             backgroundColor: theme.colors.surfaceMuted,
@@ -93,11 +96,13 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
                 hitSlop={theme.sizes.hitSlop.md}
                 className="p-xs"
               >
-                <ChevronLeft size={theme.iconSize.xl} color={theme.colors.text} />
+                <ThemedIcon icon={ChevronLeft} size={theme.iconSize.xl} color={theme.colors.text} />
               </Pressable>
-              <Pressable
+              <ThemedPressable
                 testID="btn-select-year"
+                accessibilityRole="button"
                 onPress={() => setViewMode('years')}
+                hitSlop={{ top: theme.sizes.hitSlop.lg, bottom: theme.sizes.hitSlop.lg }}
                 onPressIn={() => setYearTogglePressed(true)}
                 onPressOut={() => setYearTogglePressed(false)}
                 style={{
@@ -110,11 +115,11 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
                   backgroundColor: yearTogglePressed ? theme.colors.border : 'transparent',
                 }}
               >
-                <CalendarIcon size={theme.iconSize.sm} color={theme.colors.primary} />
+                <ThemedIcon icon={CalendarIcon} size={theme.iconSize.sm} color={theme.colors.primary} />
                 <Text weight="semibold" style={{ fontSize: theme.fontSize.md }}>
                   {monthName(month)} {year}
                 </Text>
-              </Pressable>
+              </ThemedPressable>
               <Pressable
                 testID="btn-next-month"
                 accessibilityRole="button"
@@ -123,15 +128,15 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
                 hitSlop={theme.sizes.hitSlop.md}
                 className="p-xs"
               >
-                <ChevronRight size={theme.iconSize.xl} color={theme.colors.text} />
+                <ThemedIcon icon={ChevronRight} size={theme.iconSize.xl} color={theme.colors.text} />
               </Pressable>
             </>
           ) : (
             <View className="flex-1 flex-row justify-between items-center px-sm">
               <Text weight="semibold" style={{ fontSize: theme.fontSize.md, paddingLeft: theme.spacing.sm }}>
-                {t('common.selectYear', { defaultValue: 'Pick a year' })}
+                {t('common.selectYear')}
               </Text>
-              <Pressable
+              <ThemedPressable
                 testID="btn-select-days"
                 onPress={() => setViewMode('days')}
                 className="py-xs"
@@ -142,12 +147,12 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
                 }}
               >
                 <Text variant="label" weight="bold" style={{ color: theme.colors.onPrimary }}>
-                  {t('common.back', { defaultValue: 'Back' })}
+                  {t('common.back')}
                 </Text>
-              </Pressable>
+              </ThemedPressable>
             </View>
           )}
-        </View>
+        </ThemedView>
 
         {viewMode === 'days' ? (
           <>
@@ -168,9 +173,13 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
                     const dayNum = parseDay(cell.day).date;
 
                     return (
-                      <Pressable
+                      <ThemedPressable
                         key={cell.day}
                         testID={`option-day-${cell.day}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={formatDay(cell.day)}
+                        accessibilityState={{ selected: isSelected }}
+                        hitSlop={(theme.sizes.touchTarget - theme.sizes.badge.md) / 2}
                         onPress={() => handleSelectDayInternal(cell.day)}
                         className="items-center justify-center"
                         style={{
@@ -201,7 +210,7 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
                         >
                           {dayNum}
                         </Text>
-                      </Pressable>
+                      </ThemedPressable>
                     );
                   })}
                 </View>
@@ -209,17 +218,25 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
             </View>
           </>
         ) : (
-          <ScrollView style={{ maxHeight: theme.sizes.listMaxHeight.sm }} contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, justifyContent: 'center', paddingVertical: theme.spacing.sm }}>
-            {years.map((y) => {
+          <FlatList
+            data={years}
+            keyExtractor={(y) => String(y)}
+            numColumns={YEAR_COLUMNS}
+            style={{ maxHeight: theme.sizes.listMaxHeight.sm }}
+            contentContainerStyle={{ gap: theme.spacing.sm, paddingVertical: theme.spacing.sm }}
+            columnWrapperStyle={{ gap: theme.spacing.sm }}
+            renderItem={({ item: y }) => {
               const isSelectedYear = y === year;
               return (
-                <Pressable
-                  key={y}
+                <ThemedPressable
                   testID={`option-year-${y}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelectedYear }}
                   onPress={() => handleSelectYear(y)}
                   className="items-center justify-center"
                   style={{
-                    width: '22%',
+                    flex: 1,
+                    minHeight: theme.sizes.touchTarget,
                     paddingVertical: theme.spacing.sm,
                     borderRadius: theme.radius.md,
                     backgroundColor: isSelectedYear ? theme.colors.primary : theme.colors.surfaceMuted,
@@ -234,13 +251,13 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
                   >
                     {y}
                   </Text>
-                </Pressable>
+                </ThemedPressable>
               );
-            })}
-          </ScrollView>
+            }}
+          />
         )}
 
-        <View
+        <ThemedView
           className="flex-row items-center"
           style={{
             borderTopWidth: theme.borderWidth.thin,
@@ -251,12 +268,12 @@ export function DatePickerModal({ visible, selectedDay, onSelectDay, onClose, to
         >
           <Button
             testID="btn-select-today"
-            label={t('common.today', { defaultValue: 'Today' })}
+            label={t('common.today')}
             variant="secondary"
             size="sm"
             onPress={handleSelectToday}
           />
-        </View>
+        </ThemedView>
       </View>
     </BottomSheetModal>
   );

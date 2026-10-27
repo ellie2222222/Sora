@@ -1,4 +1,5 @@
 import { ACCOUNT_TINTS, getThemeColors, type AccountTint, type ColorTokens, type ThemeMode, type ThemeName } from './colors.ts';
+import { buildMotion, type Motion } from './motion.ts';
 import { radius, type Radius } from './radius.ts';
 import { buildShadows, type Shadows } from './shadows.ts';
 import {
@@ -46,10 +47,11 @@ export interface Theme {
   borderWidth: BorderWidth;
   opacity: Opacity;
   shadows: Shadows;
+  motion: Motion;
   numericFontVariant: typeof numericFontVariant;
 }
 
-export function buildTheme(name: ThemeName, mode: ThemeMode = 'dark'): Theme {
+export function buildTheme(name: ThemeName, mode: ThemeMode = 'dark', reduceMotion = false): Theme {
   const colors = getThemeColors(name, mode);
   return {
     name,
@@ -69,6 +71,7 @@ export function buildTheme(name: ThemeName, mode: ThemeMode = 'dark'): Theme {
     borderWidth,
     opacity,
     shadows: buildShadows(colors.shadow),
+    motion: buildMotion(reduceMotion),
     numericFontVariant,
   };
 }
@@ -76,6 +79,7 @@ export function buildTheme(name: ThemeName, mode: ThemeMode = 'dark'): Theme {
 export * from './brand.ts';
 export * from './colors.ts';
 export * from './contrast.ts';
+export * from './motion.ts';
 export * from './radius.ts';
 export * from './shadows.ts';
 export * from './sizes.ts';

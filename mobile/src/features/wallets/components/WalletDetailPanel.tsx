@@ -4,7 +4,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AccountStatus, WalletRole, type AccountResponse } from '@sora/contracts';
 
-import { Card, closeOpenSwipeRow, Money, MutationConfirmDialog, Skeleton, StateView, SwipeableRow, Text } from '@/components';
+import { Button, Card, closeOpenSwipeRow, Money, MutationConfirmDialog, Skeleton, StateView, SwipeableRow, Text, ThemedIcon } from '@/components';
 import { useAuth, useTheme, useToast } from '@/app/providers';
 import {
   useArchiveWalletMutation,
@@ -13,7 +13,7 @@ import {
   useListAccountsQuery,
   useListMembersQuery,
 } from '@/app/store';
-import { accountSwipeActions, ArchiveAccountDialog } from '@/features/accounts';
+import { AccountBalance, accountSwipeActions, ArchiveAccountDialog } from '@/features/accounts';
 import { getRoleLabel, isNetworkError, permissionsFor } from '@/utils';
 import { WalletEditCard } from './WalletEditCard.tsx';
 
@@ -89,7 +89,11 @@ export function WalletDetailPanel({
       return wallet.isError ? (
         <StateView variant="error" error={wallet.error} retryAction={() => void wallet.refetch()} />
       ) : (
-        <StateView variant="error" error={new Error(t('wallets.walletNotFound', "Couldn't find this wallet"))} />
+        <StateView
+          variant="error"
+          error={new Error(t('wallets.walletNotFound'))}
+          primaryAction={{ label: t('common.back'), onPress: onWalletGone }}
+        />
       );
     }
 
@@ -109,11 +113,14 @@ export function WalletDetailPanel({
             {!isGuest ? (
               <Pressable
                 testID="wallet-detail-members"
+                accessibilityRole="button"
+                accessibilityLabel={`${t('wallets.members')}, ${data.memberCount}`}
+                hitSlop={(theme.sizes.touchTarget - theme.iconSize.md) / 2}
                 onPress={onOpenMembers}
                 className="flex-row items-center"
                 style={{ gap: theme.spacing.xs }}
               >
-                <UsersRound size={theme.iconSize.md} color={theme.colors.textMuted} />
+                <ThemedIcon icon={UsersRound} size={theme.iconSize.md} color={theme.colors.textMuted} />
                 <Text tone="muted">{data.memberCount}</Text>
               </Pressable>
             ) : null}
@@ -126,7 +133,7 @@ export function WalletDetailPanel({
                   hitSlop={theme.sizes.hitSlop.lg}
                   onPress={onOpenActivity}
                 >
-                  <History size={theme.iconSize.xxl} color={theme.colors.textMuted} />
+                  <ThemedIcon icon={History} size={theme.iconSize.xxl} color={theme.colors.textMuted} />
                 </Pressable>
                 <Pressable
                   testID="wallet-detail-categories"
@@ -135,7 +142,7 @@ export function WalletDetailPanel({
                   hitSlop={theme.sizes.hitSlop.lg}
                   onPress={onOpenCategories}
                 >
-                  <Settings size={theme.iconSize.xxl} color={theme.colors.textMuted} />
+                  <ThemedIcon icon={Settings} size={theme.iconSize.xxl} color={theme.colors.textMuted} />
                 </Pressable>
               </>
             ) : null}
@@ -154,12 +161,20 @@ export function WalletDetailPanel({
               hitSlop={theme.sizes.hitSlop.lg}
               onPress={onAddAccount}
             >
-              <Plus size={theme.iconSize.xl} color={theme.colors.primary} />
+              <ThemedIcon icon={Plus} size={theme.iconSize.xl} color={theme.colors.primary} />
             </Pressable>
           ) : null}
         </View>
 
-        {(accounts.data ?? []).length === 0 ? (
+        {accounts.isError && accounts.data === undefined ? (
+          <StateView
+            variant="error"
+            error={accounts.error}
+            retryAction={() => void accounts.refetch()}
+            testID="wallet-detail-accounts-error"
+            entrance="none"
+          />
+        ) : (accounts.data ?? []).length === 0 ? (
           <StateView
             variant="empty"
             icon={Landmark}
@@ -208,32 +223,30 @@ export function WalletDetailPanel({
             </Text>
             {actionError !== null ? <Text tone="danger">{actionError}</Text> : null}
             {canLeave ? (
-              <Pressable
+              <Button
                 testID="btn-leave-wallet"
+                label={t('wallets.leaveWallet')}
+                icon={LogOut}
+                variant="danger-outline"
                 onPress={() => {
                   setActionError(null);
                   setPendingAction('leave');
                 }}
-                className="flex-row items-center"
-                style={{ gap: theme.spacing.sm }}
-              >
-                <LogOut size={theme.iconSize.lg} color={theme.colors.danger} />
-                <Text tone="danger">{t('wallets.leaveWallet')}</Text>
-              </Pressable>
+                fullWidth
+              />
             ) : null}
             {canShare ? (
-              <Pressable
+              <Button
                 testID="btn-archive-wallet"
+                label={t('wallets.archiveWallet')}
+                icon={Archive}
+                variant="danger-outline"
                 onPress={() => {
                   setActionError(null);
                   setPendingAction('archive');
                 }}
-                className="flex-row items-center"
-                style={{ gap: theme.spacing.sm }}
-              >
-                <Archive size={theme.iconSize.lg} color={theme.colors.danger} />
-                <Text tone="danger">{t('wallets.archiveWallet')}</Text>
-              </Pressable>
+                fullWidth
+              />
             ) : null}
           </View>
         ) : null}
@@ -289,10 +302,10 @@ function AccountItem({ account, onPress }: { account: AccountResponse; onPress: 
       <Card>
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-            <Landmark size={theme.iconSize.lg} color={theme.colors.textMuted} />
+            <ThemedIcon icon={Landmark} size={theme.iconSize.lg} color={theme.colors.textMuted} />
             <Text>{account.name}</Text>
           </View>
-          <Money amount={account.balance} currency={account.currency} weight="semibold" />
+          <AccountBalance account={account} weight="semibold" />
         </View>
       </Card>
     </Pressable>

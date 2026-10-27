@@ -4,23 +4,14 @@ import { View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 
-import { Money, SectionLabel, Skeleton, Text } from '@/components';
+import { Money, SectionLabel, Skeleton, Text, ThemedIcon, ThemedView } from '@/components';
 import { useTheme } from '@/app/providers';
-import type { Theme } from '@/design-system';
 import { formatMoneyString } from '@/utils';
 import { headlineSizeFor, splitMoneyText, type CurrencyFigure } from '../netWorth.ts';
 
 const PANEL_ENTERING = FadeIn.duration(240);
 const VALUE_CHANGE = FadeIn.duration(180);
 /** Wallets whose panel already faded in this session; coming back to the tab doesn't replay it. */
-const panelStyle = (theme: Theme) => ({
-  gap: theme.spacing.lg,
-  padding: theme.spacing.lg,
-  borderRadius: theme.radius.xl,
-  borderWidth: theme.borderWidth.thin,
-  borderColor: theme.colors.border,
-  backgroundColor: theme.colors.surface,
-});
 const entered = new Set<string>();
 
 /** False on the first render, so a figure that merely appears isn't treated as one that changed. */
@@ -54,7 +45,7 @@ export function NetWorthSummary({
   const [headline, ...others] = netWorth;
 
   return (
-    <Animated.View testID="section-net-worth" entering={firstEntry ? PANEL_ENTERING : undefined} style={panelStyle(theme)}>
+    <Animated.View testID="section-net-worth" entering={firstEntry ? PANEL_ENTERING : undefined} style={{ gap: theme.spacing.lg }}>
       <View style={{ gap: theme.spacing.xs }}>
         <SectionLabel action={headline ? <CurrencyTag currency={headline.currency} /> : undefined}>{t('accounts.netWorth')}</SectionLabel>
         {headline ? <Headline figure={headline} /> : null}
@@ -67,7 +58,7 @@ export function NetWorthSummary({
           </Text>
           <View className="flex-row flex-wrap" style={{ gap: theme.spacing.sm }}>
             {others.map((figure) => (
-              <View
+              <ThemedView
                 key={figure.currency}
                 className="flex-row items-center"
                 style={{
@@ -80,7 +71,7 @@ export function NetWorthSummary({
               >
                 <CurrencyTag currency={figure.currency} />
                 <Money amount={figure.amount} currency={figure.currency} variant="label" weight="semibold" numberOfLines={1} />
-              </View>
+              </ThemedView>
             ))}
           </View>
         </View>
@@ -135,11 +126,11 @@ function Headline({ figure }: { figure: CurrencyFigure }) {
 function CurrencyTag({ currency }: { currency: string }) {
   const theme = useTheme();
   return (
-    <View style={{ paddingHorizontal: theme.spacing.xs, borderRadius: theme.radius.sm, borderWidth: theme.borderWidth.thin, borderColor: theme.colors.borderStrong }}>
+    <ThemedView style={{ paddingHorizontal: theme.spacing.xs, borderRadius: theme.radius.sm, borderWidth: theme.borderWidth.thin, borderColor: theme.colors.borderStrong }}>
       <Text variant="caption" weight="semibold" tone="muted">
         {currency}
       </Text>
-    </View>
+    </ThemedView>
   );
 }
 
@@ -164,15 +155,15 @@ function PositionCard({
   const [first, ...rest] = totals;
 
   return (
-    <View
+    <ThemedView
       testID={testID}
       className="flex-row"
       style={{ flex: 1, minWidth: 0, gap: theme.spacing.sm, padding: theme.spacing.md, borderRadius: theme.radius.lg, backgroundColor: surface }}
     >
-      <View style={{ width: theme.borderWidth.thick, borderRadius: theme.radius.pill, backgroundColor: accent }} />
+      <ThemedView style={{ width: theme.borderWidth.thick, borderRadius: theme.radius.pill, backgroundColor: accent }} />
       <View style={{ flex: 1, minWidth: 0, gap: theme.spacing.xxs }}>
         <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
-          <Icon size={theme.iconSize.sm} color={accent} />
+          <ThemedIcon icon={Icon} size={theme.iconSize.sm} color={accent} />
           <Text variant="caption" weight="semibold" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
             {title}
           </Text>
@@ -193,7 +184,7 @@ function PositionCard({
           )}
         </Animated.View>
       </View>
-    </View>
+    </ThemedView>
   );
 }
 
@@ -201,17 +192,17 @@ export function NetWorthSummarySkeleton() {
   const theme = useTheme();
   const { t } = useTranslation();
   return (
-    <View style={panelStyle(theme)}>
+    <View style={{ gap: theme.spacing.lg }}>
       <View style={{ gap: theme.spacing.xs }}>
         <SectionLabel>{t('accounts.netWorth')}</SectionLabel>
         <Skeleton width={theme.sizes.skeletonWidth.xxl} height={theme.sizes.skeletonLine.display} radius={theme.radius.sm} />
       </View>
       <View className="flex-row" style={{ gap: theme.spacing.sm }}>
         {[0, 1].map((key) => (
-          <View key={key} style={{ flex: 1, gap: theme.spacing.xs, padding: theme.spacing.md, borderRadius: theme.radius.lg, backgroundColor: theme.colors.surfaceMuted }}>
+          <ThemedView key={key} style={{ flex: 1, gap: theme.spacing.xs, padding: theme.spacing.md, borderRadius: theme.radius.lg, backgroundColor: theme.colors.surfaceMuted }}>
             <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
             <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
-          </View>
+          </ThemedView>
         ))}
       </View>
     </View>

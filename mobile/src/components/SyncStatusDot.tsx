@@ -1,7 +1,8 @@
-import { View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { isOpenStatus, type QueueStatus } from '@/services/sync';
+import { ThemedView } from './Themed.tsx';
 
 export interface SyncStatusDotProps {
   status: QueueStatus | undefined;
@@ -16,16 +17,17 @@ export interface SyncStatusDotProps {
  */
 export function SyncStatusDot({ status, testID }: SyncStatusDotProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   if (!status || !isOpenStatus(status)) return null;
 
-  const color =
-    status === 'failed' || status === 'conflict'
-      ? theme.colors.danger
-      : theme.colors.textFaint;
+  const failed = status === 'failed' || status === 'conflict';
+  const color = failed ? theme.colors.danger : theme.colors.textFaint;
 
   return (
-    <View
+    <ThemedView
       testID={testID}
+      accessible
+      accessibilityLabel={t(failed ? 'errors.syncStatusFailed' : 'errors.syncStatusPending')}
       style={{
         width: theme.sizes.dot.sm,
         height: theme.sizes.dot.sm,

@@ -15,7 +15,7 @@ import {
   type Scaled,
 } from '@sora/contracts';
 
-import { Money, OtherCurrencies, SectionLabel, Text } from '@/components';
+import { Money, OtherCurrencies, SectionLabel, Text, ThemedIcon, ThemedView } from '@/components';
 import { useTheme } from '@/app/providers';
 import { absScaled } from '@/utils';
 
@@ -37,7 +37,19 @@ export function IncomeExpenseSummary({
   const { t, i18n } = useTranslation();
 
   const currency = largestCurrencyTotal([...data.income, ...data.expense])?.currency;
-  if (currency === undefined) return null;
+  const headlineFirst = (totals: readonly CurrencyTotal[]) =>
+    [...totals].sort((a, b) => Number(b.currency === currency) - Number(a.currency === currency));
+  const movedIn = headlineFirst(data.transferredIn);
+  const movedOut = headlineFirst(data.transferredOut);
+  const transfers =
+    movedIn.length > 0 || movedOut.length > 0 ? (
+      <View className="flex-row flex-wrap" style={{ columnGap: theme.spacing.lg, rowGap: theme.spacing.xs }} testID="dashboard-transfers">
+        <TransferFigure icon={ArrowDownLeft} label={t('accounts.transferredIn')} totals={movedIn} />
+        <TransferFigure icon={ArrowUpRight} label={t('accounts.transferredOut')} totals={movedOut} />
+      </View>
+    ) : null;
+  // A period that only moved money between accounts still has figures to show (BR-06).
+  if (currency === undefined) return transfers;
 
   const income = amountInCurrency(data.income, currency);
   const expense = amountInCurrency(data.expense, currency);
@@ -59,10 +71,6 @@ export function IncomeExpenseSummary({
             });
 
   const otherCurrencies = [...new Set([...data.income, ...data.expense].map((total) => total.currency))].filter((code) => code !== currency);
-  const headlineFirst = (totals: readonly CurrencyTotal[]) =>
-    [...totals].sort((a, b) => Number(b.currency === currency) - Number(a.currency === currency));
-  const movedIn = headlineFirst(data.transferredIn);
-  const movedOut = headlineFirst(data.transferredOut);
 
   return (
     <View style={{ gap: theme.spacing.md }} testID="dashboard-income-expense">
@@ -70,7 +78,7 @@ export function IncomeExpenseSummary({
         action={
           previous !== undefined ? (
             <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
-              <View style={{ width: theme.spacing.md, height: theme.borderWidth.thick, borderRadius: theme.radius.pill, backgroundColor: theme.colors.borderStrong }} />
+              <ThemedView style={{ width: theme.spacing.md, height: theme.borderWidth.thick, borderRadius: theme.radius.pill, backgroundColor: theme.colors.borderStrong }} />
               <Text variant="caption" tone="muted" numberOfLines={1}>
                 {t('dashboard.versusPeriod', { period: previousLabel })}
               </Text>
@@ -119,12 +127,7 @@ export function IncomeExpenseSummary({
         />
       </View>
 
-      {movedIn.length > 0 || movedOut.length > 0 ? (
-        <View className="flex-row flex-wrap" style={{ columnGap: theme.spacing.lg, rowGap: theme.spacing.xs }} testID="dashboard-transfers">
-          <TransferFigure icon={ArrowDownLeft} label={t('dashboard.transferredIn')} totals={movedIn} />
-          <TransferFigure icon={ArrowUpRight} label={t('dashboard.transferredOut')} totals={movedOut} />
-        </View>
-      ) : null}
+      {transfers}
 
       <OtherCurrencies
         rows={otherCurrencies.map((code) => ({
@@ -178,9 +181,9 @@ function FlowRow({
 function Bar({ share, color, thickness, track = false }: { share: number; color: string; thickness: number; track?: boolean }) {
   const theme = useTheme();
   return (
-    <View style={{ height: thickness, borderRadius: theme.radius.pill, backgroundColor: track ? theme.colors.surfaceMuted : 'transparent', overflow: 'hidden' }}>
-      <View style={{ width: `${share}%`, minWidth: theme.sizes.chart.minBarLength, height: '100%', borderRadius: theme.radius.pill, backgroundColor: color }} />
-    </View>
+    <ThemedView style={{ height: thickness, borderRadius: theme.radius.pill, backgroundColor: track ? theme.colors.surfaceMuted : 'transparent', overflow: 'hidden' }}>
+      <ThemedView style={{ width: `${share}%`, minWidth: theme.sizes.chart.minBarLength, height: '100%', borderRadius: theme.radius.pill, backgroundColor: color }} />
+    </ThemedView>
   );
 }
 
@@ -188,7 +191,7 @@ function TransferFigure({ icon: Icon, label, totals }: { icon: LucideIcon; label
   const theme = useTheme();
   return (
     <View className="flex-row flex-wrap items-center" style={{ gap: theme.spacing.xs }}>
-      <Icon size={theme.iconSize.sm} color={theme.colors.textFaint} />
+      <ThemedIcon icon={Icon} size={theme.iconSize.sm} color={theme.colors.textFaint} />
       <Text variant="caption" tone="muted">
         {label}
       </Text>

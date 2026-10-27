@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ellipsis, Layers } from 'lucide-react-native';
 import { AccountStatus } from '@sora/contracts';
 
-import { BottomSheetModal, Text } from '@/components';
+import { BottomSheetModal, Text, ThemedIcon, ThemedPressable } from '@/components';
 import { useTheme } from '@/app/providers';
 import { useListAccountsQuery } from '@/app/store';
 import { inlineAccounts, overflowsScopeRow } from '../accountScope.ts';
@@ -51,6 +51,9 @@ export function AccountScopePicker({
     backgroundColor: selected ? theme.colors.primaryMuted : pressedKey === key ? theme.colors.surfacePressed : 'transparent',
   });
 
+  const chipHeight = theme.lineHeight.sm + theme.spacing.xs * 2;
+  const chipSlop = Math.max(0, (theme.sizes.touchTarget - chipHeight) / 2);
+
   const pick = (accountId: string | null) => {
     setSheetOpen(false);
     onSelect(accountId);
@@ -61,7 +64,7 @@ export function AccountScopePicker({
       {chips.map((chip) => {
         const selected = chip.accountId === selectedAccountId;
         return (
-          <Pressable
+          <ThemedPressable
             key={chip.key}
             testID={`btn-account-scope-${chip.key}`}
             accessibilityRole="button"
@@ -69,31 +72,31 @@ export function AccountScopePicker({
             onPress={() => onSelect(chip.accountId)}
             onPressIn={() => setPressedKey(chip.key)}
             onPressOut={() => setPressedKey(null)}
-            hitSlop={{ top: theme.sizes.hitSlop.md, bottom: theme.sizes.hitSlop.md }}
+            hitSlop={{ top: chipSlop, bottom: chipSlop }}
             // An account name ellipsizes rather than pushing the row past the screen edge.
             style={[chipStyle(chip.key, selected), { flexShrink: chip.accountId === null ? 0 : 1 }]}
           >
             <Text variant="label" weight={selected ? 'semibold' : 'medium'} tone={selected ? undefined : 'muted'} numberOfLines={1} style={selected ? { color: theme.colors.primary } : undefined}>
               {chip.label}
             </Text>
-          </Pressable>
+          </ThemedPressable>
         );
       })}
 
       {overflowsScopeRow(items.length) ? (
-        <Pressable
+        <ThemedPressable
           testID="btn-more-account-scope"
           accessibilityRole="button"
           accessibilityLabel={t('accounts.moreAccounts')}
           onPress={() => setSheetOpen(true)}
           onPressIn={() => setPressedKey(MORE)}
           onPressOut={() => setPressedKey(null)}
-          hitSlop={{ top: theme.sizes.hitSlop.md, bottom: theme.sizes.hitSlop.md }}
+          hitSlop={{ top: chipSlop, bottom: chipSlop }}
           className="items-center justify-center"
-          style={[chipStyle(MORE, false), { alignSelf: 'stretch' }]}
+          style={[chipStyle(MORE, false), { alignSelf: 'stretch', minWidth: theme.sizes.touchTarget }]}
         >
-          <Ellipsis size={theme.iconSize.sm} color={theme.colors.textMuted} />
-        </Pressable>
+          <ThemedIcon icon={Ellipsis} size={theme.iconSize.sm} color={theme.colors.textMuted} />
+        </ThemedPressable>
       ) : null}
 
       <BottomSheetModal visible={sheetOpen} onClose={() => setSheetOpen(false)} title={t('accounts.filterByAccount')} entity="account-scope">

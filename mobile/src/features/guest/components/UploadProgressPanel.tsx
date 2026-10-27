@@ -14,7 +14,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import { Button, Text } from '@/components';
+import { Button, Text, ThemedView } from '@/components';
 import { useTheme } from '@/app/providers';
 import { UPLOAD_PHASES, type GuestUploadStatus } from '@/services/guest';
 import { messageOf } from '@/utils';
@@ -60,7 +60,7 @@ export function UploadProgressPanel({ status, error, walletName, view, onBackgro
   const title = status === 'failed' ? t('guest.upload.failedTitle') : working ? t('guest.upload.uploading') : t('guest.upload.pausedTitle');
 
   return (
-    <View testID="screen-guest-upload" className="flex-1" style={{ backgroundColor: theme.colors.background }}>
+    <ThemedView testID="screen-guest-upload" className="flex-1" style={{ backgroundColor: theme.colors.background }}>
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
@@ -134,7 +134,7 @@ export function UploadProgressPanel({ status, error, walletName, view, onBackgro
           </>
         )}
       </View>
-    </View>
+    </ThemedView>
   );
 }
 

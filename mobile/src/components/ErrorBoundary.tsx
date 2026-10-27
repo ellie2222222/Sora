@@ -1,9 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { StateView } from './StateView';
+import { ThemedView } from './Themed.tsx';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -42,7 +42,7 @@ function CrashFallback({ onRetry }: { onRetry: () => void }) {
   const { t } = useTranslation();
 
   return (
-    <View
+    <ThemedView
       testID="screen-crash"
       style={{ flex: 1, justifyContent: 'center', padding: theme.spacing.lg, backgroundColor: theme.colors.background }}
     >
@@ -53,6 +53,6 @@ function CrashFallback({ onRetry }: { onRetry: () => void }) {
         primaryAction={{ label: t('common.tryAgain'), onPress: onRetry }}
         entrance="none"
       />
-    </View>
+    </ThemedView>
   );
 }

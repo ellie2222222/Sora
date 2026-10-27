@@ -1,9 +1,10 @@
 import { useState, type ComponentType } from 'react';
-import { ActivityIndicator, Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
+import { ThemedIcon, ThemedPressable } from './Themed.tsx';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'danger-outline' | 'danger-soft' | 'ghost';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -115,15 +116,17 @@ export function Button({
     ghost: theme.colors.buttonOutlineDisabledText,
   }[variant];
 
-  const backgroundColor = isDisabled ? disabledBackgroundColor : enabledBackgroundColor;
-  const borderColor = isDisabled ? disabledBorderColor : enabledBorderColor;
-  const textColor = isDisabled ? disabledTextColor : enabledTextColor;
+  // Loading keeps the resting colours (DESIGN_GUIDELINES "Button states"); only a real disable greys out.
+  const showDisabled = disabled === true;
+  const backgroundColor = showDisabled ? disabledBackgroundColor : enabledBackgroundColor;
+  const borderColor = showDisabled ? disabledBorderColor : enabledBorderColor;
+  const textColor = showDisabled ? disabledTextColor : enabledTextColor;
   const iconColor = textColor;
   const iconSize = size === 'sm' ? theme.iconSize.sm : size === 'lg' ? theme.iconSize.lg : theme.iconSize.md;
   const borderWidth = variant === 'danger-soft' || variant === 'ghost' ? 0 : theme.borderWidth.thin;
 
   return (
-    <Pressable
+    <ThemedPressable
       {...pressableProps}
       testID={testID}
       hitSlop={hitSlop ?? sizeHitSlop[size]}
@@ -144,7 +147,7 @@ export function Button({
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor,
-          height: sizeHeight[size],
+          minHeight: sizeHeight[size],
           borderRadius: theme.radius.md,
           paddingVertical: sizePaddingVertical[size],
           paddingHorizontal: sizePaddingHorizontal[size],
@@ -160,31 +163,19 @@ export function Button({
     >
       {loading ? (
         <>
-          <ActivityIndicator
-            size="small"
-            color={
-              isDisabled
-                ? textColor
-                : variant === 'primary'
-                  ? theme.colors.onPrimary
-                  : variant === 'danger'
-                    ? theme.colors.onDanger
-                    : textColor
-            }
-            style={{ marginRight: theme.spacing.sm }}
-          />
+          <ActivityIndicator size="small" color={textColor} style={{ marginRight: theme.spacing.sm }} />
           <Text variant="label" weight="semibold" style={{ color: textColor }}>
-            {loadingLabel ?? t('common.loading', 'Loading…')}
+            {loadingLabel ?? t('common.loading')}
           </Text>
         </>
       ) : (
         <>
-          {Icon !== undefined ? <Icon size={iconSize} color={iconColor} style={{ marginRight: theme.spacing.sm }} /> : null}
+          {Icon !== undefined ? <ThemedIcon icon={Icon} size={iconSize} color={iconColor} style={{ marginRight: theme.spacing.sm }} /> : null}
           <Text variant="label" weight="semibold" style={{ color: textColor }}>
             {label}
           </Text>
         </>
       )}
-    </Pressable>
+    </ThemedPressable>
   );
 }

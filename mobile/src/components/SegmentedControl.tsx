@@ -1,9 +1,8 @@
-import { Pressable, View } from 'react-native';
-
 import { useTheme } from '@/app/providers';
 import { concentricRadius, type Theme } from '@/design-system';
 import { Skeleton } from './Skeleton';
 import { Text } from './Text';
+import { ThemedPressable, ThemedView } from './Themed.tsx';
 
 export interface SegmentedOption<T extends string> {
   value: T;
@@ -32,6 +31,8 @@ function trackStyle(theme: Theme) {
 function segmentStyle(theme: Theme, selected: boolean) {
   return {
     borderRadius: concentricRadius(theme.radius.md, theme.borderWidth.thin, theme.spacing.xxs),
+    // The track's own border and padding make up the rest of the 44pt touch target.
+    minHeight: theme.sizes.touchTarget - 2 * (theme.borderWidth.thin + theme.spacing.xxs),
     borderWidth: theme.borderWidth.thin,
     borderColor: selected ? theme.colors.primary : 'transparent',
     backgroundColor: selected ? theme.colors.primaryMuted : 'transparent',
@@ -43,11 +44,11 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
   const theme = useTheme();
 
   return (
-    <View className="flex-row" style={trackStyle(theme)}>
+    <ThemedView className="flex-row" accessibilityRole="tablist" style={trackStyle(theme)}>
       {options.map((option) => {
         const selected = option.value === value;
         return (
-          <Pressable
+          <ThemedPressable
             key={option.value}
             testID={option.testID}
             onPress={() => onChange(option.value)}
@@ -63,10 +64,10 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
             >
               {option.label}
             </Text>
-          </Pressable>
+          </ThemedPressable>
         );
       })}
-    </View>
+    </ThemedView>
   );
 }
 
@@ -75,12 +76,12 @@ export function SegmentedControlSkeleton({ count }: { count: number }) {
   const theme = useTheme();
 
   return (
-    <View className="flex-row" style={trackStyle(theme)}>
+    <ThemedView className="flex-row" style={trackStyle(theme)}>
       {Array.from({ length: count }).map((_, i) => (
-        <View key={i} className="flex-1 py-sm items-center justify-center" style={segmentStyle(theme, i === 0)}>
+        <ThemedView key={i} className="flex-1 py-sm items-center justify-center" style={segmentStyle(theme, i === 0)}>
           <Skeleton width={theme.sizes.skeletonWidth.xs} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
-        </View>
+        </ThemedView>
       ))}
-    </View>
+    </ThemedView>
   );
 }

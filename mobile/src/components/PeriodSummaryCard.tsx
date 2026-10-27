@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LayoutAnimation, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import {
   amountInCurrency,
   formatMoney,
@@ -18,6 +19,7 @@ import { Card } from './Card.tsx';
 import { Money } from './Money.tsx';
 import { OtherCurrencies, type OtherCurrencyRow } from './OtherCurrencies.tsx';
 import { Text } from './Text.tsx';
+import { ThemedView } from './Themed.tsx';
 
 export interface PeriodSummaryCardProps {
   transactions: readonly TransactionResponse[];
@@ -33,10 +35,11 @@ type Totals = Record<'income' | 'expense' | 'transfer', CurrencyTotal[]>;
  */
 export function PeriodSummaryCard({ transactions, filterType = 'ALL', testID }: PeriodSummaryCardProps) {
   const theme = useTheme();
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  }, [filterType]);
+    if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  }, [filterType, reduceMotion]);
 
   // Three passes over every loaded page; the list re-renders far more often than its rows change.
   const totals: Totals = useMemo(
@@ -109,7 +112,7 @@ function CurrencyBlock({
         <View className="flex-row">
           <View style={{ flex: 1, gap: theme.spacing.xxs }}>
             <Text variant="caption" tone="muted">
-              {t('transactions.expensesLabel', { defaultValue: 'Expenses' })}
+              {t('transactions.expensesLabel')}
             </Text>
             <Money
               amount={expenseAmount}
@@ -123,7 +126,7 @@ function CurrencyBlock({
           </View>
           <View style={{ flex: 1, gap: theme.spacing.xxs }}>
             <Text variant="caption" tone="muted">
-              {t('transactions.incomeLabel', { defaultValue: 'Income' })}
+              {t('transactions.incomeLabel')}
             </Text>
             <Money
               amount={incomeAmount}
@@ -137,7 +140,7 @@ function CurrencyBlock({
           </View>
         </View>
 
-        <View
+        <ThemedView
           style={{
             gap: theme.spacing.xxs,
             paddingTop: theme.spacing.sm,
@@ -146,10 +149,10 @@ function CurrencyBlock({
           }}
         >
           <Text variant="caption" tone="muted">
-            {t('transactions.netCashFlow', { defaultValue: 'Net cash flow' })}
+            {t('transactions.netCashFlow')}
           </Text>
           <Money amount={netAmount} currency={currency} variant="label" weight="semibold" />
-        </View>
+        </ThemedView>
       </View>
     );
   }
@@ -163,7 +166,7 @@ function CurrencyBlock({
       <View style={{ gap: theme.spacing.sm }}>
         <View style={{ gap: theme.spacing.xxs }}>
           <Text variant="caption" tone="muted">
-            {t('transactions.totalExpenses', { defaultValue: 'Total expenses' })}
+            {t('transactions.totalExpenses')}
           </Text>
           <Money
             amount={expenseAmount}
@@ -176,7 +179,7 @@ function CurrencyBlock({
           />
         </View>
 
-        <View
+        <ThemedView
           style={{
             gap: theme.spacing.xs,
             paddingTop: theme.spacing.sm,
@@ -186,17 +189,17 @@ function CurrencyBlock({
         >
           <View className="flex-row justify-between">
             <Text variant="label" tone="muted">
-              {t('transactions.transactions', { defaultValue: 'Transactions' })}
+              {t('transactions.transactions')}
             </Text>
             <Text variant="label">{curTransactions.length}</Text>
           </View>
           <View className="flex-row justify-between">
             <Text variant="label" tone="muted">
-              {t('transactions.average', { defaultValue: 'Average expense' })}
+              {t('transactions.average')}
             </Text>
             <Money amount={avg} currency={currency} showSign={false} formatOptions={{ signDisplay: 'never' }} variant="label" />
           </View>
-        </View>
+        </ThemedView>
       </View>
     );
   }
@@ -210,7 +213,7 @@ function CurrencyBlock({
       <View style={{ gap: theme.spacing.sm }}>
         <View style={{ gap: theme.spacing.xxs }}>
           <Text variant="caption" tone="muted">
-            {t('transactions.totalIncome', { defaultValue: 'Total income' })}
+            {t('transactions.totalIncome')}
           </Text>
           <Money
             amount={incomeAmount}
@@ -223,7 +226,7 @@ function CurrencyBlock({
           />
         </View>
 
-        <View
+        <ThemedView
           style={{
             gap: theme.spacing.xs,
             paddingTop: theme.spacing.sm,
@@ -233,17 +236,17 @@ function CurrencyBlock({
         >
           <View className="flex-row justify-between">
             <Text variant="label" tone="muted">
-              {t('transactions.transactions', { defaultValue: 'Transactions' })}
+              {t('transactions.transactions')}
             </Text>
             <Text variant="label">{curTransactions.length}</Text>
           </View>
           <View className="flex-row justify-between">
             <Text variant="label" tone="muted">
-              {t('transactions.averageIncome', { defaultValue: 'Average income' })}
+              {t('transactions.averageIncome')}
             </Text>
             <Money amount={avg} currency={currency} showSign={false} formatOptions={{ signDisplay: 'never' }} variant="label" />
           </View>
-        </View>
+        </ThemedView>
       </View>
     );
   }
@@ -261,7 +264,7 @@ function CurrencyBlock({
     <View style={{ gap: theme.spacing.sm }}>
       <View style={{ gap: theme.spacing.xxs }}>
         <Text variant="caption" tone="muted">
-          {t('transactions.totalTransferred', { defaultValue: 'Total transfers' })}
+          {t('transactions.totalTransferred')}
         </Text>
         <Money
           amount={transferAmount}
@@ -274,7 +277,7 @@ function CurrencyBlock({
         />
       </View>
 
-      <View
+      <ThemedView
         style={{
           gap: theme.spacing.xs,
           paddingTop: theme.spacing.sm,
@@ -284,17 +287,17 @@ function CurrencyBlock({
       >
         <View className="flex-row justify-between">
           <Text variant="label" tone="muted">
-            {t('transactions.transfers', { defaultValue: 'Transfers' })}
+            {t('transactions.transfers')}
           </Text>
           <Text variant="label">{curTransactions.length}</Text>
         </View>
         <View className="flex-row justify-between">
           <Text variant="label" tone="muted">
-            {t('transactions.accountsInvolved', { defaultValue: 'Accounts involved' })}
+            {t('transactions.accountsInvolved')}
           </Text>
           <Text variant="label">{uniqueAccounts}</Text>
         </View>
-      </View>
+      </ThemedView>
     </View>
   );
 }

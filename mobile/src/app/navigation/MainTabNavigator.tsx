@@ -3,16 +3,17 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { CalendarRange, LayoutDashboard, PieChart, Settings as SettingsIcon, Sparkles } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AiChatScreen } from '@/features/chat';
+import { usePendingInvitation } from '@/features/auth';
 import { PlanningScreen } from '@/features/planning';
 import { HomeScreen } from '@/features/home';
 import { DashboardScreen } from '@/features/dashboard';
 import { SettingsScreen } from '@/features/settings';
-import { Text } from '@/components';
+import { Text, ThemedIcon, ThemedView } from '@/components';
 import { useTheme } from '@/app/providers';
 import type { MainTabParamList } from './types.ts';
 
@@ -54,7 +55,8 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   }));
 
   return (
-    <View
+    <ThemedView
+      accessibilityRole="tablist"
       className="flex-row relative"
       style={{
         backgroundColor: theme.colors.surface,
@@ -108,8 +110,8 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         return (
           <Pressable
             key={route.key}
-            accessibilityRole="button"
-            accessibilityState={isFocused ? { selected: true } : {}}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isFocused }}
             accessibilityLabel={options.tabBarAccessibilityLabel}
             testID={`tab-${route.name.toLowerCase()}`}
             onPress={onPress}
@@ -117,19 +119,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             className="flex-1 items-center justify-center"
             style={{ paddingVertical: theme.spacing.xs }}
           >
-            {/* Negative margins cancel the pill's padding, so the active tab lays out exactly like the others. */}
-            <View
-              style={{
-                paddingHorizontal: theme.spacing.sm,
-                marginHorizontal: -theme.spacing.sm,
-                paddingVertical: theme.spacing.xxs,
-                marginVertical: -theme.spacing.xxs,
-                borderRadius: theme.radius.pill,
-                backgroundColor: isFocused ? theme.colors.primaryMuted : 'transparent',
-              }}
-            >
-              {options.tabBarIcon?.({ focused: isFocused, color, size: theme.iconSize.xxl }) ?? null}
-            </View>
+            {options.tabBarIcon?.({ focused: isFocused, color, size: theme.iconSize.xxl }) ?? null}
             <Text
               variant="caption"
               // The weight prop, not a numeric fontWeight: Mulish ships one file per weight, so Android ignores the number.
@@ -157,22 +147,29 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               bottom: insets.bottom + theme.spacing.xxs,
             },
             indicatorStyle,
+            theme.motion.colorTransition,
           ]}
         />
       )}
-    </View>
+    </ThemedView>
   );
 }
 
 export function MainTabNavigator() {
   const theme = useTheme();
   const { t } = useTranslation();
+  usePendingInvitation();
 
   return (
     <Tab.Navigator
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
+        // A visited tab stays mounted; frozen while hidden, it skips a theme or wallet change until shown again,
+        // instead of every tab re-rendering on top of the visible one.
+        freezeOnBlur: true,
+        // Shows ThemeProvider's backdrop, which eases on a theme switch; only the focused tab is ever drawn.
+        sceneStyle: { backgroundColor: 'transparent' },
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.text,
       }}
@@ -182,7 +179,7 @@ export function MainTabNavigator() {
         component={HomeScreen}
         options={{
           tabBarLabel: t('nav.home'),
-          tabBarIcon: ({ color, size }) => <LayoutDashboard color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <ThemedIcon icon={LayoutDashboard} color={color} size={size} />,
         }}
       />
       <Tab.Screen
@@ -190,7 +187,7 @@ export function MainTabNavigator() {
         component={PlanningScreen}
         options={{
           tabBarLabel: t('nav.planning', 'Planning'),
-          tabBarIcon: ({ color, size }) => <CalendarRange color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <ThemedIcon icon={CalendarRange} color={color} size={size} />,
         }}
       />
       <Tab.Screen
@@ -198,7 +195,7 @@ export function MainTabNavigator() {
         component={AiChatScreen}
         options={{
           tabBarLabel: t('nav.ai'),
-          tabBarIcon: ({ color, size }) => <Sparkles color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <ThemedIcon icon={Sparkles} color={color} size={size} />,
         }}
       />
       <Tab.Screen
@@ -206,7 +203,7 @@ export function MainTabNavigator() {
         component={DashboardScreen}
         options={{
           tabBarLabel: t('nav.dashboard'),
-          tabBarIcon: ({ color, size }) => <PieChart color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <ThemedIcon icon={PieChart} color={color} size={size} />,
         }}
       />
       <Tab.Screen
@@ -214,7 +211,7 @@ export function MainTabNavigator() {
         component={SettingsScreen}
         options={{
           tabBarLabel: t('settings.title'),
-          tabBarIcon: ({ color, size }) => <SettingsIcon color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <ThemedIcon icon={SettingsIcon} color={color} size={size} />,
         }}
       />
     </Tab.Navigator>

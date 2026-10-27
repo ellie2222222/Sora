@@ -11,11 +11,14 @@ import Animated, {
   withSpring,
   Easing,
 } from 'react-native-reanimated';
+import { ThemedIcon } from './Themed.tsx';
 
 export type IconAnimationType = 'none' | 'spin' | 'pulse' | 'bounce' | 'float';
 
-export interface AnimatedIconProps extends LucideProps {
+export interface AnimatedIconProps extends Omit<LucideProps, 'color' | 'size'> {
   icon: LucideIcon;
+  color: string;
+  size?: number;
   animation?: IconAnimationType;
   duration?: number;
 }
@@ -115,7 +118,7 @@ export function AnimatedIcon({
 
   return (
     <Animated.View style={[animatedStyle, style]}>
-      <IconComponent size={size ?? theme.iconSize.xxl} color={color} strokeWidth={strokeWidth ?? theme.iconStroke.regular} {...rest} />
+      <ThemedIcon icon={IconComponent} size={size ?? theme.iconSize.xxl} color={color} strokeWidth={strokeWidth ?? theme.iconStroke.regular} {...rest} />
     </Animated.View>
   );
 }

@@ -4,6 +4,7 @@ import Animated, { type AnimatedStyle } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
+import { ThemedIcon } from '../Themed.tsx';
 
 type AnimatedViewStyle = StyleProp<AnimatedStyle<StyleProp<ViewStyle>>>;
 
@@ -44,13 +45,14 @@ export function PullToRefreshIndicator({
           ...theme.shadows.md,
         },
         indicatorAnimatedStyle,
+        theme.motion.colorTransition,
       ]}
       testID={testID}
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={t('common.refresh', 'Refresh')}
-        accessibilityHint={t('common.pullToRefreshHint', 'Double tap to refresh')}
+        accessibilityLabel={t('common.refresh')}
+        accessibilityHint={t('common.pullToRefreshHint')}
         accessibilityState={{ busy: refreshing || spinnerVisible }}
         onPress={onRefresh}
         // The 36pt circle plus 4pt each side reaches the 44pt minimum touch target.
@@ -58,7 +60,7 @@ export function PullToRefreshIndicator({
         className="w-full h-full items-center justify-center"
       >
         <Animated.View style={iconAnimatedStyle}>
-          <RotateCw size={theme.iconSize.md} color={theme.colors.primary} />
+          <ThemedIcon icon={RotateCw} size={theme.iconSize.md} color={theme.colors.primary} />
         </Animated.View>
         <Animated.View style={[StyleSheet.absoluteFill, styles.center, { pointerEvents: 'none' }, spinnerAnimatedStyle]}>
           {/* Never stopped: a stopped spinner hides itself, and starting it waits on a JS render. */}

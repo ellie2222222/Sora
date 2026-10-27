@@ -1,6 +1,7 @@
-import { View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
+import { ThemedView } from './Themed.tsx';
 
 export interface ProgressBarProps {
   /** 0-100+; the bar caps at full width above 100. */
@@ -8,6 +9,8 @@ export interface ProgressBarProps {
   tone?: 'primary' | 'income' | 'expense';
   danger?: boolean;
   height?: number;
+  /** What the bar measures; defaults to the bare percentage. */
+  accessibilityLabel?: string;
 }
 
 /**
@@ -16,8 +19,9 @@ export interface ProgressBarProps {
  * bar itself still visually caps at full width; `danger` is what actually
  * signals the overspend, not a bar that would overflow its own track.
  */
-export function ProgressBar({ percentage, tone = 'primary', danger = false, height: heightProp }: ProgressBarProps) {
+export function ProgressBar({ percentage, tone = 'primary', danger = false, height: heightProp, accessibilityLabel }: ProgressBarProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const height = heightProp ?? theme.sizes.progressBar.md;
   const clamped = Math.min(Math.max(percentage, 0), 100);
 
@@ -26,8 +30,9 @@ export function ProgressBar({ percentage, tone = 'primary', danger = false, heig
     : { primary: theme.colors.primary, income: theme.colors.income, expense: theme.colors.expense }[tone];
 
   return (
-    <View
+    <ThemedView
       accessibilityRole="progressbar"
+      accessibilityLabel={accessibilityLabel ?? t('common.percent', { percent: Math.round(percentage) })}
       accessibilityValue={{ min: 0, max: 100, now: Math.round(percentage) }}
       className="overflow-hidden"
       style={{
@@ -36,7 +41,7 @@ export function ProgressBar({ percentage, tone = 'primary', danger = false, heig
         backgroundColor: theme.colors.surfaceMuted,
       }}
     >
-      <View
+      <ThemedView
         className="h-full"
         style={{
           width: `${clamped}%`,
@@ -44,6 +49,6 @@ export function ProgressBar({ percentage, tone = 'primary', danger = false, heig
           backgroundColor: fillColor,
         }}
       />
-    </View>
+    </ThemedView>
   );
 }

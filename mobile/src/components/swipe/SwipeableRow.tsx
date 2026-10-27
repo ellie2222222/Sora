@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, View, type AccessibilityActionEvent } from 'react-native';
+import { View, type AccessibilityActionEvent } from 'react-native';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import type { LucideIcon } from 'lucide-react-native';
 
@@ -8,6 +8,7 @@ import { hapticReveal, hapticTap, hapticWarning } from '@/services/haptics';
 import { Text } from '../Text.tsx';
 import { claimOpenSwipeRow, releaseOpenSwipeRow, type SwipeRowHandle } from './openSwipeRow.ts';
 import { useScreenReaderEnabled } from './useScreenReaderEnabled.ts';
+import { ThemedIcon, ThemedPressable, ThemedView } from '../Themed.tsx';
 
 /** Past this much drag a release snaps open; short of it the row springs back. */
 const OPEN_THRESHOLD = 40;
@@ -111,7 +112,7 @@ export function SwipeableRow({ actions, children, backgroundColor, radius = 0, o
             const ink = action.tone === 'danger' ? theme.colors.onDanger : theme.colors.onPrimary;
             const Icon = action.icon;
             return (
-              <Pressable
+              <ThemedPressable
                 key={action.key}
                 testID={action.testID}
                 accessibilityRole="button"
@@ -128,18 +129,18 @@ export function SwipeableRow({ actions, children, backgroundColor, radius = 0, o
                   opacity: pressedKey === action.key ? theme.opacity.pressed : 1,
                 }}
               >
-                <Icon size={theme.iconSize.xl} color={ink} />
+                <ThemedIcon icon={Icon} size={theme.iconSize.xl} color={ink} />
                 <Text variant="caption" weight="semibold" numberOfLines={1} style={{ color: ink }}>
                   {action.label}
                 </Text>
-              </Pressable>
+              </ThemedPressable>
             );
           })}
         </View>
       )}
     >
       {/* Only merged while a screen reader runs: otherwise the row's own controls stay separately addressable. */}
-      <View
+      <ThemedView
         accessible={screenReader}
         accessibilityActions={
           screenReader
@@ -153,7 +154,7 @@ export function SwipeableRow({ actions, children, backgroundColor, radius = 0, o
         style={{ backgroundColor: backgroundColor ?? 'transparent' }}
       >
         {children}
-      </View>
+      </ThemedView>
     </ReanimatedSwipeable>
   );
 }

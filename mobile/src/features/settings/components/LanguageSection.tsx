@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocaleControl, useTheme } from '@/app/providers';
 import { CollapsibleSection } from './CollapsibleSection';
 import { LanguageOptions } from './LanguageOptions';
+import { ThemedIcon } from '@/components';
 
 export function LanguageSection({
   isOpen,
@@ -18,8 +19,8 @@ export function LanguageSection({
   return (
     <CollapsibleSection
       testID="settings-nav-language"
-      icon={<Globe size={theme.iconSize.lg} color={theme.colors.textMuted} />}
-      title={t('settings.language', 'Language')}
+      icon={<ThemedIcon icon={Globe} size={theme.iconSize.lg} color={theme.colors.textMuted} />}
+      title={t('settings.language')}
       subtitle={t(`settings.languageNames.${locale}`)}
       isOpen={isOpen}
       onToggle={onToggle}

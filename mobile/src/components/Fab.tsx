@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/app/providers';
 import type { Theme } from '@/design-system';
 import { AnimatedPressable } from './AnimatedPressable';
+import { ThemedIcon } from './Themed.tsx';
 
 export interface FabProps extends Omit<PressableProps, 'children' | 'style'> {
   size?: number;
@@ -41,9 +42,10 @@ export function Fab({ size: sizeProp, bottomOffset = 0, label, testID = 'btn-add
         alignItems: 'center',
         justifyContent: 'center',
         ...theme.shadows.md,
+        ...theme.motion.colorTransition,
       }}
     >
-      <Plus size={size * 0.44} color={theme.colors.onPrimary} strokeWidth={theme.iconStroke.bold} />
+      <ThemedIcon icon={Plus} size={size * 0.44} color={theme.colors.onPrimary} strokeWidth={theme.iconStroke.bold} />
     </AnimatedPressable>
   );
 }

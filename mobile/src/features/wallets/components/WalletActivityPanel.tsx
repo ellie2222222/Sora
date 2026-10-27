@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AuditLogResponse } from '@sora/contracts';
 
-import { Card, ListLoadMoreFooter, RefreshableSectionList, Skeleton, StateView, Text } from '@/components';
+import { Card, ListLoadMoreFooter, RefreshableSectionList, Skeleton, StateView, Text, ThemedView } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { useListAuditLogsInfiniteQuery } from '@/app/store';
 import {
@@ -80,11 +80,11 @@ export function WalletActivityPanel({ walletId }: { walletId: string }) {
       refreshing={isRefreshing}
       onRefresh={handleRefresh}
       renderSectionHeader={({ section }) => (
-        <View style={{ backgroundColor: theme.colors.surfaceElevated, paddingBottom: theme.spacing.xs }}>
+        <ThemedView style={{ backgroundColor: theme.colors.surfaceElevated, paddingBottom: theme.spacing.xs }}>
           <Text variant="label" tone="muted">
             {section.title}
           </Text>
-        </View>
+        </ThemedView>
       )}
       renderItem={({ item }) => <ActivityItem entry={item} />}
       onEndReached={() => {
@@ -111,12 +111,10 @@ function groupByDay(items: readonly AuditLogResponse[], timeZone: string): { tit
   }));
 }
 
-function humanizeEvent(event: string): string {
-  return event
-    .toLowerCase()
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+/** Fallback for a code the catalog doesn't name yet: the server's vocabulary can grow ahead of the app's. */
+function humanizeCode(code: string): string {
+  const words = code.toLowerCase().replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 function ActivityItem({ entry }: { entry: AuditLogResponse }) {
@@ -128,11 +126,13 @@ function ActivityItem({ entry }: { entry: AuditLogResponse }) {
     <Card testID={`row-activity-${entry.id}`}>
       <View className="flex-row justify-between items-start">
         <View className="flex-1 gap-xxs">
-          <Text weight="semibold">{humanizeEvent(entry.event)}</Text>
+          <Text weight="semibold">
+            {t(`activity.events.${entry.event}`, { defaultValue: humanizeCode(entry.event) })}
+          </Text>
           <Text variant="caption" tone="muted">
             {entry.actorRole !== null ? `${getRoleLabel(entry.actorRole, t)} · ` : ''}
-            {entry.entityType}
-            {failed ? ` · ${entry.result.toLowerCase()}` : ''}
+            {t(`activity.entityTypes.${entry.entityType}`, { defaultValue: humanizeCode(entry.entityType) })}
+            {failed ? ` · ${t(`activity.results.${entry.result}`)}` : ''}
           </Text>
         </View>
         <Text variant="caption" tone={failed ? 'danger' : 'muted'}>

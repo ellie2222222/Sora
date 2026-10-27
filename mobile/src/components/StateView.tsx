@@ -1,19 +1,21 @@
 import type { LucideIcon } from 'lucide-react-native';
 import { CloudOff, Inbox, Info, Search, TriangleAlert, WifiOff } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/app/providers';
 import { getServerErrorMessage, isApiError, isDeviceOnline, isNetworkError, isUnauthenticated, noResponseMessage } from '@/utils';
-import { AnimatedIcon, type IconAnimationType } from './AnimatedIcon';
 import { Button } from './Button';
 import { SlideUp } from './SlideUp';
 import { Text } from './Text';
+import { ThemedIcon, ThemedPressable } from './Themed.tsx';
 
 export type StateViewVariant = 'empty' | 'error' | 'no-results' | 'informational';
 
 export interface StateViewAction {
+  /** Stable id for the quick-action chip's testID; falls back to `label`. */
+  id?: string;
   label: string;
   onPress: () => void;
   loading?: boolean;
@@ -44,13 +46,6 @@ const VARIANT_ICON: Record<StateViewVariant, LucideIcon> = {
   informational: Info,
 };
 
-const VARIANT_ANIMATION: Record<StateViewVariant, IconAnimationType> = {
-  empty: 'float',
-  error: 'pulse',
-  'no-results': 'none',
-  informational: 'none',
-};
-
 export function StateView({
   variant: requestedVariant,
   icon,
@@ -79,10 +74,10 @@ export function StateView({
   const Icon = icon ?? (unreachable ? (isDeviceOnline() ? CloudOff : WifiOff) : VARIANT_ICON[variant]);
 
   const defaultTitles: Record<StateViewVariant, string> = {
-    empty: t('errors.nothingHereYet', 'Nothing here yet'),
-    error: t('errors.somethingWentWrong', 'Something went wrong. Please try again.'),
-    'no-results': t('errors.noResultsFound', 'No results found'),
-    informational: t('errors.nothingHereYet', 'Nothing here yet'),
+    empty: t('errors.nothingHereYet'),
+    error: t('errors.somethingWentWrong'),
+    'no-results': t('errors.noResultsFound'),
+    informational: t('errors.nothingHereYet'),
   };
 
   const errorMessage = unreachable
@@ -98,7 +93,7 @@ export function StateView({
   const resolvedPrimary =
     primaryAction ??
     (retryAction !== undefined
-      ? { label: t('common.tryAgain', 'Try again'), onPress: retryAction }
+      ? { label: t('common.tryAgain'), onPress: retryAction }
       : undefined);
 
   const resolvedIconColor =
@@ -114,13 +109,7 @@ export function StateView({
 
   const content = (
     <>
-      <AnimatedIcon
-        icon={Icon}
-        size={theme.iconSize.hero}
-        color={resolvedIconColor}
-        strokeWidth={theme.iconStroke.thin}
-        animation={VARIANT_ANIMATION[variant]}
-      />
+      <ThemedIcon icon={Icon} size={theme.iconSize.hero} color={resolvedIconColor} strokeWidth={theme.iconStroke.thin} />
       <Text
         variant="title"
         tone={variant === 'error' ? 'danger' : 'default'}
@@ -162,9 +151,9 @@ export function StateView({
         >
           {quickActions.map((action) => (
             <QuickActionChip
-              key={action.label}
+              key={action.id ?? action.label}
               action={action}
-              testID={testID !== undefined ? `${testID}-quick-${action.label}` : undefined}
+              testID={testID !== undefined ? `${testID}-quick-${action.id ?? action.label}` : undefined}
             />
           ))}
         </View>
@@ -193,12 +182,13 @@ function QuickActionChip({ action, testID }: { action: StateViewAction; testID?:
   const Icon = action.icon;
 
   return (
-    <Pressable
+    <ThemedPressable
       testID={testID}
       accessibilityRole="button"
       onPress={action.onPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
+      hitSlop={{ top: theme.sizes.hitSlop.md, bottom: theme.sizes.hitSlop.md }}
       className="flex-row items-center"
       style={{
         gap: theme.spacing.xs,
@@ -210,11 +200,11 @@ function QuickActionChip({ action, testID }: { action: StateViewAction; testID?:
         backgroundColor: pressed ? theme.colors.surfaceMuted : theme.colors.surface,
       }}
     >
-      {Icon !== undefined ? <Icon size={theme.iconSize.sm} color={theme.colors.primary} /> : null}
+      {Icon !== undefined ? <ThemedIcon icon={Icon} size={theme.iconSize.sm} color={theme.colors.primary} /> : null}
       <Text variant="caption" weight="medium">
         {action.label}
       </Text>
-    </Pressable>
+    </ThemedPressable>
   );
 }
 

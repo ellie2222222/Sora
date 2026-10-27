@@ -1,13 +1,30 @@
-import { NavigationContainer } from '@react-navigation/native';
-import { ActivityIndicator, View } from 'react-native';
+import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
+import * as Linking from 'expo-linking';
+import { useMemo } from 'react';
+import { ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { ConfirmDialog } from '@/components';
+import { ConfirmDialog, ThemedView } from '@/components';
+import { INVITATION_LINK_PATH } from '@/features/auth';
 import { GuestUploadIndicator, GuestUploadScreen } from '@/features/guest';
+import { WalletSwitchOverlay } from '@/features/wallets';
 import { WalletProvider, useAuth, useTheme } from '@/app/providers';
 import { useConnectivityToasts } from '@/hooks';
 import { AppNavigator } from './AppNavigator.tsx';
 import { AuthNavigator } from './AuthNavigator.tsx';
+import type { AppStackParamList, AuthStackParamList } from './types.ts';
+
+/**
+ * Both stacks name the invitation screen AcceptInvitation, so one path resolves in whichever is
+ * mounted; `?token=` becomes its route param. A link opened cold is otherwise the stack's only
+ * route, so back would leave the app: `initialRouteName` puts that stack's start beneath it.
+ */
+function linkingFor(home: 'Main' | 'Login'): LinkingOptions<AppStackParamList & AuthStackParamList> {
+  return {
+    prefixes: [Linking.createURL('/', { scheme: 'sora' }), 'sora://', 'com.sora.app://'],
+    config: { initialRouteName: home, screens: { AcceptInvitation: INVITATION_LINK_PATH } },
+  };
+}
 
 /**
  * `restoring` keeps this on a spinner until the stored session has been
@@ -28,17 +45,20 @@ export function RootNavigator() {
     logout,
   } = useAuth();
   useConnectivityToasts();
+  const home = isAuthenticated || isGuest ? 'Main' : 'Login';
+  const linking = useMemo(() => linkingFor(home), [home]);
 
   if (restoring) {
     return (
-      <View className="flex-1 items-center justify-center" style={{ backgroundColor: theme.colors.background }}>
+      <ThemedView className="flex-1 items-center justify-center" style={{ backgroundColor: theme.colors.background }}>
         <ActivityIndicator color={theme.colors.primary} />
-      </View>
+      </ThemedView>
     );
   }
 
   return (
     <NavigationContainer
+      linking={linking}
       theme={{ dark: theme.mode === 'dark', colors: navigationColors(theme), fonts }}
     >
       {pendingGuestUpload ? (
@@ -46,6 +66,7 @@ export function RootNavigator() {
       ) : isAuthenticated || isGuest ? (
         <WalletProvider>
           <AppNavigator />
+          <WalletSwitchOverlay />
         </WalletProvider>
       ) : (
         <AuthNavigator />

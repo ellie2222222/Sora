@@ -1,7 +1,7 @@
 import { User as UserIcon } from 'lucide-react-native';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Text } from '@/components';
+import { Text, ThemedIcon, ThemedView } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
 
 export function ProfileHeader() {
@@ -17,7 +17,7 @@ export function ProfileHeader() {
 
   return (
     <View className="flex-row items-center gap-md">
-      <View
+      <ThemedView
         className="rounded-pill items-center justify-center"
         style={{
           width: theme.sizes.badge.md,
@@ -26,13 +26,13 @@ export function ProfileHeader() {
         }}
       >
         {isGuest ? (
-          <UserIcon size={theme.iconSize.lg} color={theme.colors.primary} />
+          <ThemedIcon icon={UserIcon} size={theme.iconSize.lg} color={theme.colors.primary} />
         ) : (
           <Text weight="bold" style={{ color: theme.colors.primary }}>
             {initial}
           </Text>
         )}
-      </View>
+      </ThemedView>
 
       <View className="flex-1 gap-xxs">
         <Text weight="bold" style={{ fontSize: theme.fontSize.md }}>

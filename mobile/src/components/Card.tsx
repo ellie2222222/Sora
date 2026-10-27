@@ -1,6 +1,7 @@
-import { View, type ViewProps } from 'react-native';
+import { type ViewProps } from 'react-native';
 
 import { useTheme } from '@/app/providers';
+import { ThemedView } from './Themed.tsx';
 
 export interface CardProps extends ViewProps {
   elevated?: boolean;
@@ -11,7 +12,7 @@ export function Card({ elevated = false, padded = true, style, ...props }: CardP
   const theme = useTheme();
 
   return (
-    <View
+    <ThemedView
       {...props}
       style={[
         {

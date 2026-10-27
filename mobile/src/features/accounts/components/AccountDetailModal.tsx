@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ArrowDownLeft, ArrowDownToLine, ArrowUpFromLine, ArrowUpRight, ChevronRight, ReceiptText, type LucideIcon } from 'lucide-react-native';
 import { AccountStatus, TransactionType, type MoneyString } from '@sora/contracts';
 
-import { BottomSheetModal, Money, Skeleton, StateView, Text } from '@/components';
+import { BottomSheetModal, Money, Skeleton, StateView, Text, ThemedIcon, ThemedPressable, ThemedView } from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
 import { useGetAccountQuery } from '@/app/store';
 import { isNetworkError, permissionsForWallet, currentView } from '@/utils';
 import { AccountBadge } from './AccountBadge.tsx';
+import { AccountBalance } from './AccountBalance.tsx';
 import { ACCOUNT_TYPE_LABEL_KEY } from './AccountPicker.tsx';
 import { AccountEditForm } from './AccountEditForm.tsx';
 import { ArchiveAccountDialog } from './ArchiveAccountDialog.tsx';
@@ -56,7 +57,7 @@ export function AccountDetailModal({ accountId, onClose, onViewTransactions }: A
           <Text variant="title" numberOfLines={2} style={{ textAlign: 'center', marginTop: theme.spacing.sm }} testID="account-detail-name">
             {data.name}
           </Text>
-          <Money amount={data.balance} currency={data.currency} variant="heading" style={{ marginTop: theme.spacing.xxs }} testID="account-detail-balance" />
+          <AccountBalance account={data} variant="heading" style={{ marginTop: theme.spacing.xxs }} testID="account-detail-balance" />
           <Text variant="caption" tone="muted" style={{ marginTop: theme.spacing.xxs }}>
             {t(ACCOUNT_TYPE_LABEL_KEY[data.type])} · {data.currency}
           </Text>
@@ -69,7 +70,7 @@ export function AccountDetailModal({ accountId, onClose, onViewTransactions }: A
           <FigureRow icon={ArrowUpFromLine} label={t('accounts.transferredOut')} amount={data.transferredOut} currency={data.currency} />
         </View>
 
-        <Pressable
+        <ThemedPressable
           testID="btn-view-account-transactions"
           accessibilityRole="button"
           onPress={() => {
@@ -89,16 +90,16 @@ export function AccountDetailModal({ accountId, onClose, onViewTransactions }: A
             backgroundColor: linkPressed ? theme.colors.surfacePressed : theme.colors.primaryMuted,
           }}
         >
-          <ReceiptText size={theme.iconSize.md} color={theme.colors.primary} />
+          <ThemedIcon icon={ReceiptText} size={theme.iconSize.md} color={theme.colors.primary} />
           <Text weight="medium" style={{ flex: 1, color: theme.colors.primary }}>
             {t('accounts.viewTransactions', { count: data.transactionCount })}
           </Text>
-          <ChevronRight size={theme.iconSize.md} color={theme.colors.primary} />
-        </Pressable>
+          <ThemedIcon icon={ChevronRight} size={theme.iconSize.md} color={theme.colors.primary} />
+        </ThemedPressable>
 
         {canWrite ? (
           <>
-            <View style={{ height: theme.borderWidth.thin, backgroundColor: theme.colors.border, marginVertical: theme.spacing.lg }} />
+            <ThemedView style={{ height: theme.borderWidth.thin, backgroundColor: theme.colors.border, marginVertical: theme.spacing.lg }} />
             <AccountEditForm key={data.id} account={data} onArchive={() => setArchiving(true)} />
           </>
         ) : null}
@@ -107,7 +108,7 @@ export function AccountDetailModal({ accountId, onClose, onViewTransactions }: A
   };
 
   return (
-    <BottomSheetModal visible={accountId !== null} onClose={onClose} title={t('accounts.detailTitle')} testID="account-detail-modal">
+    <BottomSheetModal visible={accountId !== null} onClose={onClose} title={t('accounts.detailTitle')} entity="account-detail" testID="account-detail-modal">
       {/* Scrolls so Save stays reachable above the keyboard while renaming. */}
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: theme.spacing.lg }}>
         {renderContent()}
@@ -145,7 +146,7 @@ function FigureRow({
   const theme = useTheme();
   return (
     <View className="flex-row items-center" style={{ gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
-      <Icon size={theme.iconSize.md} color={theme.colors.textMuted} />
+      <ThemedIcon icon={Icon} size={theme.iconSize.md} color={theme.colors.textMuted} />
       <Text variant="label" tone="muted" weight="regular" style={{ flex: 1 }} numberOfLines={1}>
         {label}
       </Text>

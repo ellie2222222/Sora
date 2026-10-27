@@ -5,24 +5,7 @@ import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { TransactionStatus, TransactionType, type TransactionResponse } from '@sora/contracts';
 
-import {
-  AnimatedScreen,
-  closeOpenSwipeRow,
-  DatePickerModal,
-  DateStrip,
-  Fab,
-  fabListPaddingBottom,
-  IncomeExpenseTotals,
-  ListLoadMoreFooter,
-  PeriodBar,
-  PeriodSummaryCard,
-  RefreshableFlatList,
-  SegmentedControl,
-  StateView,
-  Text,
-  TransactionDayCard,
-  useSwapOffset,
-} from '@/components';
+import { AnimatedScreen, closeOpenSwipeRow, DatePickerModal, DateStrip, Fab, fabListPaddingBottom, IncomeExpenseTotals, ListLoadMoreFooter, PeriodBar, PeriodSummaryCard, RefreshableFlatList, SegmentedControl, StateView, Text, ThemedView, TransactionDayCard, useSwapOffset } from '@/components';
 import { useAuth, useModal, useTheme, useToast, useWallets } from '@/app/providers';
 import { useWalletDay } from '@/hooks';
 import { useListTransactionsInfiniteQuery } from '@/app/store';
@@ -240,7 +223,9 @@ export function TransactionListScreen({
   );
 
   const summary = (
-    <View>
+    // Room for the card's raised shadow: the list's top edge would clip it above, the pinned filter bar's
+    // opaque background would paint over it below.
+    <View style={{ paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.md }}>
       <View style={{ paddingHorizontal: theme.spacing.md }}>
         {hasMorePages ? (
           <View className="flex-row justify-end">
@@ -266,7 +251,7 @@ export function TransactionListScreen({
   );
 
   const filterBar = (
-    <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, gap: theme.spacing.sm, backgroundColor: theme.colors.background }}>
+    <ThemedView style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, gap: theme.spacing.sm, backgroundColor: theme.colors.background }}>
       {accountFilter !== undefined && walletId !== undefined ? (
         <AccountScopePicker
           walletId={walletId}
@@ -288,7 +273,7 @@ export function TransactionListScreen({
         value={filterType}
         onChange={setFilterType}
       />
-    </View>
+    </ThemedView>
   );
 
   const renderEmptyBody = () => {

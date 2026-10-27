@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AiMessageRole, type AiMessageResponse } from '@sora/contracts';
 
-import { Text } from '@/components';
+import { Text, ThemedView } from '@/components';
 import { useTheme } from '@/app/providers';
 import { ActionProposalCard } from './ActionProposalCard.tsx';
 
@@ -59,7 +59,7 @@ export function ChatMessageItem({
 export function ChatBubble({ fromUser, muted = false, children }: { fromUser: boolean; muted?: boolean; children: React.ReactNode }) {
   const theme = useTheme();
   return (
-    <View
+    <ThemedView
       style={{
         maxWidth: BUBBLE_MAX_WIDTH,
         paddingVertical: theme.spacing.sm,
@@ -72,7 +72,7 @@ export function ChatBubble({ fromUser, muted = false, children }: { fromUser: bo
       }}
     >
       {children}
-    </View>
+    </ThemedView>
   );
 }
 

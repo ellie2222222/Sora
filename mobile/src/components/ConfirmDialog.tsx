@@ -9,6 +9,7 @@ import { BottomSheetModal } from './BottomSheetModal';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Text } from './Text';
+import { ThemedIcon, ThemedView } from './Themed.tsx';
 
 export type ConfirmDialogVariant = 'danger' | 'warning' | 'info' | 'primary';
 
@@ -102,7 +103,7 @@ export function ConfirmDialog({
     <BottomSheetModal visible={visible} onClose={onCancel}>
       <View style={{ gap: theme.spacing.lg }}>
         <View className="flex-row items-center" style={{ gap: theme.spacing.md }}>
-          <View
+          <ThemedView
             className="items-center justify-center"
             style={{
               width: theme.sizes.badge.lg,
@@ -111,8 +112,8 @@ export function ConfirmDialog({
               backgroundColor: iconBgColor,
             }}
           >
-            <IconComponent size={theme.iconSize.xxl} color={iconColor} />
-          </View>
+            <ThemedIcon icon={IconComponent} size={theme.iconSize.xxl} color={iconColor} />
+          </ThemedView>
           <Text variant="title" style={{ flex: 1, letterSpacing: theme.letterSpacing.wide }}>
             {title}
           </Text>
@@ -141,7 +142,7 @@ export function ConfirmDialog({
         ) : null}
 
         <View className="flex-row" style={{ gap: theme.spacing.md, marginTop: theme.spacing.xs }}>
-          <Button label={resolvedCancelLabel} variant="secondary" onPress={onCancel} style={{ flex: 1 }} />
+          <Button testID="btn-cancel-confirm-dialog" label={resolvedCancelLabel} variant="secondary" onPress={onCancel} style={{ flex: 1 }} />
           <Button
             testID="btn-confirm-dialog"
             label={confirmLabel}

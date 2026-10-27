@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { WalletInvitationResponse } from '@sora/contracts';
 
-import { Card, Text } from '@/components';
+import { Card, Text, ThemedIcon } from '@/components';
 import { useTheme } from '@/app/providers';
 import { dayOfDate, formatDay, getRoleLabel } from '@/utils';
 
@@ -29,7 +29,7 @@ export function InvitationRow({ invitation, onRevoke }: { invitation: WalletInvi
           accessibilityHint={invitation.invitedEmail}
           onPress={onRevoke}
         >
-          <X size={theme.iconSize.lg} color={theme.colors.danger} />
+          <ThemedIcon icon={X} size={theme.iconSize.lg} color={theme.colors.danger} />
         </Pressable>
       </View>
     </Card>

@@ -1,9 +1,10 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { Check } from 'lucide-react-native';
 
 import { useTheme } from '@/app/providers';
 import { BottomSheetModal } from './BottomSheetModal';
 import { Text } from './Text';
+import { ThemedIcon, ThemedPressable } from './Themed.tsx';
 
 export interface ActionSheetAction {
   label: string;
@@ -30,7 +31,7 @@ export function ActionSheet({ visible, title, actions, onCancel }: ActionSheetPr
     <BottomSheetModal visible={visible} onClose={onCancel} title={title ?? ''} closeLabel="cancel" entity="action-sheet">
       <View style={{ gap: theme.spacing.xs }}>
         {actions.map((action, index) => (
-          <Pressable
+          <ThemedPressable
             // Labels are translated text and can coincide; the rows hold no state and never reorder while open.
             key={index}
             testID={action.testID}
@@ -43,14 +44,17 @@ export function ActionSheet({ visible, title, actions, onCancel }: ActionSheetPr
               paddingVertical: theme.spacing.md,
               borderTopWidth: index === 0 ? 0 : theme.borderWidth.thin,
               borderTopColor: theme.colors.border,
-              opacity: action.disabled === true ? theme.opacity.disabled : 1,
             }}
           >
-            <Text tone={action.destructive === true ? 'danger' : 'default'} weight={action.selected === true ? 'semibold' : 'medium'}>
+            <Text
+              tone={action.destructive === true ? 'danger' : 'default'}
+              weight={action.selected === true ? 'semibold' : 'medium'}
+              style={action.disabled === true ? { color: theme.colors.buttonOutlineDisabledText } : undefined}
+            >
               {action.label}
             </Text>
-            {action.selected === true ? <Check size={theme.iconSize.md} color={theme.colors.primary} /> : null}
-          </Pressable>
+            {action.selected === true ? <ThemedIcon icon={Check} size={theme.iconSize.md} color={theme.colors.primary} /> : null}
+          </ThemedPressable>
         ))}
       </View>
     </BottomSheetModal>

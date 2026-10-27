@@ -13,6 +13,7 @@ import { Button } from './Button.tsx';
 import { MutationConfirmDialog } from './MutationConfirmDialog.tsx';
 import { StuckWritesList } from './StuckWritesList.tsx';
 import { Text } from './Text';
+import { ThemedIcon } from './Themed.tsx';
 
 type OpenSheet = 'connection' | 'sync' | null;
 
@@ -80,7 +81,7 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
           </Text>
         )}
         {/* Muted when all is well: a green icon in every header would compete with the figures. */}
-        <ConnectionIcon
+        <ThemedIcon icon={ConnectionIcon}
           size={theme.iconSize.md}
           color={connectionStatus === 'connected' ? theme.colors.textMuted : connectionIconColor}
         />
@@ -96,11 +97,11 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
         {syncing ? (
           <AnimatedIcon icon={RefreshCw} size={theme.iconSize.md} color={syncIconColor} animation="spin" />
         ) : syncStatus === 'failed' ? (
-          <TriangleAlert size={theme.iconSize.md} color={syncIconColor} />
+          <ThemedIcon icon={TriangleAlert} size={theme.iconSize.md} color={syncIconColor} />
         ) : syncStatus === 'pending' ? (
-          <Clock size={theme.iconSize.md} color={syncIconColor} />
+          <ThemedIcon icon={Clock} size={theme.iconSize.md} color={syncIconColor} />
         ) : (
-          <RefreshCw size={theme.iconSize.md} color={syncIconColor} />
+          <ThemedIcon icon={RefreshCw} size={theme.iconSize.md} color={syncIconColor} />
         )}
       </Pressable>
 
@@ -108,6 +109,7 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
         visible={openSheet === 'connection'}
         onClose={() => setOpenSheet(null)}
         title={connectionState}
+        entity="connection"
         testID={`${testID}-connection-sheet`}
       >
         <Text variant="body" tone="muted" style={{ marginBottom: theme.spacing.md }}>
@@ -124,6 +126,7 @@ export function ConnectionSyncStatus({ testID = 'connection-sync-status' }: { te
         visible={openSheet === 'sync'}
         onClose={() => setOpenSheet(null)}
         title={syncLabel}
+        entity="sync"
         testID={`${testID}-sync-sheet`}
       >
         <Text variant="body" tone="muted" style={{ marginBottom: theme.spacing.md }}>

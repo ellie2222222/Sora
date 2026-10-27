@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Animated, Platform, type StyleProp, type ViewStyle } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
+import { useReducedMotion } from 'react-native-reanimated';
 
 export interface AnimatedScreenProps {
   children: ReactNode;
@@ -20,13 +21,17 @@ export function AnimatedScreen({
   testID,
 }: AnimatedScreenProps) {
   const isFocused = useIsFocused();
+  const reduceMotion = useReducedMotion();
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const translateYAnim = useRef(new Animated.Value(slideDistance)).current;
   // The native animated module doesn't exist on web, which warns if asked for it there.
   const nativeDriverEnabled = Platform.OS !== 'web';
 
   useEffect(() => {
-    if (isFocused) {
+    if (isFocused && reduceMotion) {
+      opacityAnim.setValue(1);
+      translateYAnim.setValue(0);
+    } else if (isFocused) {
       opacityAnim.setValue(0);
       translateYAnim.setValue(slideDistance);
 
@@ -47,7 +52,7 @@ export function AnimatedScreen({
       opacityAnim.setValue(0);
       translateYAnim.setValue(slideDistance);
     }
-  }, [isFocused, duration, slideDistance]);
+  }, [isFocused, duration, slideDistance, reduceMotion]);
 
   return (
     <Animated.View

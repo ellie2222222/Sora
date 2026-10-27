@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { WalletMemberResponse } from '@sora/contracts';
 
-import { Card, Text } from '@/components';
+import { Card, Text, ThemedIcon } from '@/components';
 import { useTheme } from '@/app/providers';
 import { getRoleLabel } from '@/utils';
 
@@ -25,7 +25,7 @@ export function MemberItem({
     <Card testID={`row-member-${member.id}`}>
       <View className="flex-row justify-between items-center">
         <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-          <UsersRound size={theme.iconSize.lg} color={theme.colors.textMuted} />
+          <ThemedIcon icon={UsersRound} size={theme.iconSize.lg} color={theme.colors.textMuted} />
           <View>
             <Text weight="semibold">
               {member.displayName}
@@ -45,7 +45,7 @@ export function MemberItem({
             accessibilityLabel={t('members.memberActions', { name: member.displayName })}
             onPress={onOpenActions}
           >
-            <MoreVertical size={theme.iconSize.lg} color={theme.colors.textMuted} />
+            <ThemedIcon icon={MoreVertical} size={theme.iconSize.lg} color={theme.colors.textMuted} />
           </Pressable>
         ) : null}
       </View>

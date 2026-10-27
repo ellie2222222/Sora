@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { ArrowRight, Plus } from 'lucide-react-native';
-import { WalletStatus, type WalletResponse } from '@sora/contracts';
+import { createWalletSchema, WalletStatus, type WalletResponse } from '@sora/contracts';
 
-import { Button, Card, Input, StateView, Text } from '@/components';
+import { Button, Card, Input, SkeletonList, StateView, Text, ThemedView } from '@/components';
 import { useAuth, useTheme } from '@/app/providers';
 import { walletsApi } from '@/services/api';
 import { GUEST_WALLET_NAME, guestStore, guestUploadTask } from '@/services/guest';
-import { deviceTimeZone } from '@/utils';
+import { deviceTimeZone, fieldErrorMessage, messageOf } from '@/utils';
 import { UploadProgressPanel } from '../components/UploadProgressPanel.tsx';
 import { useGuestUploadTask, useGuestUploadView } from '../useGuestUpload.ts';
 
@@ -26,6 +27,7 @@ import { useGuestUploadTask, useGuestUploadView } from '../useGuestUpload.ts';
 export function GuestUploadScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const { startGuestUpload } = useAuth();
   const task = useGuestUploadTask();
   const view = useGuestUploadView(task.status === 'done');
@@ -37,6 +39,8 @@ export function GuestUploadScreen() {
   const [listAttempt, setListAttempt] = useState(0);
   const [newWalletName, setNewWalletName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<unknown>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,13 +63,20 @@ export function GuestUploadScreen() {
   }, [listAttempt]);
 
   async function handleCreateWallet() {
+    setCreateError(null);
+    const parsed = createWalletSchema.safeParse({ name: newWalletName, timeZone: deviceTimeZone() });
+    if (!parsed.success) {
+      const issue = parsed.error.issues.find((candidate) => candidate.path[0] === 'name') ?? parsed.error.issues[0]!;
+      setNameError(fieldErrorMessage(issue, t));
+      return;
+    }
+    setNameError(null);
     setCreating(true);
-    setListError(null);
     try {
-      const created = await walletsApi.create({ name: newWalletName.trim(), timeZone: deviceTimeZone() });
+      const created = await walletsApi.create(parsed.data);
       startGuestUpload(created.id);
     } catch (error) {
-      setListError(error);
+      setCreateError(error);
     } finally {
       setCreating(false);
     }
@@ -91,15 +102,23 @@ export function GuestUploadScreen() {
     );
   }
 
+  const shellStyle = {
+    backgroundColor: theme.colors.background,
+    padding: theme.spacing.xl,
+    paddingTop: insets.top + theme.spacing.xl,
+    gap: theme.spacing.lg,
+  };
+  const header = (
+    <>
+      <Text variant="heading">{t('guest.upload.title')}</Text>
+      <Text tone="muted">{t('guest.upload.subtitle')}</Text>
+    </>
+  );
+
   if (listError !== null) {
     return (
-      <View
-        testID="screen-guest-upload"
-        className="flex-1"
-        style={{ backgroundColor: theme.colors.background, padding: theme.spacing.xl, gap: theme.spacing.lg }}
-      >
-        <Text variant="heading">{t('guest.upload.title')}</Text>
-        <Text tone="muted">{t('guest.upload.subtitle')}</Text>
+      <ThemedView testID="screen-guest-upload" className="flex-1" style={shellStyle}>
+        {header}
         <StateView
           variant="error"
           testID="guest-upload-list-error"
@@ -109,57 +128,55 @@ export function GuestUploadScreen() {
             setListAttempt((attempt) => attempt + 1);
           }}
         />
-      </View>
+      </ThemedView>
     );
   }
 
   if (wallets === null) {
     return (
-      <View
-        testID="screen-guest-upload"
-        className="flex-1 items-center justify-center"
-        style={{ padding: theme.spacing.xl, gap: theme.spacing.lg, backgroundColor: theme.colors.background }}
-      >
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text variant="title">{t('common.loading')}</Text>
-      </View>
+      <ThemedView testID="screen-guest-upload" className="flex-1" style={shellStyle} accessibilityLabel={t('common.loading')}>
+        {header}
+        <SkeletonList rows={2} />
+      </ThemedView>
     );
   }
 
   return (
-    <View
-      testID="screen-guest-upload"
-      className="flex-1"
-      style={{ backgroundColor: theme.colors.background, padding: theme.spacing.xl, gap: theme.spacing.lg }}
-    >
-      <Text variant="heading">{t('guest.upload.title')}</Text>
-      <Text tone="muted">{t('guest.upload.subtitle')}</Text>
+    <ThemedView testID="screen-guest-upload" className="flex-1" style={shellStyle}>
+      {header}
 
-      <View style={{ gap: theme.spacing.sm }}>
-        <Text variant="title">{t('guest.upload.chooseWallet')}</Text>
-        {wallets.map((wallet) => (
-          <Card key={wallet.id}>
-            <View className="flex-row justify-between items-center">
-              <Text weight="semibold">{wallet.name === GUEST_WALLET_NAME ? t('wallets.yourWallet') : wallet.name}</Text>
-              <Button
-                testID={`btn-use-wallet-${wallet.id}`}
-                label={t('guest.upload.useThisWallet')}
-                icon={ArrowRight}
-                size="sm"
-                onPress={() => startGuestUpload(wallet.id)}
-              />
-            </View>
-          </Card>
-        ))}
-      </View>
+      {wallets.length > 0 ? (
+        <View style={{ gap: theme.spacing.sm }}>
+          <Text variant="title">{t('guest.upload.chooseWallet')}</Text>
+          {wallets.map((wallet) => (
+            <Card key={wallet.id}>
+              <View className="flex-row justify-between items-center">
+                <Text weight="semibold">{wallet.name === GUEST_WALLET_NAME ? t('wallets.yourWallet') : wallet.name}</Text>
+                <Button
+                  testID={`btn-use-wallet-${wallet.id}`}
+                  label={t('guest.upload.useThisWallet')}
+                  icon={ArrowRight}
+                  size="sm"
+                  onPress={() => startGuestUpload(wallet.id)}
+                />
+              </View>
+            </Card>
+          ))}
+        </View>
+      ) : null}
 
       <View style={{ gap: theme.spacing.sm }}>
         <Text variant="title">{t('guest.upload.createNew')}</Text>
         <Input
           testID="input-wallet-name"
+          label={t('common.name')}
           placeholder={t('guest.upload.newWalletPlaceholder')}
           value={newWalletName}
-          onChangeText={setNewWalletName}
+          onChangeText={(name) => {
+            setNewWalletName(name);
+            setNameError(null);
+          }}
+          error={nameError ?? undefined}
         />
         <Button
           testID="btn-submit-wallet"
@@ -167,10 +184,14 @@ export function GuestUploadScreen() {
           icon={Plus}
           onPress={() => void handleCreateWallet()}
           loading={creating}
-          disabled={newWalletName.trim().length === 0}
           fullWidth
         />
+        {createError !== null ? (
+          <Text tone="danger" testID="guest-upload-create-error">
+            {messageOf(createError, t)}
+          </Text>
+        ) : null}
       </View>
-    </View>
+    </ThemedView>
   );
 }

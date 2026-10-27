@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { CategoryStatus, type CategoryResponse, type CategoryType } from '@sora/contracts';
 
-import { StateView, Text } from '@/components';
+import { Skeleton, StateView, Text, ThemedIcon, ThemedPressable, ThemedView } from '@/components';
 import { useTheme } from '@/app/providers';
 import { ensureContrast } from '@/design-system';
 import { useListCategoriesQuery } from '@/app/store';
@@ -39,9 +39,12 @@ export function CategoryGrid({ walletId, type, value, onChange, optional = false
   return (
     <View style={{ gap: theme.spacing.xs }} testID={testID}>
       <Text variant="label" tone="muted">
-        {t('categories.categoryLabel', { defaultValue: 'Category' })}
+        {t('categories.categoryLabel')}
       </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+        {categories.currentData === undefined && !categories.isError
+          ? Array.from({ length: COLUMNS }).map((_, i) => <CategoryCellSkeleton key={i} />)
+          : null}
         {(categories.currentData ?? []).map((category) => (
           <CategoryCell
             key={category.id}
@@ -78,6 +81,16 @@ export function CategoryGrid({ walletId, type, value, onChange, optional = false
   );
 }
 
+function CategoryCellSkeleton() {
+  const theme = useTheme();
+  return (
+    <View style={{ width: `${100 / COLUMNS}%`, alignItems: 'center', gap: theme.spacing.xxs, paddingVertical: theme.spacing.sm }}>
+      <Skeleton width={theme.sizes.touchTarget} height={theme.sizes.touchTarget} radius={theme.radius.pill} />
+      <Skeleton width={theme.sizes.skeletonWidth.sm} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
+    </View>
+  );
+}
+
 function CategoryCell({
   category,
   selected,
@@ -98,7 +111,7 @@ function CategoryCell({
   const selectedFgLetter = ensureContrast(theme.colors.surface, storedTint, 4.5, theme.colors.text);
 
   return (
-    <Pressable
+    <ThemedPressable
       testID={`option-category-${category.id}`}
       onPress={onPress}
       onPressIn={() => setPressed(true)}
@@ -114,7 +127,7 @@ function CategoryCell({
         backgroundColor: pressed ? theme.colors.surfacePressed : 'transparent',
       }}
     >
-      <View
+      <ThemedView
         style={{
           width: theme.sizes.touchTarget,
           height: theme.sizes.touchTarget,
@@ -125,13 +138,13 @@ function CategoryCell({
         }}
       >
         {Icon !== null ? (
-          <Icon size={theme.iconSize.xl} color={selected ? selectedFgIcon : iconTint} />
+          <ThemedIcon icon={Icon} size={theme.iconSize.xl} color={selected ? selectedFgIcon : iconTint} />
         ) : (
           <Text weight="semibold" style={{ color: selected ? selectedFgLetter : letterTint }}>
             {category.name.slice(0, 1).toUpperCase()}
           </Text>
         )}
-      </View>
+      </ThemedView>
       <Text
         variant="caption"
         weight={selected ? 'semibold' : 'regular'}
@@ -141,6 +154,6 @@ function CategoryCell({
       >
         {category.name}
       </Text>
-    </Pressable>
+    </ThemedPressable>
   );
 }

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/app/providers';
 import { WalletSwitcher } from './WalletSwitcher';
-import { ConnectionSyncStatus } from '@/components';
+import { ConnectionSyncStatus, ThemedView } from '@/components';
 
 /**
  * Thin wrapper so every screen that shows money renders the same wallet-context
@@ -25,7 +25,7 @@ export function WalletContextBar({
   const insets = useSafeAreaInsets();
 
   const bar = (
-    <View style={{ backgroundColor: theme.colors.background }}>
+    <ThemedView style={{ backgroundColor: theme.colors.background }}>
       <View
         className="flex-row justify-between items-center"
         style={{
@@ -41,7 +41,7 @@ export function WalletContextBar({
           <ConnectionSyncStatus />
         </View>
       </View>
-    </View>
+    </ThemedView>
   );
 
   if (children === undefined) return bar;

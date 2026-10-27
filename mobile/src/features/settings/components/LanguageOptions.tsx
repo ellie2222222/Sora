@@ -1,9 +1,9 @@
 import { Check } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Text } from '@/components';
+import { Text, ThemedIcon, ThemedPressable } from '@/components';
 import { useLocaleControl, useTheme } from '@/app/providers';
 import { SUPPORTED_LOCALES } from '@/app/i18n';
 import { SettingsDivider } from './CollapsibleSection';
@@ -24,7 +24,7 @@ export function LanguageOptions({ testIDPrefix, onSelected }: { testIDPrefix: st
         return (
           <View key={code}>
             {index > 0 ? <SettingsDivider /> : null}
-            <Pressable
+            <ThemedPressable
               testID={`${testIDPrefix}-${code}`}
               onPress={() => {
                 void setLocale(code);
@@ -38,6 +38,7 @@ export function LanguageOptions({ testIDPrefix, onSelected }: { testIDPrefix: st
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: theme.spacing.md,
+                minHeight: theme.sizes.touchTarget,
                 paddingVertical: theme.spacing.md,
                 paddingHorizontal: theme.spacing.xs,
                 borderRadius: theme.radius.sm,
@@ -49,9 +50,9 @@ export function LanguageOptions({ testIDPrefix, onSelected }: { testIDPrefix: st
                 {t(`settings.languageNames.${code}`)}
               </Text>
               {isSelected ? (
-                <Check size={theme.iconSize.lg} color={theme.colors.primary} strokeWidth={theme.iconStroke.bold} />
+                <ThemedIcon icon={Check} size={theme.iconSize.lg} color={theme.colors.primary} strokeWidth={theme.iconStroke.bold} />
               ) : null}
-            </Pressable>
+            </ThemedPressable>
           </View>
         );
       })}

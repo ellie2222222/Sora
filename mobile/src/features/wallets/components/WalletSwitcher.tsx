@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
 import { WalletRole, type WalletResponse } from '@sora/contracts';
 
-import { BottomSheetModal, Button, closeOpenSwipeRow, MutationConfirmDialog, SwipeableRow, Text, type SwipeRowAction } from '@/components';
+import { BottomSheetModal, Button, closeOpenSwipeRow, MutationConfirmDialog, Skeleton, StateView, SwipeableRow, Text, ThemedIcon, ThemedPressable, type SwipeRowAction } from '@/components';
 import { useAuth, useTheme, useToast, useWallets } from '@/app/providers';
 import { useArchiveWalletMutation } from '@/app/store';
 import { AccountDetailModal } from '@/features/accounts';
@@ -48,7 +48,7 @@ export function WalletSwitcher() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<AppStackParamList>>();
   const { isGuest } = useAuth();
-  const { wallets, activeWallet, setActiveWalletId, isLoading } = useWallets();
+  const { wallets, activeWallet, setActiveWalletId, isLoading, isError, isUnavailable, refetch } = useWallets();
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<SheetPage>(LIST_PAGE);
   const [archivingWalletId, setArchivingWalletId] = useState<string | null>(null);
@@ -59,7 +59,7 @@ export function WalletSwitcher() {
   const formatWalletName = (name: string) => (name === GUEST_WALLET_NAME ? t('wallets.yourWallet') : name);
 
   const currentWallet = activeWallet ?? wallets[0] ?? null;
-  const displayName = currentWallet ? formatWalletName(currentWallet.name) : t('wallets.yourWallet', { defaultValue: 'Your wallet' });
+  const displayName = currentWallet ? formatWalletName(currentWallet.name) : t('wallets.yourWallet');
 
   const close = () => setOpen(false);
   // One sheet at a time: this one gets out of the way before another sheet or an app-stack screen opens.
@@ -90,6 +90,39 @@ export function WalletSwitcher() {
   const renderPage = () => {
     switch (page.kind) {
       case 'list':
+        if (isLoading) {
+          return (
+            <View style={{ gap: theme.spacing.xs }}>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <WalletRowSkeleton key={i} />
+              ))}
+            </View>
+          );
+        }
+        if (wallets.length === 0 && (isError || isUnavailable)) {
+          return (
+            <StateView
+              variant="error"
+              error={new Error(t('errors.loadWalletsFailed'))}
+              retryAction={refetch}
+              testID="wallet-list-error"
+              entrance="none"
+            />
+          );
+        }
+        if (wallets.length === 0) {
+          return (
+            <StateView
+              variant="empty"
+              icon={Wallet}
+              title={t('home.noWalletTitle')}
+              message={t('home.noWalletDescription')}
+              primaryAction={isGuest ? undefined : { label: t('wallets.newWallet'), onPress: () => setPage({ kind: 'create' }), icon: Plus }}
+              testID="wallet-list-empty"
+              entrance="none"
+            />
+          );
+        }
         return (
           <ScrollView
             showsVerticalScrollIndicator={false}
@@ -172,6 +205,9 @@ export function WalletSwitcher() {
     <>
       <Pressable
         testID="picker-wallet"
+        accessibilityRole="button"
+        accessibilityLabel={`${t('wallets.title')}: ${displayName}`}
+        hitSlop={theme.sizes.hitSlop.lg}
         onPress={() => {
           setPage(LIST_PAGE);
           setOpen(true);
@@ -180,14 +216,14 @@ export function WalletSwitcher() {
         style={{ gap: theme.spacing.sm }}
       >
         {currentWallet && !currentWallet.isOwn ? (
-          <UsersRound size={theme.iconSize.md} color={theme.colors.primary} />
+          <ThemedIcon icon={UsersRound} size={theme.iconSize.md} color={theme.colors.primary} />
         ) : (
-          <Wallet size={theme.iconSize.lg} color={theme.colors.primary} />
+          <ThemedIcon icon={Wallet} size={theme.iconSize.lg} color={theme.colors.primary} />
         )}
         <Text variant="title" numberOfLines={1} isLoading={isLoading} skeletonWidth={theme.sizes.skeletonWidth.xl}>
           {displayName}
         </Text>
-        <ChevronDown size={theme.iconSize.lg} color={theme.colors.textMuted} />
+        <ThemedIcon icon={ChevronDown} size={theme.iconSize.lg} color={theme.colors.textMuted} />
       </Pressable>
 
       <BottomSheetModal
@@ -254,9 +290,11 @@ function WalletRow({
   const displayName = formatWalletName(wallet.name);
 
   return (
-    <Pressable
+    <ThemedPressable
       testID={`option-wallet-${wallet.id}`}
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
       className="flex-row items-center justify-between"
       style={{
         paddingVertical: theme.spacing.sm,
@@ -266,7 +304,7 @@ function WalletRow({
       }}
     >
       <View className="flex-row items-center flex-1" style={{ gap: theme.spacing.sm }}>
-        {!wallet.isOwn ? <UsersRound size={theme.iconSize.md} color={theme.colors.textMuted} /> : null}
+        {!wallet.isOwn ? <ThemedIcon icon={UsersRound} size={theme.iconSize.md} color={theme.colors.textMuted} /> : null}
         <View className="flex-1">
           <Text weight={active ? 'semibold' : 'regular'}>{displayName}</Text>
           {!wallet.isOwn ? (
@@ -275,13 +313,13 @@ function WalletRow({
             </Text>
           ) : displayName !== t('wallets.yourWallet') ? (
             <Text variant="caption" tone="muted">
-              {t('wallets.yourWallet', { defaultValue: 'Your wallet' })}
+              {t('wallets.yourWallet')}
             </Text>
           ) : null}
         </View>
       </View>
       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-        {active ? <Check size={theme.iconSize.md} color={theme.colors.primary} /> : null}
+        {active ? <ThemedIcon icon={Check} size={theme.iconSize.md} color={theme.colors.primary} /> : null}
         <Pressable
           testID={`btn-view-wallet-${wallet.id}`}
           hitSlop={theme.sizes.hitSlop.lg}
@@ -289,9 +327,19 @@ function WalletRow({
           accessibilityLabel={`${t('wallets.walletDetails')}: ${displayName}`}
           onPress={onOpenDetails}
         >
-          <ChevronRight size={theme.iconSize.xl} color={theme.colors.textMuted} />
+          <ThemedIcon icon={ChevronRight} size={theme.iconSize.xl} color={theme.colors.textMuted} />
         </Pressable>
       </View>
-    </Pressable>
+    </ThemedPressable>
+  );
+}
+
+function WalletRowSkeleton() {
+  const theme = useTheme();
+  return (
+    <View style={{ gap: theme.spacing.xs, paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.xs }}>
+      <Skeleton width={theme.sizes.skeletonWidth.xl} height={theme.sizes.skeletonLine.body} radius={theme.radius.sm} />
+      <Skeleton width={theme.sizes.skeletonWidth.md} height={theme.sizes.skeletonLine.caption} radius={theme.radius.sm} />
+    </View>
   );
 }

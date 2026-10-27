@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AiActionStatus, TransactionType, type AiActionResponse } from '@sora/contracts';
 
-import { Button, Money, Text } from '@/components';
+import { Button, Money, Text, ThemedView } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { dayOfInstant, formatDay } from '@/utils';
 
@@ -35,7 +35,7 @@ export function ActionProposalCard({
   const isIncome = transaction.type === TransactionType.INCOME;
 
   return (
-    <View
+    <ThemedView
       testID={`card-ai-action-${messageId}`}
       style={{
         marginTop: theme.spacing.sm,
@@ -87,6 +87,6 @@ export function ActionProposalCard({
           {action.status === AiActionStatus.CONFIRMED ? t('ai.proposal.recorded') : t('ai.proposal.dismissed')}
         </Text>
       )}
-    </View>
+    </ThemedView>
   );
 }

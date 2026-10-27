@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Animated, {
   Easing,
@@ -11,6 +11,7 @@ import { Moon, Sun } from 'lucide-react-native';
 
 import { useTheme } from '@/app/providers';
 import { concentricRadius } from '@/design-system';
+import { ThemedIcon, ThemedView } from './Themed.tsx';
 
 export interface ThemeToggleProps {
   testID?: string;
@@ -98,11 +99,11 @@ export function ThemeToggle({
       }}
       accessibilityRole="switch"
       accessibilityState={{ checked: value }}
-      accessibilityLabel={t('settings.darkMode', 'Dark Theme')}
+      accessibilityLabel={t('settings.darkMode')}
       hitSlop={{ top: verticalSlop, bottom: verticalSlop }}
       style={{ borderRadius: dim.trackHeight / 2 }}
     >
-      <View
+      <ThemedView
         style={{
           width: dim.trackWidth,
           height: dim.trackHeight,
@@ -127,6 +128,7 @@ export function ThemeToggle({
               ...theme.shadows.sm,
             },
             thumbAnimatedStyle,
+            theme.motion.colorTransition,
           ]}
         >
           <Animated.View
@@ -139,7 +141,7 @@ export function ThemeToggle({
               sunAnimatedStyle,
             ]}
           >
-            <Sun
+            <ThemedIcon icon={Sun}
               size={dim.iconSize}
               color={theme.colors.onPrimary}
               strokeWidth={theme.iconStroke.bold}
@@ -156,14 +158,14 @@ export function ThemeToggle({
               moonAnimatedStyle,
             ]}
           >
-            <Moon
+            <ThemedIcon icon={Moon}
               size={dim.iconSize}
               color={theme.colors.onPrimary}
               strokeWidth={theme.iconStroke.bold}
             />
           </Animated.View>
         </Animated.View>
-      </View>
+      </ThemedView>
     </Pressable>
   );
 }

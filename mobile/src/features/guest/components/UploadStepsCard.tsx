@@ -18,7 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
-import { Text } from '@/components';
+import { Text, ThemedIcon, ThemedView } from '@/components';
 import { useTheme } from '@/app/providers';
 import { useSvgId } from './useSvgId.ts';
 import type { UploadPhase } from '@/services/guest';
@@ -33,6 +33,14 @@ const STEP_LABEL_KEYS: Record<UploadPhase, string> = {
   transactions: 'guest.upload.stepTransactions',
   budgets: 'guest.upload.stepBudgets',
   archives: 'guest.upload.stepArchives',
+};
+
+const STATE_LABEL_KEYS: Record<UploadStepState | 'failed', string> = {
+  done: 'guest.upload.stepState.done',
+  active: 'guest.upload.stepState.active',
+  halted: 'guest.upload.stepState.paused',
+  failed: 'guest.upload.stepState.failed',
+  queued: 'guest.upload.stepState.queued',
 };
 
 const SPINNER_ARC = 0.28;
@@ -57,8 +65,8 @@ export function UploadStepsCard({ steps, haltedBecause }: UploadStepsCardProps) 
 
   return (
     // The shadow sits on an outer layer: iOS clips a shadow on the view that clips its content.
-    <View style={{ alignSelf: 'stretch', borderRadius: theme.radius.xxl, backgroundColor: theme.colors.surface, ...theme.shadows.lg }}>
-      <View
+    <ThemedView style={{ alignSelf: 'stretch', borderRadius: theme.radius.xxl, backgroundColor: theme.colors.surface, ...theme.shadows.lg }}>
+      <ThemedView
         testID="list-guest-upload-steps"
         onLayout={(event) => setSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })}
         style={{
@@ -83,8 +91,8 @@ export function UploadStepsCard({ steps, haltedBecause }: UploadStepsCardProps) 
         {steps.map(({ phase, state, count }) => (
           <UploadStepRow key={phase} phase={phase} label={t(STEP_LABEL_KEYS[phase])} count={count} state={state} haltedBecause={haltedBecause} />
         ))}
-      </View>
-    </View>
+      </ThemedView>
+    </ThemedView>
   );
 }
 
@@ -102,6 +110,7 @@ function UploadStepRow({
   haltedBecause: 'paused' | 'failed';
 }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
   const shimmerId = useSvgId('uploadRowShimmer');
   const previous = useRef(state);
@@ -194,6 +203,8 @@ function UploadStepRow({
   return (
     <View
       testID={`row-guest-upload-step-${phase}`}
+      accessible
+      accessibilityLabel={`${label}, ${count}, ${t(STATE_LABEL_KEYS[state === 'halted' && haltedBecause === 'failed' ? 'failed' : state])}`}
       accessibilityState={{ busy: state === 'active' }}
       onLayout={(event) => setRowSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })}
       style={{
@@ -221,6 +232,7 @@ function UploadStepRow({
             backgroundColor: theme.colors.primaryMuted,
           },
           capsuleStyle,
+          theme.motion.colorTransition,
         ]}
       />
       {running && shimmerWidth > 0 && rowHeight > 0 ? (
@@ -241,22 +253,27 @@ function UploadStepRow({
       <View style={{ width: box, height: box, alignItems: 'center', justifyContent: 'center' }}>
         <Animated.View
           pointerEvents="none"
-          style={[{ position: 'absolute', width: box, height: box, borderRadius: theme.radius.pill, backgroundColor: theme.colors.primaryMuted }, glowStyle]}
+          style={[
+            { position: 'absolute', width: box, height: box, borderRadius: theme.radius.pill, backgroundColor: theme.colors.primaryMuted },
+            glowStyle,
+            theme.motion.colorTransition,
+          ]}
         />
         <Animated.View
           pointerEvents="none"
           style={[
             { position: 'absolute', width: box, height: box, borderRadius: theme.radius.pill, borderWidth: theme.borderWidth.medium, borderColor: theme.colors.success },
             burstStyle,
+            theme.motion.colorTransition,
           ]}
         />
         {state === 'queued' ? (
-          <View style={{ width: theme.sizes.dot.md, height: theme.sizes.dot.md, borderRadius: theme.radius.pill, backgroundColor: theme.colors.borderStrong }} />
+          <ThemedView style={{ width: theme.sizes.dot.md, height: theme.sizes.dot.md, borderRadius: theme.radius.pill, backgroundColor: theme.colors.borderStrong }} />
         ) : state === 'halted' ? (
           haltedBecause === 'failed' ? (
-            <CircleAlert size={theme.iconSize.lg} color={theme.colors.warning} />
+            <ThemedIcon icon={CircleAlert} size={theme.iconSize.lg} color={theme.colors.warning} />
           ) : (
-            <Pause size={theme.iconSize.lg} color={theme.colors.textMuted} />
+            <ThemedIcon icon={Pause} size={theme.iconSize.lg} color={theme.colors.textMuted} />
           )
         ) : null}
         <Animated.View pointerEvents="none" style={[{ position: 'absolute' }, spinnerStyle]}>
@@ -274,7 +291,7 @@ function UploadStepRow({
           </Svg>
         </Animated.View>
         <Animated.View pointerEvents="none" style={[{ position: 'absolute' }, checkStyle]}>
-          <Check size={theme.iconSize.lg} color={theme.colors.success} strokeWidth={theme.iconStroke.bold} />
+          <ThemedIcon icon={Check} size={theme.iconSize.lg} color={theme.colors.success} strokeWidth={theme.iconStroke.bold} />
         </Animated.View>
       </View>
 

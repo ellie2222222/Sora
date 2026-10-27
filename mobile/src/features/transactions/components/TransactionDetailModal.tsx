@@ -4,10 +4,16 @@ import { useTranslation } from 'react-i18next';
 import { Calendar, Clock, CreditCard, Pencil, Tag, Trash2, User, UsersRound, type LucideIcon } from 'lucide-react-native';
 import { TransactionStatus, TransactionType, type TransactionResponse } from '@sora/contracts';
 
-import { BottomSheetModal, Button, CategoryAvatar, Money, Text } from '@/components';
+import { BottomSheetModal, Button, CategoryAvatar, Money, Text, ThemedIcon, ThemedView } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { dayOfDate, dayOfInstant, formatDay, formatTimeOfDay } from '@/utils';
 import { DeleteTransactionDialog } from './DeleteTransactionDialog.tsx';
+
+const TYPE_LABEL_KEY = {
+  [TransactionType.INCOME]: 'transactions.filterIncome',
+  [TransactionType.EXPENSE]: 'transactions.filterExpense',
+  [TransactionType.TRANSFER]: 'transactions.filterTransfer',
+} as const;
 
 export interface TransactionDetailModalProps {
   visible: boolean;
@@ -48,14 +54,14 @@ export function TransactionDetailModal({
   const isDeleted = transaction.status === TransactionStatus.DELETED;
   const isEditable = !isDeleted && permissions.canWrite;
 
-  const title = transaction.description || category?.name || transaction.type;
+  const title = transaction.description || category?.name || t(TYPE_LABEL_KEY[transaction.type]);
   const tint = category?.color ?? theme.colors.primary;
   // Income and expense touch one account, so it is simply "Account"; only a transfer has two sides.
   const accountLabel = t('accounts.accountLabel', { defaultValue: 'Account' });
 
   return (
     <>
-    <BottomSheetModal visible={visible} onClose={onClose} title={t('transactions.detailTitle', { defaultValue: 'Transaction details' })}>
+    <BottomSheetModal visible={visible} onClose={onClose} title={t('transactions.detailTitle', { defaultValue: 'Transaction details' })} entity="transaction-detail">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: theme.spacing.lg }}
@@ -88,7 +94,7 @@ export function TransactionDetailModal({
           />
 
           {isDeleted ? (
-            <View
+            <ThemedView
               style={{
                 backgroundColor: theme.colors.dangerMuted,
                 paddingHorizontal: theme.spacing.md,
@@ -100,7 +106,7 @@ export function TransactionDetailModal({
               <Text tone="danger" weight="semibold" variant="caption">
                 {t('transactions.cancelled', { defaultValue: 'Deleted' })}
               </Text>
-            </View>
+            </ThemedView>
           ) : null}
         </View>
 
@@ -142,7 +148,7 @@ export function TransactionDetailModal({
           {transaction.isCrossWallet ? (
             // A sentence, not a value: it gets the full width instead of a right-aligned column.
             <View className="flex-row" style={{ gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}>
-              <UsersRound size={theme.iconSize.md} color={theme.colors.transfer} />
+              <ThemedIcon icon={UsersRound} size={theme.iconSize.md} color={theme.colors.transfer} />
               <Text variant="label" tone="muted" style={{ flex: 1 }}>
                 {t('transactions.crossWalletNotice', {
                   defaultValue: "This sends money to another wallet, so it'll show up in their records too.",
@@ -152,7 +158,7 @@ export function TransactionDetailModal({
           ) : null}
         </View>
 
-        <View
+        <ThemedView
           style={{
             height: theme.borderWidth.thin,
             backgroundColor: theme.colors.border,
@@ -259,7 +265,7 @@ function DetailRow({
       className="flex-row items-center"
       style={{ gap: theme.spacing.md, paddingVertical: theme.spacing.sm }}
     >
-      <Icon size={theme.iconSize.md} color={secondary ? theme.colors.textFaint : theme.colors.textMuted} />
+      <ThemedIcon icon={Icon} size={theme.iconSize.md} color={secondary ? theme.colors.textFaint : theme.colors.textMuted} />
       <Text variant="label" tone="muted" weight="regular" numberOfLines={1} style={{ maxWidth: '45%' }}>
         {label}
       </Text>

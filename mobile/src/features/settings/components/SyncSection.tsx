@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Clock, RefreshCw, TriangleAlert } from 'lucide-react-native';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { AnimatedIcon, Button, Text } from '@/components';
+import { AnimatedIcon, Button, Text, ThemedIcon } from '@/components';
 import { useTheme } from '@/app/providers';
 import { useSyncStatusView } from '@/hooks';
 import { CollapsibleSection, SettingsDivider } from './CollapsibleSection';
@@ -57,15 +57,15 @@ export function SyncSection({
   return (
     <CollapsibleSection
       testID="settings-nav-sync"
-      icon={<RefreshCw size={theme.iconSize.lg} color={theme.colors.textMuted} />}
-      title={t('settings.sync', 'Sync & Storage')}
+      icon={<ThemedIcon icon={RefreshCw} size={theme.iconSize.lg} color={theme.colors.textMuted} />}
+      title={t('settings.sync')}
       subtitle={syncSubtitle}
       isOpen={isOpen}
       onToggle={onToggle}
     >
       <View className="flex-row items-start gap-md py-xs">
         <View className="mt-xxs">
-          <ConnectionIcon size={theme.iconSize.lg} color={connectionIconColor} />
+          <ThemedIcon icon={ConnectionIcon} size={theme.iconSize.lg} color={connectionIconColor} />
         </View>
         <View className="flex-1 gap-xxs">
           <Text weight="semibold" style={{ fontSize: theme.fontSize.sm }}>
@@ -84,11 +84,11 @@ export function SyncSection({
           {syncing ? (
             <AnimatedIcon icon={RefreshCw} size={theme.iconSize.lg} color={syncIconColor} animation="spin" />
           ) : syncStatus === 'failed' ? (
-            <TriangleAlert size={theme.iconSize.lg} color={syncIconColor} />
+            <ThemedIcon icon={TriangleAlert} size={theme.iconSize.lg} color={syncIconColor} />
           ) : syncStatus === 'pending' ? (
-            <Clock size={theme.iconSize.lg} color={syncIconColor} />
+            <ThemedIcon icon={Clock} size={theme.iconSize.lg} color={syncIconColor} />
           ) : (
-            <RefreshCw size={theme.iconSize.lg} color={syncIconColor} />
+            <ThemedIcon icon={RefreshCw} size={theme.iconSize.lg} color={syncIconColor} />
           )}
         </View>
 
@@ -105,7 +105,7 @@ export function SyncSection({
       {!isGuest && isOnline ? (
         <Button
           testID="sync-settings-sync-now"
-          label={t('errors.syncNowAction', 'Sync now')}
+          label={t('errors.syncNowAction')}
           icon={RefreshCw}
           variant="secondary"
           size="sm"

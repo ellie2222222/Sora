@@ -1,5 +1,6 @@
 import { Pressable, View, type DimensionValue } from 'react-native';
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { UsersRound } from 'lucide-react-native';
 import { TransactionType, type TransactionResponse } from '@sora/contracts';
 
@@ -10,6 +11,7 @@ import { Money } from './Money.tsx';
 import { SyncStatusDot } from './SyncStatusDot.tsx';
 import { Text } from './Text.tsx';
 import { Skeleton } from './Skeleton.tsx';
+import { ThemedIcon } from './Themed.tsx';
 
 export interface TransactionItemProps {
   transaction: TransactionResponse;
@@ -24,6 +26,7 @@ export interface TransactionItemProps {
 /** The one row shape for a transaction. */
 export function TransactionItem({ transaction, onPress, testID, syncStatus, paddingHorizontal }: TransactionItemProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const category = transaction.category;
   
   const fromAcc = transaction.fromAccount?.name;
@@ -38,7 +41,7 @@ export function TransactionItem({ transaction, onPress, testID, syncStatus, padd
     accountText = toAcc || '';
   }
 
-  const primaryTitle = transaction.description || category?.name || transaction.type;
+  const primaryTitle = transaction.description || category?.name || t(`categories.${transaction.type.toLowerCase()}`);
   
   const secondaryParts: string[] = [];
   if (transaction.description && category?.name) {
@@ -55,6 +58,7 @@ export function TransactionItem({ transaction, onPress, testID, syncStatus, padd
     <Pressable
       testID={testID}
       onPress={onPress ? () => onPress(transaction) : undefined}
+      accessibilityRole={onPress ? 'button' : undefined}
       className="w-full self-stretch flex-row items-center justify-between"
       style={{ paddingVertical: theme.spacing.sm, paddingHorizontal, minHeight: theme.sizes.listRowMinHeight }}
     >
@@ -78,7 +82,11 @@ export function TransactionItem({ transaction, onPress, testID, syncStatus, padd
               <Text variant="caption" tone="muted" numberOfLines={1}>
                 {secondaryText}
               </Text>
-              {transaction.isCrossWallet ? <UsersRound size={theme.iconSize.xs} color={theme.colors.textFaint} /> : null}
+              {transaction.isCrossWallet ? (
+                <View accessible accessibilityLabel={t('transactions.crossWalletRow')}>
+                  <ThemedIcon icon={UsersRound} size={theme.iconSize.xs} color={theme.colors.textFaint} />
+                </View>
+              ) : null}
               <SyncStatusDot status={syncStatus} testID={testID ? `${testID}-sync-status` : undefined} />
             </View>
           ) : null}

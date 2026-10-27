@@ -1,4 +1,5 @@
 export * from './Text';
+export * from './Themed';
 export * from './SectionLabel';
 export * from './Button';
 export * from './CategoryAvatar';

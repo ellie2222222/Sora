@@ -1,9 +1,9 @@
 import { forwardRef, useState } from 'react';
 import {
-  TextInput,
   View,
   type NativeSyntheticEvent,
   type TextInputFocusEventData,
+  type TextInput,
   type TextInputProps,
 } from 'react-native';
 
@@ -11,6 +11,7 @@ import { formatCurrencyInput } from '@sora/contracts';
 
 import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
+import { ThemedTextInput } from './Themed.tsx';
 
 export interface InputProps extends TextInputProps {
   label?: string;
@@ -64,7 +65,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
           {label}
         </Text>
       ) : null}
-      <TextInput
+      <ThemedTextInput
         ref={ref}
         testID={testID}
         placeholderTextColor={theme.colors.textFaint}
@@ -76,7 +77,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
         onBlur={handleBlur}
         style={[
           {
-            height: theme.sizes.controlHeight,
+            minHeight: theme.sizes.controlHeight,
             borderRadius: theme.radius.md,
             borderWidth: isFocused || hasError ? theme.borderWidth.medium : theme.borderWidth.thin,
             borderColor: hasError

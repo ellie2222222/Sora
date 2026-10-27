@@ -5,10 +5,11 @@ import { useTranslation } from 'react-i18next';
 import type { AccountResponse, AccountType } from '@sora/contracts';
 import { AccountStatus } from '@sora/contracts';
 
-import { BottomSheetModal, Money, StateView, Text } from '@/components';
+import { BottomSheetModal, StateView, Text, ThemedIcon, ThemedPressable, ThemedView } from '@/components';
 import { useTheme, useWallets } from '@/app/providers';
 import { useListAccountsQuery } from '@/app/store';
 import { useDefaultToFirst } from '@/hooks';
+import { AccountBalance } from './AccountBalance.tsx';
 
 export const ACCOUNT_ICON: Record<AccountType, typeof Landmark> = {
   BANK_ACCOUNT: Landmark,
@@ -50,7 +51,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
   const selected = accounts.currentData?.find((a) => a.id === value);
   const walletNameOf = (id: string): string => wallets.find((w) => w.id === id)?.name ?? '';
   const AccountTypeIcon = selected !== undefined ? ACCOUNT_ICON[selected.type] : Banknote;
-  const selectedLabel = selected?.name ?? t('accounts.selectAccount', { defaultValue: 'Pick an account' });
+  const selectedLabel = selected?.name ?? t('accounts.selectAccount');
   const fieldAccessibilityLabel = label.length > 0 ? `${label}, ${selectedLabel}` : selectedLabel;
 
   return (
@@ -65,7 +66,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
             className="flex-row items-center"
             style={{ gap: theme.spacing.xs, minHeight: theme.sizes.touchTarget }}
           >
-            <View
+            <ThemedView
               style={{
                 width: theme.sizes.badge.sm,
                 height: theme.sizes.badge.sm,
@@ -75,15 +76,15 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
                 backgroundColor: error !== undefined ? theme.colors.dangerMuted : theme.colors.warningMuted,
               }}
             >
-              <AccountTypeIcon size={theme.iconSize.md} color={error !== undefined ? theme.colors.danger : theme.colors.warning} />
-            </View>
-            <ChevronDown size={theme.iconSize.sm} color={theme.colors.textMuted} />
+              <ThemedIcon icon={AccountTypeIcon} size={theme.iconSize.md} color={error !== undefined ? theme.colors.danger : theme.colors.warning} />
+            </ThemedView>
+            <ThemedIcon icon={ChevronDown} size={theme.iconSize.sm} color={theme.colors.textMuted} />
             <Text
               tone={selected === undefined ? 'faint' : 'default'}
               numberOfLines={1}
               style={{ maxWidth: theme.sizes.chipLabelMaxWidth }}
             >
-              {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Pick an account' }) : selected.name}
+              {selected === undefined ? t('accounts.selectAccount') : selected.name}
             </Text>
           </Pressable>
           {error !== undefined ? (
@@ -97,13 +98,13 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
           <Text variant="label" tone="muted">
             {label}
           </Text>
-          <Pressable
+          <ThemedPressable
             testID={testID}
             onPress={() => setOpen(true)}
             accessibilityRole="button"
             accessibilityLabel={fieldAccessibilityLabel}
             style={{
-              height: theme.sizes.controlHeight,
+              minHeight: theme.sizes.controlHeight,
               borderRadius: theme.radius.md,
               borderWidth: theme.borderWidth.thin,
               borderColor: error !== undefined ? theme.colors.danger : theme.colors.borderControl,
@@ -113,12 +114,12 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
             }}
           >
             <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-              <ChevronDown size={theme.iconSize.lg} color={theme.colors.textMuted} />
+              <ThemedIcon icon={ChevronDown} size={theme.iconSize.lg} color={theme.colors.textMuted} />
               <Text tone={selected === undefined ? 'faint' : 'default'}>
-                {selected === undefined ? t('accounts.selectAccount', { defaultValue: 'Pick an account' }) : selected.name}
+                {selected === undefined ? t('accounts.selectAccount') : selected.name}
               </Text>
             </View>
-          </Pressable>
+          </ThemedPressable>
           {error !== undefined ? (
             <Text variant="caption" tone="danger">
               {error}
@@ -130,7 +131,8 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
       <BottomSheetModal
         visible={open}
         onClose={() => setOpen(false)}
-        title={label || t('accounts.selectAccount', { defaultValue: 'Pick an account' })}
+        title={label || t('accounts.selectAccount')}
+        entity="account-picker"
       >
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -161,7 +163,7 @@ export function AccountPicker({ label, value, onChange, walletId, error, testID,
           ) : null}
           {accounts.currentData !== undefined && accounts.currentData.length === 0 ? (
             <Text tone="faint" style={{ padding: theme.spacing.md, textAlign: 'center' }}>
-              {t('accounts.noAccountsHereYet', { defaultValue: 'No accounts here yet.' })}
+              {t('accounts.noAccountsHereYet')}
             </Text>
           ) : null}
         </ScrollView>
@@ -188,7 +190,7 @@ export function AccountOption({
       icon={ACCOUNT_ICON[account.type]}
       label={account.name}
       subtitle={walletName}
-      trailing={<Money amount={account.balance} currency={account.currency} variant="label" />}
+      trailing={<AccountBalance account={account} variant="label" />}
       selected={selected}
       onPress={onPress}
       testID={testID}
@@ -217,7 +219,7 @@ export function AccountOptionRow({
   const theme = useTheme();
 
   return (
-    <Pressable
+    <ThemedPressable
       testID={testID}
       onPress={onPress}
       accessibilityRole="button"
@@ -234,7 +236,7 @@ export function AccountOptionRow({
       }}
     >
       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-        <Icon size={theme.iconSize.lg} color={theme.colors.textMuted} />
+        <ThemedIcon icon={Icon} size={theme.iconSize.lg} color={theme.colors.textMuted} />
         <View>
           <Text weight={selected ? 'semibold' : 'regular'}>{label}</Text>
           {subtitle !== undefined ? (
@@ -246,8 +248,8 @@ export function AccountOptionRow({
       </View>
       <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
         {trailing}
-        {selected ? <Check size={theme.iconSize.md} color={theme.colors.primary} /> : null}
+        {selected ? <ThemedIcon icon={Check} size={theme.iconSize.md} color={theme.colors.primary} /> : null}
       </View>
-    </Pressable>
+    </ThemedPressable>
   );
 }

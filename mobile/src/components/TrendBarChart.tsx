@@ -2,6 +2,7 @@ import { View } from 'react-native';
 
 import { useTheme } from '@/app/providers';
 import { Text } from './Text.tsx';
+import { ThemedView } from './Themed.tsx';
 
 export interface TrendBarChartPoint {
   label: string;
@@ -24,7 +25,7 @@ export function TrendBarChart({ points, height: heightProp }: TrendBarChartProps
   const scale = (value: number) => Math.max(theme.sizes.chart.minBarLength, (value / max) * barAreaHeight);
 
   const bar = (kind: 'income' | 'expense', value: number) => (
-    <View
+    <ThemedView
       key={kind}
       style={{
         width: theme.sizes.chart.barWidth,
