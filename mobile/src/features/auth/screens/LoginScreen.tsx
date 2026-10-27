@@ -1,15 +1,14 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, View } from 'react-native';
 
 import { LogIn } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { loginSchema, type LoginRequest } from '@sora/contracts';
 
-import { AnimatedScreen, Button, GoogleLogo, Input, Text } from '@/components';
+import { AnimatedScreen, Button, GoogleLogo, Input, Text, ThemedView } from '@/components';
 import { useAuth, useLocaleControl, useTheme } from '@/app/providers';
-import { deviceTimeZone, messageOf } from '@/utils';
+import { deviceTimeZone, messageOf, zodFormResolver } from '@/utils';
 import { AuthPreferences } from '../components/AuthPreferences.tsx';
 import { useGoogleSignIn } from '../hooks/useGoogleSignIn.ts';
 import type { AuthStackScreenProps } from '@/app/navigation';
@@ -23,13 +22,15 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [googlePending, setGooglePending] = useState(false);
   const [guestPending, setGuestPending] = useState(false);
+  const linkHitSlop = (theme.sizes.touchTarget - theme.lineHeight.md) / 2;
 
   const {
     control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<LoginRequest>({
-    resolver: zodResolver(loginSchema),
+    resolver: zodFormResolver(loginSchema, t),
+    mode: 'onTouched',
     defaultValues: { email: '', password: '' },
   });
 
@@ -78,9 +79,13 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
       <AuthPreferences />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
-        <View className="flex-1 justify-center" style={{ padding: theme.spacing.xl, gap: theme.spacing.md }}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerClassName="flex-grow justify-center"
+          contentContainerStyle={{ padding: theme.spacing.xl, gap: theme.spacing.md }}
+        >
           <Text variant="heading" style={{ marginBottom: theme.spacing.xs }}>
             {t('auth.loginTitle')}
           </Text>
@@ -100,6 +105,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
                 keyboardType="email-address"
                 value={field.value}
                 onChangeText={field.onChange}
+                onBlur={field.onBlur}
                 error={errors.email?.message}
               />
             )}
@@ -117,6 +123,7 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
                 autoComplete="password"
                 value={field.value}
                 onChangeText={field.onChange}
+                onBlur={field.onBlur}
                 error={errors.password?.message}
               />
             )}
@@ -141,11 +148,11 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
           {google.available ? (
             <>
               <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-                <View className="flex-1" style={{ height: theme.borderWidth.thin, backgroundColor: theme.colors.border }} />
+                <ThemedView className="flex-1" style={{ height: theme.borderWidth.thin, backgroundColor: theme.colors.border }} />
                 <Text variant="caption" tone="muted">
                   {t('auth.orDivider')}
                 </Text>
-                <View className="flex-1" style={{ height: theme.borderWidth.thin, backgroundColor: theme.colors.border }} />
+                <ThemedView className="flex-1" style={{ height: theme.borderWidth.thin, backgroundColor: theme.colors.border }} />
               </View>
 
               <Button
@@ -160,30 +167,36 @@ export function LoginScreen({ navigation }: AuthStackScreenProps<'Login'>) {
             </>
           ) : null}
 
-          <View className="flex-row justify-center items-center" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
+          <View className="flex-row flex-wrap justify-center items-center" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
             <Text tone="muted">{t('auth.noAccountPrompt')}</Text>
-            <Pressable testID="login-go-register" onPress={() => navigation.navigate('Register')} hitSlop={theme.sizes.hitSlop.md}>
+            <Pressable
+              testID="login-go-register"
+              accessibilityRole="link"
+              onPress={() => navigation.navigate('Register')}
+              hitSlop={linkHitSlop}
+            >
               <Text weight="semibold" style={{ color: theme.colors.primary }}>
                 {t('auth.signUpLink')}
               </Text>
             </Pressable>
           </View>
 
-          <View className="flex-row justify-center items-center" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.xs }}>
+          <View className="flex-row flex-wrap justify-center items-center" style={{ gap: theme.spacing.xs, marginTop: theme.spacing.xs }}>
             <Text tone="muted">{t('auth.guestPrompt')}</Text>
             <Pressable
               testID="login-continue-as-guest"
+              accessibilityRole="link"
+              accessibilityState={{ busy: guestPending }}
               onPress={() => void onContinueAsGuest()}
               disabled={guestPending}
-              hitSlop={theme.sizes.hitSlop.md}
+              hitSlop={linkHitSlop}
             >
-              <Text weight="semibold" style={{ color: theme.colors.primary, opacity: guestPending ? theme.opacity.disabled : 1 }}>
+              <Text weight="semibold" style={{ color: guestPending ? theme.colors.textMuted : theme.colors.primary }}>
                 {t('auth.continueAsGuestLink')}
               </Text>
             </Pressable>
           </View>
-
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </AnimatedScreen>
   );

@@ -1,7 +1,6 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View, type TextInput } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, View, type TextInput } from 'react-native';
 
 import { UserPlus } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +12,7 @@ import type { z } from 'zod';
 
 import { AnimatedScreen, Button, Input, Text } from '@/components';
 import { useAuth, useLocaleControl, useTheme } from '@/app/providers';
-import { deviceTimeZone, messageOf } from '@/utils';
+import { deviceTimeZone, messageOf, zodFormResolver } from '@/utils';
 import type { AuthStackScreenProps } from '@/app/navigation';
 import { AuthPreferences } from '../components/AuthPreferences.tsx';
 
@@ -32,7 +31,8 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<z.input<typeof registerFormSchema>>({
-    resolver: zodResolver(registerFormSchema),
+    resolver: zodFormResolver(registerFormSchema, t),
+    mode: 'onTouched',
     defaultValues: { email: '', password: '', displayName: '', baseCurrency: 'VND' },
   });
 
@@ -57,7 +57,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
       <AuthPreferences />
       <KeyboardAvoidingView
         className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <ScrollView
           contentContainerClassName="flex-grow justify-center"
@@ -85,6 +85,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
                 onSubmitEditing={() => emailRef.current?.focus()}
                 value={field.value}
                 onChangeText={field.onChange}
+                onBlur={field.onBlur}
                 error={errors.displayName?.message}
               />
             )}
@@ -106,6 +107,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
                 onSubmitEditing={() => passwordRef.current?.focus()}
                 value={field.value}
                 onChangeText={field.onChange}
+                onBlur={field.onBlur}
                 error={errors.email?.message}
               />
             )}
@@ -123,6 +125,7 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
                 autoCapitalize="none"
                 value={field.value}
                 onChangeText={field.onChange}
+                onBlur={field.onBlur}
                 error={errors.password?.message}
               />
             )}
@@ -145,11 +148,16 @@ export function RegisterScreen({ navigation }: AuthStackScreenProps<'Register'>)
           />
 
           <View
-            className="flex-row justify-center items-center"
+            className="flex-row flex-wrap justify-center items-center"
             style={{ gap: theme.spacing.xs, marginTop: theme.spacing.md }}
           >
             <Text tone="muted">{t('auth.hasAccountPrompt')}</Text>
-            <Pressable testID="register-go-login" onPress={() => navigation.navigate('Login')} hitSlop={theme.sizes.hitSlop.md}>
+            <Pressable
+              testID="register-go-login"
+              accessibilityRole="link"
+              onPress={() => navigation.navigate('Login')}
+              hitSlop={(theme.sizes.touchTarget - theme.lineHeight.md) / 2}
+            >
               <Text weight="semibold" style={{ color: theme.colors.primary }}>
                 {t('auth.signInLink')}
               </Text>

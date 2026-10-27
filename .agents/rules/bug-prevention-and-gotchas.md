@@ -100,3 +100,11 @@ Each rule below was established to permanently prevent a regression of a specifi
 ### 18. A Wallet's Calendar Day Is Its Time Zone's, Never UTC's or the Device's
 - `instant.slice(0, 10)` and `T00:00:00.000Z` bounds filed every early-morning entry in Vietnam (UTC+7) under the day before, in the list, the dashboard and every budget.
 - An instant becomes a wallet day only through [`packages/contracts/src/calendar.ts`](../../packages/contracts/src/calendar.ts) (`dayOfInstant`, `todayIn`, `dayRange`, `withDay`), given the wallet's `timeZone`. Every member gets the same day; a changed zone re-reads instants without rewriting them. Display-only times stay on the device.
+
+### 19. A Worklet's Default Parameter Cannot Read a Module Constant
+- The worklets plugin unpacks a worklet's captured values (`const { DECK } = this.__closure`) at the top of its body, and default parameters are evaluated before the body. `deckPose(offset, fadeEnd = DECK.visibleRange)` threw `ReferenceError: Property 'DECK' doesn't exist` on the UI thread every frame it was called without `fadeEnd`, while its unit tests, run on the JS thread, passed.
+- In a `'worklet'` function, take the parameter as optional and resolve the default in the body (`const fadeEnd = fadeEndAt ?? DECK.visibleRange`).
+
+### 20. On Android, `KeyboardAvoidingView` Needs `behavior="padding"` Too
+- Android runs the app edge-to-edge (Expo's default, which Android enforces from API 35), where `adjustResize` no longer shrinks the window, and a `Modal` draws in a window of its own besides.
+- With `Platform.OS === 'ios' ? 'padding' : undefined`, the keyboard covered every sheet's fields and the AI chat composer on Android. Set `behavior="padding"` on both platforms.

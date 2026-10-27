@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, History, LogIn, MessageSquarePlus, RotateCcw, Sparkles } from 'lucide-react-native';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Pressable, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 
-import { AnimatedScreen, Button, ListLoadMoreFooter, Skeleton, StateView, Text } from '@/components';
+import { AnimatedScreen, Button, ListLoadMoreFooter, Skeleton, StateView, Text, ThemedIcon, ThemedView } from '@/components';
 import { useAuth, useTheme, useToast, useWallets } from '@/app/providers';
 import {
   useConfirmAiActionMutation,
@@ -58,7 +58,7 @@ function AssistantHeader({ rightElement }: { rightElement?: React.ReactNode }) {
   const theme = useTheme();
   const { t } = useTranslation();
   return (
-    <View 
+    <ThemedView 
       className="flex-row items-center justify-between"
       style={{ 
         borderBottomWidth: theme.borderWidth.thin,
@@ -69,11 +69,11 @@ function AssistantHeader({ rightElement }: { rightElement?: React.ReactNode }) {
       }}
     >
       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-        <Sparkles size={theme.iconSize.xl} color={theme.colors.primary} />
+        <ThemedIcon icon={Sparkles} size={theme.iconSize.xl} color={theme.colors.primary} />
         <Text variant="title">{t('ai.title')}</Text>
       </View>
       {rightElement}
-    </View>
+    </ThemedView>
   );
 }
 
@@ -159,7 +159,14 @@ function SignedInChat() {
   const shownMessages = currentView(messages, true);
   const items = useMemo(() => flattenPages(shownMessages.data?.pages) as AiMessageResponse[], [shownMessages.data]);
 
-  if (activeWalletId === null) return <NoWalletState testID="ai-no-wallet" />;
+  if (activeWalletId === null) {
+    return (
+      <View className="flex-1">
+        <AssistantHeader />
+        <NoWalletState testID="ai-no-wallet" />
+      </View>
+    );
+  }
 
   const locale = isLocale(i18n.language) ? i18n.language : 'en';
   // Each chat shows and blocks on its own exchange only, so a send elsewhere never hides or replaces it.
@@ -237,6 +244,7 @@ function SignedInChat() {
     }
   };
 
+  const headerIconSlop = (theme.sizes.touchTarget - theme.iconSize.xl) / 2;
   const blockedReason = blocked === 'offline' ? t('ai.offlineHint') : blocked === 'viewOnly' ? t('ai.proposal.viewOnly') : null;
   const renderBody = () => {
     if (conversationId !== null && shownMessages.loading && shownPending === null) {
@@ -316,15 +324,15 @@ function SignedInChat() {
   };
 
   return (
-    <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView className="flex-1" behavior="padding">
       <AssistantHeader
         rightElement={
           <View className="flex-row" style={{ gap: theme.spacing.md }}>
-            <Pressable testID="btn-open-ai-history" accessibilityRole="button" accessibilityLabel={t('ai.history')} hitSlop={theme.sizes.hitSlop.md} onPress={() => setHistoryOpen(true)}>
-              <History size={theme.iconSize.xl} color={theme.colors.textMuted} />
+            <Pressable testID="btn-open-ai-history" accessibilityRole="button" accessibilityLabel={t('ai.history')} hitSlop={headerIconSlop} onPress={() => setHistoryOpen(true)}>
+              <ThemedIcon icon={History} size={theme.iconSize.xl} color={theme.colors.textMuted} />
             </Pressable>
-            <Pressable testID="btn-add-ai-conversation" accessibilityRole="button" accessibilityLabel={t('ai.newChat')} hitSlop={theme.sizes.hitSlop.md} onPress={() => setConversationId(null)}>
-              <MessageSquarePlus size={theme.iconSize.xl} color={theme.colors.primary} />
+            <Pressable testID="btn-add-ai-conversation" accessibilityRole="button" accessibilityLabel={t('ai.newChat')} hitSlop={headerIconSlop} onPress={() => setConversationId(null)}>
+              <ThemedIcon icon={MessageSquarePlus} size={theme.iconSize.xl} color={theme.colors.primary} />
             </Pressable>
           </View>
         }
@@ -342,6 +350,9 @@ function SignedInChat() {
       <ConversationHistorySheet
         visible={historyOpen}
         conversations={conversations.data ?? []}
+        isLoading={conversations.isLoading}
+        error={conversations.isError && conversations.data === undefined ? conversations.error : undefined}
+        onRetry={() => void conversations.refetch()}
         activeConversationId={conversationId}
         onClose={() => setHistoryOpen(false)}
         onOpen={(id) => {
@@ -393,7 +404,7 @@ function PendingExchangeView({
           style={{ alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: BUBBLE_MAX_WIDTH, gap: theme.spacing.xs }}
         >
           <View className="flex-row items-center" style={{ gap: theme.spacing.xs }}>
-            <AlertCircle size={theme.iconSize.sm} color={theme.colors.danger} />
+            <ThemedIcon icon={AlertCircle} size={theme.iconSize.sm} color={theme.colors.danger} />
             <Text variant="caption" style={{ color: theme.colors.danger, flexShrink: 1 }}>
               {exchange.failure?.message}
             </Text>

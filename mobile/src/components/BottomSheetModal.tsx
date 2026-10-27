@@ -12,11 +12,14 @@ import {
   View,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useReducedMotion } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/app/providers';
 import { KeyboardDockProvider } from './KeyboardDockProvider.tsx';
 import { SheetHeader, type SheetCloseLabel } from './SheetHeader.tsx';
+import { ThemedView } from './Themed.tsx';
 
 // The native animated module doesn't exist on web, which warns if asked for it there.
 const NATIVE_DRIVER_ENABLED = Platform.OS !== 'web';
@@ -70,7 +73,9 @@ export function BottomSheetModal({
   testID,
 }: BottomSheetModalProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const safeBottom = Math.max(insets.bottom, theme.spacing.lg);
 
   const windowHeight = Dimensions.get('window').height;
@@ -102,18 +107,28 @@ export function BottomSheetModal({
   const dismissModal = useCallback(() => {
     if (phase.current === 'dismissing') return;
     phase.current = 'dismissing';
+    if (reduceMotion) {
+      translateYAnim.setValue(sheetHeight + SKIRT);
+      finishDismiss();
+      return;
+    }
     Animated.timing(translateYAnim, {
       toValue: sheetHeight + SKIRT,
       duration: 220,
       easing: Easing.in(Easing.cubic),
       useNativeDriver: NATIVE_DRIVER_ENABLED,
     }).start(({ finished }) => finished && finishDismiss());
-  }, [translateYAnim, sheetHeight, finishDismiss]);
+  }, [translateYAnim, sheetHeight, finishDismiss, reduceMotion]);
 
   // A gesture release carries the finger's velocity into the slide-out, so the motion continues the drag.
   const dismissFromRelease = useCallback(
     (velocity: number) => {
       phase.current = 'dismissing';
+      if (reduceMotion) {
+        translateYAnim.setValue(sheetHeight + SKIRT);
+        finishDismiss();
+        return;
+      }
       Animated.spring(translateYAnim, {
         toValue: sheetHeight + SKIRT,
         velocity,
@@ -122,12 +137,16 @@ export function BottomSheetModal({
         useNativeDriver: NATIVE_DRIVER_ENABLED,
       }).start(({ finished }) => finished && finishDismiss());
     },
-    [translateYAnim, sheetHeight, finishDismiss],
+    [translateYAnim, sheetHeight, finishDismiss, reduceMotion],
   );
 
   const springBack = useCallback(
     (velocity: number) => {
       phase.current = 'idle';
+      if (reduceMotion) {
+        translateYAnim.setValue(0);
+        return;
+      }
       Animated.spring(translateYAnim, {
         toValue: 0,
         velocity,
@@ -135,12 +154,16 @@ export function BottomSheetModal({
         useNativeDriver: NATIVE_DRIVER_ENABLED,
       }).start();
     },
-    [translateYAnim],
+    [translateYAnim, reduceMotion],
   );
 
   useEffect(() => {
     if (visible) {
       phase.current = 'idle';
+      if (reduceMotion) {
+        translateYAnim.setValue(0);
+        return;
+      }
       translateYAnim.setValue(initialTranslateY);
       Animated.spring(translateYAnim, {
         toValue: 0,
@@ -148,7 +171,7 @@ export function BottomSheetModal({
         useNativeDriver: NATIVE_DRIVER_ENABLED,
       }).start();
     }
-  }, [visible, initialTranslateY, translateYAnim]);
+  }, [visible, initialTranslateY, translateYAnim, reduceMotion]);
 
   // The PanResponder is created once, so it reads the latest thresholds and handlers through a ref.
   const gesture = useRef({ sheetHeight, dismissThreshold, dismissVelocity, dismissFromRelease, springBack });
@@ -204,11 +227,14 @@ export function BottomSheetModal({
             { backgroundColor: theme.colors.overlay, opacity: backdropOpacity, pointerEvents: 'none' },
           ]}
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          className="flex-1 justify-end"
-        >
-          <Pressable className="flex-1" onPress={() => dismissModal()} />
+        {/* Android too: edge-to-edge (API 35+) stops adjustResize from shrinking a Modal's window. */}
+        <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end">
+          <Pressable
+            className="flex-1"
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+            onPress={() => dismissModal()}
+          />
           <Pressable onPress={(e) => e.stopPropagation()}>
             <Animated.View
               onLayout={(event) => setSheetHeight(event.nativeEvent.layout.height)}
@@ -218,7 +244,7 @@ export function BottomSheetModal({
                 width: '100%',
               }}
             >
-              <View
+              <ThemedView
                 className="rounded-bl-none rounded-br-none"
                 style={{
                   borderWidth: theme.borderWidth.thin,
@@ -244,7 +270,7 @@ export function BottomSheetModal({
                     marginBottom: theme.spacing.xs,
                   }}
                 >
-                  <View
+                  <ThemedView
                     style={{
                       opacity: theme.opacity.muted,
                       width: theme.sizes.sheetHandle.width,
@@ -262,7 +288,7 @@ export function BottomSheetModal({
                 <SheetFlowContext.Provider value={flow}>
                   <KeyboardDockProvider applySafeArea={false}>{children}</KeyboardDockProvider>
                 </SheetFlowContext.Provider>
-              </View>
+              </ThemedView>
             </Animated.View>
           </Pressable>
         </KeyboardAvoidingView>
