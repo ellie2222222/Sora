@@ -4,23 +4,10 @@ import { Check } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { createContributionSchema } from '@sora/contracts';
 
-import {
-  BottomSheetModal,
-  CalculatorKeypad,
-  DatePickerModal,
-  Input,
-  KeypadSheetFooter,
-  SheetScrollArea,
-  Skeleton,
-  StateView,
-  Text,
-  useCalculatorExpression,
-} from '@/components';
+import { BottomSheetModal, CalculatorKeypad, DatePickerModal, Input, KeypadSheetFooter, SheetScrollArea, Skeleton, StateView, Text, ThemedIcon, ThemedView, useCalculatorExpression } from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
-// Deep-imported (not via each feature's barrel): this component is itself deep-imported by
-// ModalProvider, and pulling in `@/features/accounts` or `@/features/categories` here
-// reintroduces a cycle through their barrels' other exports (same reasoning as
-// TransactionFormModal.tsx's identical comment).
+// Deep-imported, not via feature barrels: ModalProvider deep-imports this modal, and those barrels'
+// other exports would close a require cycle (CLAUDE.md MB-10).
 import { AccountPicker } from '../../accounts/components/AccountPicker.tsx';
 import { CategoryGrid } from '../../categories/components/CategoryGrid.tsx';
 import { useAddContributionMutation, useGetGoalQuery } from '@/app/store';
@@ -138,7 +125,7 @@ export function AddContributionModal({ visible, goalId, onClose, onBack, onClose
       categoryId: recordAsTransaction ? (categoryId ?? undefined) : undefined,
     });
     if (!parsed.success) {
-      const next = issueMessagesByPath(parsed.error.issues);
+      const next = issueMessagesByPath(parsed.error.issues, t);
       if (next.accountId !== undefined) {
         next.accountId = t('goals.chooseAccountError', { defaultValue: 'Pick the account this comes from.' });
       }
@@ -176,7 +163,7 @@ export function AddContributionModal({ visible, goalId, onClose, onBack, onClose
           className="flex-row items-center"
           style={{ gap: theme.spacing.sm }}
         >
-          <View
+          <ThemedView
             className="items-center justify-center"
             style={{
               width: theme.sizes.checkbox,
@@ -187,8 +174,8 @@ export function AddContributionModal({ visible, goalId, onClose, onBack, onClose
               backgroundColor: recordAsTransaction ? theme.colors.primary : 'transparent',
             }}
           >
-            {recordAsTransaction ? <Check size={theme.iconSize.sm} color={theme.colors.onPrimary} /> : null}
-          </View>
+            {recordAsTransaction ? <ThemedIcon icon={Check} size={theme.iconSize.sm} color={theme.colors.onPrimary} /> : null}
+          </ThemedView>
           <View className="flex-1">
             <Text weight="medium">
               {t('goals.recordAsExpense', { defaultValue: 'Record as an expense' })}
@@ -235,6 +222,7 @@ export function AddContributionModal({ visible, goalId, onClose, onBack, onClose
           placeholder={t('transactions.notePlaceholder', { defaultValue: 'Add a note' })}
           value={note}
           onChangeText={setNote}
+          error={fieldErrors.note}
         />
 
         {submitError !== null ? <Text tone="danger">{submitError}</Text> : null}

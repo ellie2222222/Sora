@@ -22,6 +22,7 @@ import {
   type TransactionResponse,
   type UpdateTransactionRequest,
 } from '@sora/contracts';
+import type { ZodIssue } from 'zod';
 
 /** Every field the form can hold, regardless of which type is selected. */
 export interface TransactionDraft {
@@ -216,7 +217,7 @@ export function buildCreatePayload(draft: TransactionDraft): unknown {
 
 export interface DraftIssue {
   path: string;
-  message: string;
+  issue: ZodIssue;
 }
 
 export type DraftValidation =
@@ -238,7 +239,7 @@ export function validateDraft(draft: TransactionDraft): DraftValidation {
     ok: false,
     issues: parsed.error.issues.map((issue) => ({
       path: issue.path.length > 0 ? issue.path.join('.') : 'type',
-      message: issue.message,
+      issue,
     })),
   };
 }

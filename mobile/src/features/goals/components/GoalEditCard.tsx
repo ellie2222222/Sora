@@ -51,7 +51,7 @@ export function GoalEditCard({ goal, onCancelGoal }: GoalEditCardProps) {
     setSaveError(null);
     const parsed = updateGoalSchema.safeParse(changes);
     if (!parsed.success) {
-      setFieldErrors(issueMessagesByPath(parsed.error.issues));
+      setFieldErrors(issueMessagesByPath(parsed.error.issues, t));
       return;
     }
     setFieldErrors({});

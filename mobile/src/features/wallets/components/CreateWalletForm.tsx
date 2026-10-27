@@ -35,7 +35,7 @@ export function CreateWalletForm({ active, onCreated }: { active: boolean; onCre
     setSubmitError(null);
     const parsed = createWalletSchema.safeParse({ name, timeZone });
     if (!parsed.success) {
-      setFieldErrors(issueMessagesByPath(parsed.error.issues));
+      setFieldErrors(issueMessagesByPath(parsed.error.issues, t));
       return;
     }
 
@@ -43,7 +43,7 @@ export function CreateWalletForm({ active, onCreated }: { active: boolean; onCre
     try {
       await createWallet(parsed.data).unwrap();
       onCreated();
-      showToast(t('toast.walletCreated', { defaultValue: 'Wallet created' }), 'success');
+      showToast(t('toast.walletCreated'), 'success');
     } catch (error) {
       setSubmitError(messageOf(error, t));
     }

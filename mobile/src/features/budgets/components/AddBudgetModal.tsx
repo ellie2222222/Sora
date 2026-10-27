@@ -1,25 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Pressable, ScrollView } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { CalendarRange } from 'lucide-react-native';
-import { BUDGET_PERIOD_TYPES, BudgetPeriodType, createBudgetSchema, isRepeatingBudgetPeriod } from '@sora/contracts';
+import { BUDGET_PERIOD_TYPES, BudgetPeriodType, createBudgetSchema, GoalStatus, isRepeatingBudgetPeriod } from '@sora/contracts';
 
-import {
-  BottomSheetModal,
-  Button,
-  CalculatorKeypad,
-  DatePickerModal,
-  IconChip,
-  Input,
-  KeypadSheetFooter,
-  SheetScrollArea,
-  StateView,
-  Text,
-  useCalculatorExpression,
-} from '@/components';
+import { BottomSheetModal, Button, CalculatorKeypad, DatePickerModal, IconChip, Input, KeypadSheetFooter, SheetScrollArea, Skeleton, StateView, Text, ThemedPressable, useCalculatorExpression } from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
-// Deep-imported, not via `@/features/categories`: ModalProvider deep-imports this modal, and that
-// barrel's other exports would close a cycle (same reasoning as TransactionFormModal.tsx).
+// Deep-imported, not via feature barrels: ModalProvider deep-imports this modal, and those barrels'
+// other exports would close a require cycle (CLAUDE.md MB-10).
 import { CategoryGrid } from '../../categories/components/CategoryGrid.tsx';
 import { useCreateBudgetMutation, useListGoalsQuery } from '@/app/store';
 import {
@@ -53,7 +41,15 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
   const { activeWallet, timeZone } = useWallets();
   const walletId = activeWallet?.id;
   const [createBudget, { isLoading: isCreating }] = useCreateBudgetMutation();
-  const { data: goals = [], isLoading: isLoadingGoals, isError: isErrorGoals } = useListGoalsQuery({ walletId: walletId ?? '' }, { skip: !visible || walletId === undefined });
+  const {
+    data: allGoals = [],
+    isLoading: isLoadingGoals,
+    isError: isErrorGoals,
+    error: goalsError,
+    refetch: refetchGoals,
+  } = useListGoalsQuery({ walletId: walletId ?? '' }, { skip: !visible || walletId === undefined });
+  // The API refuses a budget on a finished or cancelled goal (GOAL_NOT_ACTIVE), so only active ones are offered.
+  const goals = allGoals.filter((goal) => goal.status === GoalStatus.ACTIVE);
 
   const { setExpression, expressionRef, display: displayAmount, confirm } = useCalculatorExpression('', '0');
   const [name, setName] = useState('');
@@ -162,7 +158,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
       walletId,
       categoryId: periodType !== BudgetPeriodType.GOAL ? categoryId : null,
       goalId: periodType === BudgetPeriodType.GOAL ? goalId : null,
-      name: name.trim().length > 0 ? name : `${PERIOD_LABEL[periodType]} budget`,
+      name: name.trim().length > 0 ? name : t('budgets.defaultName', { period: PERIOD_LABEL[periodType] }),
       amount,
       currency: activeWallet?.balances[0]?.currency ?? 'VND',
       periodType,
@@ -170,7 +166,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
       endDate: repeats ? null : endDate,
     });
     if (!parsed.success) {
-      const next = issueMessagesByPath(parsed.error.issues);
+      const next = issueMessagesByPath(parsed.error.issues, t);
       if (next.endDate !== undefined) {
         next.endDate = t('budgets.endBeforeStartError', { defaultValue: "The end date can't come before the start date." });
       }
@@ -217,26 +213,29 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
         {periodType === BudgetPeriodType.GOAL ? (
           <View style={{ paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm }}>
             {isLoadingGoals ? (
-              <Text tone="muted">{t('common.loading')}</Text>
+              [0, 1, 2].map((key) => <Skeleton key={key} width="100%" height={theme.sizes.controlHeight} radius={theme.radius.md} />)
             ) : isErrorGoals ? (
-              <Text tone="danger">{t('goals.loadFailed')}</Text>
+              <StateView variant="error" error={goalsError} retryAction={() => void refetchGoals()} testID="add-budget-goals-error" entrance="none" />
             ) : goals.length === 0 ? (
               <Text tone="muted">{t('goals.noGoals', { defaultValue: 'No goals yet.' })}</Text>
             ) : (
               goals.map((goal) => (
-                <Pressable
+                <ThemedPressable
                   key={goal.id}
+                  testID={`option-goal-${goal.id}`}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: goal.id === goalId, checked: goal.id === goalId }}
                   onPress={() => setGoalId(goal.id)}
                   style={{
                     padding: theme.spacing.md,
                     borderRadius: theme.radius.md,
                     backgroundColor: goal.id === goalId ? theme.colors.primaryMuted : theme.colors.surface,
-                    borderWidth: theme.borderWidth.thin,
+                    borderWidth: goal.id === goalId ? theme.borderWidth.medium : theme.borderWidth.thin,
                     borderColor: goal.id === goalId ? theme.colors.primary : theme.colors.border,
                   }}
                 >
                   <Text weight={goal.id === goalId ? 'bold' : 'medium'}>{goal.name}</Text>
-                </Pressable>
+                </ThemedPressable>
               ))
             )}
             {fieldErrors.goalId ? <Text tone="danger">{fieldErrors.goalId}</Text> : null}
@@ -276,7 +275,7 @@ export function AddBudgetModal({ visible, onClose }: AddBudgetModalProps) {
       >
         <Input
           testID="input-budget-name"
-          placeholder={t('budgets.namePlaceholder', 'e.g. Food in August')}
+          placeholder={t('budgets.namePlaceholder', 'Food in August')}
           value={name}
           onChangeText={setName}
           error={fieldErrors.name}

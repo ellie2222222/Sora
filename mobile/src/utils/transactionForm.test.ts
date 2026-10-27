@@ -18,6 +18,7 @@ import {
   validateDraft,
   type TransactionDraft,
 } from './transactionForm.ts';
+import { fieldErrorKey } from './fieldErrors.ts';
 
 const ACCOUNT_A = '11111111-1111-4111-8111-111111111111';
 const ACCOUNT_B = '22222222-2222-4222-8222-222222222222';
@@ -232,6 +233,11 @@ describe('validateDraft', () => {
       }),
     );
     assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.deepEqual(
+      result.issues.map(({ issue }) => fieldErrorKey(issue).key),
+      ['validation.transferSameAccount'],
+    );
   });
 
   it('rejects a zero amount', () => {

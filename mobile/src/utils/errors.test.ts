@@ -12,7 +12,6 @@ import {
   isNetworkError,
   isServerFault,
   isUnauthenticated,
-  issueMessagesByPath,
   messageOf,
   serializeApiError,
   toApiError,
@@ -41,19 +40,6 @@ describe('isNetworkError', () => {
     assert.equal(isNetworkError(new Error('connection pool exhausted in reducer')), false);
     assert.equal(isNetworkError(null), false);
     assert.equal(isNetworkError(42), false);
-  });
-});
-
-describe('issueMessagesByPath', () => {
-  it('keys each field by its dotted path and keeps the first message per field', () => {
-    assert.deepEqual(
-      issueMessagesByPath([
-        { path: ['amount'], message: 'Required' },
-        { path: ['amount'], message: 'Must be positive' },
-        { path: ['body', 0, 'name'], message: 'Too long' },
-      ]),
-      { amount: 'Required', 'body.0.name': 'Too long' },
-    );
   });
 });
 

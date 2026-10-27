@@ -45,7 +45,7 @@ export function WalletEditCard({ wallet }: WalletEditCardProps) {
       ...(zoneChanged ? { timeZone } : {}),
     });
     if (!parsed.success) {
-      setFieldError(issueMessagesByPath(parsed.error.issues).name);
+      setFieldError(issueMessagesByPath(parsed.error.issues, t).name);
       return;
     }
     setFieldError(undefined);

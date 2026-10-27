@@ -78,7 +78,7 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
       targetDate,
     });
     if (!parsed.success) {
-      setFieldErrors(issueMessagesByPath(parsed.error.issues));
+      setFieldErrors(issueMessagesByPath(parsed.error.issues, t));
       return;
     }
 
@@ -123,7 +123,7 @@ export function AddGoalModal({ visible, onClose }: AddGoalModalProps) {
       >
         <Input
           testID="input-goal-name"
-          placeholder={t('goals.namePlaceholder', 'e.g. New laptop')}
+          placeholder={t('goals.namePlaceholder', 'New laptop')}
           value={name}
           onChangeText={setName}
           error={fieldErrors.name}

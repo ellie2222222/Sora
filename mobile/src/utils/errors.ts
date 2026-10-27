@@ -159,6 +159,7 @@ export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
   INVITATION_ALREADY_USED: 'errors.invitationAlreadyUsed',
   INVITATION_EMAIL_MISMATCH: 'errors.invitationEmailMismatch',
   INVITATION_ALREADY_OPEN: 'errors.invitationAlreadyOpen',
+  INVITATION_EMAIL_UNVERIFIED: 'errors.invitationEmailUnverified',
   ACCOUNT_NOT_FOUND: 'errors.accountNotFound',
   ACCOUNT_ARCHIVED: 'errors.accountArchived',
   ACCOUNT_CURRENCY_MISMATCH: 'errors.accountCurrencyMismatch',
@@ -187,6 +188,10 @@ export const ERROR_CODE_TO_I18N_KEY: Record<ErrorCode, string> = {
   INTERNAL_ERROR: 'errors.internalError',
   GOOGLE_TOKEN_INVALID: 'errors.googleTokenInvalid',
   GOOGLE_ACCOUNT_MISMATCH: 'errors.googleAccountMismatch',
+  EMAIL_ALREADY_VERIFIED: 'errors.emailAlreadyVerified',
+  EMAIL_VERIFICATION_CODE_INVALID: 'errors.emailVerificationCodeInvalid',
+  EMAIL_VERIFICATION_EXPIRED: 'errors.emailVerificationExpired',
+  EMAIL_DELIVERY_UNAVAILABLE: 'errors.emailDeliveryUnavailable',
   VALUATION_UNAVAILABLE: 'errors.valuationUnavailable',
   AI_CONVERSATION_NOT_FOUND: 'errors.aiConversationNotFound',
   AI_MESSAGE_NOT_FOUND: 'errors.aiMessageNotFound',
@@ -245,16 +250,4 @@ export function isUnauthenticated(error: unknown): boolean {
     error.code === 'TOKEN_EXPIRED' ||
     error.code === 'TOKEN_INVALID'
   );
-}
-
-/** One message per field from a failed schema parse, keyed by dotted path — what a form shows beside each field. */
-export function issueMessagesByPath(
-  issues: readonly { path: readonly PropertyKey[]; message: string }[],
-): Record<string, string> {
-  const byPath: Record<string, string> = {};
-  for (const issue of issues) {
-    const path = issue.path.map(String).join('.');
-    byPath[path] ??= issue.message;
-  }
-  return byPath;
 }

@@ -4,27 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Banknote } from 'lucide-react-native';
 import { TransactionStatus, TransactionType, type TransactionResponse } from '@sora/contracts';
 
-import {
-  BottomSheetModal,
-  Button,
-  CalculatorKeypad,
-  DatePickerModal,
-  IconChip,
-  Input,
-  KeypadSheetFooter,
-  SheetScrollArea,
-  Skeleton,
-  StateView,
-  Text,
-  useCalculatorExpression,
-} from '@/components';
+import { BottomSheetModal, Button, CalculatorKeypad, DatePickerModal, IconChip, Input, KeypadSheetFooter, SheetScrollArea, Skeleton, StateView, Text, ThemedView, useCalculatorExpression } from '@/components';
 import { useTheme, useToast, useWallets } from '@/app/providers';
-// Deep-imported (not via each feature's barrel): this component is itself deep-imported by
-// ModalProvider to avoid a cycle (see its own comment), so pulling in `@/features/accounts` or
-// `@/features/categories` here would reintroduce one through their barrels' other exports.
+// Deep-imported, not via feature barrels: ModalProvider deep-imports this modal, and those barrels'
+// other exports would close a require cycle (CLAUDE.md MB-10).
 import { AccountPicker } from '../../accounts/components/AccountPicker.tsx';
 import { CategoryGrid } from '../../categories/components/CategoryGrid.tsx';
 import {
+  fieldErrorMessage,
   messageOf,
   dayOfInstant,
   formatDay,
@@ -169,7 +156,7 @@ export function TransactionFormModal({ visible, onClose, transactionId, onBack, 
       <BottomSheetModal {...sheet}>
         <View className="items-center justify-center" style={{ padding: theme.spacing.lg }}>
           <Text tone="muted" style={{ textAlign: 'center' }}>
-            {t('transactions.cancelledNotice', { defaultValue: "This transaction was deleted, so it can't be edited. Record a new one instead." })}
+            {t('transactions.cancelledNotice')}
           </Text>
         </View>
       </BottomSheetModal>
@@ -183,11 +170,10 @@ export function TransactionFormModal({ visible, onClose, transactionId, onBack, 
 
     if (!result.ok) {
       const next: Record<string, string> = {};
-      for (const issue of result.issues) {
-        // An unpicked account fails as Zod's raw "Expected string, received null".
-        const unpickedAccount =
-          (issue.path === 'fromAccountId' || issue.path === 'toAccountId') && withAmount[issue.path] === null;
-        next[issue.path] = unpickedAccount ? t('accounts.selectAccount') : issue.message;
+      for (const { path, issue } of result.issues) {
+        // An unpicked account fails as a bare invalid_type, which reads better as the picker's own prompt.
+        const unpickedAccount = (path === 'fromAccountId' || path === 'toAccountId') && withAmount[path] === null;
+        next[path] = unpickedAccount ? t('accounts.selectAccount') : fieldErrorMessage(issue, t);
       }
       setFieldErrors(next);
       return;
@@ -256,7 +242,7 @@ export function TransactionFormModal({ visible, onClose, transactionId, onBack, 
                 error={fieldErrors.toAccountId}
               />
               {crossWallet ? (
-                <View
+                <ThemedView
                   style={{
                     backgroundColor: theme.colors.warningMuted,
                     borderRadius: theme.radius.md,
@@ -268,7 +254,7 @@ export function TransactionFormModal({ visible, onClose, transactionId, onBack, 
                       defaultValue: "This sends money to another wallet, so it'll show up in their records too.",
                     })}
                   </Text>
-                </View>
+                </ThemedView>
               ) : null}
             </>
           ) : null}
@@ -315,6 +301,7 @@ export function TransactionFormModal({ visible, onClose, transactionId, onBack, 
           placeholder={t('transactions.notePlaceholder', { defaultValue: 'Add a note' })}
           value={draft.description}
           onChangeText={(text) => setDraft((current) => ({ ...current, description: text }))}
+          error={fieldErrors.description}
         />
 
         {submitError !== null ? <Text tone="danger">{submitError}</Text> : null}
