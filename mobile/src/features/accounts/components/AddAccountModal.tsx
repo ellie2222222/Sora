@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { ACCOUNT_TYPES, AccountType, createAccountSchema } from '@sora/contracts';
+import { ACCOUNT_TYPES, AccountType, accountTypeHasCard, accountTypeHasInstitution, createAccountSchema } from '@sora/contracts';
 
 import {
   BottomSheetModal,
@@ -17,6 +17,10 @@ import { useTheme, useToast, useWallets } from '@/app/providers';
 import { useCreateAccountMutation } from '@/app/store';
 import { issueMessagesByPath, messageOf } from '@/utils';
 import { ACCOUNT_ICON, ACCOUNT_TYPE_LABEL_KEY } from './AccountPicker.tsx';
+import { openingBalanceFor } from '../accountBalance.ts';
+import { CardDetailsFields, type CardDetails } from './CardDetailsFields.tsx';
+
+const NO_CARD_DETAILS: CardDetails = { institutionName: '', cardNetwork: null, cardLast4: '' };
 
 /** Two rows of two, so the longest type label still fits on one line in every locale. */
 const TYPE_ROWS: AccountType[][] = [ACCOUNT_TYPES.slice(0, 2), ACCOUNT_TYPES.slice(2)];
@@ -41,6 +45,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>(initialType ?? AccountType.BANK_ACCOUNT);
   const [currency, setCurrency] = useState(defaultCurrency);
+  const [details, setDetails] = useState<CardDetails>(NO_CARD_DETAILS);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -50,6 +55,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
       setName('');
       setType(initialType ?? AccountType.BANK_ACCOUNT);
       setCurrency(defaultCurrency);
+      setDetails(NO_CARD_DETAILS);
       setFieldErrors({});
       setSubmitError(null);
     }
@@ -66,9 +72,9 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
 
   if (walletId === undefined) {
     return (
-      <BottomSheetModal visible={visible} onClose={onClose} title={t('accounts.addAccount')}>
+      <BottomSheetModal visible={visible} onClose={onClose} title={t('accounts.addAccount')} entity="account">
         <View className="items-center justify-center" style={{ padding: theme.spacing.lg }}>
-          <Text tone="muted">{t('accounts.noWalletSelected', { defaultValue: 'No wallet picked yet.' })}</Text>
+          <Text tone="muted">{t('accounts.noWalletSelected')}</Text>
         </View>
       </BottomSheetModal>
     );
@@ -84,10 +90,14 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
       type,
       currency,
       // A blank keypad means no opening balance, not an invalid one.
-      initialBalance: initialBalance === '' ? '0' : initialBalance,
+      initialBalance: openingBalanceFor(type, initialBalance === '' ? '0' : initialBalance),
+      // Only what this type may hold is sent: a detail typed before switching type is left behind, not refused.
+      ...(accountTypeHasInstitution(type) && details.institutionName.trim() !== '' ? { institutionName: details.institutionName } : {}),
+      ...(accountTypeHasCard(type) && details.cardNetwork !== null ? { cardNetwork: details.cardNetwork } : {}),
+      ...(accountTypeHasCard(type) && details.cardLast4 !== '' ? { cardLast4: details.cardLast4 } : {}),
     });
     if (!parsed.success) {
-      setFieldErrors(issueMessagesByPath(parsed.error.issues));
+      setFieldErrors(issueMessagesByPath(parsed.error.issues, t));
       return;
     }
 
@@ -95,7 +105,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
     try {
       await createAccount(parsed.data).unwrap();
       onClose();
-      showToast(t('toast.accountAdded', { defaultValue: 'Account added' }), 'success');
+      showToast(t('toast.accountAdded'), 'success');
     } catch (error) {
       setSubmitError(messageOf(error, t));
     }
@@ -108,8 +118,8 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
 
   const balanceLabel =
     type === AccountType.CREDIT_CARD
-      ? t('accounts.openingBalanceCreditCard', { defaultValue: 'Opening balance (negative if you owe)' })
-      : t('accounts.openingBalance', { defaultValue: 'Opening balance' });
+      ? t('accounts.openingBalanceCreditCard')
+      : t('accounts.openingBalance');
 
   return (
     <BottomSheetModal visible={visible} onClose={onClose} title={t('accounts.addAccount')} closeLabel="cancel" entity="account">
@@ -129,6 +139,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
             ))}
           </View>
         ))}
+        <CardDetailsFields type={type} value={details} onChange={setDetails} errors={fieldErrors} />
       </View>
 
       <KeypadSheetFooter
@@ -141,7 +152,8 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
           <View style={{ flex: 1 }}>
             <Input
               testID="input-account-name"
-              placeholder={t('accounts.namePlaceholder', 'e.g. Vietcombank VND')}
+              accessibilityLabel={t('common.name')}
+              placeholder={t('accounts.namePlaceholder')}
               value={name}
               onChangeText={setName}
               error={fieldErrors.name}
@@ -150,7 +162,7 @@ export function AddAccountModal({ visible, walletId: propWalletId, initialType, 
           <View style={{ width: theme.sizes.currencyField }}>
             <Input
               testID="picker-currency"
-              accessibilityLabel={t('accounts.currency', { defaultValue: 'Currency' })}
+              accessibilityLabel={t('accounts.currency')}
               autoCapitalize="characters"
               maxLength={3}
               value={currency}

@@ -132,6 +132,49 @@ describe('calculateAccountBalance', () => {
   });
 });
 
+describe('credit card as a liability account', () => {
+  // A credit card account is the debt owed to the issuer: it opens negative (VL-04) and has no limit field,
+  // so nothing about the card itself can add to net worth.
+  const BANK = 'bank';
+  const VISA = 'visa';
+  const at = (type: TransactionType, amount: string, fromAccountId: string | null, toAccountId: string | null): BalanceRelevantTransaction => ({
+    type,
+    status: TransactionStatus.ACTIVE,
+    amount: parseMoney(amount),
+    fromAccountId,
+    toAccountId,
+  });
+  const worth = (transactions: BalanceRelevantTransaction[]) =>
+    formatMoneyCompact(
+      calculateAccountBalance(parseMoney('10000000'), transactions, BANK) + calculateAccountBalance(parseMoney('-3000000'), transactions, VISA),
+    );
+
+  it('nets a bank balance against the card owed: 10,000,000 owned and 3,000,000 owed is worth 7,000,000', () => {
+    assert.equal(worth([]), '7000000');
+  });
+
+  it('deepens the debt on a card purchase, leaving the bank untouched', () => {
+    const purchase = [at(TransactionType.EXPENSE, '500000', VISA, null)];
+    assert.equal(formatMoneyCompact(calculateAccountBalance(parseMoney('-3000000'), purchase, VISA)), '-3500000');
+    assert.equal(formatMoneyCompact(calculateAccountBalance(parseMoney('10000000'), purchase, BANK)), '10000000');
+    assert.equal(worth(purchase), '6500000');
+  });
+
+  it('pays the bill as a transfer: both balances move, net worth does not, and no expense is counted', () => {
+    const payment = at(TransactionType.TRANSFER, '3000000', BANK, VISA);
+    assert.equal(formatMoneyCompact(calculateAccountBalance(parseMoney('-3000000'), [payment], VISA)), '0');
+    assert.equal(formatMoneyCompact(calculateAccountBalance(parseMoney('10000000'), [payment], BANK)), '7000000');
+    assert.equal(worth([payment]), '7000000');
+    assert.equal(countsAsPeriodActivity({ ...payment, transactionDate: '2026-08-15T10:00:00Z' }, '2026-08-01', '2026-08-31', 'UTC'), false);
+  });
+
+  it('reverses a purchase with a refund recorded as income onto the card', () => {
+    const refunded = [at(TransactionType.EXPENSE, '500000', VISA, null), at(TransactionType.INCOME, '500000', null, VISA)];
+    assert.equal(formatMoneyCompact(calculateAccountBalance(parseMoney('-3000000'), refunded, VISA)), '-3000000');
+    assert.equal(worth(refunded), '7000000');
+  });
+});
+
 describe('calculateWalletBalance', () => {
   it('sums the accounts of one wallet', () => {
     const total = calculateWalletBalance([

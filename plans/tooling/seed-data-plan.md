@@ -243,10 +243,15 @@ All four `ACCOUNT_TYPES`, four currencies (VND, USD, JPY, AUD), signed opening b
 | Wise USD | `BANK_ACCOUNT` | USD | 320.50 | Freelance income, USD courses, MacBook goal |
 | Japan Cash | `CASH` | JPY | 80,000 | Opened for the trip with exchanged cash; spent in Tokyo from A − 4 days (§5.4); whole-yen amounts |
 | ACB (old) | `BANK_ACCOUNT` | VND | 3,180,000 | Balance transferred out in month 2, then **archived** |
+| Techcombank Mastercard | `CREDIT_CARD` | VND | −1,250,000 | Card variety for the deck; no transactions |
+| HSBC Visa Platinum | `CREDIT_CARD` | VND | −680,000 | Card variety for the deck; no transactions |
+| Sacombank | `BANK_ACCOUNT` | VND | 2,400,000 | Card variety for the deck (NAPAS); no transactions |
+
+Bank accounts and credit cards carry a `cardNetwork` and `cardLast4` (`card` in `personas.ts`): a mix of VISA, MASTERCARD and NAPAS across every wallet that has a bank account or card.
 
 **The seeded Cash account always opens at 0.** Registration creates it with `initial_balance: '0'` (`auth.service.ts` `seedWallet`), and `updateAccountSchema` has no `initialBalance`. So the seed funds it on the first history day with a categorized Cash Withdrawal transfer from the main bank account. It doesn't open a second cash account. Verify item 1's expected balances start from 0 plus that transfer.
 
-**Linh's Wallet** — BIDV (bank, VND, 9,800,000), BIDV Savings (bank, VND, 0; 11,000,000 moves in on the 6th, or her pay piles up in BIDV to ≈ 170M), Cash (seeded, funded with 600,000 from BIDV), ZaloPay (e-wallet, VND, 150,000). Cash and ZaloPay follow §5.2's refill rule from BIDV.
+**Linh's Wallet** — BIDV (bank, VND, 9,800,000), BIDV Savings (bank, VND, 0; 11,000,000 moves in on the 6th, or her pay piles up in BIDV to ≈ 170M), Cash (seeded, funded with 600,000 from BIDV), ZaloPay (e-wallet, VND, 150,000), Shinhan Mastercard (credit card, VND, −540,000, no transactions). Cash and ZaloPay follow §5.2's refill rule from BIDV.
 **Mom's Wallet** — Mom's Cash (VND, 4,000,000; Pension lands here), Agribank (bank, VND, 120,000,000 — a large figure that exercises compact formatting).
 **Shared House** — House Kitty (cash, VND, 0). Each month's contributions (2nd) are dated before that month's Rent (5th), and the first month's House Share and Khoa contribution each carry 1,000,000 extra as a float, so the kitty never goes negative (simulated). Wallet archived at the end of its story.
 **Khoa's Wallet** — MB Bank (bank, VND, 40,000,000) with no income, plus the seeded "Tiền mặt" (left at 0), and ≈ 30 expenses of 150,000–1,200,000 over the year; enough to be non-empty.

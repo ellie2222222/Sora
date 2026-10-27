@@ -6,3 +6,4 @@ export * from './components/AddAccountModal.tsx';
 export * from './screens/AddAccountScreen.tsx';
 export * from './components/ArchiveAccountDialog.tsx';
 export * from './components/accountSwipeActions.ts';
+export * from './components/AccountBalance.tsx';

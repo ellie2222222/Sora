@@ -55,7 +55,7 @@ export function writeGuestFixture(file: string, ledger: Ledger, dates: StoryDate
     wallet: { id: walletId, name: starterWalletName(PERSONAS.an.displayName, PERSONAS.an.locale), timeZone: WALLETS.an.timeZone, ...stamp },
     accounts: Object.values(ACCOUNTS).filter((account) => account.wallet === 'an').map((account) => ({
       id: id(`account:${account.key}`), walletId, name: account.name ?? 'Tiền mặt', type: account.type, currency: account.currency,
-      initialBalance: formatMoney(parseMoney(account.opening)),
+      initialBalance: formatMoney(parseMoney(account.opening)), cardNetwork: account.card?.network ?? null, cardLast4: account.card?.last4 ?? null,
       status: archivedAccounts.has(account.key) ? 'ARCHIVED' : 'ACTIVE', ...stamp,
     })),
     categories,

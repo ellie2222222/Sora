@@ -9,6 +9,8 @@ export const sizes = {
   controlHeight: 48,
   /** Square or round holders for an icon, initials or a calendar day. */
   badge: { sm: 32, md: 36, lg: 40 },
+  /** The tinted round behind a screen's `iconSize.hero` glyph, twice its size. */
+  emblem: 80,
   /** Status, legend and colour dots. */
   dot: { sm: 6, md: 8, lg: 10 },
   checkbox: 20,
@@ -28,6 +30,8 @@ export const sizes = {
   progressBar: { sm: 6, md: 8, lg: 12 },
   /** The guest upload's progress ring; `glow` is the square its soft halo is drawn in. */
   syncRing: { size: 128, stroke: 3, glow: 224 },
+  /** An account card in the accounts carousel: a payment card's ID-1 proportion, and its chip. */
+  accountCard: { aspectRatio: 1.586, chip: { width: 34, height: 26 } },
   /** Revealed action under a swiped row: a short label on one line under its icon. */
   swipeAction: 76,
   /** Scrolling lists inside sheets and dialogs stop growing here and scroll instead. */
@@ -47,7 +51,7 @@ export const sizes = {
     lg: { trackWidth: 70, trackHeight: 36, thumb: 30 },
   },
   /** Placeholder line heights, named after the `Text` variant each stands in for. */
-  skeletonLine: { caption: 14, label: 14, body: 16, title: 20, heading: 24, display: 32 },
+  skeletonLine: { caption: 15, label: 15, body: 17, title: 22, heading: 26, display: 34 },
   /** Placeholder widths, from a short word to a long label. */
   skeletonWidth: { xxs: 20, xs: 40, sm: 60, md: 80, lg: 100, xl: 120, xxl: 140 },
   /** Placeholder heights for a whole card or panel rather than one line. */

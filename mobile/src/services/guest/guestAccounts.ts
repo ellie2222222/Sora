@@ -12,9 +12,11 @@
  * guest mode has no separate pipe layer.
  */
 
+import { ZodError, type ZodIssue } from 'zod';
 import {
   add,
   calculateAccountBalance,
+  cardDetailIssues,
   createAccountSchema,
   formatMoney,
   parseMoney,
@@ -68,6 +70,9 @@ function toAccountResponse(account: GuestAccount, balance: bigint): AccountRespo
     initialBalance: account.initialBalance,
     balance: formatMoney(balance),
     status: account.status,
+    institutionName: account.institutionName ?? null,
+    cardNetwork: account.cardNetwork ?? null,
+    cardLast4: account.cardLast4 ?? null,
     createdAt: account.createdAt,
     updatedAt: account.updatedAt,
   };
@@ -144,6 +149,9 @@ export const guestAccountsApi = {
       currency: request.currency,
       initialBalance: request.initialBalance,
       status: AccountStatus.ACTIVE,
+      institutionName: request.institutionName ?? null,
+      cardNetwork: request.cardNetwork ?? null,
+      cardLast4: request.cardLast4 ?? null,
       createdAt: now,
       updatedAt: now,
     };
@@ -161,6 +169,9 @@ export const guestAccountsApi = {
 
     const { accounts, transactions, contributions } = guestStore.current();
     const existing = findAccount(accounts, accountId);
+    // Mirrors accounts.service.ts: the stored type decides which card details the account may hold.
+    const detailIssues = cardDetailIssues(existing.type, patch);
+    if (detailIssues.length > 0) throw fromZodError(new ZodError(detailIssues as ZodIssue[]));
 
     if (patch.status === AccountStatus.ARCHIVED && existing.status === AccountStatus.ACTIVE) {
       assertNotLastActiveAccount(accounts, accountId);
@@ -178,6 +189,9 @@ export const guestAccountsApi = {
       name: patch.name ?? existing.name,
       currency: patch.currency ?? existing.currency,
       status: patch.status ?? existing.status,
+      institutionName: patch.institutionName !== undefined ? patch.institutionName : existing.institutionName,
+      cardNetwork: patch.cardNetwork !== undefined ? patch.cardNetwork : existing.cardNetwork,
+      cardLast4: patch.cardLast4 !== undefined ? patch.cardLast4 : existing.cardLast4,
       updatedAt: new Date().toISOString(),
     };
 

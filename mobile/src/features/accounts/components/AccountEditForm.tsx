@@ -8,6 +8,8 @@ import { Button, Input, Text } from '@/components';
 import { useTheme, useToast } from '@/app/providers';
 import { useUpdateAccountMutation } from '@/app/store';
 import { issueMessagesByPath, messageOf } from '@/utils';
+import { CardDetailsFields, type CardDetails } from './CardDetailsFields.tsx';
+import { cardDetailsOf } from '../cardNetworks.ts';
 
 export interface AccountEditFormProps {
   /** Render with `key={account.id}` so a different account starts from its own values. */
@@ -15,7 +17,7 @@ export interface AccountEditFormProps {
   onArchive: () => void;
 }
 
-/** Name, and currency while the account is empty (§9.4); type and opening balance are fixed. */
+/** Name, card details, and currency while the account is empty (§9.4); type and opening balance are fixed. */
 export function AccountEditForm({ account, onArchive }: AccountEditFormProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -25,8 +27,18 @@ export function AccountEditForm({ account, onArchive }: AccountEditFormProps) {
   // would save its stale values over another member's edit.
   const [editedName, setName] = useState<string | null>(null);
   const [editedCurrency, setCurrency] = useState<string | null>(null);
+  const [editedDetails, setDetails] = useState<CardDetails | null>(null);
   const name = editedName ?? account.name;
   const currency = editedCurrency ?? account.currency;
+  const saved = cardDetailsOf(account);
+  const savedDetails: CardDetails = {
+    institutionName: saved.institutionName ?? '',
+    cardNetwork: saved.cardNetwork,
+    cardLast4: saved.cardLast4 ?? '',
+  };
+  const details = editedDetails ?? savedDetails;
+  // An emptied field is sent as null, which clears it.
+  const asSent = (text: string) => (text.trim() === '' ? null : text.trim());
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -35,6 +47,9 @@ export function AccountEditForm({ account, onArchive }: AccountEditFormProps) {
   const changes = {
     ...(name.trim() !== account.name ? { name } : {}),
     ...(currency !== account.currency ? { currency } : {}),
+    ...(asSent(details.institutionName) !== saved.institutionName ? { institutionName: asSent(details.institutionName) } : {}),
+    ...(details.cardNetwork !== saved.cardNetwork ? { cardNetwork: details.cardNetwork } : {}),
+    ...(asSent(details.cardLast4) !== saved.cardLast4 ? { cardLast4: asSent(details.cardLast4) } : {}),
   };
   const isDirty = Object.keys(changes).length > 0;
 
@@ -49,7 +64,7 @@ export function AccountEditForm({ account, onArchive }: AccountEditFormProps) {
     setSaveError(null);
     const parsed = updateAccountSchema.safeParse(changes);
     if (!parsed.success) {
-      setFieldErrors(issueMessagesByPath(parsed.error.issues));
+      setFieldErrors(issueMessagesByPath(parsed.error.issues, t));
       return;
     }
     setFieldErrors({});
@@ -57,6 +72,7 @@ export function AccountEditForm({ account, onArchive }: AccountEditFormProps) {
       await updateAccount({ accountId: account.id, body: parsed.data }).unwrap();
       setName(null);
       setCurrency(null);
+      setDetails(null);
       showToast(t('toast.accountUpdated'), 'success');
     } catch (error) {
       setSaveError(messageOf(error, t));
@@ -92,6 +108,15 @@ export function AccountEditForm({ account, onArchive }: AccountEditFormProps) {
           </View>
         ) : null}
       </View>
+      <CardDetailsFields
+        type={account.type}
+        value={details}
+        onChange={(next) => {
+          setDetails(next);
+          setSaveError(null);
+        }}
+        errors={fieldErrors}
+      />
       {!canChangeCurrency ? (
         <Text variant="caption" tone="muted">
           {t('accounts.currencyLocked')}

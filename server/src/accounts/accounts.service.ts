@@ -9,12 +9,15 @@
 import { Injectable } from '@nestjs/common';
 import type { Transaction } from 'kysely';
 
+import { ZodError, type ZodIssue } from 'zod';
 import {
+  cardDetailIssues,
   formatMoney,
   AccountStatus,
   type AccountDetailResponse,
   type AccountResponse,
   type AccountType,
+  type CardNetwork,
   type CreateAccountRequest,
   type UpdateAccountRequest,
 } from '@sora/contracts';
@@ -45,6 +48,9 @@ interface AccountRow {
   currency: string;
   initial_balance: string;
   status: string;
+  institution_name: string | null;
+  card_network: string | null;
+  card_last4: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -106,6 +112,9 @@ export class AccountsService {
           type: request.type,
           currency: request.currency,
           initial_balance: request.initialBalance,
+          institution_name: request.institutionName ?? null,
+          card_network: request.cardNetwork ?? null,
+          card_last4: request.cardLast4 ?? null,
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -155,6 +164,11 @@ export class AccountsService {
     ip: string | null,
   ): Promise<AccountResponse> {
     const access = await this.access.requireAccount(user.id, accountId, 'EDITOR');
+    // The type is never edited, so the stored one decides which card details the account may hold.
+    const touchesCardDetails = request.institutionName !== undefined || request.cardNetwork !== undefined || request.cardLast4 !== undefined;
+    const issues = touchesCardDetails ? cardDetailIssues((await this.accountRow(accountId)).type as AccountType, request) : [];
+    // A ZodError, so AllExceptionsFilter answers it exactly as it would the schema's own refusal.
+    if (issues.length > 0) throw new ZodError(issues as ZodIssue[]);
 
     const row = await this.database.db.transaction().execute(async (trx) => {
       const archiving = request.status === AccountStatus.ARCHIVED && (await lockForArchive(trx, access.walletId, accountId));
@@ -170,6 +184,9 @@ export class AccountsService {
           ...(request.name !== undefined ? { name: request.name } : {}),
           ...(request.currency !== undefined ? { currency: request.currency } : {}),
           ...(request.status !== undefined ? { status: request.status } : {}),
+          ...(request.institutionName !== undefined ? { institution_name: request.institutionName } : {}),
+          ...(request.cardNetwork !== undefined ? { card_network: request.cardNetwork } : {}),
+          ...(request.cardLast4 !== undefined ? { card_last4: request.cardLast4 } : {}),
           updated_at: new Date(),
         })
         .where('id', '=', accountId)
@@ -270,6 +287,9 @@ function toAccountResponse(row: AccountRow, balance?: bigint): AccountResponse {
     initialBalance: row.initial_balance,
     balance: balance !== undefined ? formatMoney(balance) : row.initial_balance,
     status: row.status as AccountStatus,
+    institutionName: row.institution_name,
+    cardNetwork: row.card_network as CardNetwork | null,
+    cardLast4: row.card_last4,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };

@@ -42,6 +42,20 @@ export const AccountType = {
   CREDIT_CARD: 'CREDIT_CARD',
 } as const;
 
+/** The network printed on an account's card; OTHER for one not listed. */
+export const CARD_NETWORKS = ['VISA', 'MASTERCARD', 'JCB', 'AMEX', 'NAPAS', 'UNIONPAY', 'OTHER'] as const;
+export type CardNetwork = (typeof CARD_NETWORKS)[number];
+
+/** Only a bank account's or credit card's card has a network and last four digits (`chk_account_card_details_type`). */
+export function accountTypeHasCard(type: AccountType): boolean {
+  return type === 'BANK_ACCOUNT' || type === 'CREDIT_CARD';
+}
+
+/** Every account but cash may name the bank or e-wallet provider behind it. */
+export function accountTypeHasInstitution(type: AccountType): boolean {
+  return type !== 'CASH';
+}
+
 export const ACCOUNT_STATUSES = ['ACTIVE', 'ARCHIVED'] as const;
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 export const AccountStatus = {

@@ -2,6 +2,8 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import {
+  ACCOUNT_CARD_SKINS,
+  ACCOUNT_CARD_TEXT,
   ACCOUNT_TINTS,
   FLOW_COLORS,
   STATUS_COLORS,
@@ -307,4 +309,18 @@ describe('Design System - Account tints', () => {
       }
     });
   }
+});
+
+describe('Design System - Account card skins', () => {
+  it('keeps card text and muted text at 4.5:1 on both gradient stops of every skin, all distinct', () => {
+    assert.equal(new Set(ACCOUNT_CARD_SKINS.map((skin) => skin.to)).size, ACCOUNT_CARD_SKINS.length);
+    for (const skin of ACCOUNT_CARD_SKINS) {
+      for (const stop of [skin.from, skin.to]) {
+        for (const fg of ['text', 'muted'] as const) {
+          const ratio = contrastRatio(ACCOUNT_CARD_TEXT[fg], stop);
+          assert.ok(ratio >= 4.5, `${fg} on ${skin.name} ${stop} = ${ratio.toFixed(2)}:1`);
+        }
+      }
+    }
+  });
 });

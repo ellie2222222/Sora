@@ -1,7 +1,7 @@
 // Declarative story data: plan §2–§4 and §6. Everything here is written once and read by the generators,
 // the poster and verify, so a figure changed in one place moves everywhere.
 
-import type { AccountType, BudgetPeriodType, CategoryType, GoalStatus, Locale } from '@sora/contracts';
+import type { AccountType, BudgetPeriodType, CardNetwork, CategoryType, GoalStatus, Locale } from '@sora/contracts';
 
 import { HOME_ZONE, addDays, addMonths, type StoryDates } from './calendar.ts';
 
@@ -60,7 +60,8 @@ export const MEMBERSHIPS: MembershipDef[] = [
 
 export type AccountKey =
   | 'vcb' | 'tcb' | 'cash' | 'momo' | 'visa' | 'wise' | 'jpy' | 'acb'
-  | 'bidv' | 'lsave' | 'lcash' | 'zalo'
+  | 'tmc' | 'hsbc' | 'scb'
+  | 'bidv' | 'lsave' | 'lcash' | 'zalo' | 'shinhan'
   | 'mcash' | 'agri'
   | 'kitty'
   | 'kbank' | 'kcash'
@@ -74,27 +75,32 @@ export interface AccountDef {
   type: AccountType;
   currency: string;
   opening: string;
+  card?: { network: CardNetwork; last4: string };
 }
 
 export const ACCOUNTS: Record<AccountKey, AccountDef> = {
-  vcb: { key: 'vcb', wallet: 'an', name: 'Vietcombank', type: 'BANK_ACCOUNT', currency: 'VND', opening: '65000000' },
-  tcb: { key: 'tcb', wallet: 'an', name: 'Techcombank Savings', type: 'BANK_ACCOUNT', currency: 'VND', opening: '45000000' },
+  vcb: { key: 'vcb', wallet: 'an', name: 'Vietcombank', type: 'BANK_ACCOUNT', currency: 'VND', opening: '65000000', card: { network: 'NAPAS', last4: '4821' } },
+  tcb: { key: 'tcb', wallet: 'an', name: 'Techcombank Savings', type: 'BANK_ACCOUNT', currency: 'VND', opening: '45000000', card: { network: 'VISA', last4: '1607' } },
   cash: { key: 'cash', wallet: 'an', name: null, type: 'CASH', currency: 'VND', opening: '0' },
   momo: { key: 'momo', wallet: 'an', name: 'MoMo', type: 'E_WALLET', currency: 'VND', opening: '350000' },
-  visa: { key: 'visa', wallet: 'an', name: 'VIB Visa', type: 'CREDIT_CARD', currency: 'VND', opening: '-2450000' },
-  wise: { key: 'wise', wallet: 'an', name: 'Wise USD', type: 'BANK_ACCOUNT', currency: 'USD', opening: '320.50' },
+  visa: { key: 'visa', wallet: 'an', name: 'VIB Visa', type: 'CREDIT_CARD', currency: 'VND', opening: '-2450000', card: { network: 'VISA', last4: '9034' } },
+  wise: { key: 'wise', wallet: 'an', name: 'Wise USD', type: 'BANK_ACCOUNT', currency: 'USD', opening: '320.50', card: { network: 'MASTERCARD', last4: '2275' } },
   jpy: { key: 'jpy', wallet: 'an', name: 'Japan Cash', type: 'CASH', currency: 'JPY', opening: '80000' },
   acb: { key: 'acb', wallet: 'an', name: 'ACB (old)', type: 'BANK_ACCOUNT', currency: 'VND', opening: '3180000' },
-  bidv: { key: 'bidv', wallet: 'linh', name: 'BIDV', type: 'BANK_ACCOUNT', currency: 'VND', opening: '9800000' },
+  tmc: { key: 'tmc', wallet: 'an', name: 'Techcombank Mastercard', type: 'CREDIT_CARD', currency: 'VND', opening: '-1250000', card: { network: 'MASTERCARD', last4: '7714' } },
+  hsbc: { key: 'hsbc', wallet: 'an', name: 'HSBC Visa Platinum', type: 'CREDIT_CARD', currency: 'VND', opening: '-680000', card: { network: 'VISA', last4: '3092' } },
+  scb: { key: 'scb', wallet: 'an', name: 'Sacombank', type: 'BANK_ACCOUNT', currency: 'VND', opening: '2400000', card: { network: 'NAPAS', last4: '5527' } },
+  bidv: { key: 'bidv', wallet: 'linh', name: 'BIDV', type: 'BANK_ACCOUNT', currency: 'VND', opening: '9800000', card: { network: 'NAPAS', last4: '6610' } },
   lsave: { key: 'lsave', wallet: 'linh', name: 'BIDV Savings', type: 'BANK_ACCOUNT', currency: 'VND', opening: '0' },
   lcash: { key: 'lcash', wallet: 'linh', name: null, type: 'CASH', currency: 'VND', opening: '0' },
   zalo: { key: 'zalo', wallet: 'linh', name: 'ZaloPay', type: 'E_WALLET', currency: 'VND', opening: '150000' },
+  shinhan: { key: 'shinhan', wallet: 'linh', name: 'Shinhan Mastercard', type: 'CREDIT_CARD', currency: 'VND', opening: '-540000', card: { network: 'MASTERCARD', last4: '8846' } },
   mcash: { key: 'mcash', wallet: 'mom', name: "Mom's Cash", type: 'CASH', currency: 'VND', opening: '4000000' },
-  agri: { key: 'agri', wallet: 'mom', name: 'Agribank', type: 'BANK_ACCOUNT', currency: 'VND', opening: '120000000' },
+  agri: { key: 'agri', wallet: 'mom', name: 'Agribank', type: 'BANK_ACCOUNT', currency: 'VND', opening: '120000000', card: { network: 'NAPAS', last4: '0392' } },
   kitty: { key: 'kitty', wallet: 'house', name: 'House Kitty', type: 'CASH', currency: 'VND', opening: '0' },
-  kbank: { key: 'kbank', wallet: 'khoa', name: 'MB Bank', type: 'BANK_ACCOUNT', currency: 'VND', opening: '40000000' },
+  kbank: { key: 'kbank', wallet: 'khoa', name: 'MB Bank', type: 'BANK_ACCOUNT', currency: 'VND', opening: '40000000', card: { network: 'MASTERCARD', last4: '5108' } },
   kcash: { key: 'kcash', wallet: 'khoa', name: null, type: 'CASH', currency: 'VND', opening: '0' },
-  cba: { key: 'cba', wallet: 'bao', name: 'CommBank', type: 'BANK_ACCOUNT', currency: 'AUD', opening: '2400.00' },
+  cba: { key: 'cba', wallet: 'bao', name: 'CommBank', type: 'BANK_ACCOUNT', currency: 'AUD', opening: '2400.00', card: { network: 'VISA', last4: '4419' } },
   bcash: { key: 'bcash', wallet: 'bao', name: null, type: 'CASH', currency: 'AUD', opening: '0' },
 };
 

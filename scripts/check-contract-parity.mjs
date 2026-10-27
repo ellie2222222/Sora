@@ -73,6 +73,7 @@ const ENUM_TO_CONSTRAINT = [
   ['INVITABLE_ROLES', 'chk_invitation_role'],
   ['WALLET_STATUSES', 'chk_wallet_status'],
   ['ACCOUNT_TYPES', 'chk_account_type'],
+  ['CARD_NETWORKS', 'chk_account_card_network'],
   ['ACCOUNT_STATUSES', 'chk_account_status'],
   ['CATEGORY_TYPES', 'chk_category_type'],
   ['CATEGORY_STATUSES', 'chk_category_status'],
@@ -237,10 +238,15 @@ if (schemaTranslations !== null) {
 // 6. A string the contract admits fits the column that stores it
 // ---------------------------------------------------------------------------
 
-/** Declared length of `table.column`: a number for VARCHAR(n)/CHAR(n), Infinity for TEXT, null if not found. */
+/**
+ * Declared length of `table.column`: a number for VARCHAR(n)/CHAR(n), Infinity for TEXT, null if not found. Read from
+ * its CREATE TABLE, or from the `ALTER TABLE ... ADD COLUMN` a later migration added it with.
+ */
 function columnLength(table, column) {
   const body = SCHEMA_SQL.match(new RegExp(`CREATE TABLE ${table} \\(([\\s\\S]*?)\\n\\);`))?.[1];
-  const type = body?.match(new RegExp(`^\\s*${column}\\s+([A-Z]+)(?:\\((\\d+)\\))?`, 'm'));
+  const type =
+    body?.match(new RegExp(`^\\s*${column}\\s+([A-Z]+)(?:\\((\\d+)\\))?`, 'm')) ??
+    SCHEMA_SQL.match(new RegExp(`ALTER TABLE ${table}\\b[^;]*?ADD COLUMN\\s+${column}\\s+([A-Z]+)(?:\\((\\d+)\\))?`));
   if (!type) return null;
   return type[1] === 'TEXT' ? Infinity : Number(type[2]);
 }
@@ -265,6 +271,7 @@ const STORED_STRINGS = [
   [['inviteMemberSchema'], 'relationLabel', 'wallet_invitations', 'relation_label'],
   [['inviteMemberSchema'], 'relationLabel', 'wallet_members', 'relation_label'],
   [['createAccountSchema', 'updateAccountSchema'], 'name', 'accounts', 'name'],
+  [['createAccountSchema', 'updateAccountSchema'], 'institutionName', 'accounts', 'institution_name'],
   [['createCategorySchema', 'updateCategorySchema'], 'name', 'categories', 'name'],
   [['createCategorySchema', 'updateCategorySchema'], 'icon', 'categories', 'icon'],
   [['createCategorySchema', 'updateCategorySchema'], 'color', 'categories', 'color'],

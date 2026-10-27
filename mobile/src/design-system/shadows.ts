@@ -31,6 +31,13 @@ function elevate(level: number, shadowColor: string): ViewStyle {
   }) as ViewStyle;
 }
 
+/**
+ * The glow behind the account card in focus (DESIGN_GUIDELINES, Account carousel): a soft oval reaching past the
+ * card by these shares of its width and height, which anything holding the card must leave room for, at `alpha`
+ * where it meets the card. A radial gradient, not a blurred boxShadow: Android re-blurs one every frame its card moves.
+ */
+export const BACKLIGHT = { spreadX: 0.3, spreadY: 0.34, alpha: 0.3 } as const;
+
 export function buildShadows(shadowColor: string) {
   return {
     none: {} as ViewStyle,

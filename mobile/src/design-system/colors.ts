@@ -169,6 +169,35 @@ export const ACCOUNT_TINTS = {
   ],
 } as const satisfies Record<ThemeMode, readonly AccountTint[]>;
 
+export interface AccountCardSkin {
+  name: string;
+  /** Gradient stops, top-left to bottom-right; the card's text holds 4.5:1 on both. */
+  from: string;
+  to: string;
+}
+
+/**
+ * The accounts deck's card skins, handed out so no two cards in a wallet share one (`assignCardSkins`).
+ * No red or vivid green, which mean expense and income. The same in both modes, like a physical card.
+ */
+export const ACCOUNT_CARD_SKINS = [
+  { name: 'teal', from: '#0B4F4A', to: '#0E6C65' },
+  { name: 'navy', from: '#1B2F73', to: '#2F4FC4' },
+  { name: 'purple', from: '#4C1D95', to: '#7C3AED' },
+  { name: 'forest', from: '#1A4D33', to: '#2C6E4B' },
+  { name: 'bronze', from: '#3B2F2A', to: '#6E5240' },
+  { name: 'ocean', from: '#0C4A6E', to: '#0369A1' },
+  { name: 'plum', from: '#581C87', to: '#A21CAF' },
+  { name: 'indigo', from: '#312E81', to: '#4F46E5' },
+  { name: 'slate', from: '#1E293B', to: '#475569' },
+  { name: 'amber', from: '#78350F', to: '#A3480A' },
+] as const satisfies readonly AccountCardSkin[];
+
+export const ACCOUNT_CARD_TEXT = { text: '#FFFFFF', muted: '#EEF1F5' } as const;
+
+/** Alphas of the light drawn over a card skin: the diagonal facet, and each type's line texture. */
+export const ACCOUNT_CARD_TEXTURE = { facet: 0.1, line: 0.14 } as const;
+
 /** Tinted backgrounds behind each semantic colour (chips, icon circles, soft buttons). */
 const SEMANTIC_MUTED_DARK = {
   incomeMuted: '#0F2A1F',

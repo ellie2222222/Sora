@@ -24,6 +24,7 @@ import {
   TransactionStatus,
   type AccountStatus,
   type AccountType,
+  type CardNetwork,
   type BudgetPeriodType,
   type CategoryStatus,
   type CategoryType,
@@ -49,6 +50,10 @@ export interface GuestAccount {
   currency: string;
   initialBalance: MoneyString;
   status: AccountStatus;
+  /** Absent on accounts saved before card details existed; read as null. */
+  institutionName?: string | null;
+  cardNetwork?: CardNetwork | null;
+  cardLast4?: string | null;
   createdAt: string;
   updatedAt: string;
 }

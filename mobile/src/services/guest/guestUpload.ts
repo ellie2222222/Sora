@@ -211,6 +211,9 @@ async function uploadAccounts(walletId: string, apis: UploadApis): Promise<void>
       type: account.type,
       currency: account.currency,
       initialBalance: account.initialBalance,
+      institutionName: account.institutionName ?? null,
+      cardNetwork: account.cardNetwork ?? null,
+      cardLast4: account.cardLast4 ?? null,
     }, await ensureKey('accountKeys', account.id));
     await recordMap('accountMap', account.id, response.id);
   }

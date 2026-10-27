@@ -152,7 +152,10 @@ export class Seeder {
       if (account.name === null) continue;
       const created = await this.api.call<AccountResponse>('POST', '/accounts', {
         session: this.ownerOf(account.wallet),
-        body: { walletId: this.ids.wallets[account.wallet], name: account.name, type: account.type, currency: account.currency, initialBalance: account.opening },
+        body: {
+          walletId: this.ids.wallets[account.wallet], name: account.name, type: account.type, currency: account.currency, initialBalance: account.opening,
+          cardNetwork: account.card?.network ?? null, cardLast4: account.card?.last4 ?? null,
+        },
         expect: [201],
       });
       this.ids.accounts[account.key] = created.id;

@@ -170,6 +170,38 @@ describe('accounts against a real database', { skip: integrationSkipReason() }, 
     }
   });
 
+  it('ACC-US-01/04: keeps a card\'s bank, network and last four, refuses them on a type without a card, and clears with null (§9.2, §9.4)', async () => {
+    const user = await registerProbeUser(api, 'acc-card');
+    const card = await api.call('POST', '/accounts', {
+      token: user.token,
+      body: { walletId: user.walletId, name: `probe-${randomUUID()}`, type: 'CREDIT_CARD', currency: 'VND', institutionName: 'Vietcombank', cardNetwork: 'VISA', cardLast4: '4821' },
+    });
+    assert.equal(card.status, 201);
+    const created = card.body!.data;
+    assert.deepEqual([created.institutionName, created.cardNetwork, created.cardLast4], ['Vietcombank', 'VISA', '4821']);
+    const detail = await api.call('GET', `/accounts/${created.id}`, { token: user.token });
+    assert.deepEqual([detail.body!.data.cardNetwork, detail.body!.data.cardLast4], ['VISA', '4821']);
+
+    const cash = await api.call('POST', '/accounts', {
+      token: user.token,
+      body: { walletId: user.walletId, name: `probe-${randomUUID()}`, type: 'CASH', currency: 'VND', institutionName: 'Vietcombank', cardLast4: '1234' },
+    });
+    assert.equal(cash.status, 422);
+    assert.deepEqual(Object.keys(cash.body!.error!.fields ?? {}).sort(), ['cardLast4', 'institutionName']);
+
+    // The update path checks against the stored type, which the request never carries.
+    const wallet = await createAccount(api, user, user.walletId, { type: 'E_WALLET' });
+    const refused = await api.call('PATCH', `/accounts/${wallet}`, { token: user.token, body: { institutionName: 'MoMo', cardNetwork: 'VISA' } });
+    assert.equal(refused.status, 422);
+    assert.deepEqual(Object.keys(refused.body!.error!.fields ?? {}), ['cardNetwork']);
+    const [untouched] = await api.sql<{ institution_name: string | null }>('SELECT institution_name FROM accounts WHERE id = $1', [wallet]);
+    assert.equal(untouched?.institution_name, null, 'a refused update writes none of its fields');
+
+    const cleared = await api.call('PATCH', `/accounts/${created.id}`, { token: user.token, body: { cardNetwork: null, cardLast4: '0042' } });
+    assert.equal(cleared.status, 200);
+    assert.deepEqual([cleared.body!.data.institutionName, cleared.body!.data.cardNetwork, cleared.body!.data.cardLast4], ['Vietcombank', null, '0042']);
+  });
+
   it('ACC-US-04: changes currency only while nothing names the account: no transaction, no earmark (API spec §9.4)', async () => {
     const user = await registerProbeUser(api, 'acc-patch-currency');
     const currencyOf = async (id: string) => (await api.sql<{ currency: string }>('SELECT currency FROM accounts WHERE id = $1', [id]))[0]?.currency;

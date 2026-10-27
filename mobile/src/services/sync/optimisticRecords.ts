@@ -172,6 +172,9 @@ export function buildOptimisticAccount(body: CreateAccountRequest, localId: stri
     initialBalance: body.initialBalance,
     balance: body.initialBalance,
     status: AccountStatus.ACTIVE,
+    institutionName: body.institutionName ?? null,
+    cardNetwork: body.cardNetwork ?? null,
+    cardLast4: body.cardLast4 ?? null,
     createdAt: now,
     updatedAt: now,
   };
