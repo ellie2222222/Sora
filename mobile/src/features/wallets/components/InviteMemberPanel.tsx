@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, Share, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { WalletRole, type InvitableRole } from '@sora/contracts';
+import { Share2 } from 'lucide-react-native';
+import { inviteMemberSchema, WalletRole, type InvitableRole, type WalletInvitationCreatedResponse } from '@sora/contracts';
 
-import { Button, Input, Text } from '@/components';
+import { Button, Input, Text, ThemedView } from '@/components';
 import { useTheme, useToast } from '@/app/providers';
 import { useCreateInvitationMutation } from '@/app/store';
-import { getRoleDescription, getRoleLabel, messageOf } from '@/utils';
+import { invitationLink } from '@/features/auth';
+import { dayOfDate, formatDay, getRoleDescription, getRoleLabel, issueMessagesByPath, messageOf } from '@/utils';
 
 const INVITABLE: InvitableRole[] = [WalletRole.EDITOR, WalletRole.VIEWER];
 
@@ -22,24 +24,60 @@ export function InviteMemberPanel({ walletId, onSent }: { walletId: string; onSe
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<InvitableRole>(WalletRole.EDITOR);
   const [relationLabel, setRelationLabel] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [created, setCreated] = useState<WalletInvitationCreatedResponse | null>(null);
 
   async function handleSubmit() {
     setError(null);
+    const parsed = inviteMemberSchema.safeParse({
+      email,
+      role,
+      relationLabel: relationLabel.trim().length > 0 ? relationLabel : undefined,
+    });
+    if (!parsed.success) {
+      setFieldErrors(issueMessagesByPath(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
     try {
-      await inviteMember({
-        walletId,
-        body: {
-          email,
-          role,
-          relationLabel: relationLabel.trim().length > 0 ? relationLabel.trim() : undefined,
-        },
-      }).unwrap();
-      onSent();
-      showToast(t('toast.invitationSent', { defaultValue: 'Invitation sent' }), 'success');
+      setCreated(await inviteMember({ walletId, body: parsed.data }).unwrap());
     } catch (submitError) {
       setError(messageOf(submitError, t));
     }
+  }
+
+  // The server sends no mail (§8.2) and returns the token only now, so this is the one chance to pass it on.
+  if (created !== null) {
+    const link = invitationLink(created.token);
+    const share = async () => {
+      try {
+        await Share.share({ message: t('invitations.shareMessage', { wallet: created.walletName, link }) });
+      } catch {
+        showToast(t('invitations.shareFailed'), 'error');
+      }
+    };
+    return (
+      <View style={{ gap: theme.spacing.md }} testID="invitation-created">
+        <Text weight="semibold">{t('invitations.createdTitle')}</Text>
+        <Text tone="muted">{t('invitations.createdBody', { email: created.invitedEmail, date: formatDay(dayOfDate(new Date(created.expiresAt))) })}</Text>
+        <ThemedView
+          style={{
+            padding: theme.spacing.md,
+            borderRadius: theme.radius.md,
+            borderWidth: theme.borderWidth.thin,
+            borderColor: theme.colors.border,
+            backgroundColor: theme.colors.surfaceMuted,
+          }}
+        >
+          <Text selectable numberOfLines={2} testID="invitation-link">
+            {link}
+          </Text>
+        </ThemedView>
+        <Button testID="btn-share-invitation" label={t('invitations.shareLink')} icon={Share2} onPress={() => void share()} fullWidth />
+        <Button testID="btn-done-invitation" label={t('common.done')} variant="secondary" onPress={onSent} fullWidth />
+      </View>
+    );
   }
 
   return (
@@ -56,7 +94,11 @@ export function InviteMemberPanel({ walletId, onSent }: { walletId: string; onSe
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(next) => {
+          setEmail(next);
+          setFieldErrors((prev) => ({ ...prev, email: '' }));
+        }}
+        error={fieldErrors.email}
       />
 
       <View style={{ gap: theme.spacing.xs }}>
@@ -68,6 +110,7 @@ export function InviteMemberPanel({ walletId, onSent }: { walletId: string; onSe
           placeholder={t('invitations.relationPlaceholder')}
           value={relationLabel}
           onChangeText={setRelationLabel}
+          error={fieldErrors.relationLabel}
         />
         <View className="flex-row flex-wrap" style={{ gap: theme.spacing.xs }}>
           {SUGGESTED_LABELS.map((label) => (

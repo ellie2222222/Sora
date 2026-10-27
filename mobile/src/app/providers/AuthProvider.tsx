@@ -7,7 +7,14 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { AuthTokens, GoogleAuthRequest, LoginRequest, RegisterRequest, UserResponse } from '@sora/contracts';
+import type {
+  AuthTokens,
+  EmailVerificationSentResponse,
+  GoogleAuthRequest,
+  LoginRequest,
+  RegisterRequest,
+  UserResponse,
+} from '@sora/contracts';
 
 import { authApi } from '@/services/api';
 import { session, userIdFromAccessToken, type StoredSession } from '@/services/auth';
@@ -31,6 +38,10 @@ interface AuthContextValue {
   register: (details: RegisterRequest) => Promise<void>;
   loginWithGoogle: (body: GoogleAuthRequest) => Promise<void>;
   logout: () => Promise<void>;
+  /** Emails a code that proves the signed-in user's address (API §5.8). */
+  sendEmailVerification: () => Promise<EmailVerificationSentResponse>;
+  /** Checks the code and, when right, replaces `user` with its verified copy (API §5.9). */
+  confirmEmailVerification: (code: string) => Promise<void>;
   /** True once `enterGuestMode()` has run and stays true across a relaunch. */
   isGuest: boolean;
   enterGuestMode: () => Promise<void>;
@@ -229,6 +240,11 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
 
   const dismissOtherAccountNotice = useCallback(() => setOtherAccountNotice(null), []);
 
+  const sendEmailVerification = useCallback(() => authApi.sendEmailVerification(), []);
+  const confirmEmailVerification = useCallback(async (code: string) => {
+    setUser(await authApi.confirmEmailVerification({ code }));
+  }, []);
+
   const logout = useCallback(async () => {
     const refreshToken = session.current()?.refreshToken;
     try {
@@ -258,6 +274,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       register,
       loginWithGoogle,
       logout,
+      sendEmailVerification,
+      confirmEmailVerification,
       isGuest,
       enterGuestMode,
       exitGuestModeToAuth,
@@ -275,6 +293,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       register,
       loginWithGoogle,
       logout,
+      sendEmailVerification,
+      confirmEmailVerification,
       isGuest,
       enterGuestMode,
       exitGuestModeToAuth,

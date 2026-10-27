@@ -16,6 +16,7 @@ import {
   ACCOUNT_STATUSES,
   ACCOUNT_TYPES,
   BUDGET_PERIOD_TYPES,
+  CARD_NETWORKS,
   CATEGORY_STATUSES,
   CATEGORY_TYPES,
   DEFAULT_PAGE_SIZE,
@@ -30,7 +31,11 @@ import {
   WALLET_ROLES,
   WALLET_STATUSES,
   TransactionType,
+  accountTypeHasCard,
+  accountTypeHasInstitution,
   isRepeatingBudgetPeriod,
+  type AccountType,
+  type CardNetwork,
 } from './enums.ts';
 import { isCalendarDay, isTimeZone } from './calendar.ts';
 import { parseMoney, stripCurrencyInput } from './money.ts';
@@ -72,20 +77,20 @@ export const positiveAmountSchema = z
     // the returned string either or a comma reaches the database as text.
     const normalized = typeof value === 'string' ? stripCurrencyInput(value) : value;
     if (!isExactAmountNumber(normalized)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: INEXACT_NUMBER_MESSAGE });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: INEXACT_NUMBER_MESSAGE, params: { i18nKey: 'validation.amountInvalid' } });
       return z.NEVER;
     }
     try {
       const scaled = parseMoney(normalized);
       if (scaled <= 0n) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Amount must be greater than zero' });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Amount must be greater than zero', params: { i18nKey: 'validation.amountPositive' } });
         return z.NEVER;
       }
       return String(normalized);
     } catch {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Amount must be a valid number',
+        message: 'Amount must be a valid number', params: { i18nKey: 'validation.amountInvalid' },
       });
       return z.NEVER;
     }
@@ -97,7 +102,7 @@ export const signedAmountSchema = z
   .transform((value, ctx) => {
     const normalized = typeof value === 'string' ? stripCurrencyInput(value) : value;
     if (!isExactAmountNumber(normalized)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: INEXACT_NUMBER_MESSAGE });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: INEXACT_NUMBER_MESSAGE, params: { i18nKey: 'validation.amountInvalid' } });
       return z.NEVER;
     }
     try {
@@ -106,7 +111,7 @@ export const signedAmountSchema = z
     } catch {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Amount must be a valid number',
+        message: 'Amount must be a valid number', params: { i18nKey: 'validation.amountInvalid' },
       });
       return z.NEVER;
     }
@@ -115,7 +120,7 @@ export const signedAmountSchema = z
 export const isoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a date as YYYY-MM-DD')
-  .refine(isCalendarDay, 'Expected a date that exists on the calendar');
+  .refine(isCalendarDay, { message: 'Expected a date that exists on the calendar', params: { i18nKey: 'validation.invalidDate' } });
 
 export const isoDateTimeSchema = z.string().datetime({ offset: true });
 
@@ -183,7 +188,20 @@ export const updatePreferencesSchema = z
     theme: z.enum(THEME_NAMES).optional(),
     locale: z.enum(LOCALES).optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
+  .refine((value) => Object.keys(value).length > 0, { message: 'Nothing to update', params: { i18nKey: 'validation.nothingToUpdate' } });
+
+/** The 6-digit code §5.9 emails; spaces a user pasted from the message are dropped. */
+export const EMAIL_VERIFICATION_CODE_LENGTH = 6;
+
+export const confirmEmailVerificationSchema = z.object({
+  code: z
+    .string()
+    .transform((value) => value.replace(/\s+/g, ''))
+    .refine((value) => new RegExp(`^[0-9]{${EMAIL_VERIFICATION_CODE_LENGTH}}$`).test(value), {
+      message: 'Enter the 6-digit code from the email',
+      params: { i18nKey: 'validation.verificationCode' },
+    }),
+});
 
 // ---------------------------------------------------------------------------
 // Wallets & members
@@ -200,7 +218,7 @@ export const updateWalletSchema = z
     status: z.enum(WALLET_STATUSES).optional(),
     timeZone: timeZoneSchema.optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
+  .refine((value) => Object.keys(value).length > 0, { message: 'Nothing to update', params: { i18nKey: 'validation.nothingToUpdate' } });
 
 export const inviteMemberSchema = z.object({
   email: emailSchema,
@@ -230,21 +248,53 @@ export const updateMemberSchema = z.object({
 // Accounts
 // ---------------------------------------------------------------------------
 
-export const createAccountSchema = z.object({
-  walletId: uuidSchema,
-  name: nameSchema(100),
-  type: z.enum(ACCOUNT_TYPES),
-  currency: currencySchema,
-  initialBalance: signedAmountSchema.default('0'),
-});
+/** The bank or e-wallet provider behind an account, as its owner would name it. */
+const institutionNameSchema = z.string().trim().min(1, 'Required').max(60);
+/** The last four digits of a card, never more: they tell the owner's cards apart and identify nothing else. */
+const cardLast4Schema = z.string().regex(/^[0-9]{4}$/, 'Enter the last 4 digits');
+
+export const createAccountSchema = z
+  .object({
+    walletId: uuidSchema,
+    name: nameSchema(100),
+    type: z.enum(ACCOUNT_TYPES),
+    currency: currencySchema,
+    initialBalance: signedAmountSchema.default('0'),
+    institutionName: institutionNameSchema.nullish(),
+    cardNetwork: z.enum(CARD_NETWORKS).nullish(),
+    cardLast4: cardLast4Schema.nullish(),
+  })
+  .superRefine((value, ctx) => {
+    for (const issue of cardDetailIssues(value.type, value)) ctx.addIssue(issue);
+  });
 
 export const updateAccountSchema = z
   .object({
     name: nameSchema(100).optional(),
     currency: currencySchema.optional(),
     status: z.enum(ACCOUNT_STATUSES).optional(),
+    // null clears a detail; which ones the account may hold depends on its stored type (service check).
+    institutionName: institutionNameSchema.nullable().optional(),
+    cardNetwork: z.enum(CARD_NETWORKS).nullable().optional(),
+    cardLast4: cardLast4Schema.nullable().optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
+  .refine((value) => Object.keys(value).length > 0, { message: 'Nothing to update', params: { i18nKey: 'validation.nothingToUpdate' } });
+
+/** The card details an account of `type` may not hold, as issues on their own fields. */
+export function cardDetailIssues(
+  type: AccountType,
+  details: { institutionName?: string | null; cardNetwork?: CardNetwork | null; cardLast4?: string | null },
+): z.IssueData[] {
+  const issues: z.IssueData[] = [];
+  if (!accountTypeHasCard(type)) {
+    if (details.cardNetwork != null) issues.push({ code: z.ZodIssueCode.custom, path: ['cardNetwork'], message: 'Only a bank account or credit card has a card network', params: { i18nKey: 'validation.cardDetailsNotAllowed' } });
+    if (details.cardLast4 != null) issues.push({ code: z.ZodIssueCode.custom, path: ['cardLast4'], message: 'Only a bank account or credit card has card digits', params: { i18nKey: 'validation.cardDetailsNotAllowed' } });
+  }
+  if (!accountTypeHasInstitution(type) && details.institutionName != null) {
+    issues.push({ code: z.ZodIssueCode.custom, path: ['institutionName'], message: 'Cash has no bank or provider', params: { i18nKey: 'validation.cashNoInstitution' } });
+  }
+  return issues;
+}
 
 // ---------------------------------------------------------------------------
 // Categories
@@ -266,7 +316,7 @@ export const updateCategorySchema = z
     color: z.string().trim().max(20).nullish(),
     status: z.enum(CATEGORY_STATUSES).optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
+  .refine((value) => Object.keys(value).length > 0, { message: 'Nothing to update', params: { i18nKey: 'validation.nothingToUpdate' } });
 
 // ---------------------------------------------------------------------------
 // Transactions
@@ -314,7 +364,7 @@ export const createTransferSchema = z
     ...transactionCommon,
   })
   .refine((value) => value.fromAccountId !== value.toAccountId, {
-    message: 'A transfer needs two different accounts',
+    message: 'A transfer needs two different accounts', params: { i18nKey: 'validation.transferSameAccount' },
     path: ['toAccountId'],
   });
 
@@ -328,7 +378,7 @@ export const createTransactionSchema = z.discriminatedUnion('type', [
   if (value.type === TransactionType.TRANSFER && value.fromAccountId === value.toAccountId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'A transfer needs two different accounts',
+      message: 'A transfer needs two different accounts', params: { i18nKey: 'validation.transferSameAccount' },
       path: ['toAccountId'],
     });
   }
@@ -354,7 +404,7 @@ export const updateTransactionSchema = z
     goalId: uuidSchema.nullable().optional(),
     reference: z.string().trim().max(100).nullish(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
+  .refine((value) => Object.keys(value).length > 0, { message: 'Nothing to update', params: { i18nKey: 'validation.nothingToUpdate' } });
 
 /** The fields of a stored transaction an update is laid over. */
 export interface StoredTransactionFields {
@@ -437,24 +487,24 @@ export const createBudgetSchema = z
   .superRefine((value, ctx) => {
     if (isRepeatingBudgetPeriod(value.periodType)) {
       if (value.endDate != null) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A repeating budget has no end date', path: ['endDate'] });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A repeating budget has no end date', params: { i18nKey: 'validation.repeatingBudgetNoEnd' }, path: ['endDate'] });
       }
     } else if (value.endDate == null) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'An end date is required', path: ['endDate'] });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'An end date is required', params: { i18nKey: 'validation.endDateRequired' }, path: ['endDate'] });
     } else if (value.endDate < value.startDate) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'End date cannot be before start date', path: ['endDate'] });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'End date cannot be before start date', params: { i18nKey: 'validation.endBeforeStart' }, path: ['endDate'] });
     }
   })
   // Exactly one kind (chk_budget_kind): category, goal (period GOAL) or wallet-wide.
   .superRefine((value, ctx) => {
     if (value.categoryId != null && value.goalId != null) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A budget covers a category or a goal, not both', path: ['goalId'] });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A budget covers a category or a goal, not both', params: { i18nKey: 'validation.budgetCategoryOrGoal' }, path: ['goalId'] });
     }
     if (value.periodType === 'GOAL' && value.goalId == null) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A goal budget needs a goal', path: ['goalId'] });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A goal budget needs a goal', params: { i18nKey: 'validation.goalBudgetNeedsGoal' }, path: ['goalId'] });
     }
     if (value.periodType !== 'GOAL' && value.goalId != null) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A budget for a goal uses the goal period', path: ['periodType'] });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A budget for a goal uses the goal period', params: { i18nKey: 'validation.goalBudgetPeriod' }, path: ['periodType'] });
     }
   });
 
@@ -463,7 +513,7 @@ export const updateBudgetSchema = z
     name: nameSchema(100).optional(),
     amount: positiveAmountSchema.optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
+  .refine((value) => Object.keys(value).length > 0, { message: 'Nothing to update', params: { i18nKey: 'validation.nothingToUpdate' } });
 
 // ---------------------------------------------------------------------------
 // Goals & contributions
@@ -486,7 +536,7 @@ export const updateGoalSchema = z
     targetDate: isoDateSchema.nullish(),
     status: z.enum(GOAL_STATUSES).optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'Nothing to update');
+  .refine((value) => Object.keys(value).length > 0, { message: 'Nothing to update', params: { i18nKey: 'validation.nothingToUpdate' } });
 
 export const createContributionSchema = z.object({
   accountId: uuidSchema,
@@ -517,7 +567,7 @@ export const dashboardQuerySchema = z
     displayCurrency: currencySchema.optional(),
   })
   .refine((value) => !value.dateFrom || !value.dateTo || value.dateFrom <= value.dateTo, {
-    message: 'dateFrom must not be after dateTo',
+    message: 'dateFrom must not be after dateTo', params: { i18nKey: 'validation.endBeforeStart' },
     path: ['dateTo'],
   });
 
@@ -562,6 +612,7 @@ export type LoginRequest = z.infer<typeof loginSchema>;
 export type RefreshRequest = z.infer<typeof refreshSchema>;
 export type GoogleAuthRequest = z.infer<typeof googleAuthSchema>;
 export type UpdatePreferencesRequest = z.infer<typeof updatePreferencesSchema>;
+export type ConfirmEmailVerificationRequest = z.infer<typeof confirmEmailVerificationSchema>;
 export type CreateWalletRequest = z.infer<typeof createWalletSchema>;
 export type UpdateWalletRequest = z.infer<typeof updateWalletSchema>;
 export type InviteMemberRequest = z.infer<typeof inviteMemberSchema>;

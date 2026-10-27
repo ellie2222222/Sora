@@ -53,3 +53,5 @@ coverage/
 
 # Workspace
 sora.code-workspace
+# Messages written instead of sent when SMTP_URL is unset (server/src/mail/mail.service.ts)
+.mail-outbox/

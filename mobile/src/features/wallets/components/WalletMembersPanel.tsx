@@ -6,7 +6,7 @@ import { WalletRole, type WalletInvitationResponse, type WalletMemberResponse } 
 
 import { ActionSheet, Button, closeOpenSwipeRow, ConfirmDialog, ListItemEnter, MutationConfirmDialog, StateView, SwipeableRow, Text } from '@/components';
 import type { ActionSheetAction, SwipeRowAction } from '@/components';
-import { useAuth, useTheme } from '@/app/providers';
+import { useAuth, useTheme, useToast } from '@/app/providers';
 import {
   useGetWalletQuery,
   useListInvitationsQuery,
@@ -25,6 +25,7 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
   const theme = useTheme();
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { showToast } = useToast();
 
   const wallet = useGetWalletQuery(walletId);
   const members = useListMembersQuery({ walletId });
@@ -52,13 +53,13 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
     }
   }
 
-  /** Remove and revoke report a failure the same way a role change does, rather than failing silently. */
+  /** Remove and revoke are reachable by swipe, whose failures surface as a toast (DESIGN_GUIDELINES "Row actions"). */
   async function runAction(action: () => Promise<unknown>) {
     setActionError(null);
     try {
       await action();
     } catch (error) {
-      setActionError(messageOf(error, t));
+      showToast(messageOf(error, t), 'error');
     }
   }
 
@@ -140,6 +141,16 @@ export function WalletMembersPanel({ walletId, onInvite }: { walletId: string; o
           </ListItemEnter>
         ))}
 
+        {isOwner && invitations.isLoading ? <MemberItemSkeleton /> : null}
+        {isOwner && invitations.isError && invitations.data === undefined ? (
+          <StateView
+            variant="error"
+            error={invitations.error}
+            retryAction={() => void invitations.refetch()}
+            testID="wallet-invitations-error"
+            entrance="none"
+          />
+        ) : null}
         {isOwner && invitations.data !== undefined && invitations.data.length > 0 ? (
           <View>
             <Text variant="label" tone="muted" style={{ marginBottom: theme.spacing.sm }}>

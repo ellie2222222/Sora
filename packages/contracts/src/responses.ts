@@ -7,6 +7,7 @@
 
 import type {
   AccountStatus,
+  CardNetwork,
   AiActionStatus,
   AiActionType,
   AiMessageRole,
@@ -81,6 +82,7 @@ export const ERROR_CODES = [
   'INVITATION_ALREADY_USED',
   'INVITATION_EMAIL_MISMATCH',
   'INVITATION_ALREADY_OPEN',
+  'INVITATION_EMAIL_UNVERIFIED',
   'ACCOUNT_NOT_FOUND',
   'ACCOUNT_ARCHIVED',
   'ACCOUNT_CURRENCY_MISMATCH',
@@ -109,6 +111,10 @@ export const ERROR_CODES = [
   'INTERNAL_ERROR',
   'GOOGLE_TOKEN_INVALID',
   'GOOGLE_ACCOUNT_MISMATCH',
+  'EMAIL_ALREADY_VERIFIED',
+  'EMAIL_VERIFICATION_CODE_INVALID',
+  'EMAIL_VERIFICATION_EXPIRED',
+  'EMAIL_DELIVERY_UNAVAILABLE',
   'VALUATION_UNAVAILABLE',
   'AI_CONVERSATION_NOT_FOUND',
   'AI_MESSAGE_NOT_FOUND',
@@ -175,6 +181,7 @@ export const ERROR_STATUS: Record<ErrorCode, HttpStatusCode> = {
   INVITATION_ALREADY_USED: HTTP_STATUS.CONFLICT,
   INVITATION_EMAIL_MISMATCH: HTTP_STATUS.FORBIDDEN,
   INVITATION_ALREADY_OPEN: HTTP_STATUS.CONFLICT,
+  INVITATION_EMAIL_UNVERIFIED: HTTP_STATUS.FORBIDDEN,
   ACCOUNT_NOT_FOUND: HTTP_STATUS.NOT_FOUND,
   ACCOUNT_ARCHIVED: HTTP_STATUS.CONFLICT,
   ACCOUNT_CURRENCY_MISMATCH: HTTP_STATUS.UNPROCESSABLE_ENTITY,
@@ -203,6 +210,10 @@ export const ERROR_STATUS: Record<ErrorCode, HttpStatusCode> = {
   INTERNAL_ERROR: HTTP_STATUS.INTERNAL_SERVER_ERROR,
   GOOGLE_TOKEN_INVALID: HTTP_STATUS.UNAUTHORIZED,
   GOOGLE_ACCOUNT_MISMATCH: HTTP_STATUS.CONFLICT,
+  EMAIL_ALREADY_VERIFIED: HTTP_STATUS.CONFLICT,
+  EMAIL_VERIFICATION_CODE_INVALID: HTTP_STATUS.UNPROCESSABLE_ENTITY,
+  EMAIL_VERIFICATION_EXPIRED: HTTP_STATUS.GONE,
+  EMAIL_DELIVERY_UNAVAILABLE: HTTP_STATUS.SERVICE_UNAVAILABLE,
   VALUATION_UNAVAILABLE: HTTP_STATUS.SERVICE_UNAVAILABLE,
   AI_CONVERSATION_NOT_FOUND: HTTP_STATUS.NOT_FOUND,
   AI_MESSAGE_NOT_FOUND: HTTP_STATUS.NOT_FOUND,
@@ -225,7 +236,17 @@ export interface UserResponse {
   theme: ThemeName;
   locale: Locale;
   hasPassword: boolean;
+  /** Proven ownership of `email` (a Google sign-in or an emailed code, §5.9); only then may the invitations inbox act on it (§8.6). */
+  emailVerified: boolean;
   createdAt: string;
+}
+
+/** A code is on its way (§5.8). */
+export interface EmailVerificationSentResponse {
+  email: string;
+  expiresAt: string;
+  /** Before this instant another send answers 429. */
+  resendAfter: string;
 }
 
 export interface AuthTokens {
@@ -303,9 +324,23 @@ export interface WalletInvitationCreatedResponse extends WalletInvitationRespons
  */
 export interface InvitationPreviewResponse {
   walletName: string;
+  /** Who sent it, by display name, so the invitee knows whose money they would see. */
+  inviterName: string;
   invitedEmail: string;
   role: WalletRole;
   expiresAt: string;
+}
+
+/** An open invitation addressed to the caller's own verified email (§8.6). */
+export interface ReceivedInvitationResponse {
+  id: string;
+  walletId: string;
+  walletName: string;
+  inviterName: string;
+  role: WalletRole;
+  relationLabel: string | null;
+  expiresAt: string;
+  createdAt: string;
 }
 
 export interface AccountResponse {
@@ -318,6 +353,12 @@ export interface AccountResponse {
   /** Derived from active transactions, never stored. */
   balance: MoneyString;
   status: AccountStatus;
+  /** The bank or e-wallet provider; never set on cash. */
+  institutionName: string | null;
+  /** Bank account and credit card only. */
+  cardNetwork: CardNetwork | null;
+  /** The card's last four digits, never more; bank account and credit card only. */
+  cardLast4: string | null;
   createdAt: string;
   updatedAt: string;
 }

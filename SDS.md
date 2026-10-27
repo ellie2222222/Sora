@@ -299,7 +299,7 @@ wallets at once and a single FK could only name one of them ([BR-03](SRS.md#4-bu
 | Wallet | `wallets` | Owner reference plus derived membership; archived, never deleted |
 | WalletMember | `wallet_members` | Roles: `OWNER`, `EDITOR`, `VIEWER`. `uq_wallet_single_owner` (partial unique index) makes "exactly one active owner" a database-enforced invariant, not just a service check |
 | WalletInvitation | `wallet_invitations` | Only the token hash is stored; `uq_wallet_invitation_open` allows at most one live invitation per wallet+email |
-| Account | `accounts` | `initial_balance` has no `CHECK (>= 0)` — a credit card legitimately opens negative |
+| Account | `accounts` | `initial_balance` has no `CHECK (>= 0)` — a credit card legitimately opens negative. `institution_name`, `card_network`, `card_last4` (migration 006) are optional; `chk_account_card_details_type` keeps network and last four to bank accounts and credit cards and every detail off cash |
 | Category | `categories` | Self-referencing `parent_id`; `chk_category_not_own_parent` blocks the one-hop cycle, deeper cycles are a service-layer check. `system_key` links a starter category to its `category_translations` rows; `uq_category_system_key` keeps one copy per wallet |
 | Transaction | `transactions` | `chk_transaction_shape` enforces the account/category shape per type (income has no `from_account_id`, transfer has no `category_id`, etc.) at the database level |
 | Budget | `budgets` | `excl_budget_category_overlap`, `excl_budget_goal_overlap` and `excl_budget_overall_overlap` are GIST exclusion constraints over `daterange(start_date, end_date, '[]')` — a plain unique index cannot express "no overlapping window" |
@@ -390,12 +390,12 @@ Real screens under `mobile/src/features/*/screens/`, grouped by feature:
 | Chat | `AiChatScreen` (the AI tab: one conversation at a time, history and new chat in its header, proposals confirmed in place; guests see a sign-in prompt, and offline the history stays readable with sending disabled) |
 | Dashboard | `DashboardScreen` (a read-only day-to-year view over the dashboard's own derived figures — see the note below; not report generation/export, which stays out of scope per [SRS.md §1.6](SRS.md#16-out-of-scope)) |
 | Transactions | No screen of its own — the list is the Home tab (`TransactionListScreen`), which an account's "View transactions" or a dashboard category opens already filtered; add/detail are `ModalProvider` modals, not screens — see below |
-| Accounts | No screens — one account's detail is `AccountDetailModal`, a `BottomSheetModal` opened from `AccountsOverview` and from the wallet sheet's account rows. The list with net worth is `AccountsOverview`, rendered by `DashboardScreen` as its Accounts tab; its account chips (`AccountScopePicker`) narrow the dashboard to one account |
+| Accounts | No screens — one account's detail is `AccountDetailModal`, a `BottomSheetModal` opened from `AccountsOverview` and from the wallet sheet's account rows. The net worth panel and the 3D account card carousel (`AccountCarousel`, `AccountCard`) are `AccountsOverview`, rendered by `DashboardScreen` as its Accounts tab; its account chips (`AccountScopePicker`) narrow the dashboard to one account |
 | Categories | `CategoryListScreen` |
 | Wallets | No screens — the wallet sheet (`WalletSwitcher`, opened from every screen's `WalletContextBar`) lists the wallets and pages through details, members, invitations, activity (the audit trail, `WAL-US-13`, owner-only) and wallet creation |
-| Auth | `LoginScreen`, `RegisterScreen`, `AcceptInvitationScreen` |
+| Auth | `LoginScreen`, `RegisterScreen`, `AcceptInvitationScreen` — also in the app stack, so the `sora://invite?token=…` link opens it signed in or out |
 | Guest | `GuestUploadScreen` — the wallet-choice/upload-progress screen for [GST-US-02](SRS.md#gst-us-02-bring-my-guest-data-into-a-real-wallet); rendered in place of the normal app by `RootNavigator` whenever local guest data is pending upload, unless the user sent the upload to the background (`GuestUploadIndicator` then shows its progress at the top of the app) |
-| Settings | `SettingsScreen` |
+| Settings | `SettingsScreen` — its first section, `InvitationsSection`, is the invitations inbox ([WAL-US-14](SRS.md#wal-us-14-answer-invitations-from-my-inbox)) |
 
 Creating a transaction, budget, goal, contribution, or account is a `BottomSheetModal` opened via
 `ModalProvider.openModal(...)`, not a navigator screen — `AddTransactionScreen`,
@@ -407,9 +407,10 @@ by the modal pattern plus `PlanningScreen`.
 indicator, not the default React Navigation tab bar) — five destinations, none of them an "Add"
 action: **Home | Planning | AI | Dashboard | Settings**. The center tab is the AI assistant;
 recording a transaction/budget/goal is reached from within a screen via `ModalProvider`. Accounts
-are listed and managed in the Dashboard tab. Wallet management and invitations live in the wallet
-sheet, one bottom sheet whose pages replace each other so no second modal presents while the first
-is dismissing. None of them is on the tab bar itself.
+are listed and managed in the Dashboard tab. Wallet management and the invitations a wallet sent live in the wallet
+sheet (the ones you received are in Settings), one bottom sheet whose pages replace each other so no second modal presents while the first
+is dismissing. None of them is on the tab bar itself. A visited tab stays mounted but frozen while hidden
+(`freezeOnBlur`), so a theme or wallet change re-renders only the tab in view; the others catch up when shown.
 
 **`DashboardScreen` is a dashboard view, not a report generator.** It renders five period
 granularities (day, week, month, quarter, year) purely from `useGetDashboardSummaryQuery` — the same derived, computed-on-read figures
@@ -762,7 +763,7 @@ Method/path/minimum-role only — see [§6.1](#61-api-index) for the complete li
 | --- | --- | --- |
 | Auth & session | `AuthController` | `/auth/*` |
 | Wallets, members, invitations (create/revoke), audit | `WalletsController` | `/wallets/*` |
-| Invitation preview & accept | `InvitationsController` | `/invitations/*` |
+| Invitation preview, accept, inbox | `InvitationsController` | `/invitations/*` |
 | Accounts | `AccountsController` | `/accounts` |
 | Categories | `CategoriesController` | `/categories` |
 | Transactions | `TransactionsController` | `/transactions` |
@@ -771,10 +772,11 @@ Method/path/minimum-role only — see [§6.1](#61-api-index) for the complete li
 | Dashboard | `DashboardController` | `/dashboard` |
 | Health | `HealthController` | `/health` |
 
-`POST /invitations/preview` (public) and `POST /invitations/accept` (authed) are implemented by
+`POST /invitations/preview` (public), `POST /invitations/accept` (authed) and the inbox (`GET /invitations`,
+`POST /invitations/{invId}/accept`, `POST /invitations/{invId}/decline`) are implemented by
 `InvitationsController` (`server/src/wallets/invitations.controller.ts`), realizing
 [WAL-US-04](SRS.md#wal-us-04-preview-an-invitation-before-committing) and
-[WAL-US-05](SRS.md#wal-us-05-accept-an-invitation) — both routes live at the top-level
+[WAL-US-05](SRS.md#wal-us-05-accept-an-invitation) and [WAL-US-14](SRS.md#wal-us-14-answer-invitations-from-my-inbox) — these routes live at the top-level
 `/invitations/*` path (`ROUTES.invitations`), not nested under `/wallets/{id}/...` like the rest
 of this feature's routes. See [§8](#8-feature-implementation-mapping).
 
@@ -784,7 +786,7 @@ of this feature's routes. See [§8](#8-feature-implementation-mapping).
 
 ### 6.1 API Index
 
-The actually-implemented endpoints — 58 routes, the same set as `ROUTES` in `@sora/contracts` (the server's
+The actually-implemented endpoints — 63 routes, the same set as `ROUTES` in `@sora/contracts` (the server's
 route test asserts every one is mounted) and the API specification's §3 index.
 
 | Method | Path | Min role | Controller |
@@ -797,8 +799,13 @@ route test asserts every one is mounted) and the API specification's §3 index.
 | POST | `/auth/logout` | authed | `AuthController` |
 | GET | `/auth/me` | authed | `AuthController` |
 | PATCH | `/auth/me/preferences` | authed | `AuthController` |
+| POST | `/auth/me/email-verification` | authed | `AuthController` |
+| POST | `/auth/me/email-verification/confirm` | authed | `AuthController` |
 | POST | `/invitations/preview` | public | `InvitationsController` |
 | POST | `/invitations/accept` | authed | `InvitationsController` |
+| GET | `/invitations` | authed, verified email | `InvitationsController` |
+| POST | `/invitations/{invId}/accept` | authed, verified email | `InvitationsController` |
+| POST | `/invitations/{invId}/decline` | authed, verified email | `InvitationsController` |
 | GET | `/wallets` | authed | `WalletsController` |
 | POST | `/wallets` | authed | `WalletsController` |
 | GET | `/wallets/{id}` | VIEWER | `WalletsController` |
@@ -874,6 +881,7 @@ grouped here for readability only.
 | `INVITATION_ALREADY_USED` | 409 | Already accepted or revoked |
 | `INVITATION_EMAIL_MISMATCH` | 403 | Accepting as someone other than the invited address |
 | `INVITATION_ALREADY_OPEN` | 409 | A live invitation already exists for this wallet+email |
+| `INVITATION_EMAIL_UNVERIFIED` | 403 | The invitations inbox needs a verified email; the link still works |
 | `ACCOUNT_NOT_FOUND` | 404 | No such account, or no membership on its wallet |
 | `ACCOUNT_ARCHIVED` | 409 | Write attempted on an archived account |
 | `ACCOUNT_CURRENCY_MISMATCH` | 422 | Transaction currency ≠ account currency |
@@ -970,6 +978,7 @@ regenerate it from the controllers, not from memory, the next time either drifts
 | AUTH-US-02 | Sign in | `POST /auth/login` — `AuthController` |
 | AUTH-US-03 | Stay signed in | `POST /auth/refresh` — `AuthController`, `token.service.ts` |
 | AUTH-US-04 | Sign out | `POST /auth/logout` — `AuthController` |
+| AUTH-US-05 | Verify my email | `POST /auth/me/email-verification`, `POST /auth/me/email-verification/confirm` — `AuthController`, `email-verification.service.ts`, `MailService` (`server/src/mail/`) |
 
 *Not a numbered SRS story, but live:* `POST /auth/google` (Google Sign-In), `GET /auth/me`,
 `PATCH /auth/me/preferences` (theme/locale) — added in the Google-auth/preferences migration,
@@ -992,6 +1001,7 @@ ahead of an SRS update for them.
 | WAL-US-11 | Leave a wallet | `POST /wallets/{id}/leave` |
 | WAL-US-12 | Archive a wallet | `DELETE /wallets/{id}` (rename via `PATCH /wallets/{id}`) |
 | WAL-US-13 | Read the audit trail | `GET /wallets/{id}/audit-logs` |
+| WAL-US-14 | Answer invitations from my inbox | `GET /invitations`, `POST /invitations/{invId}/accept`, `POST /invitations/{invId}/decline` — `InvitationsController` |
 
 ### ACC-US — Account Management
 

@@ -14,6 +14,8 @@ export const AUDIT_EVENTS = {
   TOKEN_REFRESHED: 'TOKEN_REFRESHED',
   /** A revoked refresh token was presented, i.e. replayed — every session ended. */
   TOKEN_REPLAY_DETECTED: 'TOKEN_REPLAY_DETECTED',
+  /** A password account proved its address with an emailed code (§5.9); a Google sign-in needs no event of its own. */
+  EMAIL_VERIFIED: 'EMAIL_VERIFIED',
 
   /** A member's request refused with 403; a 404 is not recorded, since no membership resolved. */
   ACCESS_DENIED: 'ACCESS_DENIED',
@@ -29,6 +31,8 @@ export const AUDIT_EVENTS = {
   MEMBER_ROLE_CHANGED: 'MEMBER_ROLE_CHANGED',
   INVITATION_ACCEPTED: 'INVITATION_ACCEPTED',
   INVITATION_REVOKED: 'INVITATION_REVOKED',
+  /** The invitee turned it down from their inbox (§8.8). */
+  INVITATION_DECLINED: 'INVITATION_DECLINED',
 
   ACCOUNT_CREATED: 'ACCOUNT_CREATED',
   ACCOUNT_UPDATED: 'ACCOUNT_UPDATED',

@@ -4,5 +4,6 @@ export * from './AppearanceSection.tsx';
 export * from './LanguageSection.tsx';
 export * from './SyncSection.tsx';
 export * from './AboutSection.tsx';
+export * from './InvitationsSection.tsx';
 export * from './SettingsBottomActions.tsx';
 

@@ -2,6 +2,7 @@ import type {
   AcceptInvitationRequest,
   InvitationPreviewResponse,
   InviteMemberRequest,
+  ReceivedInvitationResponse,
   WalletInvitationCreatedResponse,
   WalletInvitationResponse,
   WalletResponse,
@@ -38,7 +39,20 @@ export const invitationsApiSlice = apiSlice.injectEndpoints({
     }),
     acceptInvitation: builder.mutation<WalletResponse, AcceptInvitationRequest>({
       queryFn: (body) => toQueryFnResult(() => invitationsHttp.accept(body)),
-      invalidatesTags: ['Wallet'],
+      invalidatesTags: ['Wallet', 'ReceivedInvitation'],
+    }),
+    listReceivedInvitations: builder.query<ReceivedInvitationResponse[], void>({
+      queryFn: (arg, { endpoint }) =>
+        toQueryFnResult(() => readSignedInCached(cacheKeyOf(endpoint, arg), () => invitationsHttp.received())),
+      providesTags: ['ReceivedInvitation'],
+    }),
+    acceptReceivedInvitation: builder.mutation<WalletResponse, string>({
+      queryFn: (invitationId) => toQueryFnResult(() => invitationsHttp.acceptById(invitationId)),
+      invalidatesTags: ['Wallet', 'ReceivedInvitation'],
+    }),
+    declineReceivedInvitation: builder.mutation<void, string>({
+      queryFn: (invitationId) => toQueryFnResult(() => invitationsHttp.decline(invitationId)),
+      invalidatesTags: ['ReceivedInvitation'],
     }),
   }),
   overrideExisting: __DEV__,
@@ -50,4 +64,7 @@ export const {
   useRevokeInvitationMutation,
   usePreviewInvitationQuery,
   useAcceptInvitationMutation,
+  useListReceivedInvitationsQuery,
+  useAcceptReceivedInvitationMutation,
+  useDeclineReceivedInvitationMutation,
 } = invitationsApiSlice;

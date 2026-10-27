@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AnimatedScreen, Card, SectionLabel } from '@/components';
-import { useTheme } from '@/app/providers';
+import { AnimatedScreen, Card, SectionLabel, ThemedScrollView } from '@/components';
+import { useAuth, useTheme } from '@/app/providers';
 import type { MainTabScreenProps } from '@/app/navigation';
 import {
   AboutSection,
   AppearanceSection,
+  InvitationsSection,
   LanguageSection,
   ProfileHeader,
   SettingsBottomActions,
@@ -16,14 +17,16 @@ import {
   SyncSection,
 } from '../components';
 
-type SectionKey = 'appearance' | 'language' | 'sync' | 'about';
+type SectionKey = 'invitations' | 'appearance' | 'language' | 'sync' | 'about';
 
 export function SettingsScreen({ navigation: _navigation }: MainTabScreenProps<'Settings'>) {
   const theme = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { isGuest } = useAuth();
 
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
+    invitations: false,
     appearance: false,
     language: false,
     sync: false,
@@ -36,7 +39,7 @@ export function SettingsScreen({ navigation: _navigation }: MainTabScreenProps<'
 
   return (
     <AnimatedScreen>
-      <ScrollView
+      <ThemedScrollView
         testID="screen-settings"
         className="flex-1"
         style={{ backgroundColor: theme.colors.background }}
@@ -49,14 +52,14 @@ export function SettingsScreen({ navigation: _navigation }: MainTabScreenProps<'
       >
         <Card
           testID="settings-profile-card"
-          style={{ borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border }}
+          style={{ borderWidth: theme.borderWidth.thin, borderColor: theme.colors.border }}
         >
           <ProfileHeader />
         </Card>
 
         <View className="gap-sm">
           <View style={{ paddingHorizontal: theme.spacing.xs }}>
-            <SectionLabel>{t('settings.title', 'Settings')}</SectionLabel>
+            <SectionLabel>{t('settings.title')}</SectionLabel>
           </View>
 
           <Card
@@ -64,10 +67,22 @@ export function SettingsScreen({ navigation: _navigation }: MainTabScreenProps<'
             testID="settings-group"
             style={{
               overflow: 'hidden',
-              borderWidth: StyleSheet.hairlineWidth,
+              borderWidth: theme.borderWidth.thin,
               borderColor: theme.colors.border,
             }}
           >
+            {/* A guest has no email, so nothing can be addressed to them. */}
+            {isGuest ? null : (
+              <>
+                <InvitationsSection
+                  isOpen={!!openSections.invitations}
+                  onToggle={() => toggleSection('invitations')}
+                />
+
+                <SettingsDivider />
+              </>
+            )}
+
             <AppearanceSection
               isOpen={!!openSections.appearance}
               onToggle={() => toggleSection('appearance')}
@@ -97,7 +112,7 @@ export function SettingsScreen({ navigation: _navigation }: MainTabScreenProps<'
         </View>
 
         <SettingsBottomActions />
-      </ScrollView>
+      </ThemedScrollView>
     </AnimatedScreen>
   );
 }

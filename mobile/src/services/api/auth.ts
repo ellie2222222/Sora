@@ -2,6 +2,8 @@ import {
   ROUTES,
   apiUrl,
   type AuthResponse,
+  type ConfirmEmailVerificationRequest,
+  type EmailVerificationSentResponse,
   type GoogleAuthRequest,
   type LoginRequest,
   type RegisterRequest,
@@ -26,6 +28,12 @@ export const authApi = {
   },
   updatePreferences(body: UpdatePreferencesRequest): Promise<UserResponse> {
     return patchOne<UserResponse>(apiUrl(ROUTES.auth.preferences()), body);
+  },
+  sendEmailVerification(): Promise<EmailVerificationSentResponse> {
+    return postOne<EmailVerificationSentResponse>(apiUrl(ROUTES.auth.sendEmailVerification()), {});
+  },
+  confirmEmailVerification(body: ConfirmEmailVerificationRequest): Promise<UserResponse> {
+    return postOne<UserResponse>(apiUrl(ROUTES.auth.confirmEmailVerification()), body);
   },
   logout(refreshToken?: string): Promise<void> {
     return postVoid(apiUrl(ROUTES.auth.logout()), refreshToken === undefined ? {} : { refreshToken });

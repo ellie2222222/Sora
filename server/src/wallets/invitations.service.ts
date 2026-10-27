@@ -6,6 +6,7 @@ import {
   MemberStatus,
   type InvitationPreviewResponse,
   type InviteMemberRequest,
+  type ReceivedInvitationResponse,
   type WalletInvitationCreatedResponse,
   type WalletInvitationResponse,
   type WalletResponse,
@@ -31,6 +32,7 @@ interface InvitationRow {
   id: string;
   wallet_id: string;
   wallet_name: string;
+  inviter_name: string;
   invited_email: string;
   role: WalletRole;
   relation_label: string | null;
@@ -262,6 +264,7 @@ export class InvitationsService {
 
     return {
       walletName: invitation.wallet_name,
+      inviterName: invitation.inviter_name,
       invitedEmail: maskEmail(invitation.invited_email),
       role: invitation.role,
       expiresAt: invitation.expires_at.toISOString(),
@@ -287,6 +290,113 @@ export class InvitationsService {
       throw new AppError('INVITATION_EMAIL_MISMATCH');
     }
 
+    return this.join(user, invitation, ip, (trx) => this.byToken(token, trx));
+  }
+
+  /**
+   * Open invitations addressed to the caller (§8.6). With no link token only a verified email proves they are
+   * the invitee: an unverified address could have been registered by anyone, who would then accept its mail.
+   */
+  async listReceived(user: AuthenticatedUser, page: PageQuery): Promise<Enveloped<ReceivedInvitationResponse[]>> {
+    await this.requireVerifiedEmail(user);
+
+    const query = this.database.db
+      .selectFrom('wallet_invitations')
+      .innerJoin('wallets', 'wallets.id', 'wallet_invitations.wallet_id')
+      .innerJoin('users as inviter', 'inviter.id', 'wallet_invitations.created_by_user_id')
+      .select([
+        'wallet_invitations.id as id',
+        'wallet_invitations.wallet_id as wallet_id',
+        'wallets.name as wallet_name',
+        'inviter.display_name as inviter_name',
+        'wallet_invitations.role as role',
+        'wallet_invitations.relation_label as relation_label',
+        'wallet_invitations.expires_at as expires_at',
+        'wallet_invitations.created_at as created_at',
+      ])
+      .where((eb) => eb(eb.fn('lower', ['wallet_invitations.invited_email']), '=', user.email.toLowerCase()))
+      .where('wallet_invitations.accepted_at', 'is', null)
+      .where('wallet_invitations.revoked_at', 'is', null)
+      .where('wallet_invitations.expires_at', '>', new Date());
+
+    const [rows, totalRow] = await Promise.all([
+      query
+        .orderBy('wallet_invitations.created_at', 'desc')
+        .orderBy('wallet_invitations.id', 'desc')
+        .limit(page.pageSize)
+        .offset(offsetOf(page))
+        .execute(),
+      query
+        .clearSelect()
+        .select((eb) => eb.fn.countAll<string>().as('count'))
+        .executeTakeFirstOrThrow(),
+    ]);
+    return paginated(
+      rows.map((row) => ({
+        id: row.id,
+        walletId: row.wallet_id,
+        walletName: row.wallet_name,
+        inviterName: row.inviter_name,
+        role: row.role as WalletRole,
+        relationLabel: row.relation_label,
+        expiresAt: row.expires_at.toISOString(),
+        createdAt: row.created_at.toISOString(),
+      })),
+      paginationMeta(page.page, page.pageSize, Number(totalRow.count)),
+    );
+  }
+
+  /** Accept from the inbox (§8.7): the same join as the link, proven by a verified email instead of the token. */
+  async acceptById(user: AuthenticatedUser, invitationId: string, ip: string | null): Promise<WalletResponse> {
+    await this.requireVerifiedEmail(user);
+    const invitation = await this.addressedTo(user, invitationId);
+    this.assertOpen(invitation);
+    return this.join(user, invitation, ip, (trx) => this.addressedTo(user, invitationId, trx));
+  }
+
+  /** The invitee turns an invitation down (§8.8); like a revoke, it frees the slot for a fresh invite. */
+  async decline(user: AuthenticatedUser, invitationId: string, ip: string | null): Promise<void> {
+    await this.requireVerifiedEmail(user);
+
+    await this.database.db.transaction().execute(async (trx) => {
+      const declined = await trx
+        .updateTable('wallet_invitations')
+        .set({ revoked_at: new Date() })
+        .where('id', '=', invitationId)
+        .where((eb) => eb(eb.fn('lower', ['invited_email']), '=', user.email.toLowerCase()))
+        .where('accepted_at', 'is', null)
+        .where('revoked_at', 'is', null)
+        .where('expires_at', '>', new Date())
+        .returning(['id', 'wallet_id'])
+        .executeTakeFirst();
+
+      if (!declined) {
+        this.assertOpen(await this.addressedTo(user, invitationId, trx));
+        throw new AppError('INVITATION_ALREADY_USED');
+      }
+
+      await this.audit.record(
+        {
+          event: AUDIT_EVENTS.INVITATION_DECLINED,
+          entityType: ENTITY_TYPES.WALLET_INVITATION,
+          entityId: declined.id,
+          actorId: user.id,
+          walletId: declined.wallet_id,
+          note: `${user.email} declined`,
+          ip,
+        },
+        trx,
+      );
+    });
+  }
+
+  /** Claims the invitation and makes the caller a member; `reload` re-reads it when the claim loses a race. */
+  private async join(
+    user: AuthenticatedUser,
+    invitation: InvitationRow,
+    ip: string | null,
+    reload: (trx: Transaction<DB>) => Promise<InvitationRow>,
+  ): Promise<WalletResponse> {
     await translatingPgErrors(() =>
       this.database.db.transaction().execute(async (trx) => {
         // The claim is the check: it matches only while the invitation is still open, and its row
@@ -301,7 +411,7 @@ export class InvitationsService {
           .returning(['id'])
           .executeTakeFirst();
         if (!claimed) {
-          this.assertOpen(await this.byToken(token, trx));
+          this.assertOpen(await reload(trx));
           throw new AppError('INVITATION_ALREADY_USED');
         }
 
@@ -362,10 +472,12 @@ export class InvitationsService {
     return executor
       .selectFrom('wallet_invitations')
       .innerJoin('wallets', 'wallets.id', 'wallet_invitations.wallet_id')
+      .innerJoin('users as sender', 'sender.id', 'wallet_invitations.created_by_user_id')
       .select([
         'wallet_invitations.id as id',
         'wallet_invitations.wallet_id as wallet_id',
         'wallets.name as wallet_name',
+        'sender.display_name as inviter_name',
         'wallet_invitations.invited_email as invited_email',
         'wallet_invitations.role as role',
         'wallet_invitations.relation_label as relation_label',
@@ -374,6 +486,25 @@ export class InvitationsService {
         'wallet_invitations.revoked_at as revoked_at',
         'wallet_invitations.created_at as created_at',
       ]);
+  }
+
+  private async requireVerifiedEmail(user: AuthenticatedUser): Promise<void> {
+    const row = await this.database.db
+      .selectFrom('users')
+      .select('email_verified_at')
+      .where('id', '=', user.id)
+      .executeTakeFirst();
+    if (!row?.email_verified_at) throw new AppError('INVITATION_EMAIL_UNVERIFIED');
+  }
+
+  /** Another address's invitation reads as absent, so an id can't be probed for whether it exists. */
+  private async addressedTo(user: AuthenticatedUser, invitationId: string, executor?: Transaction<DB>): Promise<InvitationRow> {
+    const row = await this.baseQuery(executor)
+      .where('wallet_invitations.id', '=', invitationId)
+      .where((eb) => eb(eb.fn('lower', ['wallet_invitations.invited_email']), '=', user.email.toLowerCase()))
+      .executeTakeFirst();
+    if (!row) throw new AppError('INVITATION_NOT_FOUND');
+    return row;
   }
 
   private async byToken(token: string, executor?: Transaction<DB>): Promise<InvitationRow> {

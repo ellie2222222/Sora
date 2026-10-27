@@ -20,6 +20,8 @@ export const ROUTES = {
     logout: () => '/auth/logout',
     me: () => '/auth/me',
     preferences: () => '/auth/me/preferences',
+    sendEmailVerification: () => '/auth/me/email-verification',
+    confirmEmailVerification: () => '/auth/me/email-verification/confirm',
   },
 
   wallets: {
@@ -42,6 +44,9 @@ export const ROUTES = {
   invitations: {
     preview: () => '/invitations/preview',
     accept: () => '/invitations/accept',
+    received: () => '/invitations',
+    acceptById: (invitationId: string) => `/invitations/${invitationId}/accept`,
+    decline: (invitationId: string) => `/invitations/${invitationId}/decline`,
   },
 
   accounts: {

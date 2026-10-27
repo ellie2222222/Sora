@@ -150,8 +150,9 @@ describe('wallets, members and the audit trail against a real database', { skip:
     const preview = await api.call('POST', '/invitations/preview', { body: { token: offer.token } });
     assert.equal(preview.status, 200);
     const data = preview.body!.data;
-    assert.deepEqual(Object.keys(data).sort(), ['expiresAt', 'invitedEmail', 'role', 'walletName'], 'no ids or token');
+    assert.deepEqual(Object.keys(data).sort(), ['expiresAt', 'invitedEmail', 'inviterName', 'role', 'walletName'], 'no ids or token');
     assert.equal(data.walletName, offer.walletName);
+    assert.equal(data.inviterName, 'probe-wal-preview');
     assert.equal(data.role, 'EDITOR');
     assert.equal(data.expiresAt, offer.expiresAt);
     const days = (Date.parse(data.expiresAt) - Date.now()) / 86_400_000;

@@ -46,14 +46,14 @@ export async function createAccount(
   api: ApiCaller,
   user: ProbeUser,
   walletId: string,
-  options: { currency?: string; initialBalance?: string; name?: string } = {},
+  options: { currency?: string; initialBalance?: string; name?: string; type?: string } = {},
 ): Promise<string> {
   const response = await api.call('POST', '/accounts', {
     token: user.token,
     body: {
       walletId,
       name: options.name ?? `probe-${randomUUID()}`,
-      type: 'BANK_ACCOUNT',
+      type: options.type ?? 'BANK_ACCOUNT',
       currency: options.currency ?? 'VND',
       initialBalance: options.initialBalance ?? '0',
     },

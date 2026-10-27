@@ -84,7 +84,7 @@ The product answers one question repeatedly, for one person at a time: *where di
 | **VIEWER** | Read-only. The role for "let me watch, don't let me touch". |
 | **Relation label** | The inviter's subjective name for a relationship ("Girlfriend", "Mom"). Descriptive; it grants nothing. |
 | **Invitation** | A single-use, expiring offer of membership addressed to an email address. |
-| **Account** | Where a wallet's money physically sits (a bank account, cash, an e-wallet, a credit card). Holds one currency. |
+| **Account** | Where a wallet's money physically sits (a bank account, cash, an e-wallet, a credit card). Holds one currency. A card is never an account of its own: a debit card is details on the bank account it spends from, and a credit card account is the debt owed to the issuer, never its limit. |
 | **Category** | An income, expense or transfer classification, arranged as a tree, scoped to one wallet. |
 | **Transaction** | A recorded movement of money: income, expense, or transfer. Always a positive amount; direction comes from its type and from which account side it names. |
 | **Transfer** | A movement between two accounts, whether in the same wallet or across two wallets. **Never spending and never income.** |
@@ -347,7 +347,7 @@ Wallets, accounts and categories are archived; transactions are cancelled; membe
 Two budgets for the same category over overlapping days would give "spent" two different meanings at once. Note that two windows can overlap without sharing a start or end date, so this is a genuine overlap rule and not a uniqueness rule on the dates. Deleting a budget frees its days for a new one.
 
 **BR-11: Invitations are single-use, expiring, and addressed to a person.**
-An invitation names an email address, grants EDITOR or VIEWER only, expires after seven days, and can be redeemed exactly once — and only by a signed-in user whose own email matches the invited address. At most one live invitation exists per wallet and address, so re-inviting revokes the previous offer rather than leaving two credentials that both work. Its credential is shown once, at creation, and never again.
+An invitation names an email address, grants EDITOR or VIEWER only, expires after seven days, and can be redeemed exactly once — and only by a signed-in user whose own email matches the invited address. Redeeming it without its link is possible only once that email has been verified (WAL-US-14, AUTH-US-05), since an unverified address may have been registered by someone other than its owner. At most one live invitation exists per wallet and address, so re-inviting revokes the previous offer rather than leaving two credentials that both work. Its credential is shown once, at creation, and never again.
 
 **BR-12: Amounts are exact.**
 Every monetary figure is an exact decimal to four places, and no figure the system reports is produced by binary floating-point arithmetic. The values involved exceed the range in which a double-precision float represents integers exactly, and even inside that range familiar sums do not come out right; either failure produces a balance that is wrong by an amount nobody can trace back to a cause.
@@ -822,6 +822,20 @@ Story-ID prefixes: **AUTH-US**, **WAL-US** (wallets & sharing), **ACC-US**, **TX
 
 **Error cases:** unauthenticated caller is refused.
 
+#### AUTH-US-05: Verify my email
+
+**As a** user who registered with a password, **I want to** prove I own my email address, **so that** I can answer invitations from my inbox (WAL-US-14) without their links.
+
+**Acceptance criteria**
+
+- I ask for a code and receive a 6-digit one at my email, in my language. Entering it verifies my address.
+- Only the latest code works, for 15 minutes and five guesses; then I ask for a new one. I can ask again once a minute, up to five codes a day.
+- A code proves only the address it was sent to.
+- A Google sign-in already verifies the address, so a verified account is told there is nothing to do.
+- Verifying is audited. The code itself is never shown, stored or logged in readable form.
+
+**Error cases:** `EMAIL_ALREADY_VERIFIED` · `EMAIL_VERIFICATION_CODE_INVALID` · `EMAIL_VERIFICATION_EXPIRED` · `RATE_LIMITED` · `EMAIL_DELIVERY_UNAVAILABLE`
+
 ---
 
 ### Feature: WAL-US — Wallets & Sharing
@@ -1036,6 +1050,22 @@ This is the feature the product exists for. Its density reflects that.
 
 ---
 
+#### WAL-US-14: Answer invitations from my inbox
+
+**As an** invitee, **I want to** see the invitations sent to my email in the app and accept or decline them there, **so that** I don't need the link to join a wallet I was invited to.
+
+**Acceptance criteria**
+
+- Lists only open invitations addressed to my own email: the wallet, who invited me, the role and when it expires. Accepted, revoked, declined and expired ones don't appear.
+- Requires a **verified** email. A Google sign-in verifies it; a password account verifies it with an emailed code (AUTH-US-05), and until then uses the invitation link, which keeps working as before (WAL-US-05).
+- Accepting joins exactly as accepting from the link does, with the same checks and audit entry.
+- Declining withdraws the invitation like a revoke, so the owner can invite the address again; it is audited against the wallet.
+- An invitation addressed to anyone else reads as not found.
+
+**Error cases:** `INVITATION_EMAIL_UNVERIFIED` · `INVITATION_NOT_FOUND` · `INVITATION_EXPIRED` · `INVITATION_ALREADY_USED` · `MEMBER_ALREADY_EXISTS`
+
+---
+
 ### Feature: ACC-US — Account Management
 
 **Traceability:** CDM §2.2 (Account), Flows §8.4; FR-18–FR-24, BR-06, BR-13
@@ -1049,7 +1079,14 @@ This is the feature the product exists for. Its density reflects that.
 
 - The form captures name, type (bank account, cash, e-wallet, credit card), currency and opening amount.
 - The opening amount **may be negative** — a credit card legitimately opens in debt, and refusing that would make the product unable to describe one.
+  For a credit card the app asks for the amount owed as a plain figure and stores it negative, since a forgotten minus would
+  book the debt as money owned; wherever its balance shows, it then reads as owed, unsigned. No credit limit is kept, so none can reach net worth.
+- A debit card is recorded as details on its bank account, not as another account, so its balance is never counted twice;
+  the bank account's form says so.
 - Currency is a three-letter code and is fixed from here on.
+- Optionally, the bank or e-wallet provider behind it, and, for a bank account or credit card, the card's
+  network (Visa, Mastercard, JCB, American Express, NAPAS, UnionPay, other) and its last four digits —
+  never more of the number. Cash carries none of these. All three stay editable and can be cleared.
 - The account belongs to exactly one wallet, and the caller needs EDITOR or above on it.
 - An archived wallet accepts no new accounts.
 - Creation is audited.
@@ -1702,8 +1739,8 @@ The most rule-dense feature in the product, because a transaction is the only th
 
 | Feature | Prefix | Stories | Traceability |
 | --- | --- | --- | --- |
-| Authentication & Session | `AUTH-US` | 4 | Flows §8.1; CDM §2.2 |
-| Wallets & Sharing | `WAL-US` | 13 | Flows §8.2, §8.3, §8.9; BR-01, BR-02, BR-05, BR-11, BR-15 |
+| Authentication & Session | `AUTH-US` | 5 | Flows §8.1; CDM §2.2 |
+| Wallets & Sharing | `WAL-US` | 14 | Flows §8.2, §8.3, §8.9; BR-01, BR-02, BR-05, BR-11, BR-15 |
 | Account Management | `ACC-US` | 5 | Flows §8.4; FR-18–FR-24 |
 | Transaction Management | `TXN-US` | 8 | Flows §8.4, §8.5; BR-03, BR-04, BR-07, BR-08 |
 | Categories | `CAT-US` | 4 | Flows §8.4, §8.6; FR-30 |
@@ -1712,7 +1749,7 @@ The most rule-dense feature in the product, because a transaction is the only th
 | Dashboard | `DASH-US` | 4 | Flows §8.8; BR-04, BR-13, BR-16 |
 | Guest Mode | `GST-US` | 2 | Flow §8.10 |
 | AI Assistant | `AI-US` | 3 | API spec §17; BR-04, BR-05, BR-13 |
-| **Total** | — | **53** | — |
+| **Total** | — | **55** | — |
 
 **Rule coverage** — the rules that most often get lost in implementation, and where their acceptance criteria live:
 

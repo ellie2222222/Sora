@@ -2,6 +2,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useTranslation } from 'react-i18next';
 
 import { AddAccountScreen } from '@/features/accounts';
+import { AcceptInvitationScreen } from '@/features/auth';
 import { CategoryListScreen } from '@/features/categories';
 
 import { ModalProvider } from '../providers/ModalProvider.tsx';
@@ -27,17 +28,12 @@ export function AppNavigator() {
   return (
     <ModalProvider>
       <Stack.Navigator>
-      <Stack.Screen name="Main" component={MainTabNavigator} options={{ headerShown: false }} />
-
-      <Stack.Screen name="AddAccount" component={AddAccountScreen} options={transparentModalOptions} />
-
-      <Stack.Screen name="CategoryList" component={CategoryListScreen} options={{ title: t('categories.title') }} />
-
-
-
-
-
-    </Stack.Navigator>
+        {/* Transparent over ThemeProvider's backdrop, which eases on a theme switch; nothing sits below Main. */}
+        <Stack.Screen name="Main" component={MainTabNavigator} options={{ headerShown: false, cardStyle: { backgroundColor: 'transparent' } }} />
+        <Stack.Screen name="AddAccount" component={AddAccountScreen} options={transparentModalOptions} />
+        <Stack.Screen name="CategoryList" component={CategoryListScreen} options={{ title: t('categories.title') }} />
+        <Stack.Screen name="AcceptInvitation" component={AcceptInvitationScreen} options={{ title: t('invitations.title') }} />
+      </Stack.Navigator>
     </ModalProvider>
   );
 }

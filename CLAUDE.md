@@ -316,7 +316,7 @@ sora/
 │   │   ├── common/            # guards, interceptors, envelope, error mapping
 │   │   ├── auth/  wallets/  accounts/  categories/
 │   │   ├── transactions/  budgets/  goals/  dashboard/  audit/
-│   │   ├── ai/  exchange-rate/  health/
+│   │   ├── ai/  exchange-rate/  health/  mail/
 │   │   └── main.ts
 │   └── test/                  # node --test; unit tests boot the DI graph, integration.*.test.ts also a real Postgres
 ├── mobile/                    # @sora/mobile — Expo + React Native
@@ -521,7 +521,10 @@ SHA-256-hashed token (only the hash is stored), 7-day expiry, `EDITOR`/`VIEWER` 
 invites; the invitee's own email must match `invited_email` case-insensitively on accept, or the
 token would be a bearer capability rather than an invitation to a person. At most one open
 invitation per `(wallet, email)` — `uq_wallet_invitation_open` — so re-inviting revokes rather
-than stacking live tokens.
+than stacking live tokens. The in-app inbox (`GET /invitations`, accept/decline by id) has no
+token, so it serves only a **verified** email (`users.email_verified_at`, set by a Google sign-in or an emailed code):
+an unverified address may have been registered by someone else, who would otherwise receive and
+accept what was sent to its real owner.
 
 ---
 
@@ -697,7 +700,8 @@ negative.
 
 ### Logging & Audit
 
-**LA-01** — Never logged: passwords, password hashes, access/refresh tokens, invitation tokens.
+**LA-01** — Never logged: passwords, password hashes, access/refresh tokens, invitation tokens, email
+verification codes.
 User ids and emails may appear at `INFO`.
 
 **LA-02** — Financial mutations and every membership/role change write an `audit_logs` row:
@@ -761,7 +765,9 @@ authenticates nothing while looking fine.
 `DATABASE_URL`, `DATABASE_POOL_MAX` (10), `DATABASE_STATEMENT_TIMEOUT_MS` (15000),
 `DATABASE_CONNECTION_TIMEOUT_MS` (5000), `DATABASE_IDLE_TIMEOUT_MS` (30000), `JWT_SECRET`
 (≥32 chars), `JWT_ISSUER`, `ACCESS_TOKEN_TTL_SECONDS` (900), `REFRESH_TOKEN_TTL_DAYS` (7),
-`INVITATION_TTL_DAYS` (7), `AUTH_RATE_LIMIT_PER_MINUTE` (10), `LOGIN_FAILURE_LIMIT` (5),
+`INVITATION_TTL_DAYS` (7), `EMAIL_VERIFICATION_TTL_MINUTES` (15), `SMTP_URL` (unset writes mail to
+`MAIL_OUTBOX_DIR` outside production and refuses to send in it), `MAIL_FROM`, `MAIL_OUTBOX_DIR`
+(`.mail-outbox`), `AUTH_RATE_LIMIT_PER_MINUTE` (10), `LOGIN_FAILURE_LIMIT` (5),
 `LOGIN_LOCKOUT_MINUTES` (15), `GOOGLE_CLIENT_ID`, `EXCHANGE_RATE_API_URL`,
 `EXCHANGE_RATE_TIMEOUT_SECONDS` (5), `EXCHANGE_RATE_CACHE_TTL_MINUTES` (720), `CORS_ORIGINS`
 (comma list; unset allows any origin outside production and none in it), `PORT`, `NODE_ENV`,
@@ -1076,3 +1082,16 @@ rewriting it.
     through `packages/contracts/src/calendar.ts` (`dayOfInstant`, `todayIn`, `dayRange`, `withDay`)
     with the wallet's `timeZone`. Every member gets the same day, and a changed zone re-reads
     instants without rewriting them. Display-only times (`formatTimeOfDay`) stay on the device.
+
+19. **A worklet's default parameter cannot read a module constant.** The worklets plugin unpacks what a
+    worklet captured (`const { DECK } = this.__closure`) at the top of its body, and default parameters are
+    evaluated before the body, so `deckPose(offset, fadeEnd = DECK.visibleRange)` threw `ReferenceError:
+    Property 'DECK' doesn't exist` on the UI thread every frame it was called without `fadeEnd`, while its
+    unit tests, run on the JS thread, passed. In a `'worklet'` function, take the parameter as optional and
+    resolve the default in the body (`const fadeEnd = fadeEndAt ?? DECK.visibleRange`).
+
+20. **On Android, `KeyboardAvoidingView` needs `behavior="padding"` too.** Android runs the app
+    edge-to-edge (Expo's default, which Android enforces from API 35), where `adjustResize` no longer
+    shrinks the window, and a `Modal` draws in a window of its own besides. With the usual
+    `Platform.OS === 'ios' ? 'padding' : undefined`, the keyboard covered every sheet's fields and the AI
+    chat composer on Android while nothing looked wrong on iOS. Set `behavior="padding"` on both platforms.

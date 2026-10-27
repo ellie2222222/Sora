@@ -102,7 +102,9 @@ export async function toQueryFnResult<T>(
   run: () => Promise<T>,
 ): Promise<{ data: T } | { error: ApiErrorLike }> {
   try {
-    return { data: await run() };
+    const data = await run();
+    // RTK Query reads `data: undefined` as a queryFn that returned nothing, so a void call reports null.
+    return { data: (data === undefined ? null : data) as T };
   } catch (error) {
     return { error: toSerializedError(error) };
   }
@@ -112,6 +114,7 @@ export const API_TAG_TYPES = [
   'Wallet',
   'WalletMember',
   'WalletInvitation',
+  'ReceivedInvitation',
   'AuditLog',
   'Account',
   'Category',

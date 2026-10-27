@@ -49,11 +49,14 @@ describe('ERROR_STATUS', () => {
       'CATEGORY_WRONG_WALLET',
       'FORBIDDEN',
       'INVITATION_EMAIL_MISMATCH',
+      // Raised before any invitation is looked up, so it describes the caller's account, never a target.
+      'INVITATION_EMAIL_UNVERIFIED',
     ]);
   });
 
-  it('reserves 410 for an expired invitation alone', () => {
-    assert.deepEqual(codesWithStatus(410), ['INVITATION_EXPIRED']);
+  it('reserves 410 for a one-time credential that expired', () => {
+    // Both existed and were valid once; 404 would tell the user to recheck what they typed instead of asking again.
+    assert.deepEqual(codesWithStatus(410), ['EMAIL_VERIFICATION_EXPIRED', 'INVITATION_EXPIRED']);
   });
 
   it('has a status for every code and no status for a code that does not exist', () => {

@@ -66,7 +66,7 @@ sora/
 │   └── src/                   # enums.ts, money.ts, calendar.ts, calc.ts, schemas.ts, responses.ts, routes.ts, starter-categories.ts
 ├── server/                    # @sora/server — NestJS 12 ESM, Kysely typed SQL, pg; Dockerfile (optional image)
 │   └── src/                   # auth/, wallets/, accounts/, categories/, transactions/, budgets/, goals/, dashboard/,
-│                              # audit/, ai/, exchange-rate/, health/, config/, database/, common/
+│                              # audit/, ai/, exchange-rate/, health/, mail/, config/, database/, common/
 ├── mobile/                    # @sora/mobile — Expo React Native, Redux Toolkit + RTK Query
 │   ├── e2e/                   # Maestro flows + API seed; app.config.js turns GWP-ASan off and adds the E2E build switch
 │   └── src/                   # app/, features/, components/, design-system/, services/ (incl. haptics/), hooks/, utils/

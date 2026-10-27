@@ -113,12 +113,12 @@ Ranks compare (`roleSatisfies()`): OWNER ⊇ EDITOR ⊇ VIEWER. Everything under
 | 403 | Authenticated and a member, but role insufficient |
 | 404 | Not found, or not visible to this user |
 | 409 | Business conflict (duplicate, immutable, overlap) |
-| 410 | Gone (expired invitation) |
+| 410 | Gone (expired invitation or verification code) |
 | 422 | Validation failed, in a body or a query string (a wrong-typed or out-of-range query value included) |
 | 429 | Rate limited |
 | 499 | The client closed the connection before the answer was ready (the assistant's send, §17.5); never read by a client |
 | 500 | Unexpected server error |
-| 503 | A dependency is unavailable or busy (exchange rates, the assistant's model); retry later |
+| 503 | A dependency is unavailable or busy (exchange rates, the assistant's model, mail delivery); retry later |
 | 504 | A dependency took too long (the assistant's model, §17.5); retry |
 
 ### 2.7 Error codes
@@ -133,7 +133,7 @@ Ranks compare (`roleSatisfies()`): OWNER ⊇ EDITOR ⊇ VIEWER. Everything under
 
 ### 2.9 Rate limiting
 
-`/auth/login`, `/auth/register` and `/auth/refresh`: 10 requests per minute per IP, and for login additionally 5 consecutive failures per email before a 15-minute lockout. An attempt counts toward the lockout from the moment it starts, before its password is checked, so a burst of concurrent guesses cannot all slip under it; a success clears the count. Exceeding either returns `429 RATE_LIMITED` with a `Retry-After` header.
+`/auth/login`, `/auth/register` and `/auth/refresh`: 10 requests per minute per IP, and for login additionally 5 consecutive failures per email before a 15-minute lockout. An attempt counts toward the lockout from the moment it starts, before its password is checked, so a burst of concurrent guesses cannot all slip under it; a success clears the count. Exceeding either returns `429 RATE_LIMITED` with a `Retry-After` header. `/auth/me/email-verification` and its `/confirm` each have the same 10-per-minute per-IP limit, and a code can be resent once a minute, up to 5 times a day (§5.8).
 
 ### 2.10 Idempotency
 
@@ -182,56 +182,61 @@ The app proposes the device's zone when a wallet is created (§5.1, §6.2), and 
 | 6 | GET | `/auth/me` | authed | [5.5](#55-get-authme) |
 | 7 | POST | `/auth/google` | public | [5.6](#56-post-authgoogle) |
 | 8 | PATCH | `/auth/me/preferences` | authed | [5.7](#57-patch-authmepreferences) |
-| 9 | GET | `/wallets` | authed | [6.1](#61-get-wallets) |
-| 10 | POST | `/wallets` | authed | [6.2](#62-post-wallets) |
-| 11 | GET | `/wallets/{id}` | VIEWER | [6.3](#63-get-walletsid) |
-| 12 | PATCH | `/wallets/{id}` | OWNER | [6.4](#64-patch-walletsid) |
-| 13 | DELETE | `/wallets/{id}` | OWNER | [6.5](#65-delete-walletsid) |
-| 14 | GET | `/wallets/{id}/members` | VIEWER | [7.1](#71-get-walletsidmembers) |
-| 15 | PATCH | `/wallets/{id}/members/{memberId}` | OWNER | [7.2](#72-patch-walletsidmembersmemberid) |
-| 16 | DELETE | `/wallets/{id}/members/{memberId}` | OWNER | [7.3](#73-delete-walletsidmembersmemberid) |
-| 17 | POST | `/wallets/{id}/transfer-ownership` | OWNER | [7.4](#74-post-walletsidtransfer-ownership) |
-| 18 | POST | `/wallets/{id}/leave` | VIEWER | [7.5](#75-post-walletsidleave) |
-| 19 | GET | `/wallets/{id}/invitations` | OWNER | [8.1](#81-get-walletsidinvitations) |
-| 20 | POST | `/wallets/{id}/invitations` | OWNER | [8.2](#82-post-walletsidinvitations) |
-| 21 | DELETE | `/wallets/{id}/invitations/{invId}` | OWNER | [8.3](#83-delete-walletsidinvitationsinvid) |
-| 22 | POST | `/invitations/preview` | public | [8.4](#84-post-invitationspreview) |
-| 23 | POST | `/invitations/accept` | authed | [8.5](#85-post-invitationsaccept) |
-| 24 | GET | `/accounts` | VIEWER | [9.1](#91-get-accounts) |
-| 25 | POST | `/accounts` | EDITOR | [9.2](#92-post-accounts) |
-| 26 | GET | `/accounts/{id}` | VIEWER | [9.3](#93-get-accountsid) |
-| 27 | PATCH | `/accounts/{id}` | EDITOR | [9.4](#94-patch-accountsid) |
-| 28 | DELETE | `/accounts/{id}` | EDITOR | [9.5](#95-delete-accountsid) |
-| 29 | GET | `/categories` | VIEWER | [10.1](#101-get-categories) |
-| 30 | POST | `/categories` | EDITOR | [10.2](#102-post-categories) |
-| 31 | PATCH | `/categories/{id}` | EDITOR | [10.3](#103-patch-categoriesid) |
-| 32 | DELETE | `/categories/{id}` | EDITOR | [10.4](#104-delete-categoriesid) |
-| 33 | GET | `/transactions` | VIEWER | [11.1](#111-get-transactions) |
-| 34 | POST | `/transactions` | EDITOR | [11.2](#112-post-transactions) |
-| 35 | GET | `/transactions/{id}` | VIEWER | [11.3](#113-get-transactionsid) |
-| 36 | PATCH | `/transactions/{id}` | EDITOR | [11.4](#114-patch-transactionsid) |
-| 37 | POST | `/transactions/{id}/delete` | EDITOR | [11.5](#115-post-transactionsiddelete) |
-| 38 | GET | `/budgets` | VIEWER | [12.1](#121-get-budgets) |
-| 39 | POST | `/budgets` | EDITOR | [12.2](#122-post-budgets) |
-| 40 | GET | `/budgets/{id}` | VIEWER | [12.3](#123-get-budgetsid) |
-| 41 | PATCH | `/budgets/{id}` | EDITOR | [12.4](#124-patch-budgetsid) |
-| 42 | DELETE | `/budgets/{id}` | EDITOR | [12.5](#125-delete-budgetsid) |
-| 43 | GET | `/goals` | VIEWER | [13.1](#131-get-goals) |
-| 44 | POST | `/goals` | EDITOR | [13.2](#132-post-goals) |
-| 45 | GET | `/goals/{id}` | VIEWER | [13.3](#133-get-goalsid) |
-| 46 | PATCH | `/goals/{id}` | EDITOR | [13.4](#134-patch-goalsid) |
-| 47 | DELETE | `/goals/{id}` | EDITOR | [13.5](#135-delete-goalsid) |
-| 48 | GET | `/goals/{id}/contributions` | VIEWER | [13.6](#136-get-goalsidcontributions) |
-| 49 | POST | `/goals/{id}/contributions` | EDITOR | [13.7](#137-post-goalsidcontributions) |
-| 50 | GET | `/dashboard` | VIEWER | [14.1](#141-get-dashboard) |
-| 51 | GET | `/wallets/{id}/audit-logs` | OWNER | [15.1](#151-get-walletsidaudit-logs) |
-| 52 | GET | `/ai/conversations` | authed | [17.1](#171-get-aiconversations) |
-| 53 | POST | `/ai/conversations` | authed | [17.2](#172-post-aiconversations) |
-| 54 | POST | `/ai/conversations/{id}/delete` | authed | [17.3](#173-post-aiconversationsiddelete) |
-| 55 | GET | `/ai/conversations/{id}/messages` | authed | [17.4](#174-get-aiconversationsidmessages) |
-| 56 | POST | `/ai/conversations/{id}/messages` | VIEWER | [17.5](#175-post-aiconversationsidmessages) |
-| 57 | POST | `/ai/conversations/{id}/messages/{messageId}/confirm` | EDITOR | [17.6](#176-post-aiconversationsidmessagesmessageidconfirm) |
-| 58 | POST | `/ai/conversations/{id}/messages/{messageId}/dismiss` | authed | [17.7](#177-post-aiconversationsidmessagesmessageiddismiss) |
+| 9 | POST | `/auth/me/email-verification` | authed | [5.8](#58-post-authmeemail-verification) |
+| 10 | POST | `/auth/me/email-verification/confirm` | authed | [5.9](#59-post-authmeemail-verificationconfirm) |
+| 11 | GET | `/wallets` | authed | [6.1](#61-get-wallets) |
+| 12 | POST | `/wallets` | authed | [6.2](#62-post-wallets) |
+| 13 | GET | `/wallets/{id}` | VIEWER | [6.3](#63-get-walletsid) |
+| 14 | PATCH | `/wallets/{id}` | OWNER | [6.4](#64-patch-walletsid) |
+| 15 | DELETE | `/wallets/{id}` | OWNER | [6.5](#65-delete-walletsid) |
+| 16 | GET | `/wallets/{id}/members` | VIEWER | [7.1](#71-get-walletsidmembers) |
+| 17 | PATCH | `/wallets/{id}/members/{memberId}` | OWNER | [7.2](#72-patch-walletsidmembersmemberid) |
+| 18 | DELETE | `/wallets/{id}/members/{memberId}` | OWNER | [7.3](#73-delete-walletsidmembersmemberid) |
+| 19 | POST | `/wallets/{id}/transfer-ownership` | OWNER | [7.4](#74-post-walletsidtransfer-ownership) |
+| 20 | POST | `/wallets/{id}/leave` | VIEWER | [7.5](#75-post-walletsidleave) |
+| 21 | GET | `/wallets/{id}/invitations` | OWNER | [8.1](#81-get-walletsidinvitations) |
+| 22 | POST | `/wallets/{id}/invitations` | OWNER | [8.2](#82-post-walletsidinvitations) |
+| 23 | DELETE | `/wallets/{id}/invitations/{invId}` | OWNER | [8.3](#83-delete-walletsidinvitationsinvid) |
+| 24 | POST | `/invitations/preview` | public | [8.4](#84-post-invitationspreview) |
+| 25 | POST | `/invitations/accept` | authed | [8.5](#85-post-invitationsaccept) |
+| 26 | GET | `/invitations` | authed, verified email | [8.6](#86-get-invitations) |
+| 27 | POST | `/invitations/{invId}/accept` | authed, verified email | [8.7](#87-post-invitationsinvidaccept) |
+| 28 | POST | `/invitations/{invId}/decline` | authed, verified email | [8.8](#88-post-invitationsinviddecline) |
+| 29 | GET | `/accounts` | VIEWER | [9.1](#91-get-accounts) |
+| 30 | POST | `/accounts` | EDITOR | [9.2](#92-post-accounts) |
+| 31 | GET | `/accounts/{id}` | VIEWER | [9.3](#93-get-accountsid) |
+| 32 | PATCH | `/accounts/{id}` | EDITOR | [9.4](#94-patch-accountsid) |
+| 33 | DELETE | `/accounts/{id}` | EDITOR | [9.5](#95-delete-accountsid) |
+| 34 | GET | `/categories` | VIEWER | [10.1](#101-get-categories) |
+| 35 | POST | `/categories` | EDITOR | [10.2](#102-post-categories) |
+| 36 | PATCH | `/categories/{id}` | EDITOR | [10.3](#103-patch-categoriesid) |
+| 37 | DELETE | `/categories/{id}` | EDITOR | [10.4](#104-delete-categoriesid) |
+| 38 | GET | `/transactions` | VIEWER | [11.1](#111-get-transactions) |
+| 39 | POST | `/transactions` | EDITOR | [11.2](#112-post-transactions) |
+| 40 | GET | `/transactions/{id}` | VIEWER | [11.3](#113-get-transactionsid) |
+| 41 | PATCH | `/transactions/{id}` | EDITOR | [11.4](#114-patch-transactionsid) |
+| 42 | POST | `/transactions/{id}/delete` | EDITOR | [11.5](#115-post-transactionsiddelete) |
+| 43 | GET | `/budgets` | VIEWER | [12.1](#121-get-budgets) |
+| 44 | POST | `/budgets` | EDITOR | [12.2](#122-post-budgets) |
+| 45 | GET | `/budgets/{id}` | VIEWER | [12.3](#123-get-budgetsid) |
+| 46 | PATCH | `/budgets/{id}` | EDITOR | [12.4](#124-patch-budgetsid) |
+| 47 | DELETE | `/budgets/{id}` | EDITOR | [12.5](#125-delete-budgetsid) |
+| 48 | GET | `/goals` | VIEWER | [13.1](#131-get-goals) |
+| 49 | POST | `/goals` | EDITOR | [13.2](#132-post-goals) |
+| 50 | GET | `/goals/{id}` | VIEWER | [13.3](#133-get-goalsid) |
+| 51 | PATCH | `/goals/{id}` | EDITOR | [13.4](#134-patch-goalsid) |
+| 52 | DELETE | `/goals/{id}` | EDITOR | [13.5](#135-delete-goalsid) |
+| 53 | GET | `/goals/{id}/contributions` | VIEWER | [13.6](#136-get-goalsidcontributions) |
+| 54 | POST | `/goals/{id}/contributions` | EDITOR | [13.7](#137-post-goalsidcontributions) |
+| 55 | GET | `/dashboard` | VIEWER | [14.1](#141-get-dashboard) |
+| 56 | GET | `/wallets/{id}/audit-logs` | OWNER | [15.1](#151-get-walletsidaudit-logs) |
+| 57 | GET | `/ai/conversations` | authed | [17.1](#171-get-aiconversations) |
+| 58 | POST | `/ai/conversations` | authed | [17.2](#172-post-aiconversations) |
+| 59 | POST | `/ai/conversations/{id}/delete` | authed | [17.3](#173-post-aiconversationsiddelete) |
+| 60 | GET | `/ai/conversations/{id}/messages` | authed | [17.4](#174-get-aiconversationsidmessages) |
+| 61 | POST | `/ai/conversations/{id}/messages` | VIEWER | [17.5](#175-post-aiconversationsidmessages) |
+| 62 | POST | `/ai/conversations/{id}/messages/{messageId}/confirm` | EDITOR | [17.6](#176-post-aiconversationsidmessagesmessageidconfirm) |
+| 63 | POST | `/ai/conversations/{id}/messages/{messageId}/dismiss` | authed | [17.7](#177-post-aiconversationsidmessagesmessageiddismiss) |
 
 ---
 
@@ -359,7 +364,7 @@ The app proposes the device's zone when a wallet is created (§5.1, §6.2), and 
 |---|---|
 | **Auth** | Bearer |
 
-**Response `200`** — `UserResponse`, including `theme`, `locale` and `hasPassword`.
+**Response `200`** — `UserResponse`, including `theme`, `locale`, `hasPassword` and `emailVerified` (§8.6).
 
 **Errors** — `401 UNAUTHENTICATED`
 
@@ -379,7 +384,7 @@ The app proposes the device's zone when a wallet is created (§5.1, §6.2), and 
 
 **Errors** — `401 GOOGLE_TOKEN_INVALID` (bad signature, wrong audience, or expired) · `409 GOOGLE_ACCOUNT_MISMATCH` (the email's account is already linked to a different Google account) · `429 RATE_LIMITED`
 
-**Side effects** — issues a token pair; audit `USER_REGISTERED` (first sign-in) or `USER_LOGIN` (returning).
+**Side effects** — issues a token pair; sets `users.email_verified_at` when unset and the token's email is the account's (Google vouches for the address; §8.6 relies on it); audit `USER_REGISTERED` (first sign-in) or `USER_LOGIN` (returning).
 
 ### 5.7 PATCH /auth/me/preferences
 
@@ -394,6 +399,38 @@ The app proposes the device's zone when a wallet is created (§5.1, §6.2), and 
 **Errors** — `401 UNAUTHENTICATED` · `422 VALIDATION_FAILED`
 
 **Side effects** — none. Persisted server-side (not just on-device) so a returning user sees the same theme and language on a new device.
+
+### 5.8 POST /auth/me/email-verification
+
+| | |
+|---|---|
+| **Auth** | Bearer |
+| **Rate limit** | 10/min per IP; one send per account per minute, and at most 5 per account in a day |
+
+Emails a 6-digit code that proves the caller owns their address, so a password account can use the invitations inbox (§8.6). A Google account is verified by signing in (§5.6) and never needs it.
+
+**Request** — no body.
+
+**Response `200`** — `EmailVerificationSentResponse` `{ email, expiresAt, resendAfter }`. The code is sent to `email` in the account's `locale` and works until `expiresAt` (`EMAIL_VERIFICATION_TTL_MINUTES`, default 15). It is never returned or logged.
+
+**Errors** — `401 UNAUTHENTICATED` · `409 EMAIL_ALREADY_VERIFIED` · `429 RATE_LIMITED` (before `resendAfter`, which after the day's fifth send is when that day ends; `Retry-After` and `error.params.retryAfterSeconds` say how long) · `503 EMAIL_DELIVERY_UNAVAILABLE` (no SMTP server in production, or it refused the message)
+
+**Side effects** — replaces any earlier code (`email_verifications`, one row per user, an HMAC of the code only), so only the latest works. The day is a window that opens at the first send and closes 24 hours later. Both limits are checked on the row in the same statement that replaces the code, so parallel sends mail one code. Undelivered, nothing is kept and neither limit applies. With no `SMTP_URL` outside production, the message is written to `MAIL_OUTBOX_DIR` instead of sent.
+
+### 5.9 POST /auth/me/email-verification/confirm
+
+| | |
+|---|---|
+| **Auth** | Bearer |
+| **Rate limit** | 10/min per IP |
+
+**Request** — `confirmEmailVerificationSchema`: `{ "code": "042317" }`. Spaces are ignored, so a pasted "042 317" works.
+
+**Response `200`** — `UserResponse` with `emailVerified: true`.
+
+**Errors** — `401 UNAUTHENTICATED` · `409 EMAIL_ALREADY_VERIFIED` · `410 EMAIL_VERIFICATION_EXPIRED` (no code sent, past `expiresAt`, five guesses already spent, or sent to an address the account no longer has) · `422 EMAIL_VERIFICATION_CODE_INVALID` (wrong code; the guess counts) · `422 VALIDATION_FAILED` (not six digits)
+
+**Side effects** — each guess is counted before it is compared, so parallel guesses cannot exceed five per code. A right code sets `users.email_verified_at`, removes the code, and audits `EMAIL_VERIFIED`.
 
 ---
 
@@ -601,7 +638,7 @@ Rejected when the email already belongs to an `ACTIVE` member, or when an open i
 
 **Errors** — `409 MEMBER_ALREADY_EXISTS` · `409 INVITATION_ALREADY_OPEN` · `403 FORBIDDEN` · `422 VALIDATION_FAILED`
 
-**Side effects** — stores the invitation with a hashed token; audit `MEMBER_INVITED`. Delivery is the caller's job in v1 — no mail is sent.
+**Side effects** — stores the invitation with a hashed token; audit `MEMBER_INVITED`. Delivery is the caller's job in v1 — no mail is sent. The app shows the token once, as a `sora://invite?token=…` link with a share action; opening it lands on the preview (§8.4) and accept (§8.5).
 
 ### 8.3 DELETE /wallets/{id}/invitations/{invId}
 
@@ -628,10 +665,10 @@ Lets an invitee see what they are being offered *before* signing up.
 **Response `200`**
 
 ```json
-{ "walletName": "Linh's Wallet", "invitedEmail": "l***@example.com", "role": "EDITOR", "expiresAt": "..." }
+{ "walletName": "Linh's Wallet", "inviterName": "Linh", "invitedEmail": "l***@example.com", "role": "EDITOR", "expiresAt": "..." }
 ```
 
-`invitedEmail` is masked: the token may be pasted anywhere, and the endpoint is public, so it must not hand out a full address.
+`invitedEmail` is masked: the token may be pasted anywhere, and the endpoint is public, so it must not hand out a full address. `inviterName` is the sender's display name, which every member of the wallet already sees; it tells the invitee whose money they are being asked to see.
 
 **Errors** — `404 INVITATION_NOT_FOUND` · `410 INVITATION_EXPIRED` · `409 INVITATION_ALREADY_USED`
 
@@ -653,6 +690,52 @@ Lets an invitee see what they are being offered *before* signing up.
 
 **Side effects** — in one transaction: create the `wallet_members` row with the invitation's role and `relationLabel`, and set `accepted_at`. Audit `INVITATION_ACCEPTED`.
 
+### 8.6 GET /invitations
+
+The invitee's inbox: open invitations addressed to the caller's own email, so they can be answered without the link.
+
+| | |
+|---|---|
+| **Auth** | Bearer · the caller's email must be **verified** |
+
+**Verified email.** Without the link's token, the caller's email is the only proof they are the person invited, so §8.6–§8.8 require `users.email_verified_at`. It is set when Google proves the address (`/auth/google` accepts only a Google-verified email) or when a password account enters the code §5.8 emails it (§5.9); registering does not verify an address, and `UserResponse.emailVerified` tells the app which case it is. An unverified account keeps the link flow (§8.4, §8.5) unchanged. Without this rule, whoever registered an address first would see and accept every invitation sent to its real owner.
+
+**Query** — `?page&pageSize` (§2.8)
+
+**Response `200`** — `ReceivedInvitationResponse[]`: `id`, `walletId`, `walletName`, `inviterName`, `role`, `relationLabel`, `expiresAt`, `createdAt`, newest first, plus `meta.pagination`. Only open invitations: not accepted, not revoked or declined, not expired. No token, and no `invitedEmail` (it is the caller's own).
+
+**Errors** — `403 INVITATION_EMAIL_UNVERIFIED`
+
+**Side effects** — none.
+
+### 8.7 POST /invitations/{invId}/accept
+
+| | |
+|---|---|
+| **Auth** | Bearer · verified email (§8.6) |
+
+Accepts an invitation from the inbox. The same join as §8.5, in the same transaction shape and with the same audit row; a verified email equal to `invited_email` stands in for the token.
+
+**Response `200`** — the joined `WalletResponse`.
+
+**Errors** — `403 INVITATION_EMAIL_UNVERIFIED` · `404 INVITATION_NOT_FOUND` (also for an invitation addressed to someone else, so an id cannot be probed) · `410 INVITATION_EXPIRED` · `409 INVITATION_ALREADY_USED` · `409 MEMBER_ALREADY_EXISTS`
+
+**Side effects** — as §8.5. Audit `INVITATION_ACCEPTED`.
+
+### 8.8 POST /invitations/{invId}/decline
+
+| | |
+|---|---|
+| **Auth** | Bearer · verified email (§8.6) |
+
+The invitee turns the invitation down. It sets `revoked_at`, exactly as the owner's revoke (§8.3) does, so the owner can invite the address again later and the old link answers `404`.
+
+**Response `204`**
+
+**Errors** — `403 INVITATION_EMAIL_UNVERIFIED` · `404 INVITATION_NOT_FOUND` (missing, someone else's, or already revoked or declined) · `410 INVITATION_EXPIRED` · `409 INVITATION_ALREADY_USED` (already accepted)
+
+**Side effects** — audit `INVITATION_DECLINED` against the invitation's wallet, with the invitee as actor and no role.
+
 ---
 
 ## 9. Accounts
@@ -665,7 +748,7 @@ Lets an invitee see what they are being offered *before* signing up.
 
 **Query** — `?walletId=uuid` (optional; omitted returns accounts across **every** wallet the caller can reach), `?status=ACTIVE|ARCHIVED`, `?type=`, `?page&pageSize` (§2.8)
 
-**Response `200`** — `AccountResponse[]`, oldest first, plus `meta.pagination`, each with a **derived** `balance`.
+**Response `200`** — `AccountResponse[]`, oldest first, plus `meta.pagination`, each with a **derived** `balance` and its card details `institutionName`, `cardNetwork`, `cardLast4` (each `null` when not set).
 
 **Errors** — `404 WALLET_NOT_FOUND` when `walletId` names a wallet the caller cannot see.
 
@@ -680,7 +763,8 @@ Lets an invitee see what they are being offered *before* signing up.
 **Request** — `createAccountSchema`
 
 ```json
-{ "walletId": "uuid", "name": "Vietcombank VND", "type": "BANK_ACCOUNT", "currency": "VND", "initialBalance": "1000000" }
+{ "walletId": "uuid", "name": "My Visa", "type": "CREDIT_CARD", "currency": "VND", "initialBalance": "-2000000",
+  "institutionName": "Vietcombank", "cardNetwork": "VISA", "cardLast4": "4821" }
 ```
 
 **Validation**
@@ -690,6 +774,11 @@ Lets an invitee see what they are being offered *before* signing up.
 | `type` | one of `ACCOUNT_TYPES` |
 | `currency` | `^[A-Z]{3}$` |
 | `initialBalance` | signed — **may be negative**, because a credit card legitimately opens in debt. This is why the column carries no `CHECK (>= 0)` |
+| `institutionName` | optional, trimmed, 1–60 characters: the bank or e-wallet provider. Refused on `CASH` |
+| `cardNetwork` | optional, one of `CARD_NETWORKS` (`VISA`, `MASTERCARD`, `JCB`, `AMEX`, `NAPAS`, `UNIONPAY`, `OTHER`). `BANK_ACCOUNT` and `CREDIT_CARD` only |
+| `cardLast4` | optional, exactly four digits (`^[0-9]{4}$`), never more of the number. `BANK_ACCOUNT` and `CREDIT_CARD` only |
+
+A detail the account's type may not hold is `422 VALIDATION_FAILED` on that field; `chk_account_card_details_type` refuses it for any other writer.
 
 **Response `201`** — `AccountResponse`.
 
@@ -717,7 +806,7 @@ Lets an invitee see what they are being offered *before* signing up.
 |---|---|
 | **Auth** | Bearer · **Min role** `EDITOR` |
 
-**Request** — `updateAccountSchema`: `{ "name"?, "currency"?, "status"? }`
+**Request** — `updateAccountSchema`: `{ "name"?, "currency"?, "status"?, "institutionName"?, "cardNetwork"?, "cardLast4"? }`. `null` clears a card detail. Each detail follows §9.2's rules against the account's stored `type`; one the type may not hold is `422 VALIDATION_FAILED` on that field.
 
 **Validation** — `type` and `initialBalance` are **not** editable. Every stored balance and every transaction on the account derives from them; changing one retroactively rewrites history with no audit trail. Create a new account instead. `currency` is editable only while the account is empty — no transaction of any status and no goal contribution names it — and is otherwise refused with `422 ACCOUNT_CURRENCY_MISMATCH`. The check and the change hold a lock on the account row, which every transaction and contribution create also takes, so a write naming the account at the same moment either commits first (the change is refused) or waits and is refused because it names the old currency.
 
@@ -1161,9 +1250,9 @@ One request answering the four questions the dashboard exists to answer: how muc
 
 ### 16.1 What is logged
 
-Audited at `INFO`: transaction created / updated / deleted; account, category, goal created / updated / archived; budget created / updated / deleted; member invited / accepted / removed / role changed; ownership transferred; wallet created / archived; login, logout, registration. Every `401` and `403` is logged at `WARN` with actor, role and target. A `403` to a member (role too low) is also audited against that wallet as `ACCESS_DENIED`, `result = DENIED`, with the method and path as its note, so the owner's trail shows the attempt (SRS WAL-US-13). A `404` standing in for no membership (AC-01) is not, since no wallet resolved for that caller.
+Audited at `INFO`: transaction created / updated / deleted; account, category, goal created / updated / archived; budget created / updated / deleted; member invited / accepted / removed / role changed; invitation revoked / declined; ownership transferred; wallet created / archived; login, logout, registration, email verified by code. Every `401` and `403` is logged at `WARN` with actor, role and target. A `403` to a member (role too low) is also audited against that wallet as `ACCESS_DENIED`, `result = DENIED`, with the method and path as its note, so the owner's trail shows the attempt (SRS WAL-US-13). A `404` standing in for no membership (AC-01) is not, since no wallet resolved for that caller.
 
-Never logged: passwords, tokens (access, refresh, or invitation), or password hashes. User ids and emails may appear at `INFO`.
+Never logged: passwords, tokens (access, refresh, or invitation), email verification codes, or password hashes. User ids and emails may appear at `INFO`.
 
 ### 16.2 Concurrency
 

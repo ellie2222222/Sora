@@ -55,6 +55,7 @@ interface UserRow {
   theme: string;
   locale: string;
   password_hash: string | null;
+  email_verified_at: Date | null;
   created_at: Date;
 }
 
@@ -252,7 +253,19 @@ export class AuthService {
         .where('google_id', '=', payload.googleId)
         .executeTakeFirst();
 
-      if (byGoogleId) return { user: byGoogleId, event: AUDIT_EVENTS.USER_LOGIN, isNew: false };
+      if (byGoogleId) {
+        // Accounts linked before verification was recorded pick it up on their next sign-in.
+        const user =
+          byGoogleId.email_verified_at === null && byGoogleId.email.toLowerCase() === payload.email
+            ? await trx
+                .updateTable('users')
+                .set({ email_verified_at: new Date() })
+                .where('id', '=', byGoogleId.id)
+                .returning(USER_COLUMNS)
+                .executeTakeFirstOrThrow()
+            : byGoogleId;
+        return { user, event: AUDIT_EVENTS.USER_LOGIN, isNew: false };
+      }
 
       const byEmail = await trx
         .selectFrom('users')
@@ -266,7 +279,7 @@ export class AuthService {
         // either, while a concurrent sign-in by this same one still matches.
         const linked = await trx
           .updateTable('users')
-          .set({ google_id: payload.googleId })
+          .set({ google_id: payload.googleId, email_verified_at: new Date() })
           .where('id', '=', byEmail.id)
           .where((eb) => eb.or([eb('google_id', 'is', null), eb('google_id', '=', payload.googleId)]))
           .returning(USER_COLUMNS)
@@ -281,6 +294,7 @@ export class AuthService {
           email: payload.email,
           google_id: payload.googleId,
           password_hash: null,
+          email_verified_at: new Date(),
           display_name: payload.displayName,
           base_currency: DEFAULT_CURRENCY,
           ...(request.locale ? { locale: request.locale } : {}),
@@ -523,6 +537,7 @@ const USER_COLUMNS = [
   'theme',
   'locale',
   'password_hash',
+  'email_verified_at',
   'created_at',
 ] as const;
 
@@ -535,6 +550,7 @@ function toUserResponse(row: UserRow): UserResponse {
     theme: row.theme as UserResponse['theme'],
     locale: row.locale as UserResponse['locale'],
     hasPassword: row.password_hash != null,
+    emailVerified: row.email_verified_at != null,
     createdAt: row.created_at.toISOString(),
   };
 }

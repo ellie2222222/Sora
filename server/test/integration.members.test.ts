@@ -165,6 +165,138 @@ describe('membership and invitations against a real database', { skip: integrati
     });
   });
 
+  describe('invitations inbox (§8.6–§8.8, WAL-US-14)', () => {
+    let owner: ProbeUser;
+
+    before(async () => {
+      owner = await registerProbeUser(api, 'inbox-owner');
+    });
+
+    async function invite(email: string, role = 'VIEWER'): Promise<{ id: string; token: string }> {
+      const created = await api.call('POST', `/wallets/${owner.walletId}/invitations`, { token: owner.token, body: { email, role } });
+      assert.equal(created.status, 201);
+      return { id: created.body!.data.id, token: created.body!.data.token };
+    }
+
+    async function verified(tag: string): Promise<ProbeUser> {
+      const user = await registerProbeUser(api, tag);
+      await api.sql('UPDATE users SET email_verified_at = now() WHERE id = $1', [user.id]);
+      return user;
+    }
+
+    it('refuses every inbox route to an unverified email, while the link still works', async () => {
+      const unverified = await registerProbeUser(api, 'inbox-unverified');
+      const invitation = await invite(unverified.email);
+
+      for (const [method, path] of [
+        ['GET', '/invitations'],
+        ['POST', `/invitations/${invitation.id}/accept`],
+        ['POST', `/invitations/${invitation.id}/decline`],
+      ] as const) {
+        const refused = await api.call(method, path, { token: unverified.token });
+        assert.deepEqual([refused.status, refused.body?.error?.code], [403, 'INVITATION_EMAIL_UNVERIFIED'], `${method} ${path}`);
+      }
+      const viaLink = await api.call('POST', '/invitations/accept', { token: unverified.token, body: { token: invitation.token } });
+      assert.equal(viaLink.status, 200);
+    });
+
+    it('lists only open invitations addressed to the caller, with the wallet and inviter, never a token', async () => {
+      const invitee = await verified('inbox-list');
+      const open = await invite(invitee.email.toUpperCase(), 'EDITOR');
+      const other = await registerProbeUser(api, 'inbox-list-other');
+      await invite(other.email);
+
+      const listed = await api.call('GET', '/invitations', { token: invitee.token });
+      assert.equal(listed.status, 200);
+      assert.deepEqual(
+        listed.body!.data.map((row: Record<string, unknown>) => [row.id, row.walletId, row.inviterName, row.role]),
+        [[open.id, owner.walletId, 'probe-inbox-owner', 'EDITOR']],
+      );
+      assert.ok(listed.body!.data.every((row: Record<string, unknown>) => !('token' in row) && !('invitedEmail' in row)));
+      assert.equal(listed.body!.meta.pagination.total, 1);
+
+      await api.sql("UPDATE wallet_invitations SET expires_at = now() - interval '1 minute' WHERE id = $1", [open.id]);
+      const afterExpiry = await api.call('GET', '/invitations', { token: invitee.token });
+      assert.deepEqual(afterExpiry.body!.data, [], 'an expired invitation is no longer open');
+    });
+
+    it('accepts by id exactly as the link does, once', async () => {
+      const invitee = await verified('inbox-accept');
+      const invitation = await invite(invitee.email, 'EDITOR');
+
+      const accepted = await api.call('POST', `/invitations/${invitation.id}/accept`, { token: invitee.token });
+      assert.equal(accepted.status, 200);
+      assert.deepEqual([accepted.body!.data.id, accepted.body!.data.role], [owner.walletId, 'EDITOR']);
+      assert.deepEqual(
+        await api.sql('SELECT role, status FROM wallet_members WHERE wallet_id = $1 AND user_id = $2', [owner.walletId, invitee.id]),
+        [{ role: 'EDITOR', status: 'ACTIVE' }],
+      );
+      assert.equal(
+        (await api.sql("SELECT id FROM audit_logs WHERE event = 'INVITATION_ACCEPTED' AND entity_id = $1", [invitation.id])).length,
+        1,
+      );
+
+      const again = await api.call('POST', `/invitations/${invitation.id}/accept`, { token: invitee.token });
+      assert.deepEqual([again.status, again.body?.error?.code], [409, 'INVITATION_ALREADY_USED']);
+      const viaLink = await api.call('POST', '/invitations/accept', { token: invitee.token, body: { token: invitation.token } });
+      assert.deepEqual([viaLink.status, viaLink.body?.error?.code], [409, 'INVITATION_ALREADY_USED'], 'one invitation, one use, whichever way');
+    });
+
+    it("answers someone else's invitation, or one that doesn't exist, as not found", async () => {
+      const invitee = await registerProbeUser(api, 'inbox-target');
+      const invitation = await invite(invitee.email);
+      const stranger = await verified('inbox-stranger');
+
+      for (const id of [invitation.id, randomUUID()]) {
+        for (const action of ['accept', 'decline']) {
+          const answer = await api.call('POST', `/invitations/${id}/${action}`, { token: stranger.token });
+          assert.deepEqual([answer.status, answer.body?.error?.code], [404, 'INVITATION_NOT_FOUND'], `${action} ${id}`);
+        }
+      }
+      assert.deepEqual(
+        await api.sql('SELECT accepted_at, revoked_at FROM wallet_invitations WHERE id = $1', [invitation.id]),
+        [{ accepted_at: null, revoked_at: null }],
+      );
+    });
+
+    it('declines like a revoke: the link stops working, the owner may invite again, and it is audited', async () => {
+      const invitee = await verified('inbox-decline');
+      const invitation = await invite(invitee.email);
+
+      const declined = await api.call('POST', `/invitations/${invitation.id}/decline`, { token: invitee.token });
+      assert.equal(declined.status, 204);
+      const viaLink = await api.call('POST', '/invitations/accept', { token: invitee.token, body: { token: invitation.token } });
+      assert.deepEqual([viaLink.status, viaLink.body?.error?.code], [404, 'INVITATION_NOT_FOUND']);
+      const twice = await api.call('POST', `/invitations/${invitation.id}/decline`, { token: invitee.token });
+      assert.deepEqual([twice.status, twice.body?.error?.code], [404, 'INVITATION_NOT_FOUND']);
+
+      assert.deepEqual(
+        await api.sql<{ wallet_id: string; actor_id: string; actor_role: string | null }>(
+          "SELECT wallet_id, actor_id, actor_role FROM audit_logs WHERE event = 'INVITATION_DECLINED' AND entity_id = $1",
+          [invitation.id],
+        ),
+        [{ wallet_id: owner.walletId, actor_id: invitee.id, actor_role: null }],
+      );
+      await invite(invitee.email);
+    });
+
+    it('refuses to decline an accepted invitation, and answers an expired one with 410', async () => {
+      const invitee = await verified('inbox-spent');
+      const accepted = await invite(invitee.email);
+      assert.equal((await api.call('POST', `/invitations/${accepted.id}/accept`, { token: invitee.token })).status, 200);
+      const late = await api.call('POST', `/invitations/${accepted.id}/decline`, { token: invitee.token });
+      assert.deepEqual([late.status, late.body?.error?.code], [409, 'INVITATION_ALREADY_USED']);
+
+      const other = await verified('inbox-expired');
+      const expired = await invite(other.email);
+      await api.sql("UPDATE wallet_invitations SET expires_at = now() - interval '1 minute' WHERE id = $1", [expired.id]);
+      for (const action of ['accept', 'decline']) {
+        const answer = await api.call('POST', `/invitations/${expired.id}/${action}`, { token: other.token });
+        assert.deepEqual([answer.status, answer.body?.error?.code], [410, 'INVITATION_EXPIRED'], action);
+      }
+    });
+  });
+
   it('reinstates a removed member who accepts a new invitation, keeping one membership row', async () => {
     const owner = await registerProbeUser(api, 'rejoin-owner');
     const member = await registerProbeUser(api, 'rejoin-member');

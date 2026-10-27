@@ -4,12 +4,13 @@ import {
   type AcceptInvitationRequest,
   type InvitationPreviewResponse,
   type InviteMemberRequest,
+  type ReceivedInvitationResponse,
   type WalletInvitationCreatedResponse,
   type WalletInvitationResponse,
   type WalletResponse,
 } from '@sora/contracts';
 
-import { deleteVoid, getAll, postOne } from './client.ts';
+import { deleteVoid, getAll, postOne, postVoid } from './client.ts';
 
 export type InvitationState = 'open' | 'accepted' | 'revoked' | 'expired';
 
@@ -31,5 +32,14 @@ export const invitationsApi = {
   },
   accept(body: AcceptInvitationRequest): Promise<WalletResponse> {
     return postOne<WalletResponse>(apiUrl(ROUTES.invitations.accept()), body);
+  },
+  received(): Promise<ReceivedInvitationResponse[]> {
+    return getAll<ReceivedInvitationResponse>(apiUrl(ROUTES.invitations.received()), {});
+  },
+  acceptById(invitationId: string): Promise<WalletResponse> {
+    return postOne<WalletResponse>(apiUrl(ROUTES.invitations.acceptById(invitationId)));
+  },
+  decline(invitationId: string): Promise<void> {
+    return postVoid(apiUrl(ROUTES.invitations.decline(invitationId)));
   },
 };

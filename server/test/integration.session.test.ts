@@ -198,6 +198,7 @@ describe('session lifecycle against a real database', { skip: integrationSkipRea
       assert.equal(first.status, 200);
       assert.equal(first.body?.data.user.email, email);
       assert.equal(first.body?.data.user.hasPassword, false);
+      assert.equal(first.body?.data.user.emailVerified, true, 'Google proved the address');
       assert.ok(first.body?.data.tokens.accessToken && first.body?.data.tokens.refreshToken);
       assert.deepEqual([audiences.at(-1)].flat(), process.env.GOOGLE_CLIENT_ID!.split(',').map((id) => id.trim()));
       const userId = first.body!.data.user.id as string;
@@ -238,11 +239,14 @@ describe('session lifecycle against a real database', { skip: integrationSkipRea
 
     it('AUTH-US-02: Google sign-in for an email that already has a password account links it instead of creating a second user', async () => {
       const user = await registerProbeUser(api, 'google-link');
+      const before = await api.call('GET', '/auth/me', { token: user.token });
+      assert.equal(before.body?.data.emailVerified, false, 'a password registration proves nothing about the address');
       const { idToken } = googleIdentity('google-link', user.email);
       const linked = await api.call('POST', '/auth/google', { body: { idToken, timeZone: 'Asia/Ho_Chi_Minh' } });
       assert.equal(linked.status, 200);
       assert.equal(linked.body?.data.user.id, user.id);
       assert.equal(linked.body?.data.user.hasPassword, true);
+      assert.equal(linked.body?.data.user.emailVerified, true);
 
       const rows = await api.sql<{ id: string; google_id: string | null }>('SELECT id, google_id FROM users WHERE LOWER(email) = $1', [user.email]);
       assert.deepEqual(rows, [{ id: user.id, google_id: payloads.get(idToken)!.sub }]);
@@ -285,6 +289,7 @@ describe('session lifecycle against a real database', { skip: integrationSkipRea
       theme: 'obsidian',
       locale: 'en',
       hasPassword: true,
+      emailVerified: false,
     });
     assert.ok(!Number.isNaN(Date.parse(createdAt)));
 

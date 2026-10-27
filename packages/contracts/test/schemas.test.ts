@@ -13,6 +13,7 @@ import {
   signedAmountSchema,
   transactionQuerySchema,
   updatePreferencesSchema,
+  updateAccountSchema,
   updateTransactionSchema,
   mergeTransactionUpdate,
   movesMoney,
@@ -295,6 +296,35 @@ describe('createAccountSchema', () => {
       currency: 'VND',
     });
     assert.equal(result.success, false);
+  });
+  it('takes a bank, network and last four digits on a card account, each optional', () => {
+    const card = { walletId: ACCOUNT_A, name: 'My Visa', type: 'CREDIT_CARD', currency: 'VND' };
+    assert.equal(createAccountSchema.safeParse({ ...card, institutionName: ' Vietcombank ', cardNetwork: 'VISA', cardLast4: '4821' }).data?.institutionName, 'Vietcombank');
+    assert.equal(createAccountSchema.safeParse({ ...card, type: 'BANK_ACCOUNT', cardNetwork: 'NAPAS' }).success, true);
+    assert.equal(createAccountSchema.safeParse(card).success, true);
+  });
+
+  it('refuses a network outside the list, and card digits that are not exactly four', () => {
+    const card = { walletId: ACCOUNT_A, name: 'Card', type: 'CREDIT_CARD', currency: 'VND' };
+    assert.deepEqual(issuePaths(createAccountSchema.safeParse({ ...card, cardNetwork: 'DINERS' })), ['cardNetwork']);
+    for (const digits of ['482', '48211', '48a1', '4111 1111 1111 1111']) {
+      assert.deepEqual(issuePaths(createAccountSchema.safeParse({ ...card, cardLast4: digits })), ['cardLast4'], digits);
+    }
+  });
+
+  it('refuses card details on an account with no card, and any bank on cash', () => {
+    const base = { walletId: ACCOUNT_A, name: 'X', currency: 'VND' };
+    assert.deepEqual(issuePaths(createAccountSchema.safeParse({ ...base, type: 'E_WALLET', institutionName: 'MoMo', cardNetwork: 'VISA', cardLast4: '1234' })), ['cardLast4', 'cardNetwork']);
+    assert.deepEqual(issuePaths(createAccountSchema.safeParse({ ...base, type: 'CASH', institutionName: 'Vietcombank' })), ['institutionName']);
+    assert.equal(createAccountSchema.safeParse({ ...base, type: 'CASH', institutionName: null, cardNetwork: null, cardLast4: null }).success, true);
+  });
+});
+
+describe('updateAccountSchema', () => {
+  it('sets or clears a card detail on its own', () => {
+    assert.equal(updateAccountSchema.safeParse({ cardLast4: '0042' }).success, true);
+    assert.equal(updateAccountSchema.safeParse({ cardNetwork: null }).success, true);
+    assert.deepEqual(issuePaths(updateAccountSchema.safeParse({ cardLast4: '42' })), ['cardLast4']);
   });
 });
 

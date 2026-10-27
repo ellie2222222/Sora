@@ -60,6 +60,7 @@ One canonical term per concept across code, SQL, API, and UI:
 - Single-use, SHA-256 hashed token (only the hash is stored in `wallet_invitations`), with a 7-day expiration.
 - Allowed invitation roles are `EDITOR` or `VIEWER`. `OWNER` cannot be invited (ownership transfer requires explicit handoff).
 - Enforced by `uq_wallet_invitation_open`: re-inviting revokes prior live tokens for that email.
+- The in-app inbox (`GET /invitations`, accept/decline by id) has no token, so it serves only a **verified** email (`users.email_verified_at`, set by a Google sign-in or an emailed code). An unverified address may have been registered by someone else.
 
 ---
 

@@ -27,8 +27,8 @@ export type AppStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   AddAccount: { walletId?: string } | undefined;
   CategoryList: { walletId?: string } | undefined;
-
-
+  /** Same screen as the auth stack's, so an invitation link opens whether or not anyone is signed in. */
+  AcceptInvitation: { token: string } | undefined;
 };
 
 export type AuthStackScreenProps<Screen extends keyof AuthStackParamList> = NativeStackScreenProps<

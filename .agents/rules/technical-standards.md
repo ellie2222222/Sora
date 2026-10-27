@@ -101,7 +101,7 @@
 
 ## Logging & Audit
 
-- **LA-01**: Never logged: passwords, password hashes, access/refresh tokens, invitation tokens. User ids and emails may appear at `INFO`.
+- **LA-01**: Never logged: passwords, password hashes, access/refresh tokens, invitation tokens, email verification codes. User ids and emails may appear at `INFO`.
 - **LA-02**: Financial mutations and every membership/role change write an `audit_logs` row (`event`, `entity_type`, `entity_id`, `result`, `actor_id`, `actor_role`, `note`, `ip`). A cross-wallet transfer is audited once against each wallet.
 - **LA-03**: `401` and `403` at `WARN` with actor, role and target (AC-05).
 - **LA-04**: `/health` is never logged.

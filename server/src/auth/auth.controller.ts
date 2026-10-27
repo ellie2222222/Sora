@@ -6,12 +6,15 @@ import {
   HttpStatus,
   Patch,
   Post,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { z } from 'zod';
 
 import {
   ROUTES,
+  confirmEmailVerificationSchema,
   googleAuthSchema,
   loginSchema,
   refreshSchema,
@@ -19,13 +22,16 @@ import {
   updatePreferencesSchema,
   type AuthResponse,
   type AuthTokens,
+  type EmailVerificationSentResponse,
   type UserResponse,
 } from '@sora/contracts';
 
 import { ClientIp, CurrentUser, Public, type AuthenticatedUser } from '../common/decorators.ts';
 import { zodPipe } from '../common/zod-validation.pipe.ts';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard.ts';
+import { AppError } from '../common/app-error.ts';
 import { AuthService } from './auth.service.ts';
+import { EmailVerificationService } from './email-verification.service.ts';
 
 /**
  * Logout's body is optional and has no contracts schema — §5.4 defines the field
@@ -36,7 +42,10 @@ const logoutSchema = z.object({ refreshToken: z.string().min(1).optional() }).de
 
 @Controller()
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly emailVerification: EmailVerificationService,
+  ) {}
 
   @Public()
   @UseGuards(AuthRateLimitGuard)
@@ -102,5 +111,32 @@ export class AuthController {
     @Body(zodPipe(updatePreferencesSchema)) body: z.infer<typeof updatePreferencesSchema>,
   ): Promise<UserResponse> {
     return this.auth.updatePreferences(user, body);
+  }
+
+  @UseGuards(AuthRateLimitGuard)
+  @HttpCode(HttpStatus.OK)
+  @Post(ROUTES.auth.sendEmailVerification())
+  async sendEmailVerification(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<EmailVerificationSentResponse> {
+    try {
+      return await this.emailVerification.send(user);
+    } catch (error) {
+      const wait = error instanceof AppError ? error.params?.retryAfterSeconds : undefined;
+      if (typeof wait === 'number') response.setHeader('Retry-After', String(wait));
+      throw error;
+    }
+  }
+
+  @UseGuards(AuthRateLimitGuard)
+  @HttpCode(HttpStatus.OK)
+  @Post(ROUTES.auth.confirmEmailVerification())
+  confirmEmailVerification(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(zodPipe(confirmEmailVerificationSchema)) body: z.infer<typeof confirmEmailVerificationSchema>,
+    @ClientIp() ip: string | null,
+  ): Promise<UserResponse> {
+    return this.emailVerification.confirm(user, body.code, ip);
   }
 }

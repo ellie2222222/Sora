@@ -45,6 +45,20 @@ const envSchema = z.object({
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).default(7),
   INVITATION_TTL_DAYS: z.coerce.number().int().min(1).default(7),
+  /** How long an emailed verification code works (§5.8); short, since six digits are guessable given time. */
+  EMAIL_VERIFICATION_TTL_MINUTES: z.coerce.number().int().min(1).max(60).default(15),
+
+  /**
+   * `smtp://` or `smtps://user:pass@host:port`. Unset sends no mail: outside production a message is
+   * written to MAIL_OUTBOX_DIR instead, and in production §5.8 answers 503 EMAIL_DELIVERY_UNAVAILABLE.
+   */
+  SMTP_URL: z
+    .string()
+    .optional()
+    .transform((value) => (value && value.trim().length > 0 ? value.trim() : undefined))
+    .refine((value) => value === undefined || /^smtps?:\/\//.test(value), 'SMTP_URL must start with smtp:// or smtps://'),
+  MAIL_FROM: z.string().min(3).default('Sora <no-reply@sora.invalid>'),
+  MAIL_OUTBOX_DIR: z.string().min(1).default('.mail-outbox'),
 
   AUTH_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(10),
   LOGIN_FAILURE_LIMIT: z.coerce.number().int().min(1).default(5),

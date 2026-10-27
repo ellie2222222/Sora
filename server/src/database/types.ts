@@ -14,6 +14,7 @@ import type { ColumnType, Generated, Kysely, Transaction } from 'kysely';
 import type {
   AccountStatus,
   AccountType,
+  CardNetwork,
   AiActionStatus,
   AiActionType,
   AiMessageRole,
@@ -65,6 +66,18 @@ export interface RefreshTokensTable {
   created_at: Timestamp;
 }
 
+/** One open emailed code per user (API §5.8–5.9); `code_hash` is an HMAC, never the code. */
+export interface EmailVerificationsTable {
+  user_id: string;
+  email: string;
+  code_hash: string;
+  attempts: Generated<number>;
+  expires_at: Timestamp;
+  sent_at: Timestamp;
+  window_started_at: Timestamp;
+  sends_in_window: Generated<number>;
+}
+
 export interface WalletsTable {
   id: Generated<string>;
   owner_user_id: string;
@@ -110,6 +123,9 @@ export interface AccountsTable {
   currency: string;
   initial_balance: Money;
   status: Generated<AccountStatus>;
+  institution_name: string | null;
+  card_network: CardNetwork | null;
+  card_last4: string | null;
   created_at: Timestamp;
   updated_at: Timestamp;
 }
@@ -265,6 +281,7 @@ export interface IdempotencyKeysTable {
 export interface DB {
   users: UsersTable;
   refresh_tokens: RefreshTokensTable;
+  email_verifications: EmailVerificationsTable;
   wallets: WalletsTable;
   wallet_members: WalletMembersTable;
   wallet_invitations: WalletInvitationsTable;

@@ -631,6 +631,7 @@ its constraints and indexes, is declared where this table points.
 | `exchange_rate_snapshots` | [`001_schema.sql:556`](../../db/migrations/001_schema.sql#L556) |
 | `ai_conversations`, `ai_messages` | [`001_schema.sql:580`](../../db/migrations/001_schema.sql#L580), [`:594`](../../db/migrations/001_schema.sql#L594) |
 | `idempotency_keys` | [`003_idempotency_keys.sql:10`](../../db/migrations/003_idempotency_keys.sql#L10) |
+| `email_verifications` | [`007_email_verifications.sql:11`](../../db/migrations/007_email_verifications.sql#L11), send window [`008_email_verification_send_window.sql:9`](../../db/migrations/008_email_verification_send_window.sql#L9) |
 
 Later migrations in [`db/migrations/`](../../db/migrations/) amend these; [`db/tests/`](../../db/tests/) probes each constraint.
 

@@ -80,7 +80,7 @@ Three kinds of app can run Sora's code. Pick one, then follow its flow below.
 | | **Development build** (default) | **Expo Go** | **Preview / release APK** |
 |---|---|---|---|
 | What it is | Sora itself (`com.sora.app`), built on your PC, loading code from Metro | Expo's Play Store app (`host.exp.exponent`), running Sora's code inside it | A standalone Sora with the code built in |
-| Needs a build | Once, and again after a native change (a package with native code, `app.json`) | No | Every release |
+| Needs a build | Once, and again after a native change (a package with native code, `app.json`; see [After adding a package with native code](#after-adding-a-package-with-native-code)) | No | Every release |
 | Live reload | Yes | Yes | No |
 | Google sign-in | Yes | **No**: Google rejects its `exp://` return address | Yes, if its signing SHA-1 is registered |
 | Start Metro with | `npm run dev:mobile` | `npm run dev:mobile:go` | — |
@@ -150,6 +150,34 @@ Follow [Building the mobile app](#building-the-mobile-app). Set `EXPO_PUBLIC_API
    comma-separated `GOOGLE_CLIENT_ID` (root `.env`); restart the API.
 3. Use a development build (Flow 1–3) or an APK. Changes in Google's console can take minutes to hours to apply.
 
+### After adding a package with native code
+
+A development build carries the native code it was built with; Metro only ships JavaScript. A package with
+native code does nothing on a phone until the build there is rebuilt, and importing it there fails at once
+(see the `getEnforcing` row under [When it goes wrong](#when-it-goes-wrong)).
+
+1. Add the package from `mobile/` with `npx expo install <package>`: it picks the version this Expo SDK
+   supports. Then `node scripts/audit-runtime-deps.mjs` must report no unaccepted advisories.
+2. Confirm Expo will link it: `npx expo-modules-autolinking react-native-config --json --platform android`
+   (from `mobile/`) lists the package under `dependencies`.
+3. Connect the phone (Flow 1, step 1). `adb devices` must list it as `device`, not `unauthorized`.
+4. Free memory: quit Docker Desktop and heavy apps (Gradle needs several GB).
+5. Build and install:
+   - Metro **not** running: `npm run dev:mobile:build` (repo root).
+   - Metro already running (keep it): from `mobile/`,
+     `npx expo prebuild --platform android && npx expo run:android --no-bundler`. `--no-bundler` stops it
+     starting a second Metro that would fight yours for port 8081.
+   A first native build takes several minutes; later ones are quicker.
+6. `adb reverse tcp:3000 tcp:3000` and `adb reverse tcp:8081 tcp:8081`, then open **Sora** on the phone. If
+   no Metro is running, start it with `npm run dev:mobile:usb`.
+7. Check the build has it: use the feature itself. When in doubt, check the build:
+   - `mobile/android/build/generated/autolinking/autolinking.json` names the package;
+   - the APK carries its Java package (from the package's `android/src/main/java/...` path, e.g.
+     `fr/greweb/reactnativeviewshot` → `reactnativeviewshot`):
+     `unzip -p mobile/android/app/build/outputs/apk/debug/app-debug.apk 'classes*.dex' | grep -a -c <java-package>`
+     prints more than `0`.
+8. Every teammate (and CI's E2E APK) needs the same rebuild; say so when the change lands.
+
 ### Test accounts
 
 `npm run db:seed` creates four demo users through the running API, and `npm run db:seed:passwords`
@@ -169,6 +197,8 @@ sets their password to `1`. See [Demo data](#demo-data).
 | Google: `Error 400: invalid_request`, `redirect_uri=exp://…` | Signing in from Expo Go | Use a development build (Flow 1) |
 | Google page doesn't return to the app | `android/` predates the `com.sora.app` scheme, or the client lacks *Custom URI scheme* | `npm run dev:mobile:build` (regenerates `android/`); check Flow 6 step 1 |
 | Read the device's own crash report | — | `adb logcat -b crash -d` |
+| A feature backed by native code does nothing | The development build on the device predates the package; check the APK's date (`mobile/android/app/build/outputs/apk/debug/`) against when the package was added | Rebuild: [After adding a package with native code](#after-adding-a-package-with-native-code) |
+| Red screen `TurboModuleRegistry.getEnforcing(...): '<Name>' could not be found` | JavaScript imports a native package the installed build doesn't have | Rebuild as above. Code for an optional native feature should check `TurboModuleRegistry.get('<Name>')` before importing the package, and fall back when it is missing |
 
 ## Building the mobile app
 
@@ -283,10 +313,16 @@ but can't finish the sign-in: its `exp://…` redirect gets `Error 400: invalid_
 
 **The assistant's model.** With `GEMINI_API_KEY` set, chat replies come from Google Gemini. The models are `GEMINI_MODEL`, default `gemini-3.8-flash`, then `GEMINI_FALLBACK_MODEL`, default `gemini-3.1-flash-lite`. Without the key, a deterministic keyword assistant answers. It is meant for development and tests, and it is never used as a fallback when Gemini fails.
 
+**Email.** Password accounts confirm their address with an emailed 6-digit code (API §5.8). Set
+`SMTP_URL` (`smtps://user:pass@host:465`, any provider's SMTP) and `MAIL_FROM`. Without `SMTP_URL`,
+development writes each message to `MAIL_OUTBOX_DIR` (default `.mail-outbox/` in the server's
+working directory, gitignored): open the newest file there to read a code. Production without it
+answers `503 EMAIL_DELIVERY_UNAVAILABLE` and sends nothing.
+
 **Rotating `JWT_SECRET`** invalidates every outstanding access and refresh token immediately —
 every signed-in user is forced to log in again. There is no dual-secret grace period. Only do
 this deliberately (suspected leak, scheduled rotation), and expect a support-load spike right
-after.
+after. It also voids any emailed verification code still open, since codes are hashed with it.
 
 ## Troubleshooting
 
