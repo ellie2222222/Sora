@@ -21,10 +21,20 @@ const ACCEPTED = {
     reason:
       'node-forge <=1.4.0 has no fixed release; only @expo/cli (build tooling, not bundled into the app) depends on it',
   },
-  'GHSA-vfj7-8cjw-p6xm': {
-    reviewBy: '2026-11-02',
+  'GHSA-27r3-jxmh-p828': {
+    reviewBy: '2026-11-05',
     reason:
-      'braces <=3.0.3 has no fixed release; only tailwindcss 3 (nativewind\'s build-time compiler, never bundled into the app) depends on it, and npm\'s only fix is a major tailwindcss 4 upgrade',
+      'body-parser 2.4.0 (via express 5) was published 2026-10-22; take it once it is two weeks old',
+  },
+  'GHSA-q7qp-rjg7-q26m': {
+    reviewBy: '2026-11-05',
+    reason:
+      'multer 2.5.0 was published 2026-10-22; no route accepts a file upload, so multer never runs on a request meanwhile',
+  },
+  'GHSA-mrhx-c7xc-m3w5': {
+    reviewBy: '2026-11-26',
+    reason:
+      'fixed only in zod 4.6.6, a major upgrade from zod 3; no contract schema validates an array or set, and request bodies stop at express\'s 100 kB default',
   },
 };
 
