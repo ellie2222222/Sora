@@ -27,6 +27,7 @@ export type AppDispatch = typeof store.dispatch;
 export type AppStore = typeof store;
 
 export * from './api/index.ts';
+export * from './apiActivity.ts';
 export * from './authSlice.ts';
 export * from './hooks.ts';
 export * from './offlineQueueSlice.ts';
