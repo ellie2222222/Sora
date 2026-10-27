@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, TrendingDown, TrendingUp } from 'lucide-react-native';
 import type { CategorySpendSlice, CurrencyTotal } from '@sora/contracts';
 
-import { DonutChart, Money, SectionLabel, Text } from '@/components';
+import { DonutChart, Money, SectionLabel, Text, ThemedIcon, ThemedView } from '@/components';
 import { useTheme } from '@/app/providers';
 import { formatMoneyString, groupByTopLevel, rankCategories, type CategoryNode, type RankedCategory } from '@/utils';
 
@@ -60,6 +60,7 @@ export function CategoryBreakdown({
       <View className="items-center" style={{ gap: theme.spacing.md }}>
         <DonutChart
           slices={slices}
+          callouts
           centerLabel={
             expenseTotal !== undefined
               ? formatMoneyString(expenseTotal.amount, expenseTotal.currency, { compact: true, hideCurrency: true })
@@ -81,20 +82,20 @@ export function CategoryBreakdown({
                 style={{ paddingVertical: theme.spacing.xs, minHeight: theme.sizes.touchTarget }}
               >
                 <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-                  <View
+                  <ThemedView
                     className="rounded-pill"
                     style={{ width: theme.sizes.dot.md, height: theme.sizes.dot.md, backgroundColor: group.color ?? theme.colors.primary }}
                   />
                   {group.hasChildren ? (
                     expanded === group.id ? (
-                      <ChevronDown size={theme.iconSize.sm} color={theme.colors.textMuted} />
+                      <ThemedIcon icon={ChevronDown} size={theme.iconSize.sm} color={theme.colors.textMuted} />
                     ) : (
-                      <ChevronRight size={theme.iconSize.sm} color={theme.colors.textMuted} />
+                      <ThemedIcon icon={ChevronRight} size={theme.iconSize.sm} color={theme.colors.textMuted} />
                     )
                   ) : null}
                   <Text>{group.name}</Text>
                 </View>
-                <Text tone="muted">{group.percentage.toFixed(0)}%</Text>
+                <Text tone="muted">{t('common.percent', { percent: group.percentage.toFixed(0) })}</Text>
               </Pressable>
 
               {group.hasChildren && expanded === group.id
@@ -111,7 +112,7 @@ export function CategoryBreakdown({
                         {slice.categoryName}
                       </Text>
                       <Text variant="caption" tone="muted">
-                        {slice.percentage.toFixed(0)}%
+                        {t('common.percent', { percent: slice.percentage.toFixed(0) })}
                       </Text>
                     </Pressable>
                   ))
@@ -151,11 +152,20 @@ function TopCategoryRow({
   const theme = useTheme();
   const { t } = useTranslation();
   const { slice, rank, changePercent, isNew } = entry;
+  const showsChange = changePercent !== null && Math.abs(changePercent) >= 1;
+  const changeText = showsChange
+    ? t(changePercent > 0 ? 'dashboard.changeUpA11y' : 'dashboard.changeDownA11y', { change: Math.abs(changePercent) })
+    : isNew
+      ? t('dashboard.newThisPeriod')
+      : null;
 
   return (
     <Pressable
       testID={`dashboard-top-category-${slice.categoryId}`}
       accessibilityRole="button"
+      accessibilityLabel={[`${rank}. ${slice.categoryName}`, formatMoneyString(slice.amount, currency), changeText]
+        .filter((part) => part !== null)
+        .join(', ')}
       onPress={() => onPress?.(slice.categoryId)}
       className="flex-row items-center justify-between"
       style={{ paddingVertical: theme.spacing.xs, minHeight: theme.sizes.touchTarget }}
@@ -164,7 +174,7 @@ function TopCategoryRow({
         <Text variant="caption" tone="muted">
           {rank}
         </Text>
-        <View
+        <ThemedView
           className="rounded-pill"
           style={{ width: theme.sizes.dot.md, height: theme.sizes.dot.md, backgroundColor: slice.color ?? theme.colors.primary }}
         />
@@ -174,15 +184,15 @@ function TopCategoryRow({
       </View>
 
       <View className="flex-row items-center" style={{ gap: theme.spacing.sm }}>
-        {changePercent !== null && Math.abs(changePercent) >= 1 ? (
+        {showsChange ? (
           <View className="flex-row items-center" style={{ gap: theme.spacing.xxs }}>
             {changePercent > 0 ? (
-              <TrendingUp size={theme.iconSize.xs} color={theme.colors.expense} />
+              <ThemedIcon icon={TrendingUp} size={theme.iconSize.xs} color={theme.colors.expense} />
             ) : (
-              <TrendingDown size={theme.iconSize.xs} color={theme.colors.income} />
+              <ThemedIcon icon={TrendingDown} size={theme.iconSize.xs} color={theme.colors.income} />
             )}
             <Text variant="caption" tone={changePercent > 0 ? 'danger' : 'muted'}>
-              {Math.abs(changePercent)}%
+              {t('common.percent', { percent: Math.abs(changePercent) })}
             </Text>
           </View>
         ) : isNew ? (
